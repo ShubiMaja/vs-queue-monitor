@@ -408,12 +408,29 @@ def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
 
 
 def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
-    """Latest queue position in the buffer and its run session (0 = no boundary seen in tail)."""
-    ev = walk_queue_position_events(data)
-    if not ev:
-        return None, 0
-    _t, pos, sess = ev[-1]
-    return pos, sess
+    """Latest queue position in the buffer and its run session (0 = no boundary seen in tail).
+
+    Uses the *last* queue phrase in **file order** (bottom of tail). ``walk_queue_position_events``
+    sorts by parsed line timestamps, which can reorder events and yield the wrong ``ev[-1]``
+    (e.g. 108) when the log order is the ground truth for “current” position.
+    """
+    last_pos: Optional[int] = None
+    session = 0
+    last_sess = 0
+    for line in data.splitlines():
+        if is_queue_run_boundary_line(line):
+            session += 1
+            continue
+        m = queue_position_match(line)
+        if not m:
+            continue
+        try:
+            pos = int(m.group(1))
+        except Exception:
+            continue
+        last_pos = pos
+        last_sess = session
+    return last_pos, last_sess
 
 
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
