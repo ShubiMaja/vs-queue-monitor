@@ -13,13 +13,13 @@
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "vs-q-monitor: Run GUI (auto-start)",
+      "name": "vs-q-monitor: Run GUI (no auto-start)",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/monitor.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": ["--start"],
+      "args": ["--no-start"],
       "env": {},
       "cwd": "${workspaceFolder}"
     }

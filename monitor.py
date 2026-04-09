@@ -617,7 +617,7 @@ def compute_seed_graph_from_log(
 
 
 class QueueMonitorApp(tk.Tk):
-    def __init__(self, initial_path: str = "", auto_start: bool = False) -> None:
+    def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
         super().__init__()
         self.title(f"Vintage Story Queue Monitor v{VERSION}")
         self.geometry("960x700")
@@ -850,8 +850,8 @@ class QueueMonitorApp(tk.Tk):
         top.columnconfigure(1, weight=1)
 
         play_wrap = tk.Frame(top, bg=UI_BG_CARD, highlightthickness=0, bd=0)
-        play_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 14), pady=(0, 2))
-        _play_font = ("Segoe UI", 26, "bold") if sys.platform.startswith("win") else ("TkDefaultFont", 24, "bold")
+        play_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 12), pady=(0, 2))
+        _play_font = ("Segoe UI", 13, "bold") if sys.platform.startswith("win") else ("TkDefaultFont", 12, "bold")
         self.start_stop_button = tk.Button(
             play_wrap,
             text="\u25b6",
@@ -862,11 +862,9 @@ class QueueMonitorApp(tk.Tk):
             cursor="hand2",
             relief=tk.FLAT,
             borderwidth=0,
-            padx=26,
-            pady=22,
-            highlightthickness=2,
-            highlightbackground=UI_BG_CARD,
-            highlightcolor=UI_BG_CARD,
+            padx=11,
+            pady=7,
+            highlightthickness=0,
         )
         self.start_stop_button.pack()
         self.update_start_stop_button()
@@ -1186,17 +1184,15 @@ class QueueMonitorApp(tk.Tk):
             return
         if self.running:
             self.start_stop_button.configure(
-                text="\u23f9",
+                text="\u25a0",
                 bg=UI_STOP_BTN_BG,
                 activebackground=UI_STOP_BTN_ACTIVE,
-                highlightbackground=UI_STOP_BTN_BG,
             )
         else:
             self.start_stop_button.configure(
                 text="\u25b6",
                 bg=UI_PLAY_BTN_BG,
                 activebackground=UI_PLAY_BTN_ACTIVE,
-                highlightbackground=UI_PLAY_BTN_BG,
             )
 
     def toggle_monitoring(self) -> None:
@@ -1402,6 +1398,7 @@ class QueueMonitorApp(tk.Tk):
             self._loading_spinner.stop()
             self._loading_spinner.grid_remove()
             self.start_stop_button.configure(state="normal")
+            self.update_start_stop_button()
 
     def start_monitoring(self) -> None:
         if self._starting:
@@ -1472,11 +1469,10 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             return
         self._starting = False
-        self._show_start_loading(False)
 
         if error is not None:
+            self._show_start_loading(False)
             self._set_status_line("Error")
-            self.update_start_stop_button()
             messagebox.showerror("Start failed", str(error))
             return
 
@@ -1491,7 +1487,8 @@ class QueueMonitorApp(tk.Tk):
         self._set_status_line("Monitoring")
         self.write_history(f"Monitoring started. Log file: {resolved}")
         self.persist_config()
-        self.update_start_stop_button()
+
+        self._show_start_loading(False)
 
         self._apply_seed_result(seed_data)
 
