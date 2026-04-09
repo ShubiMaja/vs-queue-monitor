@@ -17,6 +17,7 @@ import sys
 import time
 import traceback
 from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -184,6 +185,54 @@ def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[i
     return out
 
 
+TS_RE = re.compile(r"^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\b")
+
+
+def parse_log_timestamp_epoch(line: str) -> Optional[float]:
+    m = TS_RE.match(line)
+    if not m:
+        return None
+    try:
+        d, mo, y, hh, mm, ss = (int(m.group(i)) for i in range(1, 7))
+        return datetime(y, mo, d, hh, mm, ss).timestamp()
+    except Exception:
+        return None
+
+
+def extract_recent_points_from_log(log_file: Path, tail_bytes: int) -> list[tuple[float, int]]:
+    try:
+        with log_file.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            start = max(0, size - tail_bytes)
+            handle.seek(start)
+            raw = handle.read()
+    except Exception:
+        return []
+
+    data = decode_log_bytes(raw, start_offset=start)
+    out: list[tuple[float, int]] = []
+    last_t: Optional[float] = None
+
+    for line in data.splitlines():
+        m = QUEUE_RE.search(line)
+        if not m:
+            continue
+        try:
+            pos = int(m.group(1))
+        except Exception:
+            continue
+
+        t = parse_log_timestamp_epoch(line)
+        if t is None:
+            t = (last_t + 1.0) if last_t is not None else time.time()
+        last_t = t
+        out.append((t, pos))
+
+    out.sort(key=lambda x: x[0])
+    return out
+
+
 def find_current_queue_segment(positions: list[int]) -> list[int]:
     if not positions:
         return []
@@ -227,7 +276,6 @@ class QueueMonitorApp(tk.Tk):
 
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
-        self.session_epoch: float = time.time()
         self.job_id: Optional[str] = None
         self.current_log_file: Optional[Path] = None
         self.last_position: Optional[int] = None
@@ -236,6 +284,7 @@ class QueueMonitorApp(tk.Tk):
         self.active_popup: Optional[tk.Toplevel] = None
         self.graph_points: deque[tuple[float, int]] = deque(maxlen=MAX_GRAPH_POINTS)
         self.graph_canvas: Optional[tk.Canvas] = None
+        self.current_point: Optional[tuple[float, int]] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -369,6 +418,7 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_var.set("—")
 
         self.graph_points.clear()
+        self.current_point = None
         self.redraw_graph()
 
         self.persist_config()
@@ -434,7 +484,6 @@ class QueueMonitorApp(tk.Tk):
             self.resolved_path_var.set(str(resolved))
             self.running = True
             self.monitor_start_epoch = time.time()
-            self.session_epoch = time.time()
             self.status_var.set("Monitoring")
             self.write_history(f"Monitoring started. Log file: {resolved}")
             self.persist_config()
@@ -461,11 +510,13 @@ class QueueMonitorApp(tk.Tk):
 
     def seed_graph_from_log(self, log_file: Path) -> None:
         tail_bytes = SEED_LOG_TAIL_BYTES
+        points: list[tuple[float, int]] = []
         positions: list[int] = []
         segment: list[int] = []
 
         while True:
-            positions = extract_recent_positions_from_log(log_file, tail_bytes)
+            points = extract_recent_points_from_log(log_file, tail_bytes)
+            positions = [p for _t, p in points]
             segment = find_current_queue_segment(positions)
 
             # If the segment doesn't include a detected "jump up" boundary and we
@@ -486,17 +537,13 @@ class QueueMonitorApp(tk.Tk):
         if not segment:
             return
 
-        now = time.time()
-        try:
-            spacing = float(self.poll_sec_var.get())
-        except Exception:
-            spacing = 2.0
-        spacing = max(0.2, min(10.0, spacing))
-
         self.graph_points.clear()
-        start_t = now - spacing * (len(segment) - 1)
-        for i, pos in enumerate(segment[-MAX_GRAPH_POINTS:]):
-            self.graph_points.append((start_t + i * spacing, pos))
+        # Keep only the points belonging to the detected "current queue" segment.
+        start_idx = max(0, len(positions) - len(segment))
+        segment_points = points[start_idx:][-MAX_GRAPH_POINTS:]
+        for item in segment_points:
+            self.graph_points.append(item)
+        self.current_point = segment_points[-1] if segment_points else None
         self.redraw_graph()
         self.write_history(
             "Seeded graph from log: "
@@ -551,7 +598,8 @@ class QueueMonitorApp(tk.Tk):
 
     def append_graph_point(self, position: int) -> None:
         now = time.time()
-        self.graph_points.append((now, position))
+        self.current_point = (now, position)
+        self.graph_points.append(self.current_point)
         self.redraw_graph()
 
     def format_duration(self, seconds: float) -> str:
@@ -664,22 +712,19 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
         canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill="#555555")
 
-        historical_line = []
-        session_line = []
+        line = []
         for t, v in points:
-            target = session_line if t >= self.session_epoch else historical_line
-            target.extend([x_of(t), y_of(v)])
+            line.extend([x_of(t), y_of(v)])
 
-        if len(historical_line) >= 4:
-            canvas.create_line(*historical_line, fill="#a0a0a0", width=2, smooth=False)
-        if len(session_line) >= 4:
-            canvas.create_line(*session_line, fill="#2b7cff", width=2, smooth=False)
+        if len(line) >= 4:
+            canvas.create_line(*line, fill="#2b7cff", width=2, smooth=False)
 
-        last_t, last_v = points[-1]
+        marker = self.current_point or points[-1]
+        last_t, last_v = marker
         lx = x_of(last_t)
         ly = y_of(last_v)
-        canvas.create_oval(lx - 3, ly - 3, lx + 3, ly + 3, outline="#2b7cff", fill="#2b7cff")
-        canvas.create_text(lx + 8, ly, anchor="w", text=str(last_v), fill="#2b7cff")
+        canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, outline="#d12c2c", fill="#d12c2c")
+        canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill="#d12c2c")
 
     def compute_alert(self, position: int) -> tuple[bool, str]:
         now = time.time()
