@@ -7,9 +7,14 @@ alwaysApply: true
 
 When you finish a coherent set of edits or complete a user-requested task in this project:
 
-1. **Commit** — Run `git add` for the files you changed (only intentional project files), then `git commit` with a message that states *what* changed and *why* in plain language.
-2. **Do not commit** build artifacts, `__pycache__/`, editor junk, or secrets unless the user explicitly wants them tracked.
-3. If there is nothing new to commit (already clean), skip.
-4. If the directory is not a git repository, say so once; do not fail silently on commit commands.
+1. **Check for errors before committing** (required):
+   - Run `python -m py_compile` on every changed `.py` file (or at minimum `monitor.py` if it was edited). Fix failures before committing.
+   - Use the editor/linter diagnostics tool on edited files; fix new issues before committing.
+   - If the project later adds tests or a linter (e.g. `pytest`, `ruff`), run those too when relevant.
+   - **Do not** create a commit while compile or lint checks still fail, unless the user explicitly says to commit anyway.
+2. **Commit** — Run `git add` for the files you changed (only intentional project files), then `git commit` with a message that states *what* changed and *why* in plain language.
+3. **Do not commit** build artifacts, `__pycache__/`, editor junk, or secrets unless the user explicitly wants them tracked.
+4. If there is nothing new to commit (already clean), skip.
+5. If the directory is not a git repository, say so once; do not fail silently on commit commands.
 
 Do not end a coding task that modified tracked files without attempting a commit, unless the user asked not to commit.
