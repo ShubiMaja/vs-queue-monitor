@@ -43,7 +43,6 @@ POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 360
 PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
-SEED_LOG_MAX_BYTES = 256 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 
 
@@ -527,12 +526,11 @@ class QueueMonitorApp(tk.Tk):
                 file_size = tail_bytes
 
             scanned_all = tail_bytes >= file_size
-            hit_cap = tail_bytes >= SEED_LOG_MAX_BYTES
             boundary_found = len(segment) > 0 and len(segment) < len(positions)
 
-            if boundary_found or scanned_all or hit_cap:
+            if boundary_found or scanned_all:
                 break
-            tail_bytes = min(SEED_LOG_MAX_BYTES, tail_bytes * 2)
+            tail_bytes = tail_bytes * 2
 
         if not segment:
             return
