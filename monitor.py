@@ -943,8 +943,12 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=UI_PROGRESS_TROUGH,
             lightcolor=UI_PROGRESS_TROUGH,
         )
+        # Horizontal progressbars resolve style "Thin.TProgressbar" to layout "Horizontal.Thin.TProgressbar";
+        # that layout must exist (copy from Horizontal.TProgressbar); -parent alone does not create it on Windows.
+        _thin_pb_style = "Horizontal.Thin.TProgressbar"
+        style.layout(_thin_pb_style, style.layout("Horizontal.TProgressbar"))
         style.configure(
-            "Thin.TProgressbar",
+            _thin_pb_style,
             troughcolor=UI_PROGRESS_TROUGH,
             background=UI_ACCENT_POSITION,
             thickness=3,
