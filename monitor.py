@@ -180,6 +180,10 @@ UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
 UI_SECTION_PAD = 12
+# Text / controls inset inside a pane’s client area (after LabelFrame padding). One rhythm for the whole UI.
+UI_INNER_PAD_X = 14
+UI_INNER_PAD_Y_SM = 8
+UI_INNER_PAD_Y_MD = 10
 # tk.PanedWindow vertical dividers (must match _fit_history_pane_collapsed math). Flat strip — no showhandle (avoids harsh 3D boxes on Windows).
 UI_PANE_SASH_WIDTH = 6
 UI_PANE_SASH_PAD = 3
@@ -188,24 +192,23 @@ UI_PANE_LABELFRAME_LABEL_MARGINS = (14, 10, 14, 6)
 UI_PANE_LABELFRAME_PAD = (14, 14, 14, 14)
 # Queue graph: same client padding as Status so pane titles and content columns line up.
 UI_GRAPH_LABELFRAME_PAD = UI_PANE_LABELFRAME_PAD
-# Black graph_stack: no extra L/R inset — same width as the summary strip above (only vertical gap).
-UI_GRAPH_STACK_PAD = (0, 8, 0, 16)
-# Inset of the plot canvas inside the black graph_stack: L, T, R, B (left small — Y-axis draws in pad_left).
-UI_GRAPH_DARK_INNER_PAD = (8, 12, 16, 18)
-# Extra top inset inside status_body (Pane LabelFrame already adds UI_PANE_LABELFRAME_PAD).
-# Horizontal alignment uses UI_SUMMARY_INNER_PAD_X on the details frame (matches graph summary strip).
-UI_STATUS_BODY_PAD_TOP = 16
-# Breathing room inside the dark summary strip (top/bottom and around STATUS row).
-UI_SUMMARY_INNER_PAD_X = 18
-UI_SUMMARY_INNER_PAD_Y_TOP = 18
-UI_SUMMARY_INNER_PAD_Y_BOTTOM = 16
+# Black graph_stack: full width; symmetric vertical gap to summary and bottom edge.
+UI_GRAPH_STACK_PAD = (0, UI_INNER_PAD_Y_SM, 0, UI_INNER_PAD_Y_SM)
+# Plot canvas inside graph_stack (Y-axis uses pad_left inside redraw_graph).
+UI_GRAPH_DARK_INNER_PAD = (10, UI_INNER_PAD_Y_MD, 10, 12)
+# Gap only — details frame supplies the rest (avoid double top spacing in Status).
+UI_STATUS_BODY_PAD_TOP = UI_INNER_PAD_Y_SM
+# KPI strip: one horizontal gutter; balanced vertical padding.
+UI_SUMMARY_INNER_PAD_X = UI_INNER_PAD_X
+UI_SUMMARY_INNER_PAD_Y_TOP = UI_INNER_PAD_Y_MD
+UI_SUMMARY_INNER_PAD_Y_BOTTOM = UI_INNER_PAD_Y_MD
 # Below this window width, rate uses a shorter label so the status strip does not crowd.
 UI_RATE_COMPACT_WIDTH = 920
-# History: same horizontal inset as Queue graph / Status LabelFrames (UI_PANE_LABELFRAME_PAD L/R).
-UI_HISTORY_FRAME_PAD_EXPANDED = (14, 12, 14, 12)
-UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 2, 14, 0)
+# History: align with pane LabelFrame L/R; even vertical padding.
+UI_HISTORY_FRAME_PAD_EXPANDED = (14, UI_INNER_PAD_Y_MD, 14, UI_INNER_PAD_Y_MD)
+UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 4, 14, 0)
 UI_HISTORY_PANE_MIN_EXPANDED = 220
-UI_HISTORY_TEXT_PAD = 8
+UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -947,16 +950,16 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
-        outer = ttk.Frame(self, padding=(20, 18), style="App.TFrame")
+        outer = ttk.Frame(self, padding=(16, 16), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
         # Top: play/stop + one line: label, path entry, browse, settings.
-        top = ttk.Frame(outer, style="Card.TFrame", padding=(4, 0, 4, 10))
+        top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, UI_INNER_PAD_Y_MD))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
         play_wrap = ttk.Frame(top, style="Card.TFrame")
-        play_wrap.grid(row=0, column=0, sticky="nw", padx=(0, 12), pady=(2, 2))
+        play_wrap.grid(row=0, column=0, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=(0, 0))
         self.start_stop_button = ttk.Button(
             play_wrap,
             text="\u25b6",
@@ -968,28 +971,30 @@ class QueueMonitorApp(tk.Tk):
         self.update_start_stop_button()
 
         path_row = ttk.Frame(top, style="Card.TFrame")
-        path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+        path_row.grid(row=0, column=1, sticky="ew", pady=(0, 0))
         path_row.columnconfigure(0, weight=1)
         path_left = ttk.Frame(path_row, style="Card.TFrame")
         path_left.grid(row=0, column=0, sticky="ew")
         path_left.columnconfigure(1, weight=1)
-        ttk.Label(path_left, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(4, 8))
+        ttk.Label(path_left, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
         entry = ttk.Entry(path_left, textvariable=self.source_path_var)
-        entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+        entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
-        ttk.Button(path_actions, text="Browse file", command=self.browse_file).pack(side="left", padx=(0, 6))
-        ttk.Button(path_actions, text="Browse folder", command=self.browse_folder).pack(side="left", padx=(0, 8))
+        ttk.Button(path_actions, text="Browse file", command=self.browse_file).pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        ttk.Button(path_actions, text="Browse folder", command=self.browse_folder).pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
             text="\u2699  Settings",
             command=self.open_settings,
         )
-        self._settings_btn.pack(side="left", padx=(8, 4))
+        self._settings_btn.pack(side="left", padx=(UI_INNER_PAD_Y_SM, 0))
 
-        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
+        ttk.Separator(top, orient=tk.HORIZONTAL).grid(
+            row=1, column=0, columnspan=2, sticky="ew", pady=(UI_INNER_PAD_Y_MD, UI_SECTION_PAD)
+        )
 
         # Classic tk.PanedWindow: flat sash + resize cursor. showhandle/GROOVE draws light-bordered Motif boxes on Windows.
         panes = tk.PanedWindow(
@@ -1028,7 +1033,7 @@ class QueueMonitorApp(tk.Tk):
 
         # POSITION / STATUS / RATE / elapsed / remaining + progress (one dark “instrument” strip, then chart).
         summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
-        summary.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        summary.grid(row=0, column=0, sticky="ew", pady=(0, 0))
         summary.columnconfigure(0, weight=0)
         summary.columnconfigure(1, weight=0)
         summary.columnconfigure(2, weight=0)
@@ -1040,28 +1045,28 @@ class QueueMonitorApp(tk.Tk):
 
         tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="nw", padx=(_spx, 8), pady=(_spy, 4))
+        ).grid(row=0, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
         tk.Label(
             summary,
             text="STATUS",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_STATUS,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="nw", padx=(8, 8), pady=(_spy, 4))
+        ).grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
         tk.Label(
             summary,
             text="RATE",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_RATE,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=2, sticky="nw", padx=(8, 8), pady=(_spy, 4))
+        ).grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
         tk.Label(
             summary,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
-        ).grid(row=1, column=0, sticky="nw", padx=(_spx, 8), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        ).grid(row=1, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
@@ -1069,17 +1074,23 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
         )
-        self._status_value_label.grid(row=1, column=1, sticky="nw", padx=(8, 8), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        self._status_value_label.grid(
+            row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+        )
         tk.Label(
             summary,
             textvariable=self.queue_rate_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
-        ).grid(row=1, column=2, sticky="nw", padx=(8, 8), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        ).grid(
+            row=1, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+        )
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        time_pair.grid(row=0, column=4, rowspan=2, sticky="ne", padx=(8, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        time_pair.grid(
+            row=0, column=4, rowspan=2, sticky="ne", padx=(UI_INNER_PAD_Y_SM, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+        )
         time_pair.columnconfigure(0, weight=0)
         time_pair.columnconfigure(1, weight=0)
         tk.Label(
@@ -1098,18 +1109,18 @@ class QueueMonitorApp(tk.Tk):
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="nw", padx=(16, 0))
+        ).grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0))
         tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
-        ).grid(row=1, column=1, sticky="nw", padx=(16, 0), pady=(2, 0))
+        ).grid(row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
 
         # Separator: scannability between KPI row and progress (same panel as metrics).
         _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
-        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(0, 0), pady=(8, 0))
+        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(0, 0), pady=(UI_INNER_PAD_Y_MD, 0))
 
         pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
         pbar_frame.grid(
@@ -1118,7 +1129,7 @@ class QueueMonitorApp(tk.Tk):
             columnspan=5,
             sticky="ew",
             padx=(0, 0),
-            pady=(10, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
+            pady=(UI_INNER_PAD_Y_SM, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
         )
         pbar_frame.columnconfigure(0, weight=1)
         tk.Label(
@@ -1129,7 +1140,7 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 8),
             wraplength=720,
             justify="left",
-        ).grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, 6))
+        ).grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, UI_INNER_PAD_Y_SM))
         self._queue_progress = ttk.Progressbar(
             pbar_frame,
             mode="determinate",
@@ -1214,7 +1225,7 @@ class QueueMonitorApp(tk.Tk):
         history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
         history_tab_strip.grid(row=0, column=0, sticky="ew")
         ttk.Label(history_tab_strip, text="History", style="Pane.TLabelframe.Label").pack(
-            side="left", padx=(0, 6), pady=(2, 0)
+            side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0)
         )
         self._history_tab_btn = ttk.Button(
             history_tab_strip,
@@ -1223,10 +1234,10 @@ class QueueMonitorApp(tk.Tk):
             style="HistoryTab.TButton",
             command=self._toggle_history_panel,
         )
-        self._history_tab_btn.pack(side="left", padx=(0, 0), pady=(2, 0))
+        self._history_tab_btn.pack(side="left", padx=(0, 0), pady=(0, 0))
 
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
-        self._history_sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
+        self._history_sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
 
         self._history_body = tk.Frame(self.history_frame, bg=UI_SUMMARY_BG, bd=0, highlightthickness=0)
         self._history_body.rowconfigure(0, weight=1)
@@ -1239,7 +1250,12 @@ class QueueMonitorApp(tk.Tk):
 
         details = ttk.Frame(
             status_body,
-            padding=(UI_SUMMARY_INNER_PAD_X, UI_SECTION_PAD, UI_SUMMARY_INNER_PAD_X, UI_SECTION_PAD),
+            padding=(
+                UI_SUMMARY_INNER_PAD_X,
+                UI_INNER_PAD_Y_MD,
+                UI_SUMMARY_INNER_PAD_X,
+                UI_INNER_PAD_Y_MD,
+            ),
             style="Card.TFrame",
         )
         details.grid(row=0, column=0, sticky="ew", pady=(0, 0))
@@ -1247,17 +1263,18 @@ class QueueMonitorApp(tk.Tk):
         details.columnconfigure(3, weight=1)
 
         wrap = 420
-        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(6, 4))
+        _dpy = (UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM)
+        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
         ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
-            row=0, column=1, sticky="nw", padx=(0, 4), pady=(6, 4)
+            row=0, column=1, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
         )
-        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, 10), pady=(6, 4))
+        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
         ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
-            row=0, column=3, sticky="nw", padx=(0, 4), pady=(6, 4)
+            row=0, column=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
         )
-        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, 10), pady=(6, 4))
+        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
         ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
-            row=1, column=1, columnspan=3, sticky="nw", padx=(0, 4), pady=(6, 4)
+            row=1, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
         )
 
         self.history_text = tk.Text(
@@ -1274,7 +1291,7 @@ class QueueMonitorApp(tk.Tk):
             highlightthickness=0,
             borderwidth=0,
         )
-        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(2, 0))
+        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
@@ -1518,7 +1535,7 @@ class QueueMonitorApp(tk.Tk):
             history.configure(padding=UI_HISTORY_FRAME_PAD_EXPANDED)
             body.grid(row=2, column=0, sticky="nsew")
             if sep is not None:
-                sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
+                sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
             history.rowconfigure(2, weight=1)
             try:
                 panes.paneconfigure(history, minsize=UI_HISTORY_PANE_MIN_EXPANDED, stretch="always")
@@ -1632,9 +1649,9 @@ class QueueMonitorApp(tk.Tk):
         if show:
             self.start_stop_button.state(["disabled"])
             if self._settings_btn is not None:
-                self._loading_spinner.pack(side="left", padx=(8, 8), before=self._settings_btn)
+                self._loading_spinner.pack(side="left", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), before=self._settings_btn)
             else:
-                self._loading_spinner.pack(side="left", padx=(8, 8))
+                self._loading_spinner.pack(side="left", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
             self._loading_spinner.start(12)
         else:
             self._loading_spinner.stop()
