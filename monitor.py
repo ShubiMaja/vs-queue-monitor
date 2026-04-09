@@ -667,6 +667,7 @@ class QueueMonitorApp(tk.Tk):
         self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
+        self._graph_y_scale_btn: Optional[ttk.Button] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
@@ -702,6 +703,7 @@ class QueueMonitorApp(tk.Tk):
 
         self._build_ui()
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
+        self.graph_log_scale_var.trace_add("write", lambda *_: self._update_graph_y_scale_button_text())
         self._bind_config_persist_traces()
         self.start_timer()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -873,11 +875,22 @@ class QueueMonitorApp(tk.Tk):
 
         graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
         graph_frame.columnconfigure(0, weight=1)
-        graph_frame.rowconfigure(0, weight=1)
+        graph_frame.rowconfigure(1, weight=1)
+        graph_bar = ttk.Frame(graph_frame, style="Card.TFrame")
+        graph_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(4, 2))
+        graph_bar.columnconfigure(0, weight=1)
+        self._graph_y_scale_btn = ttk.Button(
+            graph_bar,
+            text="Y: log",
+            width=11,
+            command=self._toggle_graph_y_scale,
+        )
+        self._graph_y_scale_btn.grid(row=0, column=1, sticky="e")
+        self._update_graph_y_scale_button_text()
         self.graph_canvas = tk.Canvas(
             graph_frame, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
         )
-        self.graph_canvas.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.graph_canvas.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
@@ -1062,17 +1075,11 @@ class QueueMonitorApp(tk.Tk):
             side="left", padx=(0, 0)
         )
 
-        display_fr = ttk.LabelFrame(outer, text="Graph & prediction", padding=(10, 8))
+        display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
 
-        ttk.Checkbutton(
-            display_fr,
-            text="Log scale on graph Y axis",
-            variable=self.graph_log_scale_var,
-            command=self.redraw_graph,
-        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
-        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=1, sticky="w", padx=(0, 8))
-        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=2, sticky="w")
+        ttk.Label(display_fr, text="Window (points)").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=1, sticky="w")
 
         bottom = ttk.Frame(outer, style="Card.TFrame")
         bottom.pack(fill="x", pady=(8, 0))
@@ -2076,6 +2083,19 @@ class QueueMonitorApp(tk.Tk):
                     self._queue_progress["value"] = 0.0
             else:
                 self._queue_progress["value"] = 0.0
+
+    def _update_graph_y_scale_button_text(self) -> None:
+        btn = self._graph_y_scale_btn
+        if btn is None:
+            return
+        if self.graph_log_scale_var.get():
+            btn.configure(text="Y: log")
+        else:
+            btn.configure(text="Y: linear")
+
+    def _toggle_graph_y_scale(self) -> None:
+        self.graph_log_scale_var.set(not self.graph_log_scale_var.get())
+        self.redraw_graph()
 
     def redraw_graph(self) -> None:
         canvas = self.graph_canvas
