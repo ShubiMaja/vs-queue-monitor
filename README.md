@@ -104,7 +104,7 @@ python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData/cl
 python3 monitor.py --path "$HOME/.config/VintagestoryData/client-main.log"
 ```
 
-Exact Vintage Story data locations depend on your install; use the **File or directory** field in the app if unsure.
+Exact Vintage Story data locations depend on your install; use the **Log location** field in the app if unsure.
 
 ## Log file
 
@@ -115,27 +115,124 @@ The game writes queue lines similar to:
 
 The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...`). On macOS or Linux, browse to your Vintage Story data folder or paste the full path to `client-main.log`. If you pass a **directory**, the app searches for `client-main.log` (and a few fallbacks) under common layouts.
 
-## Features (short)
+## Features
 
-| Area | Behavior |
-|------|----------|
-| **Queue graph** | Position, status, rate, elapsed, remaining, wait-progress bar, then the time-series chart (optional log-scaled Y) |
-| **Status** | Last change, alerts, resolved log path |
-| **Alerts** | Comma-separated thresholds; **default** `10, 5, 3, 2, 1`. One alert per threshold per downward crossing per queue run |
-| **Reconnect / interrupt** | Distinguishes grace-period TCP errors vs final teardown; optional log-silence detection; **Interrupted** freezes elapsed but **keeps tailing** the log |
-| **New queue** | After an interrupt, if a **new queue run** appears in the log, a dialog offers to **re-seed** the graph for that run |
-| **Config** | Settings and window geometry persist to JSON (see below) |
+### Window layout
+
+- Three vertical **panes** — **Queue graph** (top), **Status** (middle), **History** (bottom) — separated by **draggable sashes**.
+- **Status** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
+- Dark, **tooltip-heavy** UI (hover for control explanations).
+
+### Log location and resolution
+
+- **Log location** field plus **Browse file** / **Browse folder** to pick a path. Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
+- **Direct file:** any readable path to a log file is used as-is.
+- **Folder:** resolves to `client-main.log` in common locations (`Logs/`, `logs/`), then falls back to searching for matching log filenames by modification time.
+- **Resolved path** is shown in the Status section when monitoring.
+
+### Monitoring
+
+- **Play / Stop** toggles tailing the log on an interval (**poll**, configurable in Settings).
+- On start, the app can **seed the graph** from a larger tail of the log (with a loading indicator) so you see recent queue history immediately.
+- **Timer (~10 Hz)** refreshes elapsed time, remaining ETA, and rate between log polls so values feel live.
+
+### Queue graph pane
+
+- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Elapsed**, **Remaining** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
+- **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
+- **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
+- Graph preferences persist (see **Configuration file**).
+
+### Status pane (collapsible)
+
+- Click the **Status** header bar or chevron to expand or collapse details.
+- When expanded, pane height fits **full content** (path, labels, wrapping text).
+- Shows **Last change**, **Last threshold alert**, and **Resolved log path** (and related labels).
+
+### History pane (collapsible)
+
+- Click **History** to show or hide the scrollable session log.
+- Logs path changes, queue updates (optional **every position change**), alerts, seed messages, errors, and warnings.
+
+### Alerts
+
+- **Comma-separated thresholds** (default `10, 5, 3, 2, 1`): an alert can fire when your position **crosses downward** through each threshold.
+- **Once per threshold per queue run** until the run resets (log boundary / new session / segmentation rules).
+- **Minimum interval** between popup/sound alerts to reduce duplicate fires from noisy logs.
+- **Popup** (optional): small always-on-top window with dismiss; auto-closes after a timeout.
+- **Sound** (optional, Windows): beep pattern; other platforms use the terminal bell fallback.
+
+### ETA, rate, and progress
+
+- **Remaining** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points).
+- **Minutes per position** is shown as **Rate**; can be **capped** using dwell logic so optimistic rates do not jump until you have waited long enough at the current position.
+- **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; **100%** at queue front (position ≤ 1); empty when interrupted or ETA unknown.
+- **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.
+
+### Connection and status line
+
+The status string reflects tail-of-log classification, for example:
+
+- **Monitoring** — queue line present, in queue (`position > 1`).
+- **Completed** — reached front (position ≤ 1); not overwritten by noisy “connecting” lines after that.
+- **Interrupted** — definitive disconnect / stale queue; **elapsed time freezes** but the log **keeps** being read.
+- **Reconnecting…** / **Connecting…** / **Waiting for log file** / **Error** as appropriate.
+- **Log silence:** no file growth for a long interval can show reconnect-style status (with guards so **Completed** is not clobbered when you are already at the front).
+
+### New queue after interrupt
+
+- If a **new queue run** appears in the log while in **Interrupted**, a dialog can offer to **load** it and **re-seed** the graph and alert state for that run.
+
+### Settings (gear)
+
+- **Thresholds** (comma-separated positions).
+- **Poll (s)** — seconds between log reads.
+- **Alert popup** / **Alert sound** / **Log every position change**.
+- **Window (points)** — rolling **prediction window** size for weighted rate / ETA.
+- **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
+- **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
+
+### Keyboard shortcuts
+
+- **Space** — start/stop monitoring (ignored when typing in a text field).
+- **Ctrl+M** — start/stop monitoring.
+
+### Command-line interface
+
+| Argument | Meaning |
+|----------|---------|
+| `--path PATH` | Initial log file or folder (same rules as **Log location**). |
+| `--no-start` | Open the UI **without** auto-starting monitoring. |
+
+### Tooltips
+
+- Most controls on the main window have **hover tooltips** (short explanations).
 
 ## Configuration file
 
-Saved automatically (debounced) when you change options:
+Saved automatically (debounced, ~450 ms after a change) when you change options, path text, or window geometry:
 
 | OS | Path |
 |----|------|
 | Windows | `%APPDATA%\vs-q-monitor\config.json` |
 | Linux/macOS | `$XDG_CONFIG_HOME/vs-q-monitor/config.json` or `~/.config/vs-q-monitor/config.json` |
 
-Typical keys: `source_path`, `alert_thresholds` (default `10, 5, 3, 2, 1`), `poll_sec`, `avg_window_points`, `show_log`, `graph_log_scale`, `popup_enabled`, `sound_enabled`, `show_every_change`, `window_geometry`.
+Typical keys:
+
+| Key | Purpose |
+|-----|---------|
+| `source_path` | Log location string |
+| `alert_thresholds` | Comma-separated thresholds (default `10, 5, 3, 2, 1`) |
+| `poll_sec` | Poll interval in seconds |
+| `avg_window_points` | Prediction window size (points) |
+| `show_log` | History pane expanded (content visible) |
+| `show_status` | Status pane expanded (content visible) |
+| `graph_log_scale` | Graph Y axis: log vs linear |
+| `popup_enabled` | Threshold alert popup |
+| `sound_enabled` | Threshold alert sound |
+| `show_every_change` | Log every queue position line vs only changes |
+| `window_geometry` | Last main window size/position |
+| `version` | App version string written at save time |
 
 ## Development
 
