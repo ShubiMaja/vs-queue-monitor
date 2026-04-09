@@ -584,7 +584,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_points_drawn: list[tuple[float, int]] = []
         self.graph_tooltip: Optional[tk.Toplevel] = None
         self.history_frame: Optional[ttk.LabelFrame] = None
-        self.panes: Optional[ttk.PanedWindow] = None
+        self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
@@ -713,7 +713,18 @@ class QueueMonitorApp(tk.Tk):
         ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
-        panes = ttk.PanedWindow(outer, orient="vertical")
+        # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
+        panes = tk.PanedWindow(
+            outer,
+            orient=tk.VERTICAL,
+            sashwidth=6,
+            sashrelief=tk.GROOVE,
+            sashpad=2,
+        )
+        try:
+            panes.configure(opaqueresize=True)
+        except Exception:
+            pass
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(12, 0))
 
@@ -788,9 +799,10 @@ class QueueMonitorApp(tk.Tk):
         self.history_frame.rowconfigure(0, weight=1)
         self.history_frame.columnconfigure(0, weight=1)
 
-        panes.add(graph_frame, weight=2)
-        panes.add(status, weight=0)
-        panes.add(self.history_frame, weight=3)
+        # stretch: extra vertical space goes mostly to graph + history; status stays content-sized.
+        panes.add(graph_frame, minsize=120, stretch="always")
+        panes.add(status, minsize=200, stretch="never")
+        panes.add(self.history_frame, minsize=100, stretch="always")
 
         details = ttk.Frame(status, padding=(8, 4, 8, 8))
         details.grid(row=1, column=0, sticky="ew")
@@ -941,7 +953,7 @@ class QueueMonitorApp(tk.Tk):
 
         if self.show_log_var.get():
             if str(history) not in pane_widgets:
-                panes.add(history, weight=3)
+                panes.add(history, minsize=100, stretch="always")
         else:
             if str(history) in pane_widgets:
                 panes.forget(history)
