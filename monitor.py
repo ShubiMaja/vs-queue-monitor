@@ -578,7 +578,7 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_var = tk.StringVar(value="—")
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
-        self.avg_speed_var = tk.StringVar(value="—")
+        self.queue_rate_var = tk.StringVar(value="—")
         _at_cfg = self.config.get("alert_thresholds")
         if isinstance(_at_cfg, str) and _at_cfg.strip():
             _alert_default = _at_cfg.strip()
@@ -885,12 +885,31 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 18, "bold"),
         ).grid(row=1, column=1, sticky="w", padx=(20, 0))
 
+        pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
+        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        pbar_frame.columnconfigure(0, weight=1)
+        rate_row = tk.Frame(pbar_frame, bg=UI_SUMMARY_BG)
+        rate_row.grid(row=0, column=0, sticky="ew")
+        tk.Label(
+            rate_row,
+            text="RATE",
+            bg=UI_SUMMARY_BG,
+            fg=UI_TEXT_MUTED,
+            font=("TkDefaultFont", 8, "bold"),
+        ).pack(side="left")
+        tk.Label(
+            rate_row,
+            textvariable=self.queue_rate_var,
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            font=("TkDefaultFont", 11),
+        ).pack(side="left", padx=(8, 0))
         self._queue_progress = ttk.Progressbar(
-            summary,
+            pbar_frame,
             mode="determinate",
             maximum=100.0,
         )
-        self._queue_progress.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
         self.history_frame = ttk.LabelFrame(panes, text="History", padding=(4, 6, 4, 4))
         self.history_frame.rowconfigure(0, weight=1)
@@ -906,18 +925,19 @@ class QueueMonitorApp(tk.Tk):
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
 
-        rows = [
-            ("Minutes / position (window)", self.avg_speed_var),
-            ("Last change", self.last_change_var),
-            ("Last threshold alert", self.last_alert_var),
-            ("Resolved log path", self.resolved_path_var),
-        ]
         wrap = 420
-        for idx, (label_text, var) in enumerate(rows):
-            row_idx = idx // 2
-            col = 0 if idx % 2 == 0 else 2
-            ttk.Label(details, text=label_text).grid(row=row_idx, column=col, sticky="nw", padx=(0, 10), pady=5)
-            ttk.Label(details, textvariable=var, wraplength=wrap).grid(row=row_idx, column=col + 1, sticky="nw", pady=5)
+        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
+            row=0, column=1, sticky="nw", pady=5
+        )
+        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
+            row=0, column=3, sticky="nw", pady=5
+        )
+        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
+            row=1, column=1, columnspan=3, sticky="nw", pady=5
+        )
 
         self.history_text = tk.Text(
             self.history_frame,
@@ -1127,7 +1147,7 @@ class QueueMonitorApp(tk.Tk):
         self.position_var.set("—")
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
-        self.avg_speed_var.set("—")
+        self.queue_rate_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
         if self._queue_progress is not None:
@@ -1658,6 +1678,13 @@ class QueueMonitorApp(tk.Tk):
         s = seconds % 60.0
         return f"{m:d}:{s:05.2f}"
 
+    @staticmethod
+    def _format_queue_rate(mpp: Optional[float]) -> str:
+        """Positions per minute from minutes per position (window estimate)."""
+        if mpp is not None and mpp > 0:
+            return f"{1.0 / mpp:.2f} pos/min"
+        return "—"
+
     def estimate_seconds_remaining(self) -> Optional[float]:
         current_pos = self.last_position
         if current_pos is None and self.current_point is not None:
@@ -1884,10 +1911,7 @@ class QueueMonitorApp(tk.Tk):
             self.predicted_remaining_var.set("—")
             mpp_raw = self._minutes_per_position_from_window()
             mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-            if mpp is not None:
-                self.avg_speed_var.set(f"{mpp:.2f} min/pos")
-            else:
-                self.avg_speed_var.set("—")
+            self.queue_rate_var.set(self._format_queue_rate(mpp))
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
             return
@@ -1926,10 +1950,7 @@ class QueueMonitorApp(tk.Tk):
         # ETA updates _pred_speed_scale; min/pos prefers empirical window throughput, else model.
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-        if mpp is not None:
-            self.avg_speed_var.set(f"{mpp:.2f} min/pos")
-        else:
-            self.avg_speed_var.set("—")
+        self.queue_rate_var.set(self._format_queue_rate(mpp))
 
         # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
         # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
