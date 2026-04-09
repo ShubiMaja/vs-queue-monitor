@@ -374,18 +374,28 @@ class QueueMonitorApp(tk.Tk):
         ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
-        graph_frame = ttk.LabelFrame(outer, text="Queue graph")
-        graph_frame.pack(fill="x", pady=(12, 0))
+        panes = ttk.PanedWindow(outer, orient="vertical")
+        panes.pack(fill="both", expand=True, pady=(12, 0))
+
+        graph_frame = ttk.LabelFrame(panes, text="Queue graph")
         graph_frame.columnconfigure(0, weight=1)
+        graph_frame.rowconfigure(0, weight=1)
         self.graph_canvas = tk.Canvas(graph_frame, height=170, highlightthickness=0, background="white")
-        self.graph_canvas.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
+        self.graph_canvas.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
-        status = ttk.LabelFrame(outer, text="Status")
-        status.pack(fill="x", pady=(12, 0))
+        status = ttk.LabelFrame(panes, text="Status")
         status.columnconfigure(0, weight=1)
+
+        self.history_frame = ttk.LabelFrame(panes, text="History")
+        self.history_frame.rowconfigure(0, weight=1)
+        self.history_frame.columnconfigure(0, weight=1)
+
+        panes.add(graph_frame, weight=2)
+        panes.add(status, weight=0)
+        panes.add(self.history_frame, weight=3)
 
         hero = ttk.Frame(status, padding=(8, 8, 8, 4))
         hero.grid(row=0, column=0, sticky="ew")
@@ -424,11 +434,6 @@ class QueueMonitorApp(tk.Tk):
             col = 0 if idx % 2 == 0 else 2
             ttk.Label(details, text=label_text).grid(row=row_idx, column=col, sticky="nw", padx=(0, 8), pady=4)
             ttk.Label(details, textvariable=var, wraplength=wrap).grid(row=row_idx, column=col + 1, sticky="nw", pady=4)
-
-        self.history_frame = ttk.LabelFrame(outer, text="History")
-        self.history_frame.pack(fill="both", expand=True, pady=(12, 0))
-        self.history_frame.rowconfigure(0, weight=1)
-        self.history_frame.columnconfigure(0, weight=1)
 
         self.history_text = tk.Text(self.history_frame, height=20, wrap="word", state="disabled")
         self.history_text.grid(row=0, column=0, sticky="nsew")
