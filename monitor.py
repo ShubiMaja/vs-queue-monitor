@@ -343,7 +343,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(settings, text="Poll sec").grid(row=0, column=6, sticky="w", padx=(0, 4))
         ttk.Entry(settings, width=6, textvariable=self.poll_sec_var).grid(row=0, column=7, padx=(0, 12))
 
-        ttk.Label(settings, text="Avg window").grid(row=0, column=8, sticky="w", padx=(0, 4))
+        ttk.Label(settings, text="Avg speed window size").grid(row=0, column=8, sticky="w", padx=(0, 4))
         ttk.Entry(settings, width=6, textvariable=self.avg_window_var).grid(row=0, column=9, padx=(0, 12))
 
         ttk.Checkbutton(settings, text="Popup", variable=self.popup_enabled_var).grid(row=0, column=10, padx=(0, 8))
