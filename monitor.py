@@ -795,6 +795,7 @@ class QueueMonitorApp(tk.Tk):
         ).grid(row=0, column=1, sticky="e")
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
+        # PanedWindow does not support highlightthickness on all Tk builds (e.g. Windows + Python 3.14).
         panes = tk.PanedWindow(
             outer,
             orient=tk.VERTICAL,
@@ -802,7 +803,6 @@ class QueueMonitorApp(tk.Tk):
             sashrelief=tk.FLAT,
             sashpad=2,
             bd=0,
-            highlightthickness=0,
         )
         try:
             panes.configure(opaqueresize=True)
