@@ -135,14 +135,14 @@ def read_latest_position(log_file: Path) -> Optional[int]:
     except Exception:
         return None
 
-    text = decode_log_bytes(raw)
+    text = decode_log_bytes(raw, start_offset=start)
     matches = QUEUE_RE.findall(text)
     if not matches:
         return None
     return int(matches[-1])
 
 
-def decode_log_bytes(raw: bytes) -> str:
+def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
     # Vintage Story logs are typically UTF-8, but some environments can produce UTF-16.
     # Heuristic: if the buffer has many NUL bytes, try UTF-16.
     if not raw:
@@ -151,7 +151,10 @@ def decode_log_bytes(raw: bytes) -> str:
     sample = raw[:4096]
     nul_ratio = sample.count(b"\x00") / max(1, len(sample))
     if nul_ratio > 0.05:
-        for enc in ("utf-16", "utf-16-le", "utf-16-be"):
+        # If we sliced from the middle of a UTF-16 file, ensure 2-byte alignment.
+        if start_offset % 2 == 1 and len(raw) > 1:
+            raw = raw[1:]
+        for enc in ("utf-16-le", "utf-16-be", "utf-16"):
             try:
                 return raw.decode(enc, errors="ignore")
             except Exception:
@@ -171,7 +174,7 @@ def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[i
     except Exception:
         return []
 
-    data = decode_log_bytes(raw)
+    data = decode_log_bytes(raw, start_offset=start)
     out: list[int] = []
     for match in QUEUE_RE.finditer(data):
         try:
