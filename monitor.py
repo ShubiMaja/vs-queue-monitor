@@ -179,8 +179,8 @@ UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
 UI_SECTION_PAD = 12
-# Extra inset inside Status (summary + details) so copy never sits on the Labelframe rim.
-UI_STATUS_INNER_PAD = UI_SECTION_PAD + 8
+# Inset for the dark summary strip inside Status (tk grid padx is reliable cross-platform).
+UI_STATUS_SUMMARY_PADX = 16
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -994,30 +994,36 @@ class QueueMonitorApp(tk.Tk):
         status = ttk.LabelFrame(
             panes,
             text="Status",
-            padding=(UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD),
+            padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD),
         )
         status.columnconfigure(0, weight=1)
 
         # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
         summary = tk.Frame(status, bg=UI_SUMMARY_BG)
-        summary.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 0))
+        summary.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=(UI_STATUS_SUMMARY_PADX, UI_STATUS_SUMMARY_PADX),
+            pady=(UI_SECTION_PAD, 0),
+        )
         summary.columnconfigure(0, weight=1)
         summary.columnconfigure(1, weight=1)
 
         tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="w", padx=(4, 0))
+        ).grid(row=0, column=0, sticky="w", padx=(10, 0))
         tk.Label(
             summary,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
-        ).grid(row=1, column=0, sticky="w", padx=(4, 0))
+        ).grid(row=1, column=0, sticky="w", padx=(10, 0))
 
         tk.Label(
             summary, text="STATUS", bg=UI_SUMMARY_BG, fg=UI_ACCENT_STATUS, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=1, sticky="w", padx=(18, 0))
+        ).grid(row=0, column=1, sticky="w", padx=(22, 0))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
@@ -1025,10 +1031,10 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
         )
-        self._status_value_label.grid(row=1, column=1, sticky="w", padx=(18, 0))
+        self._status_value_label.grid(row=1, column=1, sticky="w", padx=(22, 0))
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, 8))
+        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(28, 12))
         tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
         ).grid(row=0, column=0, sticky="w")
@@ -1055,7 +1061,7 @@ class QueueMonitorApp(tk.Tk):
         ).grid(row=1, column=1, sticky="w", padx=(20, 0))
 
         pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0), padx=(4, 4))
+        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0), padx=(10, 12))
         pbar_frame.columnconfigure(0, weight=1)
         rate_row = tk.Frame(pbar_frame, bg=UI_SUMMARY_BG)
         rate_row.grid(row=0, column=0, sticky="ew")
@@ -1113,7 +1119,13 @@ class QueueMonitorApp(tk.Tk):
             padding=(UI_SECTION_PAD + 2, UI_SECTION_PAD + 2, UI_SECTION_PAD + 2, UI_SECTION_PAD + 2),
             style="Card.TFrame",
         )
-        details.grid(row=1, column=0, sticky="ew", pady=(UI_SECTION_PAD, 0))
+        details.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=(UI_STATUS_SUMMARY_PADX, UI_STATUS_SUMMARY_PADX),
+            pady=(UI_SECTION_PAD, 0),
+        )
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
 
