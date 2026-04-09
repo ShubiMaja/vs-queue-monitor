@@ -552,7 +552,8 @@ class QueueMonitorApp(tk.Tk):
             return pad_x + (t - t0) / (t1 - t0) * plot_w
 
         def y_of(v: int) -> float:
-            return pad_y + (v - vmin) / (vmax - vmin) * plot_h
+            # Smaller queue positions should appear "lower" on the graph.
+            return pad_y + (vmax - v) / (vmax - vmin) * plot_h
 
         canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
         canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill="#555555")
