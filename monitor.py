@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Vintage Story Queue Monitor GUI
+vs-queue-monitor — Vintage Story queue monitor GUI
 Version: 1.0.0
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
@@ -345,6 +345,15 @@ def play_default_system_alert_sound() -> bool:
 def get_config_path() -> Path:
     if sys.platform.startswith("win"):
         base = Path(os.environ.get("APPDATA", Path.home()))
+        return base / "vs-queue-monitor" / "config.json"
+    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "vs-queue-monitor" / "config.json"
+
+
+def _legacy_config_path() -> Path:
+    """Previous config location before the project was renamed to vs-queue-monitor."""
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home()))
         return base / "vs-q-monitor" / "config.json"
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "vs-q-monitor" / "config.json"
@@ -353,14 +362,23 @@ def get_config_path() -> Path:
 def load_config() -> dict:
     path = get_config_path()
     try:
-        if not path.is_file():
-            return {}
-        with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        if isinstance(data, dict):
-            return data
+        if path.is_file():
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, dict):
+                return data
     except Exception:
-        return {}
+        pass
+    legacy = _legacy_config_path()
+    try:
+        if legacy.is_file():
+            with legacy.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, dict):
+                save_config(data)
+                return data
+    except Exception:
+        pass
     return {}
 
 
@@ -766,7 +784,7 @@ def compute_seed_graph_from_log(
 class QueueMonitorApp(tk.Tk):
     def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
         super().__init__()
-        self.title(f"Vintage Story Queue Monitor v{VERSION}")
+        self.title(f"vs-queue-monitor v{VERSION}")
         self.geometry("960x700")
         self.minsize(880, 580)
 
@@ -3417,7 +3435,7 @@ class QueueMonitorApp(tk.Tk):
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Vintage Story Queue Monitor GUI")
+    parser = argparse.ArgumentParser(description="vs-queue-monitor — Vintage Story queue monitor GUI")
     parser.add_argument("--path", dest="path", default="", help="Initial file or directory path")
     parser.add_argument(
         "--no-start",

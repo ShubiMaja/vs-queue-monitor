@@ -1,4 +1,4 @@
-# Vintage Story Queue Monitor
+# vs-queue-monitor
 
 Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **alerts** when you cross configurable thresholds (popup + optional sound on Windows).
 
@@ -39,7 +39,7 @@ No third-party pip dependencies.
 3. In **Terminal**:
 
    ```bash
-   cd /path/to/vs-q-monitor
+   cd /path/to/vs-queue-monitor
    python3 monitor.py
    ```
 
@@ -55,7 +55,7 @@ No third-party pip dependencies.
 2. Run:
 
    ```bash
-   cd /path/to/vs-q-monitor
+   cd /path/to/vs-queue-monitor
    python3 monitor.py
    ```
 
@@ -63,7 +63,7 @@ No third-party pip dependencies.
 
 ```bash
 sudo dnf install python3 python3-tkinter
-cd /path/to/vs-q-monitor
+cd /path/to/vs-queue-monitor
 python3 monitor.py
 ```
 
@@ -214,8 +214,10 @@ Saved automatically (debounced, ~450 ms after a change) when you change options,
 
 | OS | Path |
 |----|------|
-| Windows | `%APPDATA%\vs-q-monitor\config.json` |
-| Linux/macOS | `$XDG_CONFIG_HOME/vs-q-monitor/config.json` or `~/.config/vs-q-monitor/config.json` |
+| Windows | `%APPDATA%\vs-queue-monitor\config.json` |
+| Linux/macOS | `$XDG_CONFIG_HOME/vs-queue-monitor/config.json` or `~/.config/vs-queue-monitor/config.json` |
+
+If you used an older build, settings may load once from `%APPDATA%\vs-q-monitor\` (Windows) or `~/.config/vs-q-monitor/` (Unix) and are then saved under the new folder name.
 
 Typical keys:
 
