@@ -750,10 +750,13 @@ class QueueMonitorApp(tk.Tk):
         if width <= 10 or height <= 10:
             return
 
-        pad_x = 12
-        pad_y = 10
-        plot_w = max(1, width - 2 * pad_x)
-        plot_h = max(1, height - 2 * pad_y)
+        # Leave space for axis labels (especially X time labels).
+        pad_left = 58
+        pad_right = 12
+        pad_top = 10
+        pad_bottom = 28
+        plot_w = max(1, width - pad_left - pad_right)
+        plot_h = max(1, height - pad_top - pad_bottom)
 
         points = list(self.graph_points)
         if len(points) > MAX_DRAW_POINTS:
@@ -761,12 +764,16 @@ class QueueMonitorApp(tk.Tk):
             points = points[::step]
         self.graph_points_drawn = points
         if len(points) < 2:
-            canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
+            x0 = pad_left
+            y0 = pad_top
+            x1 = pad_left + plot_w
+            y1 = pad_top + plot_h
+            canvas.create_rectangle(x0, y0, x1, y1, outline="#d0d0d0")
             if len(points) == 1:
                 _t, pos = points[0]
-                canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"{pos}", fill="#555555")
+                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"{pos}", fill="#555555")
             else:
-                canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text="No data yet", fill="#777777")
+                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text="No data yet", fill="#777777")
             return
 
         t0 = points[0][0]
@@ -781,35 +788,52 @@ class QueueMonitorApp(tk.Tk):
             vmax = vmin + 1
 
         def x_of(t: float) -> float:
-            return pad_x + (t - t0) / (t1 - t0) * plot_w
+            return pad_left + (t - t0) / (t1 - t0) * plot_w
 
         def y_of(v: int) -> float:
             # Smaller queue positions should appear "lower" on the graph.
-            return pad_y + (vmax - v) / (vmax - vmin) * plot_h
+            return pad_top + (vmax - v) / (vmax - vmin) * plot_h
 
         # Axes & ticks
         axis_color = "#c8c8c8"
         text_color = "#5a5a5a"
-        canvas.create_line(pad_x, pad_y, pad_x, pad_y + plot_h, fill=axis_color)
-        canvas.create_line(pad_x, pad_y + plot_h, pad_x + plot_w, pad_y + plot_h, fill=axis_color)
+        x0 = pad_left
+        y0 = pad_top
+        x1 = pad_left + plot_w
+        y1 = pad_top + plot_h
+        canvas.create_line(x0, y0, x0, y1, fill=axis_color)
+        canvas.create_line(x0, y1, x1, y1, fill=axis_color)
 
         # Y ticks (positions)
-        for frac, val in [(0.0, vmax), (0.5, int(round((vmin + vmax) / 2))), (1.0, vmin)]:
-            y = pad_y + frac * plot_h
-            canvas.create_line(pad_x - 4, y, pad_x, y, fill=axis_color)
-            canvas.create_text(pad_x - 6, y, anchor="e", text=str(val), fill=text_color)
+        y_ticks = 6
+        for i in range(y_ticks):
+            frac = i / (y_ticks - 1)
+            val = int(round(vmax - frac * (vmax - vmin)))
+            y = y0 + frac * plot_h
+            canvas.create_line(x0 - 4, y, x0, y, fill=axis_color)
+            canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
+            if 0 < i < y_ticks - 1:
+                canvas.create_line(x0, y, x1, y, fill="#efefef")
 
         # X ticks (time)
-        t_left = datetime.fromtimestamp(t0).strftime("%H:%M:%S")
-        t_mid = datetime.fromtimestamp((t0 + t1) / 2).strftime("%H:%M:%S")
-        t_right = datetime.fromtimestamp(t1).strftime("%H:%M:%S")
-        for frac, label in [(0.0, t_left), (0.5, t_mid), (1.0, t_right)]:
-            x = pad_x + frac * plot_w
-            canvas.create_line(x, pad_y + plot_h, x, pad_y + plot_h + 4, fill=axis_color)
-            canvas.create_text(x, pad_y + plot_h + 14, anchor="n", text=label, fill=text_color)
+        x_ticks = 6
+        span = t1 - t0
+        if span >= 6 * 3600:
+            fmt = "%H:%M"
+        else:
+            fmt = "%H:%M:%S"
+        for i in range(x_ticks):
+            frac = i / (x_ticks - 1)
+            t = t0 + frac * (t1 - t0)
+            label = datetime.fromtimestamp(t).strftime(fmt)
+            x = x0 + frac * plot_w
+            canvas.create_line(x, y1, x, y1 + 4, fill=axis_color)
+            canvas.create_text(x, y1 + 14, anchor="n", text=label, fill=text_color)
+            if 0 < i < x_ticks - 1:
+                canvas.create_line(x, y0, x, y1, fill="#efefef")
 
-        canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
-        canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
+        canvas.create_rectangle(x0, y0, x1, y1, outline="#d0d0d0")
+        canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
         line = []
         for t, v in points:
