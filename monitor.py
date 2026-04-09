@@ -120,29 +120,34 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 
-# UI palette: cool slate surfaces + sky / emerald / indigo / amber accents (WCAG-friendly contrast).
-UI_BG_APP = "#f1f5f9"
-UI_BG_CARD = "#ffffff"
-UI_TEXT_PRIMARY = "#334155"
-UI_TEXT_MUTED = "#64748b"
-UI_SUMMARY_BG = "#1e293b"
-UI_SUMMARY_VALUE = "#f8fafc"
-UI_ACCENT_POSITION = "#38bdf8"
-UI_ACCENT_STATUS = "#4ade80"
-UI_ACCENT_ELAPSED = "#a5b4fc"
-UI_ACCENT_REMAINING = "#fbbf24"
-UI_DANGER = "#fda4af"
-UI_GRAPH_BG = "#f8fafc"
-UI_GRAPH_BORDER = "#cbd5e1"
-UI_GRAPH_GRID = "#e2e8f0"
-UI_GRAPH_AXIS = "#94a3b8"
-UI_GRAPH_TEXT = "#475569"
-UI_GRAPH_LINE = "#0ea5e9"
-UI_GRAPH_MARKER_OUTLINE = "#e11d48"
-UI_GRAPH_MARKER_FILL = "#f43f5e"
-UI_GRAPH_EMPTY = "#64748b"
-UI_TOOLTIP_BG = "#1e293b"
-UI_TOOLTIP_FG = "#f1f5f9"
+# UI palette: Grafana-inspired dark (canvas/panel tones, series-style accents, readable contrast).
+UI_BG_APP = "#111217"
+UI_BG_CARD = "#181b1f"
+UI_TEXT_PRIMARY = "#d8d9da"
+UI_TEXT_MUTED = "#8e9ba3"
+UI_SUMMARY_BG = "#0d0f14"
+UI_SUMMARY_VALUE = "#f0f4f8"
+UI_ACCENT_POSITION = "#5794f2"
+UI_ACCENT_STATUS = "#73bf69"
+UI_ACCENT_ELAPSED = "#b877d9"
+UI_ACCENT_REMAINING = "#ff9830"
+UI_DANGER = "#f2495c"
+UI_ENTRY_FIELD = "#0d0f12"
+UI_SEPARATOR = "#2e3742"
+UI_PROGRESS_TROUGH = "#2e3742"
+UI_BUTTON_BG = "#2e3742"
+UI_BUTTON_BG_ACTIVE = "#384556"
+UI_GRAPH_BG = "#0d0f12"
+UI_GRAPH_BORDER = "#2e3742"
+UI_GRAPH_GRID = "#252a33"
+UI_GRAPH_AXIS = "#6e7680"
+UI_GRAPH_TEXT = "#9fa7b3"
+UI_GRAPH_LINE = "#5794f2"
+UI_GRAPH_MARKER_OUTLINE = "#ff9830"
+UI_GRAPH_MARKER_FILL = "#ffb357"
+UI_GRAPH_EMPTY = "#6e7680"
+UI_TOOLTIP_BG = "#1f2329"
+UI_TOOLTIP_FG = "#d8d9da"
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -664,7 +669,7 @@ class QueueMonitorApp(tk.Tk):
             self.after(250, self.start_monitoring)
 
     def _configure_ttk_theme(self, style: ttk.Style) -> None:
-        """Apply app-wide background and text colors (clam-friendly)."""
+        """Apply app-wide background and text colors (clam, Grafana-style dark)."""
         self.configure(bg=UI_BG_APP)
         style.configure("App.TFrame", background=UI_BG_APP)
         style.configure("Card.TFrame", background=UI_BG_CARD)
@@ -672,12 +677,21 @@ class QueueMonitorApp(tk.Tk):
         style.configure("TLabelframe", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
         style.configure("TLabelframe.Label", background=UI_BG_CARD, foreground=UI_TEXT_MUTED)
         style.configure("TCheckbutton", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
-        style.configure("TButton", padding=(10, 4))
-        style.configure("TEntry", fieldbackground="#f8fafc", foreground=UI_TEXT_PRIMARY)
-        style.configure("TSeparator", background="#cbd5e1")
+        style.configure(
+            "TButton",
+            padding=(10, 4),
+            background=UI_BUTTON_BG,
+            foreground=UI_TEXT_PRIMARY,
+        )
+        style.map(
+            "TButton",
+            background=[("active", UI_BUTTON_BG_ACTIVE), ("pressed", UI_BUTTON_BG_ACTIVE)],
+        )
+        style.configure("TEntry", fieldbackground=UI_ENTRY_FIELD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
             "Horizontal.TProgressbar",
-            troughcolor="#334155",
+            troughcolor=UI_PROGRESS_TROUGH,
             background=UI_ACCENT_POSITION,
             thickness=8,
         )
@@ -2222,7 +2236,7 @@ class QueueMonitorApp(tk.Tk):
         popup.title("Threshold alert")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
-        popup.configure(padx=18, pady=18)
+        popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
 
         try:
             popup.transient(self)
