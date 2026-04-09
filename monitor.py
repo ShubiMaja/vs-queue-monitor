@@ -756,11 +756,8 @@ class QueueMonitorApp(tk.Tk):
         remaining_positions = max(0, current_pos - 1)
         base = remaining_positions / speed
 
-        # While monitoring, make this a live countdown even if the log repeats
-        # the same position (no new samples).
-        if self.running and self.current_point is not None:
-            base = max(0.0, base - (time.time() - self.current_point[0]))
-
+        # If the log isn't updating (repeating the same position), don't force a countdown
+        # to zero; keep the estimate stable to avoid misleading "0:00" while still queued.
         return base
 
     def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
@@ -787,10 +784,11 @@ class QueueMonitorApp(tk.Tk):
                 continue
             rates.append(improvement / dt)
 
-        if not rates:
+        if len(rates) < 3:
             return None, 0, trail
 
-        speed = sum(rates) / len(rates)  # positions per second
+        rates.sort()
+        speed = rates[len(rates) // 2]  # median positions per second
         if speed <= 0:
             return None, 0, trail
         return speed, len(rates), trail
