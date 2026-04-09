@@ -671,35 +671,83 @@ class QueueMonitorApp(tk.Tk):
 
     def _configure_ttk_theme(self, style: ttk.Style) -> None:
         """Apply app-wide background and text colors (clam, Grafana-style dark)."""
+        # Clam draws many widgets with lightcolor/darkcolor; if left default, borders read as white on Windows.
+        _bd = UI_SEPARATOR
+        _card = UI_BG_CARD
         self.configure(bg=UI_BG_APP)
         style.configure("App.TFrame", background=UI_BG_APP)
-        style.configure("Card.TFrame", background=UI_BG_CARD)
-        style.configure("TLabel", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TFrame", background=_card, borderwidth=0)
+        style.configure("Card.TFrame", background=_card)
+        style.configure("TLabel", background=_card, foreground=UI_TEXT_PRIMARY)
         style.configure(
             "TLabelframe",
-            background=UI_BG_CARD,
+            background=_card,
             foreground=UI_TEXT_PRIMARY,
-            bordercolor=UI_SEPARATOR,
+            bordercolor=_bd,
+            darkcolor=_bd,
+            lightcolor=_bd,
+            relief="flat",
+            borderwidth=1,
         )
-        style.configure("TLabelframe.Label", background=UI_BG_CARD, foreground=UI_TEXT_MUTED)
-        style.configure("TCheckbutton", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TLabelframe.Label", background=_card, foreground=UI_TEXT_MUTED)
+        style.configure(
+            "TCheckbutton",
+            background=_card,
+            foreground=UI_TEXT_PRIMARY,
+            focuscolor=_card,
+        )
+        style.map("TCheckbutton", background=[("active", _card)])
         style.configure(
             "TButton",
             padding=(10, 4),
             background=UI_BUTTON_BG,
             foreground=UI_TEXT_PRIMARY,
+            bordercolor=_bd,
+            darkcolor=UI_BUTTON_BG,
+            lightcolor=UI_BUTTON_BG_ACTIVE,
+            focuscolor=UI_BUTTON_BG,
         )
         style.map(
             "TButton",
             background=[("active", UI_BUTTON_BG_ACTIVE), ("pressed", UI_BUTTON_BG_ACTIVE)],
+            darkcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
+            lightcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
         )
-        style.configure("TEntry", fieldbackground=UI_ENTRY_FIELD, foreground=UI_TEXT_PRIMARY)
+        style.configure(
+            "TEntry",
+            fieldbackground=UI_ENTRY_FIELD,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=_bd,
+            darkcolor=UI_ENTRY_FIELD,
+            lightcolor=UI_ENTRY_FIELD,
+            insertcolor=UI_TEXT_PRIMARY,
+        )
+        style.map("TEntry", focuscolor=[("!focus", UI_ENTRY_FIELD), ("focus", _bd)])
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
             "Horizontal.TProgressbar",
             troughcolor=UI_PROGRESS_TROUGH,
             background=UI_ACCENT_POSITION,
             thickness=8,
+            bordercolor=_bd,
+            darkcolor=UI_PROGRESS_TROUGH,
+            lightcolor=UI_PROGRESS_TROUGH,
+        )
+        style.configure(
+            "Vertical.TScrollbar",
+            background=_card,
+            troughcolor=UI_BG_APP,
+            bordercolor=_bd,
+            darkcolor=_bd,
+            lightcolor=_bd,
+            arrowcolor=UI_TEXT_MUTED,
+            arrowsize=12,
+        )
+        style.map(
+            "Vertical.TScrollbar",
+            background=[("active", UI_BUTTON_BG), ("pressed", UI_BUTTON_BG_ACTIVE)],
+            darkcolor=[("active", _bd)],
+            lightcolor=[("active", _bd)],
         )
 
     def _build_ui(self) -> None:
@@ -751,8 +799,10 @@ class QueueMonitorApp(tk.Tk):
             outer,
             orient=tk.VERTICAL,
             sashwidth=6,
-            sashrelief=tk.GROOVE,
+            sashrelief=tk.FLAT,
             sashpad=2,
+            bd=0,
+            highlightthickness=0,
         )
         try:
             panes.configure(opaqueresize=True)
@@ -851,7 +901,7 @@ class QueueMonitorApp(tk.Tk):
         panes.add(status, minsize=200, stretch="never")
         panes.add(self.history_frame, minsize=100, stretch="always")
 
-        details = ttk.Frame(status, padding=(12, 8, 12, 10))
+        details = ttk.Frame(status, padding=(12, 8, 12, 10), style="Card.TFrame")
         details.grid(row=1, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
