@@ -46,6 +46,7 @@ MAX_DRAW_POINTS = 1200
 DEFAULT_PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
+GRAPH_LOG_GAMMA = 0.65
 
 
 def expand_path(raw: str) -> Path:
@@ -794,30 +795,19 @@ class QueueMonitorApp(tk.Tk):
 
         def y_of(v: int) -> float:
             # Smaller queue positions should appear "lower" on the graph.
-            # Piecewise scale:
-            # - positions 1..low_max get a large linear "zoom" region (so 1-5 are distinct)
-            # - positions > low_max are compressed logarithmically
-            low_max = 8
-            zoom_frac = 0.55  # portion of plot height reserved for 1..low_max
-
+            # Log scale (with gamma) so low values get more visual resolution.
             vv = max(vmin, min(vmax, v))
-            if vv <= low_max:
-                lo = max(1, vmin)
-                hi = max(lo, min(low_max, vmax))
-                denom = max(1, hi - lo)
-                frac = (hi - vv) / denom  # 0 at hi, 1 at lo
-                return pad_top + (1.0 - zoom_frac) * plot_h + frac * (zoom_frac * plot_h)
-
-            # upper region (log-compressed)
-            upper_top = pad_top
-            upper_h = (1.0 - zoom_frac) * plot_h
-            lv0 = math.log(low_max + 1.0)
-            lv1 = math.log(vmax + 1.0)
+            lvmin = math.log(vmin + 1.0)
+            lvmax = math.log(vmax + 1.0)
             lv = math.log(vv + 1.0)
-            if lv1 <= lv0 or upper_h <= 1:
-                return upper_top
-            frac = (lv1 - lv) / (lv1 - lv0)  # 0 at vmax, 1 at low_max
-            return upper_top + frac * upper_h
+            if lvmax <= lvmin:
+                frac = 0.0
+            else:
+                frac = (lvmax - lv) / (lvmax - lvmin)  # 0 at vmax, 1 at vmin
+
+            frac = max(0.0, min(1.0, frac))
+            frac = frac ** GRAPH_LOG_GAMMA
+            return pad_top + frac * plot_h
 
         # Axes & ticks
         axis_color = "#c8c8c8"
