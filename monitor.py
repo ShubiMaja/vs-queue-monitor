@@ -29,7 +29,9 @@ except Exception:  # pragma: no cover
     winsound = None
 
 VERSION = "1.0.0"
-QUEUE_RE = re.compile(r"Client is in connect queue at position:\s*(\d+)")
+QUEUE_RE = re.compile(
+    r"(?:Client is in connect queue at position:\s*|Your position in the queue is:\s*)(\d+)",
+)
 DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
@@ -125,14 +127,33 @@ def read_latest_position(log_file: Path) -> Optional[int]:
             size = handle.tell()
             start = max(0, size - TAIL_BYTES)
             handle.seek(start)
-            data = handle.read().decode("utf-8", errors="ignore")
+            raw = handle.read()
     except Exception:
         return None
 
-    matches = QUEUE_RE.findall(data)
+    text = decode_log_bytes(raw)
+    matches = QUEUE_RE.findall(text)
     if not matches:
         return None
     return int(matches[-1])
+
+
+def decode_log_bytes(raw: bytes) -> str:
+    # Vintage Story logs are typically UTF-8, but some environments can produce UTF-16.
+    # Heuristic: if the buffer has many NUL bytes, try UTF-16.
+    if not raw:
+        return ""
+
+    sample = raw[:4096]
+    nul_ratio = sample.count(b"\x00") / max(1, len(sample))
+    if nul_ratio > 0.05:
+        for enc in ("utf-16", "utf-16-le", "utf-16-be"):
+            try:
+                return raw.decode(enc, errors="ignore")
+            except Exception:
+                pass
+
+    return raw.decode("utf-8", errors="ignore")
 
 
 def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[int]:
@@ -142,10 +163,11 @@ def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[i
             size = handle.tell()
             start = max(0, size - tail_bytes)
             handle.seek(start)
-            data = handle.read().decode("utf-8", errors="ignore")
+            raw = handle.read()
     except Exception:
         return []
 
+    data = decode_log_bytes(raw)
     out: list[int] = []
     for match in QUEUE_RE.finditer(data):
         try:
