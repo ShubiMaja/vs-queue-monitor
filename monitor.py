@@ -664,7 +664,14 @@ class QueueMonitorApp(tk.Tk):
         if speed is None or current_pos is None:
             return None
         remaining_positions = max(0, current_pos - 1)
-        return remaining_positions / speed
+        base = remaining_positions / speed
+
+        # While monitoring, make this a live countdown even if the log repeats
+        # the same position (no new samples).
+        if self.running and self.current_point is not None:
+            base = max(0.0, base - (time.time() - self.current_point[0]))
+
+        return base
 
     def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
         points = list(self.graph_points)
