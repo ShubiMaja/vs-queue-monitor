@@ -2,6 +2,14 @@
 
 Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **alerts** when you cross configurable thresholds (popup + optional sound on Windows).
 
+## Disclaimer (read this)
+
+- **Work in progress:** Features, UI, saved settings, and behavior can change at any time. Expect bugs and incomplete polish.
+- **AI-assisted code:** A large share of this project was written or refactored with AI / coding assistants. That means **more risk of subtle mistakes** (logic, edge cases, platform quirks). **You** are responsible for validating paths, alerts, ETAs, and anything safety- or time-sensitive.
+- **Not official:** Not affiliated with Vintage Story or its developers. **No warranty** — use at your own risk.
+
+The in-app **History** panel logs a similar warning when you start the app.
+
 ## Requirements
 
 - **Python 3.10+** (any recent 3.x with Tkinter)

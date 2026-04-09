@@ -5,6 +5,14 @@ Version: 1.0.0
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
+
+WARNING — WORK IN PROGRESS: Behavior, UI, and saved settings may change without notice.
+
+WARNING — AI-ASSISTED DEVELOPMENT: Much of this codebase was produced or refactored with
+AI / coding assistants. Treat paths, alerts, ETAs, and log interpretation as unverified
+until you confirm them against your client and logs.
+
+WARNING — NO WARRANTY: Not affiliated with Vintage Story. Use at your own risk.
 """
 
 from __future__ import annotations
@@ -722,7 +730,14 @@ class QueueMonitorApp(tk.Tk):
         self.start_timer()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        self.write_history(f"App started. Waiting for a path. Parser looks for queue lines like 'Client is in connect queue at position: N'.")
+        self.write_history(
+            "WARNING — Work in progress; AI-assisted code. Expect bugs and rough edges. "
+            "Verify log paths, queue readings, and alerts yourself; do not rely on this tool as a sole source of truth."
+        )
+        self.write_history(
+            "App started. Waiting for a path. Parser looks for queue lines like "
+            "'Client is in connect queue at position: N'."
+        )
 
         # Graph history is seeded from the log when monitoring starts.
 
