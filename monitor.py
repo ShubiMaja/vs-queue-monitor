@@ -888,13 +888,13 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top: large play/stop (top-left) + log path row. History: header in pane. Settings (gear) on path row.
+        # Top: play/stop + one line: label, path entry, browse, settings.
         top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
         play_wrap = ttk.Frame(top, style="Card.TFrame")
-        play_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 12), pady=(0, 2))
+        play_wrap.grid(row=0, column=0, sticky="nw", padx=(0, 12), pady=(0, 2))
         self.start_stop_button = ttk.Button(
             play_wrap,
             text="\u25b6",
@@ -905,14 +905,14 @@ class QueueMonitorApp(tk.Tk):
         self.start_stop_button.pack()
         self.update_start_stop_button()
 
-        ttk.Label(top, text="Log file or folder").grid(row=0, column=1, sticky="nw", padx=(0, 0), pady=(0, 4))
         path_row = ttk.Frame(top, style="Card.TFrame")
-        path_row.grid(row=1, column=1, sticky="ew", pady=(0, 6))
-        path_row.columnconfigure(0, weight=1)
+        path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+        path_row.columnconfigure(1, weight=1)
+        ttk.Label(path_row, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(0, 8))
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
-        entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=1, padx=(0, 6))
-        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2, padx=(0, 8))
+        entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+        ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=2, padx=(0, 6))
+        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=3, padx=(0, 8))
 
         self._loading_spinner = ttk.Progressbar(path_row, mode="indeterminate", length=120)
 
@@ -920,9 +920,9 @@ class QueueMonitorApp(tk.Tk):
             path_row,
             text="\u2699  Settings",
             command=self.open_settings,
-        ).grid(row=0, column=4, sticky="e")
+        ).grid(row=0, column=5, sticky="e")
 
-        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=2, column=0, columnspan=2, sticky="ew", pady=(2, 10))
+        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
         # PanedWindow does not support highlightthickness on all Tk builds (e.g. Windows + Python 3.14).
@@ -1470,7 +1470,7 @@ class QueueMonitorApp(tk.Tk):
             return
         if show:
             self.start_stop_button.state(["disabled"])
-            self._loading_spinner.grid(row=0, column=3, padx=(8, 8), sticky="w")
+            self._loading_spinner.grid(row=0, column=4, padx=(8, 8), sticky="w")
             self._loading_spinner.start(12)
         else:
             self._loading_spinner.stop()
