@@ -1649,6 +1649,21 @@ class QueueMonitorApp(tk.Tk):
                         now = time.time()
                         stale_limit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT
 
+                        new_queue_run = (
+                            self._last_queue_run_session >= 0
+                            and queue_sess > self._last_queue_run_session
+                        )
+                        if (
+                            not new_queue_run
+                            and prev_pos is not None
+                            and position > prev_pos
+                            and (position - prev_pos) >= QUEUE_RESET_JUMP_THRESHOLD
+                        ):
+                            # Same queue run: big upward jumps are usually stale log lines (e.g. 108),
+                            # not real position — the queue normally moves down. New runs are handled
+                            # via queue_sess above; small bumps (+1..9) can happen when others join.
+                            position = prev_pos
+
                         if self._queue_stale_latched:
                             if self._last_queue_line_epoch is not None and now - self._last_queue_line_epoch <= stale_limit:
                                 self._queue_stale_latched = False
