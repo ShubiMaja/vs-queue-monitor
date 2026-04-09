@@ -192,9 +192,8 @@ UI_GRAPH_LABELFRAME_PAD = (14, 8, 14, 14)
 UI_GRAPH_STACK_PAD = (12, 8, 16, 16)
 # Inset of the plot canvas inside the black graph_stack: L, T, R, B (left small — Y-axis draws in pad_left).
 UI_GRAPH_DARK_INNER_PAD = (8, 12, 16, 18)
-# Single inset for all Status content (ttk.Frame padding is applied reliably on all platforms).
-UI_STATUS_BODY_PAD = 18
 # Extra top inset inside status_body (Pane LabelFrame already adds UI_PANE_LABELFRAME_PAD).
+# Horizontal alignment uses UI_SUMMARY_INNER_PAD_X on the details frame (matches graph summary strip).
 UI_STATUS_BODY_PAD_TOP = 16
 # Breathing room inside the dark summary strip (top/bottom and around STATUS row).
 UI_SUMMARY_INNER_PAD_X = 18
@@ -202,9 +201,9 @@ UI_SUMMARY_INNER_PAD_Y_TOP = 18
 UI_SUMMARY_INNER_PAD_Y_BOTTOM = 16
 # Below this window width, rate uses a shorter label so the status strip does not crowd.
 UI_RATE_COMPACT_WIDTH = 920
-# History: match status summary strip gray (UI_SUMMARY_BG); tighter left inset than generic section pad.
-UI_HISTORY_FRAME_PAD_EXPANDED = (8, 12, 12, 12)
-UI_HISTORY_FRAME_PAD_COLLAPSED = (8, 2, 12, 0)
+# History: same horizontal inset as Queue graph / Status LabelFrames (UI_PANE_LABELFRAME_PAD L/R).
+UI_HISTORY_FRAME_PAD_EXPANDED = (14, 12, 14, 12)
+UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 2, 14, 0)
 UI_HISTORY_PANE_MIN_EXPANDED = 220
 UI_HISTORY_TEXT_PAD = 8
 
@@ -1103,7 +1102,13 @@ class QueueMonitorApp(tk.Tk):
         ).grid(row=1, column=1, sticky="nw", padx=(16, 0), pady=(2, 0))
 
         pbar_frame = tk.Frame(graph_frame, bg=UI_BG_CARD)
-        pbar_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        pbar_frame.grid(
+            row=1,
+            column=0,
+            sticky="ew",
+            padx=(UI_SUMMARY_INNER_PAD_X, UI_SUMMARY_INNER_PAD_X),
+            pady=(0, 8),
+        )
         pbar_frame.columnconfigure(0, weight=1)
         tk.Label(
             pbar_frame,
@@ -1182,12 +1187,7 @@ class QueueMonitorApp(tk.Tk):
         status_body = ttk.Frame(
             status,
             style="Card.TFrame",
-            padding=(
-                UI_STATUS_BODY_PAD,
-                UI_STATUS_BODY_PAD_TOP,
-                UI_STATUS_BODY_PAD,
-                UI_STATUS_BODY_PAD,
-            ),
+            padding=(0, UI_STATUS_BODY_PAD_TOP, 0, 0),
         )
         status_body.grid(row=0, column=0, sticky="nsew")
         status_body.columnconfigure(0, weight=1)
@@ -1208,7 +1208,7 @@ class QueueMonitorApp(tk.Tk):
             style="HistoryTab.TButton",
             command=self._toggle_history_panel,
         )
-        self._history_tab_btn.pack(side="left", padx=(2, 0), pady=(2, 0))
+        self._history_tab_btn.pack(side="left", padx=(0, 0), pady=(2, 0))
 
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
         self._history_sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
@@ -1224,7 +1224,7 @@ class QueueMonitorApp(tk.Tk):
 
         details = ttk.Frame(
             status_body,
-            padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD),
+            padding=(UI_SUMMARY_INNER_PAD_X, UI_SECTION_PAD, UI_SUMMARY_INNER_PAD_X, UI_SECTION_PAD),
             style="Card.TFrame",
         )
         details.grid(row=0, column=0, sticky="ew", pady=(0, 0))
@@ -1232,7 +1232,7 @@ class QueueMonitorApp(tk.Tk):
         details.columnconfigure(3, weight=1)
 
         wrap = 420
-        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(4, 10), pady=(6, 4))
+        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(6, 4))
         ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
             row=0, column=1, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
@@ -1240,7 +1240,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
             row=0, column=3, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
-        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(4, 10), pady=(6, 4))
+        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, 10), pady=(6, 4))
         ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
             row=1, column=1, columnspan=3, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
