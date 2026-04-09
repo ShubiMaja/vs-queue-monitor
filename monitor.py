@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vs-queue-monitor — Vintage Story queue monitor GUI
+VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
 Version: 1.0.0
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
@@ -784,7 +784,7 @@ def compute_seed_graph_from_log(
 class QueueMonitorApp(tk.Tk):
     def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
         super().__init__()
-        self.title(f"vs-queue-monitor v{VERSION}")
+        self.title(f"VS Queue Monitor v{VERSION}")
         self.geometry("960x700")
         self.minsize(880, 580)
 
@@ -905,7 +905,7 @@ class QueueMonitorApp(tk.Tk):
             "Verify log paths, queue readings, and alerts yourself; do not rely on this tool as a sole source of truth."
         )
         self.write_history(
-            "App started. Waiting for a path. Parser looks for queue lines like "
+            "VS Queue Monitor started. Waiting for a path. Parser looks for queue lines like "
             "'Client is in connect queue at position: N'."
         )
 
@@ -3435,7 +3435,7 @@ class QueueMonitorApp(tk.Tk):
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="vs-queue-monitor — Vintage Story queue monitor GUI")
+    parser = argparse.ArgumentParser(description="VS Queue Monitor — Vintage Story queue monitor GUI")
     parser.add_argument("--path", dest="path", default="", help="Initial file or directory path")
     parser.add_argument(
         "--no-start",

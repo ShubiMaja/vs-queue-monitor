@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "vs-queue-monitor: Run GUI",
+      "name": "VS Queue Monitor: Run GUI",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/monitor.py",
@@ -13,7 +13,7 @@
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "vs-queue-monitor: Run GUI (no auto-start)",
+      "name": "VS Queue Monitor: Run GUI (no auto-start)",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/monitor.py",

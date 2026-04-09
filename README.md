@@ -1,6 +1,6 @@
-# vs-queue-monitor
+# VS Queue Monitor
 
-Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **alerts** when you cross configurable thresholds (popup + optional sound on Windows).
+Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **alerts** when you cross configurable thresholds (popup + optional sound on Windows). Config and sources use the short id **`vs-queue-monitor`**.
 
 ## Disclaimer (read this)
 
