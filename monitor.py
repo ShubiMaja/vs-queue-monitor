@@ -337,7 +337,7 @@ class QueueMonitorApp(tk.Tk):
 
         settings = ttk.Frame(controls)
         settings.grid(row=1, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
-        for idx in range(10):
+        for idx in range(15):
             settings.columnconfigure(idx, weight=0)
         settings.columnconfigure(9, weight=1)
 
@@ -356,16 +356,19 @@ class QueueMonitorApp(tk.Tk):
         ttk.Checkbutton(settings, text="Popup", variable=self.popup_enabled_var).grid(row=0, column=10, padx=(0, 8))
         ttk.Checkbutton(settings, text="Sound", variable=self.sound_enabled_var).grid(row=0, column=11, padx=(0, 8), sticky="w")
         ttk.Checkbutton(settings, text="Show every change", variable=self.show_every_change_var).grid(row=0, column=12, padx=(0, 8), sticky="w")
+        # Put rarely-toggled options on a second row so they don't get pushed off-screen.
         ttk.Checkbutton(settings, text="Show log", variable=self.show_log_var, command=self.update_log_visibility).grid(
-            row=0,
-            column=13,
-            padx=(0, 8),
+            row=1,
+            column=0,
+            padx=(0, 12),
+            pady=(6, 0),
             sticky="w",
         )
         ttk.Checkbutton(settings, text="Log graph scale", variable=self.graph_log_scale_var, command=self.redraw_graph).grid(
-            row=0,
-            column=14,
-            padx=(0, 8),
+            row=1,
+            column=1,
+            padx=(0, 12),
+            pady=(6, 0),
             sticky="w",
         )
 
