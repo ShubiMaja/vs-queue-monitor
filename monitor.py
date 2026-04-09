@@ -830,13 +830,23 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_line(x0, y1, x1, y1, fill=axis_color)
 
         # Y ticks (positions)
+        tick_step = 5
         tick_vals: list[int] = []
+
+        # Primary ticks every 5 positions.
+        start = (vmin // tick_step) * tick_step
+        end = ((vmax + tick_step - 1) // tick_step) * tick_step
+        for val in range(start, end + 1, tick_step):
+            if vmin <= val <= vmax:
+                tick_vals.append(val)
+
+        # When zoomed in low, label 1..5 individually.
         if vmin <= 5 <= vmax:
             tick_vals.extend([1, 2, 3, 4, 5])
+
+        # Ensure endpoints are always labeled.
         tick_vals.extend([vmin, vmax])
-        mid = int(round((vmin + vmax) / 2))
-        tick_vals.append(mid)
-        tick_vals = [v for v in tick_vals if vmin <= v <= vmax]
+
         tick_vals = sorted(set(tick_vals), reverse=True)
 
         for idx, val in enumerate(tick_vals):
