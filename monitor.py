@@ -22,6 +22,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -234,6 +235,47 @@ def expand_path(raw: str) -> Path:
     expanded = os.path.expandvars(raw.strip())
     expanded = os.path.expanduser(expanded)
     return Path(expanded)
+
+
+def play_alert_sound_file(path: Path) -> bool:
+    """Try to play an audio file; return True if playback was started (async where supported)."""
+    sp = str(path)
+    if winsound is not None and sys.platform.startswith("win"):
+        try:
+            winsound.PlaySound(sp, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            return True
+        except Exception:
+            try:
+                winsound.PlaySound(sp, winsound.SND_FILENAME)
+                return True
+            except Exception:
+                pass
+    if sys.platform == "darwin":
+        try:
+            subprocess.Popen(
+                ["afplay", sp],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            return True
+        except Exception:
+            pass
+    if sys.platform.startswith("linux"):
+        for cmd in (["paplay", sp], ["aplay", sp]):
+            try:
+                subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                return True
+            except Exception:
+                continue
+    return False
 
 
 def get_config_path() -> Path:
@@ -693,6 +735,10 @@ class QueueMonitorApp(tk.Tk):
         self.graph_log_scale_var = tk.BooleanVar(value=bool(self.config.get("graph_log_scale", True)))
         self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
+        _asp = self.config.get("alert_sound_path")
+        self.alert_sound_path_var = tk.StringVar(
+            value=_asp.strip() if isinstance(_asp, str) and _asp.strip() else "",
+        )
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
 
         self.running = False
@@ -1441,6 +1487,19 @@ class QueueMonitorApp(tk.Tk):
             side="left", padx=(0, 0)
         )
 
+        ttk.Label(alerts_fr, text="Sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _sound_entry = ttk.Entry(alerts_fr, textvariable=self.alert_sound_path_var, style="Path.TEntry")
+        _sound_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 8), pady=(10, 0))
+        _sound_browse = ttk.Button(alerts_fr, text="Browse…", command=self.browse_alert_sound, width=8)
+        _sound_browse.grid(row=2, column=3, sticky="e", pady=(10, 0))
+        self._bind_static_tooltip(
+            _sound_entry,
+            "Optional path to a sound file played when a threshold alert fires (alert sound must be on). "
+            "Windows: .wav via built-in player; macOS: afplay; Linux: paplay/aplay if installed. "
+            "Leave empty for the default beep.",
+        )
+        self._bind_static_tooltip(_sound_browse, "Choose a .wav or other supported audio file for threshold alerts.")
+
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
 
@@ -1521,6 +1580,7 @@ class QueueMonitorApp(tk.Tk):
             "graph_log_scale": bool(self.graph_log_scale_var.get()),
             "popup_enabled": bool(self.popup_enabled_var.get()),
             "sound_enabled": bool(self.sound_enabled_var.get()),
+            "alert_sound_path": self.alert_sound_path_var.get().strip(),
             "show_every_change": bool(self.show_every_change_var.get()),
             "window_geometry": self.geometry(),
             "version": VERSION,
@@ -1556,6 +1616,7 @@ class QueueMonitorApp(tk.Tk):
             self.graph_log_scale_var,
             self.popup_enabled_var,
             self.sound_enabled_var,
+            self.alert_sound_path_var,
             self.show_every_change_var,
         ):
             var.trace_add("write", self._schedule_config_persist)
@@ -1572,6 +1633,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_log_scale_var.set(True)
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
+        self.alert_sound_path_var.set("")
         self.show_every_change_var.set(False)
 
         self.resolved_path_var.set("")
@@ -1873,6 +1935,25 @@ class QueueMonitorApp(tk.Tk):
         selected = filedialog.askdirectory(title="Select folder to search")
         if selected:
             self.source_path_var.set(selected)
+
+    def browse_alert_sound(self) -> None:
+        parent = self._settings_win
+        try:
+            if parent is None or not parent.winfo_exists():
+                parent = self
+        except Exception:
+            parent = self
+        selected = filedialog.askopenfilename(
+            parent=parent,
+            title="Select alert sound file",
+            filetypes=[
+                ("Audio", "*.wav *.mp3 *.aiff *.aif *.flac *.ogg"),
+                ("WAV", "*.wav"),
+                ("All files", "*.*"),
+            ],
+        )
+        if selected:
+            self.alert_sound_path_var.set(selected)
 
     def parse_int(self, raw: str, name: str, minimum: int = 0) -> int:
         try:
@@ -3197,6 +3278,11 @@ class QueueMonitorApp(tk.Tk):
             self.show_popup(position, reason)
 
     def play_sound(self) -> None:
+        raw = (self.alert_sound_path_var.get() or "").strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
         if winsound is not None and sys.platform.startswith("win"):
             for _ in range(6):
                 try:
