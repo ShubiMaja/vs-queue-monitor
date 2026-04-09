@@ -1024,19 +1024,9 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
+        # Flat field + border — clam’s default TEntry focus ring draws bright corner “dots” on Windows.
         style.configure(
             "TEntry",
-            fieldbackground=UI_ENTRY_FIELD,
-            foreground=UI_TEXT_PRIMARY,
-            bordercolor=_bd,
-            darkcolor=UI_ENTRY_FIELD,
-            lightcolor=UI_ENTRY_FIELD,
-            insertcolor=UI_TEXT_PRIMARY,
-        )
-        style.map("TEntry", focuscolor=[("!focus", UI_ENTRY_FIELD), ("focus", _bd)])
-        # Flatten clam’s light top/left edge on the path field (reads as a white line on dark chrome).
-        style.configure(
-            "Path.TEntry",
             fieldbackground=UI_ENTRY_FIELD,
             foreground=UI_TEXT_PRIMARY,
             bordercolor=UI_ENTRY_FIELD,
@@ -1045,9 +1035,8 @@ class QueueMonitorApp(tk.Tk):
             insertcolor=UI_TEXT_PRIMARY,
             borderwidth=0,
         )
-        # Keep focus/border/light/dark flat — clam’s focus ring draws bright corner dots on Windows.
         style.map(
-            "Path.TEntry",
+            "TEntry",
             focuscolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
             bordercolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
             lightcolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
@@ -1134,7 +1123,7 @@ class QueueMonitorApp(tk.Tk):
         path_left.columnconfigure(1, weight=1)
         self._lbl_log_path = ttk.Label(path_left, text="Log location")
         self._lbl_log_path.grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
-        self._path_entry = ttk.Entry(path_left, textvariable=self.source_path_var, style="Path.TEntry")
+        self._path_entry = ttk.Entry(path_left, textvariable=self.source_path_var)
         self._path_entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
@@ -1555,7 +1544,7 @@ class QueueMonitorApp(tk.Tk):
         )
 
         ttk.Label(alerts_fr, text="Sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
-        _sound_entry = ttk.Entry(alerts_fr, textvariable=self.alert_sound_path_var, style="Path.TEntry")
+        _sound_entry = ttk.Entry(alerts_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 8), pady=(10, 0))
         _sound_browse = ttk.Button(alerts_fr, text="Browse…", command=self.browse_alert_sound, width=8)
         _sound_browse.grid(row=2, column=3, sticky="e", pady=(10, 0))
