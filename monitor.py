@@ -552,7 +552,12 @@ class QueueMonitorApp(tk.Tk):
         for item in segment_points:
             self.graph_points.append(item)
         self.current_point = segment_points[-1] if segment_points else None
+        if self.current_point is not None:
+            _t, pos = self.current_point
+            self.last_position = pos
+            self.position_var.set(str(pos))
         self.redraw_graph()
+        self.update_time_estimates()
         self.write_history(
             "Seeded graph from log: "
             f"{min(len(segment), MAX_GRAPH_POINTS)} points "
@@ -609,6 +614,7 @@ class QueueMonitorApp(tk.Tk):
         if self.current_point is not None and self.current_point[1] == position:
             return
         self.current_point = (now, position)
+        self.last_position = position
         self.graph_points.append(self.current_point)
         self.redraw_graph()
 
@@ -625,9 +631,12 @@ class QueueMonitorApp(tk.Tk):
 
     def estimate_seconds_remaining(self) -> Optional[float]:
         speed, _n, _trail = self.compute_moving_average_speed()
-        if speed is None or self.last_position is None:
+        current_pos = self.last_position
+        if current_pos is None and self.current_point is not None:
+            current_pos = self.current_point[1]
+        if speed is None or current_pos is None:
             return None
-        remaining_positions = max(0, self.last_position - 1)
+        remaining_positions = max(0, current_pos - 1)
         return remaining_positions / speed
 
     def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
