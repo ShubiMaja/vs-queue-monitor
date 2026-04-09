@@ -858,21 +858,55 @@ class QueueMonitorApp(tk.Tk):
             if 0 < idx < len(tick_vals) - 1:
                 canvas.create_line(x0, y, x1, y, fill="#efefef")
 
-        # X ticks (time)
-        x_ticks = 6
+        # X ticks (time) - fixed interval ("5 per tick" style)
         span = t1 - t0
-        if span >= 6 * 3600:
-            fmt = "%H:%M"
-        else:
-            fmt = "%H:%M:%S"
-        for i in range(x_ticks):
-            frac = i / (x_ticks - 1)
-            t = t0 + frac * (t1 - t0)
+        if span <= 0:
+            span = 1.0
+
+        # Prefer intervals that are multiples of 5.
+        candidates = [
+            5,
+            10,
+            15,
+            30,
+            60,
+            5 * 60,
+            10 * 60,
+            15 * 60,
+            30 * 60,
+            60 * 60,
+            2 * 60 * 60,
+            6 * 60 * 60,
+        ]
+        target_ticks = 8
+        interval = candidates[-1]
+        for c in candidates:
+            if span / c <= target_ticks:
+                interval = c
+                break
+
+        fmt = "%H:%M:%S" if interval < 60 * 60 else "%H:%M"
+
+        first_tick = math.ceil(t0 / interval) * interval
+        last_tick = math.floor(t1 / interval) * interval
+        tick_times: list[float] = []
+        t = first_tick
+        while t <= last_tick + 1e-6:
+            tick_times.append(t)
+            t += interval
+
+        # Ensure endpoints are labeled too.
+        if not tick_times or tick_times[0] - t0 > interval * 0.4:
+            tick_times.insert(0, t0)
+        if tick_times[-1] < t1 - interval * 0.4:
+            tick_times.append(t1)
+
+        for idx, t in enumerate(tick_times):
+            x = x_of(t)
             label = datetime.fromtimestamp(t).strftime(fmt)
-            x = x0 + frac * plot_w
             canvas.create_line(x, y1, x, y1 + 4, fill=axis_color)
             canvas.create_text(x, y1 + 14, anchor="n", text=label, fill=text_color)
-            if 0 < i < x_ticks - 1:
+            if 0 < idx < len(tick_times) - 1:
                 canvas.create_line(x, y0, x, y1, fill="#efefef")
 
         canvas.create_rectangle(x0, y0, x1, y1, outline="#d0d0d0")
