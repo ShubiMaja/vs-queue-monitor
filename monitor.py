@@ -37,6 +37,7 @@ MAX_GRAPH_POINTS = 360
 PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 SEED_LOG_MAX_BYTES = 64 * 1024 * 1024
+QUEUE_RESET_JUMP_THRESHOLD = 10
 
 
 def expand_path(raw: str) -> Path:
@@ -161,7 +162,8 @@ def find_current_queue_segment(positions: list[int]) -> list[int]:
     for i in range(len(positions) - 1, 0, -1):
         prev_pos = positions[i - 1]
         cur_pos = positions[i]
-        if prev_pos + 1 < cur_pos:
+        # Treat a large upward jump as "a new queue run started".
+        if cur_pos - prev_pos >= QUEUE_RESET_JUMP_THRESHOLD:
             start_idx = i
             break
     return positions[start_idx:]
@@ -467,7 +469,12 @@ class QueueMonitorApp(tk.Tk):
         for i, pos in enumerate(segment[-MAX_GRAPH_POINTS:]):
             self.graph_points.append((start_t + i * spacing, pos))
         self.redraw_graph()
-        self.write_history(f"Seeded graph with {min(len(segment), MAX_GRAPH_POINTS)} points from log (scanned ~{tail_bytes / (1024 * 1024):.1f} MB).")
+        self.write_history(
+            "Seeded graph from log: "
+            f"{min(len(segment), MAX_GRAPH_POINTS)} points "
+            f"(segment {len(segment)} total, window {len(positions)} total, "
+            f"min={min(segment)}, max={max(segment)}, scanned ~{tail_bytes / (1024 * 1024):.1f} MB)."
+        )
 
     def poll_once(self) -> None:
         if not self.running:
