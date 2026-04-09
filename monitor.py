@@ -794,15 +794,30 @@ class QueueMonitorApp(tk.Tk):
 
         def y_of(v: int) -> float:
             # Smaller queue positions should appear "lower" on the graph.
-            # Logarithmic scale: higher resolution at lower queue positions.
-            lvmin = math.log(vmin + 1.0)
-            lvmax = math.log(vmax + 1.0)
-            lv = math.log(max(vmin, min(vmax, v)) + 1.0)
-            if lvmax <= lvmin:
-                frac = 0.0
-            else:
-                frac = (lvmax - lv) / (lvmax - lvmin)
-            return pad_top + frac * plot_h
+            # Piecewise scale:
+            # - positions 1..low_max get a large linear "zoom" region (so 1-5 are distinct)
+            # - positions > low_max are compressed logarithmically
+            low_max = 10
+            zoom_frac = 0.70  # portion of plot height reserved for 1..low_max
+
+            vv = max(vmin, min(vmax, v))
+            if vv <= low_max:
+                lo = max(1, vmin)
+                hi = max(lo, min(low_max, vmax))
+                denom = max(1, hi - lo)
+                frac = (hi - vv) / denom  # 0 at hi, 1 at lo
+                return pad_top + (1.0 - zoom_frac) * plot_h + frac * (zoom_frac * plot_h)
+
+            # upper region (log-compressed)
+            upper_top = pad_top
+            upper_h = (1.0 - zoom_frac) * plot_h
+            lv0 = math.log(low_max + 1.0)
+            lv1 = math.log(vmax + 1.0)
+            lv = math.log(vv + 1.0)
+            if lv1 <= lv0 or upper_h <= 1:
+                return upper_top
+            frac = (lv1 - lv) / (lv1 - lv0)  # 0 at vmax, 1 at low_max
+            return upper_top + frac * upper_h
 
         # Axes & ticks
         axis_color = "#c8c8c8"
@@ -814,26 +829,21 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_line(x0, y0, x0, y1, fill=axis_color)
         canvas.create_line(x0, y1, x1, y1, fill=axis_color)
 
-        # Y ticks (positions) - log-spaced for readability at low values
-        y_ticks = 6
-        lvmin = math.log(vmin + 1.0)
-        lvmax = math.log(vmax + 1.0)
-        seen: set[int] = set()
-        for i in range(y_ticks):
-            frac = i / (y_ticks - 1)
-            if lvmax <= lvmin:
-                val = int(vmax)
-            else:
-                lv = lvmax - frac * (lvmax - lvmin)
-                val = int(round(math.exp(lv) - 1.0))
-            val = max(vmin, min(vmax, val))
-            if val in seen:
-                continue
-            seen.add(val)
-            y = y0 + frac * plot_h
+        # Y ticks (positions)
+        tick_vals: list[int] = []
+        if vmin <= 5 <= vmax:
+            tick_vals.extend([1, 2, 3, 4, 5])
+        tick_vals.extend([vmin, vmax])
+        mid = int(round((vmin + vmax) / 2))
+        tick_vals.append(mid)
+        tick_vals = [v for v in tick_vals if vmin <= v <= vmax]
+        tick_vals = sorted(set(tick_vals), reverse=True)
+
+        for idx, val in enumerate(tick_vals):
+            y = y_of(val)
             canvas.create_line(x0 - 4, y, x0, y, fill=axis_color)
             canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
-            if 0 < i < y_ticks - 1:
+            if 0 < idx < len(tick_vals) - 1:
                 canvas.create_line(x0, y, x1, y, fill="#efefef")
 
         # X ticks (time)
