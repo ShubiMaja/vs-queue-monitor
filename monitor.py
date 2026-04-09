@@ -756,17 +756,11 @@ class QueueMonitorApp(tk.Tk):
         remaining_positions = max(0, current_pos - 1)
         base = remaining_positions / speed
 
-        # Live countdown while we have fresh samples; freeze if the log is stale to
-        # avoid misleading "0:00" while still queued.
+        # Live countdown even when the log repeats the same position, but clamp so we
+        # never display 0:00 while still in queue.
         if self.running and self.current_point is not None and current_pos > 1:
             dt = time.time() - self.current_point[0]
-            try:
-                poll = float(self.poll_sec_var.get())
-            except Exception:
-                poll = 2.0
-            live_window = max(5.0, poll * 2.5)
-            if dt <= live_window:
-                return max(1.0, base - dt)
+            return max(1.0, base - dt)
 
         return base
 
