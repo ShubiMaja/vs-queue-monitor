@@ -208,6 +208,8 @@ UI_RATE_COMPACT_WIDTH = 920
 UI_HISTORY_FRAME_PAD_EXPANDED = (14, UI_INNER_PAD_Y_MD, 14, UI_INNER_PAD_Y_MD)
 UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 4, 14, 0)
 UI_HISTORY_PANE_MIN_EXPANDED = 220
+# Collapsible Status strip (same padding rhythm as History).
+UI_STATUS_PANE_MIN_EXPANDED = 140
 UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 
 
@@ -688,6 +690,7 @@ class QueueMonitorApp(tk.Tk):
             value=str(self.config.get("avg_window_points", DEFAULT_PREDICTION_WINDOW_POINTS)),
         )
         self.show_log_var = tk.BooleanVar(value=bool(self.config.get("show_log", True)))
+        self.show_status_var = tk.BooleanVar(value=bool(self.config.get("show_status", True)))
         self.graph_log_scale_var = tk.BooleanVar(value=bool(self.config.get("graph_log_scale", True)))
         self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
@@ -708,6 +711,11 @@ class QueueMonitorApp(tk.Tk):
         self.current_point: Optional[tuple[float, int]] = None
         self.graph_points_drawn: list[tuple[float, int]] = []
         self.graph_tooltip: Optional[tk.Toplevel] = None
+        self.status_frame: Optional[ttk.Frame] = None
+        self._status_body_wrap: Optional[ttk.Frame] = None
+        self._status_sep: Optional[ttk.Separator] = None
+        self._status_tab_btn: Optional[ttk.Button] = None
+        self._fit_status_collapsed_job: Optional[str] = None
         self.history_frame: Optional[ttk.Frame] = None
         self._history_body: Optional[tk.Frame] = None
         self._history_sep: Optional[ttk.Separator] = None
@@ -758,6 +766,7 @@ class QueueMonitorApp(tk.Tk):
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.graph_log_scale_var.trace_add("write", lambda *_: self._update_graph_y_scale_button_text())
         self.show_log_var.trace_add("write", self._on_show_log_write)
+        self.show_status_var.trace_add("write", self._on_show_status_write)
         self._bind_config_persist_traces()
         self.start_timer()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1030,7 +1039,7 @@ class QueueMonitorApp(tk.Tk):
             pass
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(UI_SECTION_PAD, UI_SECTION_PAD))
-        panes.bind("<Configure>", self._schedule_fit_history_collapsed, add=True)
+        panes.bind("<Configure>", self._schedule_pane_fits, add=True)
 
         graph_frame = ttk.LabelFrame(
             panes,
@@ -1208,16 +1217,37 @@ class QueueMonitorApp(tk.Tk):
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
-        status = ttk.LabelFrame(
+        self.status_frame = ttk.Frame(
             panes,
-            text="Status",
-            style="Pane.TLabelframe",
-            padding=UI_PANE_LABELFRAME_PAD,
+            style="HistoryTabStrip.TFrame",
+            padding=UI_HISTORY_FRAME_PAD_EXPANDED,
         )
-        status.columnconfigure(0, weight=1)
+        self.status_frame.columnconfigure(0, weight=1)
+        self.status_frame.rowconfigure(2, weight=1)
+
+        status_tab_strip = ttk.Frame(self.status_frame, style="HistoryTabStrip.TFrame")
+        status_tab_strip.grid(row=0, column=0, sticky="ew")
+        ttk.Label(status_tab_strip, text="Status", style="Pane.TLabelframe.Label").pack(
+            side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0)
+        )
+        self._status_tab_btn = ttk.Button(
+            status_tab_strip,
+            text="\u25bc",
+            width=3,
+            style="HistoryTab.TButton",
+            command=self._toggle_status_panel,
+        )
+        self._status_tab_btn.pack(side="left", padx=(0, 0), pady=(0, 0))
+
+        self._status_sep = ttk.Separator(self.status_frame, orient=tk.HORIZONTAL)
+        self._status_sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
+
+        self._status_body_wrap = ttk.Frame(self.status_frame, style="Card.TFrame")
+        self._status_body_wrap.grid(row=2, column=0, sticky="nsew")
+        self._status_body_wrap.columnconfigure(0, weight=1)
 
         status_body = ttk.Frame(
-            status,
+            self._status_body_wrap,
             style="Card.TFrame",
             padding=(0, UI_STATUS_BODY_PAD_TOP, 0, 0),
         )
@@ -1255,7 +1285,7 @@ class QueueMonitorApp(tk.Tk):
 
         # stretch: extra vertical space goes mostly to graph + history; status stays content-sized.
         panes.add(graph_frame, minsize=120, stretch="always")
-        panes.add(status, minsize=140, stretch="never")
+        panes.add(self.status_frame, minsize=UI_STATUS_PANE_MIN_EXPANDED, stretch="never")
         panes.add(self.history_frame, minsize=UI_HISTORY_PANE_MIN_EXPANDED, stretch="always")
 
         details = ttk.Frame(
@@ -1309,6 +1339,7 @@ class QueueMonitorApp(tk.Tk):
         self.history_text.configure(yscrollcommand=scrollbar.set)
 
         self._on_show_log_write()
+        self._on_show_status_write()
         self.update_start_stop_button()
 
     def open_settings(self) -> None:
@@ -1378,6 +1409,7 @@ class QueueMonitorApp(tk.Tk):
                 pass
             self.persist_config()
             self._on_show_log_write()
+            self._on_show_status_write()
             self.redraw_graph()
 
         ttk.Button(bottom, text="Close", command=close_settings).pack(side="right")
@@ -1429,6 +1461,7 @@ class QueueMonitorApp(tk.Tk):
             "poll_sec": self.poll_sec_var.get(),
             "avg_window_points": self.avg_window_var.get(),
             "show_log": bool(self.show_log_var.get()),
+            "show_status": bool(self.show_status_var.get()),
             "graph_log_scale": bool(self.graph_log_scale_var.get()),
             "popup_enabled": bool(self.popup_enabled_var.get()),
             "sound_enabled": bool(self.sound_enabled_var.get()),
@@ -1463,6 +1496,7 @@ class QueueMonitorApp(tk.Tk):
             self.poll_sec_var,
             self.avg_window_var,
             self.show_log_var,
+            self.show_status_var,
             self.graph_log_scale_var,
             self.popup_enabled_var,
             self.sound_enabled_var,
@@ -1478,6 +1512,7 @@ class QueueMonitorApp(tk.Tk):
         self.poll_sec_var.set("2")
         self.avg_window_var.set(str(DEFAULT_PREDICTION_WINDOW_POINTS))
         self.show_log_var.set(True)
+        self.show_status_var.set(True)
         self.graph_log_scale_var.set(True)
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
@@ -1517,6 +1552,7 @@ class QueueMonitorApp(tk.Tk):
         self.write_history("Settings reset to defaults.")
 
         self._on_show_log_write()
+        self._on_show_status_write()
 
     def _update_history_tab_button_text(self) -> None:
         btn = self._history_tab_btn
@@ -1527,12 +1563,113 @@ class QueueMonitorApp(tk.Tk):
         else:
             btn.configure(text="\u25b2")
 
+    def _update_status_tab_button_text(self) -> None:
+        btn = self._status_tab_btn
+        if btn is None:
+            return
+        if self.show_status_var.get():
+            btn.configure(text="\u25bc")
+        else:
+            btn.configure(text="\u25b2")
+
+    def _schedule_pane_fits(self, _event: object = None) -> None:
+        """Window/pane resize: refit collapsed History and Status so empty bands don’t linger."""
+        self._schedule_fit_history_collapsed(_event)
+        self._schedule_fit_status_collapsed(_event)
+
     def _toggle_history_panel(self) -> None:
         self.show_log_var.set(not self.show_log_var.get())
+
+    def _toggle_status_panel(self) -> None:
+        self.show_status_var.set(not self.show_status_var.get())
 
     def _on_show_log_write(self, *_args: object) -> None:
         self.update_log_visibility()
         self._update_history_tab_button_text()
+
+    def _on_show_status_write(self, *_args: object) -> None:
+        self.update_status_visibility()
+        self._update_status_tab_button_text()
+
+    def update_status_visibility(self) -> None:
+        """Show or hide Status details; header + chevron stay like History."""
+        if self.status_frame is None or self.panes is None or self._status_body_wrap is None:
+            return
+        panes = self.panes
+        sf = self.status_frame
+        body = self._status_body_wrap
+        sep = self._status_sep
+
+        if self.show_status_var.get():
+            sf.configure(padding=UI_HISTORY_FRAME_PAD_EXPANDED)
+            body.grid(row=2, column=0, sticky="nsew")
+            if sep is not None:
+                sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
+            sf.rowconfigure(2, weight=1)
+            try:
+                panes.paneconfigure(sf, minsize=UI_STATUS_PANE_MIN_EXPANDED, stretch="never")
+            except Exception:
+                pass
+            try:
+                panes.paneconfigure(sf, height="")
+            except Exception:
+                pass
+        else:
+            sf.configure(padding=UI_HISTORY_FRAME_PAD_COLLAPSED)
+            body.grid_remove()
+            if sep is not None:
+                sep.grid_remove()
+            sf.rowconfigure(2, weight=0)
+            try:
+                panes.paneconfigure(sf, minsize=1, stretch="never")
+            except Exception:
+                pass
+            self._schedule_fit_status_collapsed()
+            self.after(50, self._fit_status_pane_collapsed)
+            self.after(200, self._fit_status_pane_collapsed)
+
+    def _schedule_fit_status_collapsed(self, _event: object = None) -> None:
+        if self.show_status_var.get():
+            return
+        if self._fit_status_collapsed_job is not None:
+            try:
+                self.after_cancel(self._fit_status_collapsed_job)
+            except Exception:
+                pass
+        self._fit_status_collapsed_job = self.after(50, self._fit_status_collapsed_run)
+
+    def _fit_status_collapsed_run(self) -> None:
+        self._fit_status_collapsed_job = None
+        self._fit_status_pane_collapsed()
+
+    def _fit_status_pane_collapsed(self) -> None:
+        """Shrink the middle pane so only the Status tab row shows when content is hidden."""
+        if self.panes is None or self.status_frame is None or self.show_status_var.get():
+            return
+        try:
+            self.update_idletasks()
+            pw = self.panes
+            sf = self.status_frame
+            sf.update_idletasks()
+            need = max(24, int(sf.winfo_reqheight()))
+            try:
+                pw.paneconfigure(sf, height=need)
+            except (tk.TclError, ValueError):
+                pass
+            ph = max(1, pw.winfo_height())
+            sash_w = UI_PANE_SASH_WIDTH
+            sashpad = UI_PANE_SASH_PAD
+            try:
+                sp1 = int(float(pw.sashpos(1)))
+            except (tk.TclError, ValueError):
+                sp1 = max(200, ph * 2 // 3)
+            target0 = sp1 - need - sash_w - 2 * sashpad
+            graph_min = 120
+            target0 = max(target0, graph_min)
+            target0 = min(target0, sp1 - 24)
+            pw.sashpos(0, target0)
+        except (tk.TclError, ValueError, AttributeError, TypeError):
+            pass
 
     def update_log_visibility(self) -> None:
         """Show or hide history *content*; header bar stays between Status and the text area."""
