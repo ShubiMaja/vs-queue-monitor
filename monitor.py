@@ -164,6 +164,11 @@ UI_GRAPH_MARKER = "#6b9bd6"
 UI_GRAPH_EMPTY = "#6e7680"
 UI_TOOLTIP_BG = "#1f2329"
 UI_TOOLTIP_FG = "#d8d9da"
+# Primary transport: large play (green) / stop (red) control, top-left.
+UI_PLAY_BTN_BG = "#1f883d"
+UI_PLAY_BTN_ACTIVE = "#2ea043"
+UI_STOP_BTN_BG = "#cf222e"
+UI_STOP_BTN_ACTIVE = "#f85149"
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -667,7 +672,7 @@ class QueueMonitorApp(tk.Tk):
         self._history_body: Optional[ttk.Frame] = None
         self._history_sep: Optional[ttk.Separator] = None
         self.panes: Optional[tk.PanedWindow] = None
-        self.start_stop_button: Optional[ttk.Button] = None
+        self.start_stop_button: Optional[tk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
         self._graph_y_scale_btn: Optional[ttk.Button] = None
         self._history_tab_btn: Optional[ttk.Button] = None
@@ -819,25 +824,43 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top bar: log path + transport. History panel: bottom tab. Other options in Settings (gear).
+        # Top: large play/stop (top-left) + log path row. History: header in pane. Settings (gear) on path row.
         top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
-        ttk.Label(top, text="Log file or folder").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 4))
+        play_wrap = tk.Frame(top, bg=UI_BG_CARD, highlightthickness=0, bd=0)
+        play_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 14), pady=(0, 2))
+        _play_font = ("Segoe UI", 26, "bold") if sys.platform.startswith("win") else ("TkDefaultFont", 24, "bold")
+        self.start_stop_button = tk.Button(
+            play_wrap,
+            text="\u25b6",
+            command=self.toggle_monitoring,
+            font=_play_font,
+            fg="#ffffff",
+            activeforeground="#ffffff",
+            cursor="hand2",
+            relief=tk.FLAT,
+            borderwidth=0,
+            padx=26,
+            pady=22,
+            highlightthickness=2,
+            highlightbackground=UI_BG_CARD,
+            highlightcolor=UI_BG_CARD,
+        )
+        self.start_stop_button.pack()
+        self.update_start_stop_button()
+
+        ttk.Label(top, text="Log file or folder").grid(row=0, column=1, sticky="nw", padx=(0, 0), pady=(0, 4))
         path_row = ttk.Frame(top, style="Card.TFrame")
-        path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
+        path_row.grid(row=1, column=1, sticky="ew", pady=(0, 6))
         path_row.columnconfigure(0, weight=1)
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
         entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=1, padx=(0, 6))
         ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2, padx=(0, 8))
 
-        transport = ttk.Frame(path_row, style="Card.TFrame")
-        transport.grid(row=0, column=3, sticky="e", padx=(0, 8))
-        self.start_stop_button = ttk.Button(transport, text="\u25b6  Start", command=self.toggle_monitoring)
-        self.start_stop_button.pack(side="left")
-        self._loading_spinner = ttk.Progressbar(transport, mode="indeterminate", length=100)
+        self._loading_spinner = ttk.Progressbar(path_row, mode="indeterminate", length=120)
 
         ttk.Button(
             path_row,
@@ -845,7 +868,7 @@ class QueueMonitorApp(tk.Tk):
             command=self.open_settings,
         ).grid(row=0, column=4, sticky="e")
 
-        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
+        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=2, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
         # PanedWindow does not support highlightthickness on all Tk builds (e.g. Windows + Python 3.14).
@@ -1145,7 +1168,20 @@ class QueueMonitorApp(tk.Tk):
     def update_start_stop_button(self) -> None:
         if self.start_stop_button is None:
             return
-        self.start_stop_button.configure(text=("\u23f9  Stop" if self.running else "\u25b6  Start"))
+        if self.running:
+            self.start_stop_button.configure(
+                text="\u23f9",
+                bg=UI_STOP_BTN_BG,
+                activebackground=UI_STOP_BTN_ACTIVE,
+                highlightbackground=UI_STOP_BTN_BG,
+            )
+        else:
+            self.start_stop_button.configure(
+                text="\u25b6",
+                bg=UI_PLAY_BTN_BG,
+                activebackground=UI_PLAY_BTN_ACTIVE,
+                highlightbackground=UI_PLAY_BTN_BG,
+            )
 
     def toggle_monitoring(self) -> None:
         if self._starting:
@@ -1339,12 +1375,16 @@ class QueueMonitorApp(tk.Tk):
         if self._loading_spinner is None or self.start_stop_button is None:
             return
         if show:
-            self.start_stop_button.configure(state="disabled")
-            self._loading_spinner.pack(side="left", padx=(0, 8), after=self.start_stop_button)
+            self.start_stop_button.configure(
+                state="disabled",
+                disabledforeground="#ffffff",
+                disabledbackground=UI_PLAY_BTN_BG,
+            )
+            self._loading_spinner.grid(row=0, column=3, padx=(8, 8), sticky="w")
             self._loading_spinner.start(12)
         else:
             self._loading_spinner.stop()
-            self._loading_spinner.pack_forget()
+            self._loading_spinner.grid_remove()
             self.start_stop_button.configure(state="normal")
 
     def start_monitoring(self) -> None:
