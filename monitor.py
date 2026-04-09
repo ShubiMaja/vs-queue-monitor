@@ -213,6 +213,7 @@ def extract_recent_points_from_log(log_file: Path, tail_bytes: int) -> list[tupl
     data = decode_log_bytes(raw, start_offset=start)
     out: list[tuple[float, int]] = []
     last_t: Optional[float] = None
+    last_pos: Optional[int] = None
 
     for line in data.splitlines():
         m = QUEUE_RE.search(line)
@@ -223,10 +224,14 @@ def extract_recent_points_from_log(log_file: Path, tail_bytes: int) -> list[tupl
         except Exception:
             continue
 
+        if last_pos is not None and pos == last_pos:
+            continue
+
         t = parse_log_timestamp_epoch(line)
         if t is None:
             t = (last_t + 1.0) if last_t is not None else time.time()
         last_t = t
+        last_pos = pos
         out.append((t, pos))
 
     out.sort(key=lambda x: x[0])
@@ -597,6 +602,8 @@ class QueueMonitorApp(tk.Tk):
 
     def append_graph_point(self, position: int) -> None:
         now = time.time()
+        if self.current_point is not None and self.current_point[1] == position:
+            return
         self.current_point = (now, position)
         self.graph_points.append(self.current_point)
         self.redraw_graph()
