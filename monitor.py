@@ -676,6 +676,7 @@ class QueueMonitorApp(tk.Tk):
         self._settings_win: Optional[tk.Toplevel] = None
         self._graph_y_scale_btn: Optional[ttk.Button] = None
         self._history_tab_btn: Optional[ttk.Button] = None
+        self._fit_history_collapsed_job: Optional[str] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
@@ -943,6 +944,7 @@ class QueueMonitorApp(tk.Tk):
             pass
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(14, 0))
+        panes.bind("<Configure>", self._schedule_fit_history_collapsed, add=True)
 
         graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
         graph_frame.columnconfigure(0, weight=1)
@@ -1361,6 +1363,10 @@ class QueueMonitorApp(tk.Tk):
                 panes.paneconfigure(history, minsize=100, stretch="always")
             except Exception:
                 pass
+            try:
+                panes.paneconfigure(history, height="")
+            except Exception:
+                pass
         else:
             history.configure(padding=(4, 2, 4, 0))
             body.grid_remove()
@@ -1371,7 +1377,24 @@ class QueueMonitorApp(tk.Tk):
                 panes.paneconfigure(history, minsize=1, stretch="never")
             except Exception:
                 pass
-            self.after_idle(self._fit_history_pane_collapsed)
+            self._schedule_fit_history_collapsed()
+            self.after(50, self._fit_history_pane_collapsed)
+            self.after(200, self._fit_history_pane_collapsed)
+
+    def _schedule_fit_history_collapsed(self, _event: object = None) -> None:
+        """Debounced: keep bottom pane minimal when History content is hidden (also on window resize)."""
+        if self.show_log_var.get():
+            return
+        if self._fit_history_collapsed_job is not None:
+            try:
+                self.after_cancel(self._fit_history_collapsed_job)
+            except Exception:
+                pass
+        self._fit_history_collapsed_job = self.after(50, self._fit_history_collapsed_run)
+
+    def _fit_history_collapsed_run(self) -> None:
+        self._fit_history_collapsed_job = None
+        self._fit_history_pane_collapsed()
 
     def _fit_history_pane_collapsed(self) -> None:
         """Shrink the bottom PanedWindow pane so only the History tab row shows (no empty band)."""
@@ -1381,13 +1404,21 @@ class QueueMonitorApp(tk.Tk):
             self.update_idletasks()
             pw = self.panes
             hf = self.history_frame
-            need = max(1, hf.winfo_reqheight())
+            hf.update_idletasks()
+            need = max(24, int(hf.winfo_reqheight()))
+
+            try:
+                pw.paneconfigure(hf, height=need)
+            except (tk.TclError, ValueError):
+                pass
+
             ph = max(1, pw.winfo_height())
             sash_w = 6
+            sashpad = 2
             status_min = 200
-            target = ph - need - sash_w - 2
+            target = ph - need - sash_w - 2 * sashpad - 1
             s0 = int(float(pw.sashpos(0)))
-            lo = s0 + sash_w + status_min
+            lo = s0 + sash_w + 2 * sashpad + status_min
             target = max(int(target), lo)
             target = min(target, ph - 4)
             pw.sashpos(1, target)
