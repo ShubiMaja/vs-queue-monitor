@@ -797,8 +797,8 @@ class QueueMonitorApp(tk.Tk):
             # Piecewise scale:
             # - positions 1..low_max get a large linear "zoom" region (so 1-5 are distinct)
             # - positions > low_max are compressed logarithmically
-            low_max = 10
-            zoom_frac = 0.70  # portion of plot height reserved for 1..low_max
+            low_max = 8
+            zoom_frac = 0.55  # portion of plot height reserved for 1..low_max
 
             vv = max(vmin, min(vmax, v))
             if vv <= low_max:
