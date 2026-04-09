@@ -953,7 +953,8 @@ class QueueMonitorApp(tk.Tk):
             return
         panes = self.panes
         history = self.history_frame
-        pane_widgets = set(panes.panes())
+        # tk.PanedWindow.panes() returns Tcl_Obj refs — not hashable; normalize to str for set lookup.
+        pane_widgets = {str(p) for p in panes.panes()}
 
         if self.show_log_var.get():
             if str(history) not in pane_widgets:
