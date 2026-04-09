@@ -150,6 +150,8 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_var = tk.StringVar(value="—")
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
+        self.avg_speed_var = tk.StringVar(value="—")
+        self.recent_window_var = tk.StringVar(value="—")
         self.alert_at_var = tk.StringVar(value=str(self.config.get("alert_at", "10")))
         self.step_var = tk.StringVar(value=str(self.config.get("step", "5")))
         self.repeat_sec_var = tk.StringVar(value=str(self.config.get("repeat_sec", "30")))
@@ -240,6 +242,8 @@ class QueueMonitorApp(tk.Tk):
             ("Current queue position", self.position_var),
             ("Elapsed", self.elapsed_var),
             ("Predicted remaining", self.predicted_remaining_var),
+            ("Avg speed (window)", self.avg_speed_var),
+            ("Recent positions", self.recent_window_var),
             ("Last change", self.last_change_var),
             ("Last alert", self.last_alert_var),
             ("Resolved log path", self.resolved_path_var),
@@ -293,6 +297,8 @@ class QueueMonitorApp(tk.Tk):
         self.position_var.set("—")
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
+        self.avg_speed_var.set("—")
+        self.recent_window_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
 
@@ -445,13 +451,20 @@ class QueueMonitorApp(tk.Tk):
         return f"{minutes:d}:{secs:02d}"
 
     def estimate_seconds_remaining(self) -> Optional[float]:
-        if self.last_position is None:
+        speed, _n, _trail = self.compute_moving_average_speed()
+        if speed is None or self.last_position is None:
             return None
+        remaining_positions = max(0, self.last_position - 1)
+        return remaining_positions / speed
+
+    def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
         points = list(self.graph_points)
         if len(points) < 2:
-            return None
+            return None, 0, [p for _t, p in points]
 
         recent = points[-(PREDICTION_WINDOW_POINTS + 1) :]
+        trail = [p for _t, p in recent]
+
         rates: list[float] = []
         for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
             dt = t1 - t0
@@ -463,14 +476,12 @@ class QueueMonitorApp(tk.Tk):
             rates.append(improvement / dt)
 
         if not rates:
-            return None
+            return None, 0, trail
 
         speed = sum(rates) / len(rates)  # positions per second
         if speed <= 0:
-            return None
-
-        remaining_positions = max(0, self.last_position - 1)
-        return remaining_positions / speed
+            return None, 0, trail
+        return speed, len(rates), trail
 
     def update_time_estimates(self) -> None:
         now = time.time()
@@ -478,6 +489,21 @@ class QueueMonitorApp(tk.Tk):
             self.elapsed_var.set(self.format_duration(now - self.monitor_start_epoch))
         else:
             self.elapsed_var.set("—")
+
+        speed, n, trail = self.compute_moving_average_speed()
+        if speed is None or n <= 0:
+            self.avg_speed_var.set("—")
+        else:
+            self.avg_speed_var.set(f"{speed * 60.0:.2f} pos/min (n={n})")
+
+        if not trail:
+            self.recent_window_var.set("—")
+        else:
+            trimmed = trail[-12:]
+            text = " → ".join(str(v) for v in trimmed)
+            if len(trail) > len(trimmed):
+                text = f"… → {text}"
+            self.recent_window_var.set(text)
 
         seconds_remaining = self.estimate_seconds_remaining()
         if seconds_remaining is None:
