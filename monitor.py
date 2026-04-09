@@ -202,8 +202,6 @@ UI_STATUS_BODY_PAD_TOP = UI_INNER_PAD_Y_SM
 UI_SUMMARY_INNER_PAD_X = UI_INNER_PAD_X
 UI_SUMMARY_INNER_PAD_Y_TOP = UI_INNER_PAD_Y_MD
 UI_SUMMARY_INNER_PAD_Y_BOTTOM = UI_INNER_PAD_Y_MD
-# Below this window width, rate uses a shorter label so the status strip does not crowd.
-UI_RATE_COMPACT_WIDTH = 920
 # History: align with pane LabelFrame L/R; even vertical padding.
 UI_HISTORY_FRAME_PAD_EXPANDED = (14, UI_INNER_PAD_Y_MD, 14, UI_INNER_PAD_Y_MD)
 UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 4, 14, 0)
@@ -1000,14 +998,17 @@ class QueueMonitorApp(tk.Tk):
         path_left = ttk.Frame(path_row, style="Card.TFrame")
         path_left.grid(row=0, column=0, sticky="ew")
         path_left.columnconfigure(1, weight=1)
-        ttk.Label(path_left, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
-        entry = ttk.Entry(path_left, textvariable=self.source_path_var, style="Path.TEntry")
-        entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
+        self._lbl_log_path = ttk.Label(path_left, text="Log file/folder")
+        self._lbl_log_path.grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
+        self._path_entry = ttk.Entry(path_left, textvariable=self.source_path_var, style="Path.TEntry")
+        self._path_entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
-        ttk.Button(path_actions, text="Browse file", command=self.browse_file).pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
-        ttk.Button(path_actions, text="Browse folder", command=self.browse_folder).pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse_file = ttk.Button(path_actions, text="Browse file", command=self.browse_file)
+        self._btn_browse_file.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse_folder = ttk.Button(path_actions, text="Browse folder", command=self.browse_folder)
+        self._btn_browse_folder.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
@@ -1041,12 +1042,13 @@ class QueueMonitorApp(tk.Tk):
         panes.pack(fill="both", expand=True, pady=(UI_SECTION_PAD, UI_SECTION_PAD))
         panes.bind("<Configure>", self._schedule_pane_fits, add=True)
 
-        graph_frame = ttk.LabelFrame(
+        self._graph_labelframe = ttk.LabelFrame(
             panes,
             text="Queue graph",
             style="Pane.TLabelframe",
             padding=UI_GRAPH_LABELFRAME_PAD,
         )
+        graph_frame = self._graph_labelframe
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=0)
         graph_frame.rowconfigure(1, weight=1)
@@ -1062,30 +1064,34 @@ class QueueMonitorApp(tk.Tk):
         _spx = UI_SUMMARY_INNER_PAD_X
         _spy = UI_SUMMARY_INNER_PAD_Y_TOP
 
-        tk.Label(
+        self._lbl_kpi_position = tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
-        tk.Label(
+        )
+        self._lbl_kpi_position.grid(row=0, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
+        self._lbl_kpi_status = tk.Label(
             summary,
             text="STATUS",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_STATUS,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
-        tk.Label(
+        )
+        self._lbl_kpi_status.grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
+        self._lbl_kpi_rate = tk.Label(
             summary,
             text="RATE",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_RATE,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
-        tk.Label(
+        )
+        self._lbl_kpi_rate.grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
+        self._position_value_label = tk.Label(
             summary,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
-        ).grid(row=1, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        )
+        self._position_value_label.grid(row=1, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
@@ -1096,13 +1102,14 @@ class QueueMonitorApp(tk.Tk):
         self._status_value_label.grid(
             row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
-        tk.Label(
+        self._queue_rate_value_label = tk.Label(
             summary,
             textvariable=self.queue_rate_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
-        ).grid(
+        )
+        self._queue_rate_value_label.grid(
             row=1, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
 
@@ -1112,30 +1119,34 @@ class QueueMonitorApp(tk.Tk):
         )
         time_pair.columnconfigure(0, weight=0)
         time_pair.columnconfigure(1, weight=0)
-        tk.Label(
+        self._lbl_elapsed_header = tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="nw", padx=(0, 4))
-        tk.Label(
+        )
+        self._lbl_elapsed_header.grid(row=0, column=0, sticky="nw", padx=(0, 4))
+        self._elapsed_value_label = tk.Label(
             time_pair,
             textvariable=self.elapsed_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
-        ).grid(row=1, column=0, sticky="nw", pady=(2, 0))
-        tk.Label(
+        )
+        self._elapsed_value_label.grid(row=1, column=0, sticky="nw", pady=(2, 0))
+        self._lbl_remaining_header = tk.Label(
             time_pair,
             text="REMAINING",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0))
-        tk.Label(
+        )
+        self._lbl_remaining_header.grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0))
+        self._remaining_value_label = tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
-        ).grid(row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        )
+        self._remaining_value_label.grid(row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
 
         # Separator: scannability between KPI row and progress (same panel as metrics).
         _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
@@ -1151,7 +1162,7 @@ class QueueMonitorApp(tk.Tk):
             pady=(UI_INNER_PAD_Y_SM, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
         )
         pbar_frame.columnconfigure(0, weight=1)
-        tk.Label(
+        self._lbl_progress_hint = tk.Label(
             pbar_frame,
             text="Progress through estimated wait — full bar at queue front.",
             bg=UI_SUMMARY_BG,
@@ -1159,7 +1170,8 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 8),
             wraplength=720,
             justify="left",
-        ).grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, UI_INNER_PAD_Y_SM))
+        )
+        self._lbl_progress_hint.grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, UI_INNER_PAD_Y_SM))
         self._queue_progress = ttk.Progressbar(
             pbar_frame,
             mode="determinate",
@@ -1173,7 +1185,8 @@ class QueueMonitorApp(tk.Tk):
         )
 
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
-        graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
+        self._graph_stack_frame = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
+        graph_stack = self._graph_stack_frame
         graph_stack.grid(
             row=1,
             column=0,
@@ -1227,9 +1240,8 @@ class QueueMonitorApp(tk.Tk):
 
         status_tab_strip = ttk.Frame(self.status_frame, style="HistoryTabStrip.TFrame")
         status_tab_strip.grid(row=0, column=0, sticky="ew")
-        ttk.Label(status_tab_strip, text="Status", style="Pane.TLabelframe.Label").pack(
-            side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0)
-        )
+        self._lbl_status_section_title = ttk.Label(status_tab_strip, text="Status", style="Pane.TLabelframe.Label")
+        self._lbl_status_section_title.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         self._status_tab_btn = ttk.Button(
             status_tab_strip,
             text="\u25bc",
@@ -1264,9 +1276,8 @@ class QueueMonitorApp(tk.Tk):
 
         history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
         history_tab_strip.grid(row=0, column=0, sticky="ew")
-        ttk.Label(history_tab_strip, text="History", style="Pane.TLabelframe.Label").pack(
-            side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0)
-        )
+        self._lbl_history_section_title = ttk.Label(history_tab_strip, text="History", style="Pane.TLabelframe.Label")
+        self._lbl_history_section_title.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         self._history_tab_btn = ttk.Button(
             history_tab_strip,
             text="\u25bc",
@@ -1306,18 +1317,18 @@ class QueueMonitorApp(tk.Tk):
         wrap = 420
         _dpy = (UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM)
         _g = 6
-        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
-        ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
-            row=0, column=1, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy
-        )
-        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_MD, _g), pady=_dpy)
-        ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
-            row=0, column=3, sticky="nw", padx=(0, 0), pady=_dpy
-        )
-        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
-        ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
-            row=1, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
-        )
+        self._lbl_det_last_change = ttk.Label(details, text="Last change")
+        self._lbl_det_last_change.grid(row=0, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
+        self._lbl_det_last_change_val = ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap)
+        self._lbl_det_last_change_val.grid(row=0, column=1, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
+        self._lbl_det_alert = ttk.Label(details, text="Last threshold alert")
+        self._lbl_det_alert.grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_MD, _g), pady=_dpy)
+        self._lbl_det_alert_val = ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap)
+        self._lbl_det_alert_val.grid(row=0, column=3, sticky="nw", padx=(0, 0), pady=_dpy)
+        self._lbl_det_path = ttk.Label(details, text="Resolved log path")
+        self._lbl_det_path.grid(row=1, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
+        self._lbl_det_path_val = ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2)
+        self._lbl_det_path_val.grid(row=1, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy)
 
         self.history_text = tk.Text(
             self._history_body,
@@ -1334,9 +1345,11 @@ class QueueMonitorApp(tk.Tk):
             borderwidth=0,
         )
         self.history_text.grid(row=0, column=0, sticky="nsew", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
-        scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        self.history_text.configure(yscrollcommand=scrollbar.set)
+        self._history_scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
+        self._history_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.history_text.configure(yscrollcommand=self._history_scrollbar.set)
+
+        self._bind_main_tooltips()
 
         self._on_show_log_write()
         self._on_show_status_write()
@@ -2284,19 +2297,11 @@ class QueueMonitorApp(tk.Tk):
         return f"{m:d}:{s:05.2f}"
 
     @staticmethod
-    def _format_queue_rate(mpp: Optional[float], *, compact: bool = False) -> str:
-        """Window estimate: average minutes per queue position (value line next to STATUS)."""
+    def _format_queue_rate(mpp: Optional[float]) -> str:
+        """Shown as min/pos; full wording is in the rate tooltip."""
         if mpp is not None and mpp > 0:
-            if compact:
-                return f"{mpp:.2f} min/pos"
-            return f"{mpp:.2f} minute/position"
+            return f"{mpp:.2f} min/pos"
         return "—"
-
-    def _queue_rate_display_compact(self) -> bool:
-        try:
-            return int(self.winfo_width()) < UI_RATE_COMPACT_WIDTH
-        except (tk.TclError, ValueError, TypeError):
-            return False
 
     def _schedule_resize_refresh(self, evt: Optional[tk.Event] = None) -> None:
         if evt is not None and getattr(evt, "widget", None) is not self:
@@ -2369,6 +2374,85 @@ class QueueMonitorApp(tk.Tk):
 
         widget.bind("<Enter>", show_delayed, add=True)
         widget.bind("<Leave>", hide, add=True)
+
+    def _bind_main_tooltips(self) -> None:
+        """Hover help for the main window (uses the same delayed toplevel as _bind_static_tooltip)."""
+        bt = self._bind_static_tooltip
+        bt(
+            self.start_stop_button,
+            "Start or stop watching the log for Vintage Story queue lines. "
+            "Shortcut: Space when focus is not in a text field; Ctrl+M also toggles.",
+        )
+        bt(
+            self._lbl_log_path,
+            "Path to client-main.log or a folder that contains it. "
+            "Use $APPDATA and similar tokens where supported.",
+        )
+        bt(self._path_entry, "Editable log path or folder; Browse picks a file or directory.")
+        bt(self._btn_browse_file, "Choose client-main.log (or another log file) directly.")
+        bt(self._btn_browse_folder, "Choose a folder; the app searches for client-main.log inside.")
+        bt(
+            self._settings_btn,
+            "Alerts (thresholds, popup, sound), poll interval, prediction window, and graph scale.",
+        )
+        bt(self._loading_spinner, "Loading: reading the log tail to seed the graph and position.")
+        bt(self._graph_labelframe, "Queue position over time (step plot from parsed log lines).")
+        bt(
+            self._lbl_kpi_position,
+            "Label: your current index in the server connection queue (from the latest log line).",
+        )
+        bt(
+            self._position_value_label,
+            "Current queue position. Lower means closer to connecting; 1 usually means in game.",
+        )
+        bt(self._lbl_kpi_status, "Label: monitoring / idle / interrupted state derived from the log.")
+        bt(
+            self._status_value_label,
+            "Connection and monitoring state (e.g. Monitoring, Interrupted, Completed).",
+        )
+        bt(self._lbl_kpi_rate, "Label: speed estimate for this queue run (see value tooltip).")
+        bt(
+            self._queue_rate_value_label,
+            "Minutes per position: average minutes to advance one queue spot, from recent log updates "
+            "in the prediction window (recency-weighted segments). Lower is faster. "
+            "Abbreviated as min/pos.",
+        )
+        bt(
+            self._lbl_elapsed_header,
+            "Label: wall time in queue for this run (or frozen total once you reach the front).",
+        )
+        bt(self._elapsed_value_label, "Elapsed time since this monitoring run started (HH:MM:SS or similar).")
+        bt(
+            self._lbl_remaining_header,
+            "Label: estimated time left until queue front at the current rate model.",
+        )
+        bt(
+            self._remaining_value_label,
+            "Estimated remaining wait from position and throughput (not shown at front or if unknown).",
+        )
+        bt(
+            self._lbl_progress_hint,
+            "Progress bar: share of estimated total wait already elapsed (elapsed ÷ elapsed+remaining). "
+            "100% at the queue front.",
+        )
+        bt(
+            self._graph_stack_frame,
+            "Plot area: queue position vs time. Hover the line for timestamp and position; "
+            "use the Y button for linear vs log vertical scale.",
+        )
+        bt(self.graph_canvas, "Hover near the blue line for time and position at that point.")
+        bt(self._lbl_status_section_title, "Status section: last change, alerts, and resolved log path.")
+        bt(self._status_tab_btn, "Expand or collapse the Status details.")
+        bt(self._lbl_det_last_change, "Label: when the queue position last changed in the log.")
+        bt(self._lbl_det_last_change_val, "Timestamp of the last queue position change.")
+        bt(self._lbl_det_alert, "Label: when a threshold alert last fired (popup/sound).")
+        bt(self._lbl_det_alert_val, "Last alert position and reason, or — if none this run.")
+        bt(self._lbl_det_path, "Label: actual file path used after resolving $APPDATA and symlinks.")
+        bt(self._lbl_det_path_val, "Full resolved path to the log file being read.")
+        bt(self._lbl_history_section_title, "History: timestamped messages from this session.")
+        bt(self._history_tab_btn, "Expand or collapse the History log.")
+        bt(self.history_text, "Session log: path events, queue updates, alerts, and warnings.")
+        bt(self._history_scrollbar, "Scroll the history log.")
 
     def _bind_keyboard_shortcuts(self) -> None:
         self.bind("<Control-m>", self._shortcut_toggle_monitoring)
@@ -2615,7 +2699,7 @@ class QueueMonitorApp(tk.Tk):
             self.predicted_remaining_var.set("—")
             mpp_raw = self._minutes_per_position_from_window()
             mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-            self.queue_rate_var.set(self._format_queue_rate(mpp, compact=self._queue_rate_display_compact()))
+            self.queue_rate_var.set(self._format_queue_rate(mpp))
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
             return
@@ -2654,7 +2738,7 @@ class QueueMonitorApp(tk.Tk):
         # ETA updates _pred_speed_scale; min/pos prefers empirical window throughput, else model.
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-        self.queue_rate_var.set(self._format_queue_rate(mpp, compact=self._queue_rate_display_compact()))
+        self.queue_rate_var.set(self._format_queue_rate(mpp))
 
         # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
         # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
