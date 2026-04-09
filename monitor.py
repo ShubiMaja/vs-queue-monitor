@@ -1135,60 +1135,64 @@ class QueueMonitorApp(tk.Tk):
             row=1, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
 
+        # Pack three columns left→right so order stays ELAPSED | REMAINING | PROGRESS (grid can mirror under RTL).
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
         time_pair.grid(
             row=0, column=3, rowspan=2, sticky="ne", padx=(UI_INNER_PAD_Y_MD, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
-        time_pair.columnconfigure(0, weight=0)
-        time_pair.columnconfigure(1, weight=0)
-        time_pair.columnconfigure(2, weight=0)
+        _col_elapsed = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
+        _col_elapsed.pack(side="left", padx=(0, 4))
+        _col_remaining = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
+        _col_remaining.pack(side="left", padx=(UI_INNER_PAD_Y_MD, 0))
+        _col_progress = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
+        _col_progress.pack(side="left", padx=(UI_INNER_PAD_Y_MD, 0))
         self._lbl_elapsed_header = tk.Label(
-            time_pair,
+            _col_elapsed,
             text="ELAPSED",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_ELAPSED,
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_elapsed_header.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self._lbl_elapsed_header.pack(anchor="w")
         self._elapsed_value_label = tk.Label(
-            time_pair,
+            _col_elapsed,
             textvariable=self.elapsed_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
             anchor="e",
         )
-        self._elapsed_value_label.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        self._elapsed_value_label.pack(fill="x", pady=(2, 0))
         self._lbl_remaining_header = tk.Label(
-            time_pair,
+            _col_remaining,
             text="REMAINING",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_remaining_header.grid(row=0, column=1, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0))
+        self._lbl_remaining_header.pack(anchor="w")
         self._remaining_value_label = tk.Label(
-            time_pair,
+            _col_remaining,
             textvariable=self.predicted_remaining_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
             anchor="e",
         )
-        self._remaining_value_label.grid(row=1, column=1, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        self._remaining_value_label.pack(fill="x", pady=(2, 0))
         self._lbl_progress_header = tk.Label(
-            time_pair,
+            _col_progress,
             text="PROGRESS",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_PROGRESS,
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_progress_header.grid(row=0, column=2, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0))
-        _prog_cell = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
-        _prog_cell.grid(row=1, column=2, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        self._lbl_progress_header.pack(anchor="w")
+        _prog_cell = tk.Frame(_col_progress, bg=UI_SUMMARY_BG)
+        _prog_cell.pack(fill="x", pady=(2, 0))
         self._queue_progress = ttk.Progressbar(
             _prog_cell,
             style="Thin.TProgressbar",
