@@ -663,7 +663,9 @@ class QueueMonitorApp(tk.Tk):
         self.current_point: Optional[tuple[float, int]] = None
         self.graph_points_drawn: list[tuple[float, int]] = []
         self.graph_tooltip: Optional[tk.Toplevel] = None
-        self.history_frame: Optional[ttk.LabelFrame] = None
+        self.history_frame: Optional[ttk.Frame] = None
+        self._history_body: Optional[ttk.Frame] = None
+        self._history_sep: Optional[ttk.Separator] = None
         self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
@@ -975,9 +977,30 @@ class QueueMonitorApp(tk.Tk):
         )
         self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
-        self.history_frame = ttk.LabelFrame(panes, text="History", padding=(4, 6, 4, 4))
-        self.history_frame.rowconfigure(0, weight=1)
+        self.history_frame = ttk.Frame(panes, padding=(4, 6, 4, 4))
         self.history_frame.columnconfigure(0, weight=1)
+        self.history_frame.rowconfigure(2, weight=1)
+
+        history_header = ttk.Frame(self.history_frame, style="Card.TFrame")
+        history_header.grid(row=0, column=0, sticky="ew")
+        history_header.columnconfigure(0, weight=1)
+        ttk.Label(history_header, text="History", font=("TkDefaultFont", 10, "bold")).grid(
+            row=0, column=0, sticky="w", padx=(2, 8)
+        )
+        self._history_tab_btn = ttk.Button(
+            history_header,
+            text="\u25bc",
+            width=3,
+            command=self._toggle_history_panel,
+        )
+        self._history_tab_btn.grid(row=0, column=1, sticky="e")
+
+        self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
+        self._history_sep.grid(row=1, column=0, sticky="ew", pady=(4, 4))
+
+        self._history_body = ttk.Frame(self.history_frame)
+        self._history_body.rowconfigure(0, weight=1)
+        self._history_body.columnconfigure(0, weight=1)
 
         # stretch: extra vertical space goes mostly to graph + history; status stays content-sized.
         panes.add(graph_frame, minsize=120, stretch="always")
@@ -1004,7 +1027,7 @@ class QueueMonitorApp(tk.Tk):
         )
 
         self.history_text = tk.Text(
-            self.history_frame,
+            self._history_body,
             height=18,
             wrap="word",
             state="disabled",
@@ -1017,21 +1040,10 @@ class QueueMonitorApp(tk.Tk):
             highlightthickness=0,
             borderwidth=0,
         )
-        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=4)
-        scrollbar = ttk.Scrollbar(self.history_frame, orient="vertical", command=self.history_text.yview)
+        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(2, 0), pady=(0, 0))
+        scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
-
-        ttk.Separator(outer, orient=tk.HORIZONTAL).pack(fill="x", pady=(8, 0))
-        bottom_bar = ttk.Frame(outer, style="Card.TFrame")
-        bottom_bar.pack(fill="x", pady=(4, 0))
-        self._history_tab_btn = ttk.Button(
-            bottom_bar,
-            text="▼  History",
-            width=16,
-            command=self._toggle_history_panel,
-        )
-        self._history_tab_btn.pack(side="right")
 
         self._on_show_log_write()
         self.update_start_stop_button()
@@ -1244,9 +1256,9 @@ class QueueMonitorApp(tk.Tk):
         if btn is None:
             return
         if self.show_log_var.get():
-            btn.configure(text="▼  History")
+            btn.configure(text="\u25bc")
         else:
-            btn.configure(text="▲  History")
+            btn.configure(text="\u25b2")
 
     def _toggle_history_panel(self) -> None:
         self.show_log_var.set(not self.show_log_var.get())
@@ -1256,19 +1268,32 @@ class QueueMonitorApp(tk.Tk):
         self._update_history_tab_button_text()
 
     def update_log_visibility(self) -> None:
-        if self.history_frame is None or self.panes is None:
+        """Show or hide history *content*; header bar stays between Status and the text area."""
+        if self.history_frame is None or self.panes is None or self._history_body is None:
             return
         panes = self.panes
         history = self.history_frame
-        # tk.PanedWindow.panes() returns Tcl_Obj refs — not hashable; normalize to str for set lookup.
-        pane_widgets = {str(p) for p in panes.panes()}
+        body = self._history_body
+        sep = self._history_sep
 
         if self.show_log_var.get():
-            if str(history) not in pane_widgets:
-                panes.add(history, minsize=100, stretch="always")
+            body.grid(row=2, column=0, sticky="nsew")
+            if sep is not None:
+                sep.grid(row=1, column=0, sticky="ew", pady=(4, 4))
+            history.rowconfigure(2, weight=1)
+            try:
+                panes.paneconfigure(history, minsize=100, stretch="always")
+            except Exception:
+                pass
         else:
-            if str(history) in pane_widgets:
-                panes.forget(history)
+            body.grid_remove()
+            if sep is not None:
+                sep.grid_remove()
+            history.rowconfigure(2, weight=0)
+            try:
+                panes.paneconfigure(history, minsize=40, stretch="never")
+            except Exception:
+                pass
 
     def write_history(self, message: str) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
