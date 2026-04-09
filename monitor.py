@@ -1181,22 +1181,13 @@ class QueueMonitorApp(tk.Tk):
             maximum=100.0,
             length=96,
         )
-        self._queue_progress.pack(anchor="e", pady=(0, 1))
-        self._progress_pct_label = tk.Label(
-            _prog_cell,
-            textvariable=self.progress_pct_var,
-            bg=UI_SUMMARY_BG,
-            fg=UI_SUMMARY_VALUE,
-            font=("TkDefaultFont", 24, "bold"),
-        )
-        self._progress_pct_label.pack(anchor="e")
+        self._queue_progress.pack(anchor="e", pady=(0, 0))
         _prog_tip = (
             "Share of estimated total wait already elapsed: 100 × elapsed ÷ (elapsed + estimated remaining) "
-            "when both are known; 100% at queue front; — when interrupted or ETA unknown."
+            "when both are known; full bar at queue front; empty when interrupted or ETA unknown."
         )
         self._bind_static_tooltip(self._lbl_progress_header, _prog_tip)
         self._bind_static_tooltip(self._queue_progress, _prog_tip)
-        self._bind_static_tooltip(self._progress_pct_label, _prog_tip)
 
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         self._graph_stack_frame = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
@@ -1568,7 +1559,6 @@ class QueueMonitorApp(tk.Tk):
         self.position_var.set("—")
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
-        self.progress_pct_var.set("—")
         self.queue_rate_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
@@ -2497,11 +2487,7 @@ class QueueMonitorApp(tk.Tk):
         )
         bt(
             self._lbl_progress_header,
-            "Label: share of estimated total wait already elapsed (matches the percent and thin bar).",
-        )
-        bt(
-            self._progress_pct_label,
-            "Percent of estimated total wait already elapsed; thin bar above uses the same value.",
+            "Label: share of estimated total wait already elapsed (same fill as the thin bar).",
         )
         bt(
             self._graph_stack_frame,
@@ -2784,7 +2770,6 @@ class QueueMonitorApp(tk.Tk):
             self.queue_rate_var.set(self._format_queue_rate(mpp))
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
-            self.progress_pct_var.set("—")
             return
 
         if self.running and pos is not None:
@@ -2837,19 +2822,15 @@ class QueueMonitorApp(tk.Tk):
         if self._queue_progress is not None:
             if pos is not None and pos <= 1:
                 self._queue_progress["value"] = 100.0
-                self.progress_pct_var.set("100%")
             elif elapsed_sec is not None and seconds_remaining is not None:
                 total = elapsed_sec + max(0.0, float(seconds_remaining))
                 if total > 1e-6:
                     p = min(100.0, max(0.0, 100.0 * elapsed_sec / total))
                     self._queue_progress["value"] = p
-                    self.progress_pct_var.set(f"{p:.0f}%")
                 else:
                     self._queue_progress["value"] = 0.0
-                    self.progress_pct_var.set("0%")
             else:
                 self._queue_progress["value"] = 0.0
-                self.progress_pct_var.set("—")
 
     def _update_graph_y_scale_button_text(self) -> None:
         btn = self._graph_y_scale_btn
