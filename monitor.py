@@ -181,21 +181,21 @@ UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
 UI_SECTION_PAD = 12
 # Text / controls inset inside a pane’s client area (after LabelFrame padding). One rhythm for the whole UI.
-UI_INNER_PAD_X = 14
+UI_INNER_PAD_X = 10
 UI_INNER_PAD_Y_SM = 8
 UI_INNER_PAD_Y_MD = 10
 # tk.PanedWindow vertical dividers (must match _fit_history_pane_collapsed math). Flat strip — no showhandle (avoids harsh 3D boxes on Windows).
 UI_PANE_SASH_WIDTH = 6
 UI_PANE_SASH_PAD = 3
 # Main paned LabelFrames (Queue graph, Status): labelmargins (L,T,R,B); padding is the client area (clam).
-UI_PANE_LABELFRAME_LABEL_MARGINS = (14, 10, 14, 6)
-UI_PANE_LABELFRAME_PAD = (14, 14, 14, 14)
-# Queue graph: same client padding as Status so pane titles and content columns line up.
-UI_GRAPH_LABELFRAME_PAD = UI_PANE_LABELFRAME_PAD
+UI_PANE_LABELFRAME_LABEL_MARGINS = (10, 8, 10, 6)
+UI_PANE_LABELFRAME_PAD = (10, 10, 10, 10)
+# Queue graph: align with Status pane titles; slightly tighter top under the label.
+UI_GRAPH_LABELFRAME_PAD = (10, 8, 10, 10)
 # Black graph_stack: full width; symmetric vertical gap to summary and bottom edge.
 UI_GRAPH_STACK_PAD = (0, UI_INNER_PAD_Y_SM, 0, UI_INNER_PAD_Y_SM)
-# Plot canvas inside graph_stack (Y-axis uses pad_left inside redraw_graph).
-UI_GRAPH_DARK_INNER_PAD = (10, UI_INNER_PAD_Y_MD, 10, 12)
+# Plot canvas inside graph_stack (tight left — Y-axis margin is pad_left inside redraw_graph).
+UI_GRAPH_DARK_INNER_PAD = (4, UI_INNER_PAD_Y_SM, 8, 10)
 # Gap only — details frame supplies the rest (avoid double top spacing in Status).
 UI_STATUS_BODY_PAD_TOP = UI_INNER_PAD_Y_SM
 # KPI strip: one horizontal gutter; balanced vertical padding.
@@ -203,8 +203,8 @@ UI_SUMMARY_INNER_PAD_X = UI_INNER_PAD_X
 UI_SUMMARY_INNER_PAD_Y_TOP = UI_INNER_PAD_Y_MD
 UI_SUMMARY_INNER_PAD_Y_BOTTOM = UI_INNER_PAD_Y_MD
 # History: align with pane LabelFrame L/R; even vertical padding.
-UI_HISTORY_FRAME_PAD_EXPANDED = (14, UI_INNER_PAD_Y_MD, 14, UI_INNER_PAD_Y_MD)
-UI_HISTORY_FRAME_PAD_COLLAPSED = (14, 4, 14, 0)
+UI_HISTORY_FRAME_PAD_EXPANDED = (10, UI_INNER_PAD_Y_MD, 10, UI_INNER_PAD_Y_MD)
+UI_HISTORY_FRAME_PAD_COLLAPSED = (10, 4, 10, 0)
 UI_HISTORY_PANE_MIN_EXPANDED = 220
 # Collapsible Status strip (same padding rhythm as History).
 UI_STATUS_PANE_MIN_EXPANDED = 140
@@ -968,14 +968,14 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
-        outer = ttk.Frame(self, padding=(16, 16), style="App.TFrame")
+        outer = ttk.Frame(self, padding=(12, 12), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
         # Top: play/stop + one line: label, path entry, browse, settings (no separator — avoids bright rule on Windows).
         top = ttk.Frame(
             outer,
             style="Card.TFrame",
-            padding=(0, 0, 0, UI_INNER_PAD_Y_MD + UI_SECTION_PAD + UI_INNER_PAD_Y_MD),
+            padding=(0, 0, 0, UI_INNER_PAD_Y_SM),
         )
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
@@ -1039,7 +1039,7 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
         self.panes = panes
-        panes.pack(fill="both", expand=True, pady=(UI_SECTION_PAD, UI_SECTION_PAD))
+        panes.pack(fill="both", expand=True, pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
         panes.bind("<Configure>", self._schedule_pane_fits, add=True)
 
         self._graph_labelframe = ttk.LabelFrame(
