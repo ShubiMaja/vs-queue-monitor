@@ -672,7 +672,7 @@ class QueueMonitorApp(tk.Tk):
         self._history_body: Optional[ttk.Frame] = None
         self._history_sep: Optional[ttk.Separator] = None
         self.panes: Optional[tk.PanedWindow] = None
-        self.start_stop_button: Optional[tk.Button] = None
+        self.start_stop_button: Optional[ttk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
         self._graph_y_scale_btn: Optional[ttk.Button] = None
         self._history_tab_btn: Optional[ttk.Button] = None
@@ -795,6 +795,49 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
             lightcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
         )
+        # Same padding as TButton (e.g. Settings); green / red transport control.
+        style.configure(
+            "PlayStopPlay.TButton",
+            padding=(10, 4),
+            background=UI_PLAY_BTN_BG,
+            foreground="#ffffff",
+            bordercolor=_bd,
+            darkcolor=UI_PLAY_BTN_BG,
+            lightcolor=UI_PLAY_BTN_ACTIVE,
+            focuscolor=UI_PLAY_BTN_BG,
+        )
+        style.map(
+            "PlayStopPlay.TButton",
+            background=[
+                ("disabled", UI_PLAY_BTN_BG),
+                ("active", UI_PLAY_BTN_ACTIVE),
+                ("pressed", UI_PLAY_BTN_ACTIVE),
+            ],
+            foreground=[("disabled", "#ffffff")],
+            darkcolor=[("pressed", UI_PLAY_BTN_ACTIVE)],
+            lightcolor=[("pressed", UI_PLAY_BTN_ACTIVE)],
+        )
+        style.configure(
+            "PlayStopStop.TButton",
+            padding=(10, 4),
+            background=UI_STOP_BTN_BG,
+            foreground="#ffffff",
+            bordercolor=_bd,
+            darkcolor=UI_STOP_BTN_BG,
+            lightcolor=UI_STOP_BTN_ACTIVE,
+            focuscolor=UI_STOP_BTN_BG,
+        )
+        style.map(
+            "PlayStopStop.TButton",
+            background=[
+                ("disabled", UI_STOP_BTN_BG),
+                ("active", UI_STOP_BTN_ACTIVE),
+                ("pressed", UI_STOP_BTN_ACTIVE),
+            ],
+            foreground=[("disabled", "#ffffff")],
+            darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
+            lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
+        )
         style.configure(
             "TEntry",
             fieldbackground=UI_ENTRY_FIELD,
@@ -849,22 +892,14 @@ class QueueMonitorApp(tk.Tk):
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
-        play_wrap = tk.Frame(top, bg=UI_BG_CARD, highlightthickness=0, bd=0)
+        play_wrap = ttk.Frame(top, style="Card.TFrame")
         play_wrap.grid(row=0, column=0, rowspan=2, sticky="nw", padx=(0, 12), pady=(0, 2))
-        _play_font = ("Segoe UI", 13, "bold") if sys.platform.startswith("win") else ("TkDefaultFont", 12, "bold")
-        self.start_stop_button = tk.Button(
+        self.start_stop_button = ttk.Button(
             play_wrap,
             text="\u25b6",
+            style="PlayStopPlay.TButton",
             command=self.toggle_monitoring,
-            font=_play_font,
-            fg="#ffffff",
-            activeforeground="#ffffff",
             cursor="hand2",
-            relief=tk.FLAT,
-            borderwidth=0,
-            padx=11,
-            pady=7,
-            highlightthickness=0,
         )
         self.start_stop_button.pack()
         self.update_start_stop_button()
@@ -1183,17 +1218,9 @@ class QueueMonitorApp(tk.Tk):
         if self.start_stop_button is None:
             return
         if self.running:
-            self.start_stop_button.configure(
-                text="\u25a0",
-                bg=UI_STOP_BTN_BG,
-                activebackground=UI_STOP_BTN_ACTIVE,
-            )
+            self.start_stop_button.configure(text="\u25a0", style="PlayStopStop.TButton")
         else:
-            self.start_stop_button.configure(
-                text="\u25b6",
-                bg=UI_PLAY_BTN_BG,
-                activebackground=UI_PLAY_BTN_ACTIVE,
-            )
+            self.start_stop_button.configure(text="\u25b6", style="PlayStopPlay.TButton")
 
     def toggle_monitoring(self) -> None:
         if self._starting:
@@ -1411,17 +1438,13 @@ class QueueMonitorApp(tk.Tk):
         if self._loading_spinner is None or self.start_stop_button is None:
             return
         if show:
-            self.start_stop_button.configure(
-                state="disabled",
-                disabledforeground="#ffffff",
-                disabledbackground=UI_PLAY_BTN_BG,
-            )
+            self.start_stop_button.state(["disabled"])
             self._loading_spinner.grid(row=0, column=3, padx=(8, 8), sticky="w")
             self._loading_spinner.start(12)
         else:
             self._loading_spinner.stop()
             self._loading_spinner.grid_remove()
-            self.start_stop_button.configure(state="normal")
+            self.start_stop_button.state(["!disabled"])
             self.update_start_stop_button()
 
     def start_monitoring(self) -> None:
