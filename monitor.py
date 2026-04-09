@@ -740,6 +740,26 @@ class QueueMonitorApp(tk.Tk):
         style.configure("App.TFrame", background=UI_BG_APP)
         style.configure("TFrame", background=_card, borderwidth=0)
         style.configure("Card.TFrame", background=_card)
+        style.configure("HistoryTabStrip.TFrame", background=UI_BG_APP)
+        style.configure(
+            "HistoryTab.TButton",
+            padding=(10, 5),
+            background=_card,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=_bd,
+            darkcolor=_card,
+            lightcolor=UI_BUTTON_BG_ACTIVE,
+            focuscolor=_card,
+            borderwidth=1,
+            relief="flat",
+            font=("TkDefaultFont", 10, "bold"),
+        )
+        style.map(
+            "HistoryTab.TButton",
+            background=[("active", UI_BUTTON_BG_ACTIVE), ("pressed", UI_BUTTON_BG_ACTIVE)],
+            darkcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
+            lightcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
+        )
         style.configure("TLabel", background=_card, foreground=UI_TEXT_PRIMARY)
         style.configure(
             "TLabelframe",
@@ -1004,19 +1024,15 @@ class QueueMonitorApp(tk.Tk):
         self.history_frame.columnconfigure(0, weight=1)
         self.history_frame.rowconfigure(2, weight=1)
 
-        history_header = ttk.Frame(self.history_frame, style="Card.TFrame")
-        history_header.grid(row=0, column=0, sticky="ew")
-        history_header.columnconfigure(0, weight=1)
-        ttk.Label(history_header, text="History", font=("TkDefaultFont", 10, "bold")).grid(
-            row=0, column=0, sticky="w", padx=(2, 8)
-        )
+        history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
+        history_tab_strip.grid(row=0, column=0, sticky="ew", pady=(0, 0))
         self._history_tab_btn = ttk.Button(
-            history_header,
-            text="\u25bc",
-            width=3,
+            history_tab_strip,
+            text="History  \u25bc",
+            style="HistoryTab.TButton",
             command=self._toggle_history_panel,
         )
-        self._history_tab_btn.grid(row=0, column=1, sticky="e")
+        self._history_tab_btn.pack(side="left", padx=(2, 0), pady=(2, 0))
 
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
         self._history_sep.grid(row=1, column=0, sticky="ew", pady=(4, 4))
@@ -1292,9 +1308,9 @@ class QueueMonitorApp(tk.Tk):
         if btn is None:
             return
         if self.show_log_var.get():
-            btn.configure(text="\u25bc")
+            btn.configure(text="History  \u25bc")
         else:
-            btn.configure(text="\u25b2")
+            btn.configure(text="History  \u25b2")
 
     def _toggle_history_panel(self) -> None:
         self.show_log_var.set(not self.show_log_var.get())
