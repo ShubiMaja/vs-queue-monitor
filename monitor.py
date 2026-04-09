@@ -914,6 +914,17 @@ class QueueMonitorApp(tk.Tk):
             insertcolor=UI_TEXT_PRIMARY,
         )
         style.map("TEntry", focuscolor=[("!focus", UI_ENTRY_FIELD), ("focus", _bd)])
+        # Flatten clam’s light top/left edge on the path field (reads as a white line on dark chrome).
+        style.configure(
+            "Path.TEntry",
+            fieldbackground=UI_ENTRY_FIELD,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=UI_ENTRY_FIELD,
+            darkcolor=UI_ENTRY_FIELD,
+            lightcolor=UI_ENTRY_FIELD,
+            insertcolor=UI_TEXT_PRIMARY,
+        )
+        style.map("Path.TEntry", focuscolor=[("!focus", UI_ENTRY_FIELD), ("focus", _bd)])
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
             "Horizontal.TProgressbar",
@@ -981,7 +992,7 @@ class QueueMonitorApp(tk.Tk):
         path_left.grid(row=0, column=0, sticky="ew")
         path_left.columnconfigure(1, weight=1)
         ttk.Label(path_left, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
-        entry = ttk.Entry(path_left, textvariable=self.source_path_var)
+        entry = ttk.Entry(path_left, textvariable=self.source_path_var, style="Path.TEntry")
         entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
@@ -1037,8 +1048,7 @@ class QueueMonitorApp(tk.Tk):
         summary.columnconfigure(0, weight=0)
         summary.columnconfigure(1, weight=0)
         summary.columnconfigure(2, weight=0)
-        summary.columnconfigure(3, weight=1)
-        summary.columnconfigure(4, weight=0)
+        summary.columnconfigure(3, weight=0)
 
         _spx = UI_SUMMARY_INNER_PAD_X
         _spy = UI_SUMMARY_INNER_PAD_Y_TOP
@@ -1089,7 +1099,7 @@ class QueueMonitorApp(tk.Tk):
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
         time_pair.grid(
-            row=0, column=4, rowspan=2, sticky="ne", padx=(UI_INNER_PAD_Y_SM, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+            row=0, column=3, rowspan=2, sticky="ne", padx=(UI_INNER_PAD_Y_MD, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
         time_pair.columnconfigure(0, weight=0)
         time_pair.columnconfigure(1, weight=0)
@@ -1120,13 +1130,13 @@ class QueueMonitorApp(tk.Tk):
 
         # Separator: scannability between KPI row and progress (same panel as metrics).
         _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
-        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(0, 0), pady=(UI_INNER_PAD_Y_MD, 0))
+        _sum_sep.grid(row=2, column=0, columnspan=4, sticky="ew", padx=(0, 0), pady=(UI_INNER_PAD_Y_MD, 0))
 
         pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
         pbar_frame.grid(
             row=3,
             column=0,
-            columnspan=5,
+            columnspan=4,
             sticky="ew",
             padx=(0, 0),
             pady=(UI_INNER_PAD_Y_SM, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
@@ -1259,20 +1269,22 @@ class QueueMonitorApp(tk.Tk):
             style="Card.TFrame",
         )
         details.grid(row=0, column=0, sticky="ew", pady=(0, 0))
+        # Only the first value column grows so “Last threshold alert” stays near its value.
         details.columnconfigure(1, weight=1)
-        details.columnconfigure(3, weight=1)
+        details.columnconfigure(3, weight=0)
 
         wrap = 420
         _dpy = (UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM)
-        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
+        _g = 6
+        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
         ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
-            row=0, column=1, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
+            row=0, column=1, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy
         )
-        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
+        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_MD, _g), pady=_dpy)
         ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
-            row=0, column=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
+            row=0, column=3, sticky="nw", padx=(0, 0), pady=_dpy
         )
-        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, UI_INNER_PAD_Y_MD), pady=_dpy)
+        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
         ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
             row=1, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy
         )
