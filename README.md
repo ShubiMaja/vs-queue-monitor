@@ -112,7 +112,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 |------|----------|
 | **Status bar** | Position, status, elapsed, remaining ETA, progress (elapsed vs ETA when known) |
 | **Graph** | Recent queue position over time; optional log-scaled Y axis |
-| **Alerts** | Comma-separated thresholds (e.g. `10, 5, 3, 2, 1`); one shot per crossing per queue run |
+| **Alerts** | Comma-separated thresholds; **default** `10, 5, 3, 2, 1`. One alert per threshold per downward crossing per queue run |
 | **Reconnect / interrupt** | Distinguishes grace-period TCP errors vs final teardown; optional log-silence detection; **Interrupted** freezes elapsed but **keeps tailing** the log |
 | **New queue** | After an interrupt, if a **new queue run** appears in the log, a dialog offers to **re-seed** the graph for that run |
 | **Config** | Settings and window geometry persist to JSON (see below) |
@@ -126,7 +126,7 @@ Saved automatically (debounced) when you change options:
 | Windows | `%APPDATA%\vs-q-monitor\config.json` |
 | Linux/macOS | `$XDG_CONFIG_HOME/vs-q-monitor/config.json` or `~/.config/vs-q-monitor/config.json` |
 
-Typical keys: `source_path`, `alert_thresholds`, `poll_sec`, `avg_window_points`, `show_log`, `graph_log_scale`, `popup_enabled`, `sound_enabled`, `show_every_change`, `window_geometry`.
+Typical keys: `source_path`, `alert_thresholds` (default `10, 5, 3, 2, 1`), `poll_sec`, `avg_window_points`, `show_log`, `graph_log_scale`, `popup_enabled`, `sound_enabled`, `show_every_change`, `window_geometry`.
 
 ## Development
 
