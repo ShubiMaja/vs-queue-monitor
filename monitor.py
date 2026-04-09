@@ -16,6 +16,7 @@ import re
 import sys
 import time
 import traceback
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +33,7 @@ QUEUE_RE = re.compile(r"Client is in connect queue at position:\s*(\d+)")
 DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
+MAX_GRAPH_POINTS = 360
 
 
 def expand_path(raw: str) -> Path:
@@ -160,6 +162,8 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_position: Optional[int] = None
         self.last_alert_epoch: float = 0.0
         self.active_popup: Optional[tk.Toplevel] = None
+        self.graph_points: deque[tuple[float, int]] = deque(maxlen=MAX_GRAPH_POINTS)
+        self.graph_canvas: Optional[tk.Canvas] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -214,6 +218,13 @@ class QueueMonitorApp(tk.Tk):
         ttk.Button(buttons, text="Start", command=self.start_monitoring).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Stop", command=self.stop_monitoring).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+
+        graph_frame = ttk.LabelFrame(outer, text="Queue graph")
+        graph_frame.pack(fill="x", pady=(12, 0))
+        graph_frame.columnconfigure(0, weight=1)
+        self.graph_canvas = tk.Canvas(graph_frame, height=170, highlightthickness=0, background="white")
+        self.graph_canvas.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
+        self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
 
         status = ttk.LabelFrame(outer, text="Status")
         status.pack(fill="x", pady=(12, 0))
@@ -357,6 +368,7 @@ class QueueMonitorApp(tk.Tk):
                 if position is not None:
                     self.status_var.set("Monitoring")
                     self.position_var.set(str(position))
+                    self.append_graph_point(position)
 
                     if position != self.last_position:
                         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -378,6 +390,68 @@ class QueueMonitorApp(tk.Tk):
             self.write_history(traceback.format_exc().splitlines()[-1])
 
         self.job_id = self.after(int(self.poll_sec * 1000), self.poll_once)
+
+    def append_graph_point(self, position: int) -> None:
+        now = time.time()
+        self.graph_points.append((now, position))
+        self.redraw_graph()
+
+    def redraw_graph(self) -> None:
+        canvas = self.graph_canvas
+        if canvas is None:
+            return
+        canvas.delete("all")
+
+        width = int(canvas.winfo_width())
+        height = int(canvas.winfo_height())
+        if width <= 10 or height <= 10:
+            return
+
+        pad_x = 12
+        pad_y = 10
+        plot_w = max(1, width - 2 * pad_x)
+        plot_h = max(1, height - 2 * pad_y)
+
+        points = list(self.graph_points)
+        if len(points) < 2:
+            canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
+            if len(points) == 1:
+                _t, pos = points[0]
+                canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"{pos}", fill="#555555")
+            else:
+                canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text="No data yet", fill="#777777")
+            return
+
+        t0 = points[0][0]
+        t1 = points[-1][0]
+        if t1 <= t0:
+            t1 = t0 + 1e-6
+
+        vals = [p for _t, p in points]
+        vmin = min(vals)
+        vmax = max(vals)
+        if vmax == vmin:
+            vmax = vmin + 1
+
+        def x_of(t: float) -> float:
+            return pad_x + (t - t0) / (t1 - t0) * plot_w
+
+        def y_of(v: int) -> float:
+            return pad_y + (v - vmin) / (vmax - vmin) * plot_h
+
+        canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
+        canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill="#555555")
+
+        line = []
+        for t, v in points:
+            line.extend([x_of(t), y_of(v)])
+        canvas.create_line(*line, fill="#2b7cff", width=2, smooth=False)
+
+        last_t, last_v = points[-1]
+        lx = x_of(last_t)
+        ly = y_of(last_v)
+        canvas.create_oval(lx - 3, ly - 3, lx + 3, ly + 3, outline="#2b7cff", fill="#2b7cff")
+        canvas.create_text(lx + 8, ly, anchor="w", text=str(last_v), fill="#2b7cff")
 
     def compute_alert(self, position: int) -> tuple[bool, str]:
         now = time.time()
