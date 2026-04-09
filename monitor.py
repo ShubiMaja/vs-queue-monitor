@@ -2010,7 +2010,16 @@ class QueueMonitorApp(tk.Tk):
             t1, p1 = float(raw[i + 1][0]), float(raw[i + 1][1])
             if t1 <= t0:
                 continue
-            seg = self._lerp_segment(t0, p0, t1, p1, step)
+            if p1 > p0:
+                # Position increased (re-queued, log glitch, new sample): jump is at t1, not a ramp over [t0,t1].
+                # Linear lerp here draws a false “spike” while the real value stepped at the next log line.
+                flat = self._lerp_segment(t0, p0, t1, p0, step)
+                seg = list(flat)
+                if seg[-1][0] < t1 - 1e-6:
+                    seg.append((t1, p0))
+                seg.append((t1, p1))
+            else:
+                seg = self._lerp_segment(t0, p0, t1, p1, step)
             if not merged:
                 merged.extend(seg)
             else:
