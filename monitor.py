@@ -111,8 +111,6 @@ GRAPH_LOG_GAMMA = 1.15
 ESTIMATE_TICK_MS = 100
 # Exponential recency weight for segment rates (seconds); weights shift as time passes.
 SPEED_WEIGHT_TAU_SEC = 90.0
-# Graph polyline: linear interpolation samples every N seconds along each segment (and tail to now).
-GRAPH_LERP_STEP_SEC = 30.0
 # Vintage Story queue lines typically update about every 30s.
 QUEUE_UPDATE_INTERVAL_SEC = 30.0
 # If no new queue line is observed for this multiple of the expected update interval, treat as interrupted (stale).
@@ -1977,94 +1975,6 @@ class QueueMonitorApp(tk.Tk):
             else:
                 self._queue_progress["value"] = 0.0
 
-    @staticmethod
-    def _lerp_segment(
-        t0: float, p0: float, t1: float, p1: float, step: float
-    ) -> list[tuple[float, float]]:
-        """Vertices along [t0, t1] with linear position, sampled every `step` seconds on the time axis."""
-        if t1 <= t0:
-            return [(t0, p0)]
-        out: list[tuple[float, float]] = [(t0, p0)]
-        t = math.ceil(t0 / step) * step
-        if t <= t0:
-            t += step
-        while t < t1 - 1e-9:
-            alpha = (t - t0) / (t1 - t0)
-            pos = p0 + alpha * (p1 - p0)
-            out.append((t, pos))
-            t += step
-        if abs(out[-1][0] - t1) > 1e-6:
-            out.append((t1, p1))
-        return out
-
-    def _build_lerp_graph_vertices(
-        self, raw: list[tuple[float, int]], now: float
-    ) -> list[tuple[float, float]]:
-        """Polyline with 30s-spaced samples on each segment; extrapolate to `now` when monitoring."""
-        if len(raw) < 2:
-            return [(raw[0][0], float(raw[0][1]))] if raw else []
-        step = GRAPH_LERP_STEP_SEC
-        merged: list[tuple[float, float]] = []
-        for i in range(len(raw) - 1):
-            t0, p0 = float(raw[i][0]), float(raw[i][1])
-            t1, p1 = float(raw[i + 1][0]), float(raw[i + 1][1])
-            if t1 <= t0:
-                continue
-            if p1 > p0:
-                # Position increased (re-queued, log glitch, new sample): jump is at t1, not a ramp over [t0,t1].
-                # Linear lerp here draws a false “spike” while the real value stepped at the next log line.
-                flat = self._lerp_segment(t0, p0, t1, p0, step)
-                seg = list(flat)
-                if seg[-1][0] < t1 - 1e-6:
-                    seg.append((t1, p0))
-                seg.append((t1, p1))
-            else:
-                seg = self._lerp_segment(t0, p0, t1, p1, step)
-            if not merged:
-                merged.extend(seg)
-            else:
-                if seg and abs(seg[0][0] - merged[-1][0]) < 1e-6:
-                    merged.extend(seg[1:])
-                else:
-                    merged.extend(seg)
-        if not merged:
-            return [(raw[-1][0], float(raw[-1][1]))]
-
-        if self.running and len(raw) >= 2:
-            t_prev, p_prev = float(raw[-2][0]), float(raw[-2][1])
-            t_last, p_last = float(raw[-1][0]), float(raw[-1][1])
-            if t_last > t_prev + 1e-9:
-                v_rate = (p_prev - p_last) / (t_last - t_prev)
-            else:
-                v_rate = 0.0
-            if now > t_last + 1e-6:
-                if v_rate > 0:
-                    t = math.ceil(t_last / step) * step
-                    if t <= t_last:
-                        t += step
-                    while t < now - 1e-6:
-                        pos = p_last - v_rate * (t - t_last)
-                        merged.append((t, max(1.0, pos)))
-                        t += step
-                    pos_now = p_last - v_rate * (now - t_last)
-                    merged.append((now, max(1.0, pos_now)))
-                else:
-                    merged.append((now, p_last))
-        return merged
-
-    @staticmethod
-    def _thin_polyline_vertices(
-        vertices: list[tuple[float, float]], max_n: int
-    ) -> list[tuple[float, float]]:
-        if len(vertices) <= max_n:
-            return vertices
-        n = len(vertices)
-        step = max(1, (n - 1) // (max_n - 1))
-        out = [vertices[i] for i in range(0, n - 1, step)]
-        if abs(out[-1][0] - vertices[-1][0]) > 1e-9 or abs(out[-1][1] - vertices[-1][1]) > 1e-6:
-            out.append(vertices[-1])
-        return out
-
     def redraw_graph(self) -> None:
         canvas = self.graph_canvas
         if canvas is None:
@@ -2234,8 +2144,25 @@ class QueueMonitorApp(tk.Tk):
 
         canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
-        line = []
-        for t, v in points:
+        # Step chart: hold position until the next log time, then jump. Raw points are only sampled at
+        # log lines — connecting them with diagonals implied fake motion and looked like spikes.
+        step_vertices: list[tuple[float, int]] = []
+        for i, (t, p) in enumerate(points):
+            t_f = float(t)
+            p_i = int(p)
+            if i == 0:
+                step_vertices.append((t_f, p_i))
+                continue
+            t_prev = float(points[i - 1][0])
+            p_prev = int(points[i - 1][1])
+            if t_f <= t_prev:
+                continue
+            if p_i != p_prev:
+                step_vertices.append((t_f, p_prev))
+            step_vertices.append((t_f, p_i))
+
+        line: list[float] = []
+        for t, v in step_vertices:
             line.extend([x_of(t), y_of(v)])
 
         if len(line) >= 4:
