@@ -666,9 +666,13 @@ class QueueMonitorApp(tk.Tk):
         return speed, len(rates), trail
 
     def update_time_estimates(self) -> None:
-        now = time.time()
-        if self.running and self.monitor_start_epoch is not None:
-            self.elapsed_var.set(self.format_duration(now - self.monitor_start_epoch))
+        points = list(self.graph_points)
+        if len(points) >= 2:
+            start_t = points[0][0]
+            end_t = (self.current_point[0] if self.current_point is not None else points[-1][0])
+            self.elapsed_var.set(self.format_duration(end_t - start_t))
+        elif self.running and self.monitor_start_epoch is not None:
+            self.elapsed_var.set(self.format_duration(time.time() - self.monitor_start_epoch))
         else:
             self.elapsed_var.set("—")
 
