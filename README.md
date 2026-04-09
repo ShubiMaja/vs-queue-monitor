@@ -4,11 +4,12 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 
 ## Disclaimer (read this)
 
+**No warranty — use at your own risk.** **Not affiliated with Vintage Story** or its developers. You must validate paths, alerts, ETAs, and time-sensitive decisions yourself.
+
 - **Work in progress:** Features, UI, saved settings, and behavior can change at any time. Expect bugs and incomplete polish.
-- **AI-assisted code:** A large share of this project was written or refactored with AI / coding assistants. That means **more risk of subtle mistakes** (logic, edge cases, platform quirks). **You** are responsible for validating paths, alerts, ETAs, and anything safety- or time-sensitive.
+- **AI-assisted code:** A large share of this project was written or refactored with AI / coding assistants. That means **more risk of subtle mistakes** (logic, edge cases, platform quirks). You are responsible for validating paths, alerts, ETAs, and anything safety- or time-sensitive.
 - **Not official:** Not affiliated with Vintage Story or its developers. **No warranty** — use at your own risk.
 
-The in-app **History** panel logs a similar warning when you start the app.
 
 ## Requirements
 

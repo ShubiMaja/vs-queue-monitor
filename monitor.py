@@ -155,6 +155,7 @@ UI_ACCENT_POSITION = "#5794f2"
 UI_ACCENT_STATUS = "#73bf69"
 UI_ACCENT_ELAPSED = "#b877d9"
 UI_ACCENT_REMAINING = "#ff9830"
+UI_ACCENT_RATE = "#96d9f8"
 UI_DANGER = "#f2495c"
 UI_ENTRY_FIELD = "#0d0f12"
 UI_SEPARATOR = "#2e3742"
@@ -179,8 +180,33 @@ UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
 UI_SECTION_PAD = 12
+# tk.PanedWindow vertical dividers (must match _fit_history_pane_collapsed math). Flat strip — no showhandle (avoids harsh 3D boxes on Windows).
+UI_PANE_SASH_WIDTH = 6
+UI_PANE_SASH_PAD = 3
+# Main paned LabelFrames (Queue graph, Status): labelmargins (L,T,R,B); padding is the client area (clam).
+UI_PANE_LABELFRAME_LABEL_MARGINS = (14, 10, 14, 6)
+UI_PANE_LABELFRAME_PAD = (14, 14, 14, 14)
+# Queue graph only: slightly tighter top under the title so gray→black gap isn’t tall.
+UI_GRAPH_LABELFRAME_PAD = (14, 8, 14, 14)
+# Inset of the black graph_stack from the gray LabelFrame: L, T, R, B (T smaller than sides/bottom).
+UI_GRAPH_STACK_PAD = (12, 8, 16, 16)
+# Inset of the plot canvas inside the black graph_stack: L, T, R, B (left small — Y-axis draws in pad_left).
+UI_GRAPH_DARK_INNER_PAD = (8, 12, 16, 18)
 # Single inset for all Status content (ttk.Frame padding is applied reliably on all platforms).
-UI_STATUS_BODY_PAD = 16
+UI_STATUS_BODY_PAD = 18
+# Extra top inset inside status_body (Pane LabelFrame already adds UI_PANE_LABELFRAME_PAD).
+UI_STATUS_BODY_PAD_TOP = 16
+# Breathing room inside the dark summary strip (top/bottom and around STATUS row).
+UI_SUMMARY_INNER_PAD_X = 18
+UI_SUMMARY_INNER_PAD_Y_TOP = 18
+UI_SUMMARY_INNER_PAD_Y_BOTTOM = 16
+# Below this window width, rate uses a shorter label so the status strip does not crowd.
+UI_RATE_COMPACT_WIDTH = 920
+# History: match status summary strip gray (UI_SUMMARY_BG); tighter left inset than generic section pad.
+UI_HISTORY_FRAME_PAD_EXPANDED = (8, 12, 12, 12)
+UI_HISTORY_FRAME_PAD_COLLAPSED = (8, 2, 12, 0)
+UI_HISTORY_PANE_MIN_EXPANDED = 220
+UI_HISTORY_TEXT_PAD = 8
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -681,7 +707,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_points_drawn: list[tuple[float, int]] = []
         self.graph_tooltip: Optional[tk.Toplevel] = None
         self.history_frame: Optional[ttk.Frame] = None
-        self._history_body: Optional[ttk.Frame] = None
+        self._history_body: Optional[tk.Frame] = None
         self._history_sep: Optional[ttk.Separator] = None
         self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
@@ -701,6 +727,7 @@ class QueueMonitorApp(tk.Tk):
         # Wall time when we first observed position ≤1 this run; used to freeze "queue total" elapsed.
         self._position_one_reached_at: Optional[float] = None
         self._persist_config_job: Optional[str] = None
+        self._configure_resize_job: Optional[str] = None
         # Log-derived queue run id (see QUEUE_RUN_BOUNDARY_RES); resets threshold state when it increases.
         self._last_queue_run_session: int = -1
         # Liveness: last time queue *position number* changed (used for dwell/avg caps).
@@ -723,6 +750,8 @@ class QueueMonitorApp(tk.Tk):
         self._interrupted_elapsed_sec: Optional[float] = None
 
         self._build_ui()
+        self._bind_keyboard_shortcuts()
+        self.bind("<Configure>", self._schedule_resize_refresh, add=True)
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.graph_log_scale_var.trace_add("write", lambda *_: self._update_graph_y_scale_button_text())
         self.show_log_var.trace_add("write", self._on_show_log_write)
@@ -792,6 +821,19 @@ class QueueMonitorApp(tk.Tk):
             borderwidth=1,
         )
         style.configure("TLabelframe.Label", background=_card, foreground=UI_TEXT_MUTED)
+        # Graph + Status panes: default TLabelframe draws the title flush to the border; labelmargins fixes that (clam).
+        style.configure(
+            "Pane.TLabelframe",
+            background=_card,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=_bd,
+            darkcolor=_bd,
+            lightcolor=_bd,
+            relief="flat",
+            borderwidth=1,
+            labelmargins=UI_PANE_LABELFRAME_LABEL_MARGINS,
+        )
+        style.configure("Pane.TLabelframe.Label", background=_card, foreground=UI_TEXT_MUTED)
         style.configure(
             "TCheckbutton",
             background=_card,
@@ -943,15 +985,18 @@ class QueueMonitorApp(tk.Tk):
 
         ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
-        # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
-        # PanedWindow does not support highlightthickness on all Tk builds (e.g. Windows + Python 3.14).
+        # Classic tk.PanedWindow: flat sash + resize cursor. showhandle/GROOVE draws light-bordered Motif boxes on Windows.
         panes = tk.PanedWindow(
             outer,
             orient=tk.VERTICAL,
-            sashwidth=6,
+            sashwidth=UI_PANE_SASH_WIDTH,
             sashrelief=tk.FLAT,
-            sashpad=2,
+            sashpad=UI_PANE_SASH_PAD,
+            sashcursor="sb_v_double_arrow",
             bd=0,
+            proxyrelief=tk.FLAT,
+            proxyborderwidth=0,
+            proxybackground=UI_BG_APP,
         )
         try:
             panes.configure(opaqueresize=True)
@@ -966,62 +1011,141 @@ class QueueMonitorApp(tk.Tk):
         panes.bind("<Configure>", self._schedule_fit_history_collapsed, add=True)
 
         graph_frame = ttk.LabelFrame(
-            panes, text="Queue graph", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+            panes,
+            text="Queue graph",
+            style="Pane.TLabelframe",
+            padding=UI_GRAPH_LABELFRAME_PAD,
         )
         graph_frame.columnconfigure(0, weight=1)
-        graph_frame.rowconfigure(0, weight=1)
+        graph_frame.rowconfigure(0, weight=0)
+        graph_frame.rowconfigure(1, weight=1)
+
+        pbar_frame = tk.Frame(graph_frame, bg=UI_BG_CARD)
+        pbar_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        pbar_frame.columnconfigure(0, weight=1)
+        tk.Label(
+            pbar_frame,
+            text="Elapsed share of estimated total wait (elapsed + remaining). 100% at queue front.",
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            font=("TkDefaultFont", 8),
+            wraplength=520,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self._queue_progress = ttk.Progressbar(
+            pbar_frame,
+            mode="determinate",
+            maximum=100.0,
+        )
+        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(0, 0))
+        self._bind_static_tooltip(
+            self._queue_progress,
+            "Fill = 100 × elapsed ÷ (elapsed + estimated remaining) when both are known; "
+            "100% at queue front; 0% when interrupted or ETA unknown.",
+        )
+
+        _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
-        graph_stack.grid(row=0, column=0, sticky="nsew", padx=UI_SECTION_PAD, pady=UI_SECTION_PAD)
+        graph_stack.grid(
+            row=1,
+            column=0,
+            sticky="nsew",
+            padx=(_gsp_l, _gsp_r),
+            pady=(_gsp_t, _gsp_b),
+        )
         graph_stack.rowconfigure(0, weight=1)
         graph_stack.columnconfigure(0, weight=1)
         self.graph_canvas = tk.Canvas(
             graph_stack, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
         )
-        self.graph_canvas.grid(row=0, column=0, sticky="nsew")
+        _gdp_l, _gdp_t, _gdp_r, _gdp_b = UI_GRAPH_DARK_INNER_PAD
+        self.graph_canvas.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+            padx=(_gdp_l, _gdp_r),
+            pady=(_gdp_t, _gdp_b),
+        )
         self._graph_y_scale_btn = ttk.Button(
             graph_stack,
             text="Y \u2192 log",
             width=12,
             command=self._toggle_graph_y_scale,
         )
-        self._graph_y_scale_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
+        self._graph_y_scale_btn.place(
+            relx=1.0,
+            rely=0.0,
+            anchor="ne",
+            x=-(_gdp_r + 10),
+            y=_gdp_t + 8,
+        )
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
+        self._bind_static_tooltip(
+            self._graph_y_scale_btn,
+            "Toggle Y axis: linear (even spacing) vs log (more detail when queue position is low).",
+        )
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
-        status = ttk.LabelFrame(panes, text="Status", padding=0)
+        status = ttk.LabelFrame(
+            panes,
+            text="Status",
+            style="Pane.TLabelframe",
+            padding=UI_PANE_LABELFRAME_PAD,
+        )
         status.columnconfigure(0, weight=1)
 
         status_body = ttk.Frame(
             status,
             style="Card.TFrame",
-            padding=(UI_STATUS_BODY_PAD, UI_STATUS_BODY_PAD, UI_STATUS_BODY_PAD, UI_STATUS_BODY_PAD),
+            padding=(
+                UI_STATUS_BODY_PAD,
+                UI_STATUS_BODY_PAD_TOP,
+                UI_STATUS_BODY_PAD,
+                UI_STATUS_BODY_PAD,
+            ),
         )
         status_body.grid(row=0, column=0, sticky="nsew")
         status_body.columnconfigure(0, weight=1)
 
-        # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
+        # Headers row 0 / values row 1: POSITION | STATUS | RATE  <-->  ELAPSED | REMAINING (spacer column grows).
         summary = tk.Frame(status_body, bg=UI_SUMMARY_BG)
         summary.grid(row=0, column=0, sticky="ew")
-        summary.columnconfigure(0, weight=1)
-        summary.columnconfigure(1, weight=1)
+        summary.columnconfigure(0, weight=0)
+        summary.columnconfigure(1, weight=0)
+        summary.columnconfigure(2, weight=0)
+        summary.columnconfigure(3, weight=1)
+        summary.columnconfigure(4, weight=0)
+
+        _spx = UI_SUMMARY_INNER_PAD_X
+        _spy = UI_SUMMARY_INNER_PAD_Y_TOP
 
         tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="w", padx=(16, 0))
+        ).grid(row=0, column=0, sticky="nw", padx=(_spx, 8), pady=(_spy, 4))
+        tk.Label(
+            summary,
+            text="STATUS",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_STATUS,
+            font=("TkDefaultFont", 9, "bold"),
+        ).grid(row=0, column=1, sticky="nw", padx=(8, 8), pady=(_spy, 4))
+        tk.Label(
+            summary,
+            text="RATE",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_RATE,
+            font=("TkDefaultFont", 9, "bold"),
+        ).grid(row=0, column=2, sticky="nw", padx=(8, 8), pady=(_spy, 4))
         tk.Label(
             summary,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
-        ).grid(row=1, column=0, sticky="w", padx=(16, 0))
-
-        tk.Label(
-            summary, text="STATUS", bg=UI_SUMMARY_BG, fg=UI_ACCENT_STATUS, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=1, sticky="w", padx=(24, 0))
+        ).grid(row=1, column=0, sticky="nw", padx=(_spx, 8), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
@@ -1029,63 +1153,48 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
         )
-        self._status_value_label.grid(row=1, column=1, sticky="w", padx=(24, 0))
+        self._status_value_label.grid(row=1, column=1, sticky="nw", padx=(8, 8), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        tk.Label(
+            summary,
+            textvariable=self.queue_rate_var,
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            font=("TkDefaultFont", 13, "bold"),
+        ).grid(row=1, column=2, sticky="nw", padx=(8, 8), pady=(2, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(20, 16))
+        time_pair.grid(row=0, column=4, rowspan=2, sticky="ne", padx=(8, _spx), pady=(_spy, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        time_pair.columnconfigure(0, weight=0)
+        time_pair.columnconfigure(1, weight=0)
         tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="w")
+        ).grid(row=0, column=0, sticky="nw", padx=(0, 4))
         tk.Label(
             time_pair,
             textvariable=self.elapsed_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
-        ).grid(row=1, column=0, sticky="w")
+        ).grid(row=1, column=0, sticky="nw", pady=(2, 0))
         tk.Label(
             time_pair,
             text="REMAINING",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(20, 0))
+        ).grid(row=0, column=1, sticky="nw", padx=(16, 0))
         tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
-        ).grid(row=1, column=1, sticky="w", padx=(20, 0))
-
-        pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(12, 0), padx=(16, 16))
-        pbar_frame.columnconfigure(0, weight=1)
-        rate_row = tk.Frame(pbar_frame, bg=UI_SUMMARY_BG)
-        rate_row.grid(row=0, column=0, sticky="ew")
-        tk.Label(
-            rate_row,
-            text="MIN/POS",
-            bg=UI_SUMMARY_BG,
-            fg=UI_TEXT_MUTED,
-            font=("TkDefaultFont", 8, "bold"),
-        ).pack(side="left")
-        tk.Label(
-            rate_row,
-            textvariable=self.queue_rate_var,
-            bg=UI_SUMMARY_BG,
-            fg=UI_SUMMARY_VALUE,
-            font=("TkDefaultFont", 11),
-        ).pack(side="left", padx=(8, 0))
-        self._queue_progress = ttk.Progressbar(
-            pbar_frame,
-            mode="determinate",
-            maximum=100.0,
-        )
-        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        ).grid(row=1, column=1, sticky="nw", padx=(16, 0), pady=(2, 0))
 
         self.history_frame = ttk.Frame(
-            panes, style="HistoryTabStrip.TFrame", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+            panes,
+            style="HistoryTabStrip.TFrame",
+            padding=UI_HISTORY_FRAME_PAD_EXPANDED,
         )
         self.history_frame.columnconfigure(0, weight=1)
         self.history_frame.rowconfigure(2, weight=1)
@@ -1103,14 +1212,14 @@ class QueueMonitorApp(tk.Tk):
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
         self._history_sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
 
-        self._history_body = ttk.Frame(self.history_frame)
+        self._history_body = tk.Frame(self.history_frame, bg=UI_SUMMARY_BG, bd=0, highlightthickness=0)
         self._history_body.rowconfigure(0, weight=1)
         self._history_body.columnconfigure(0, weight=1)
 
         # stretch: extra vertical space goes mostly to graph + history; status stays content-sized.
         panes.add(graph_frame, minsize=120, stretch="always")
         panes.add(status, minsize=200, stretch="never")
-        panes.add(self.history_frame, minsize=100, stretch="always")
+        panes.add(self.history_frame, minsize=UI_HISTORY_PANE_MIN_EXPANDED, stretch="always")
 
         details = ttk.Frame(
             status_body,
@@ -1141,17 +1250,15 @@ class QueueMonitorApp(tk.Tk):
             wrap="word",
             state="disabled",
             font=("Segoe UI", 9) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
-            padx=UI_SECTION_PAD,
-            pady=UI_SECTION_PAD,
-            bg=UI_BG_CARD,
-            fg=UI_TEXT_PRIMARY,
-            insertbackground=UI_TEXT_PRIMARY,
+            padx=UI_HISTORY_TEXT_PAD,
+            pady=UI_HISTORY_TEXT_PAD,
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            insertbackground=UI_SUMMARY_VALUE,
             highlightthickness=0,
             borderwidth=0,
         )
-        self.history_text.grid(
-            row=0, column=0, sticky="nsew", padx=(UI_SECTION_PAD, 6), pady=(4, UI_SECTION_PAD)
-        )
+        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(2, 0))
         scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
@@ -1230,6 +1337,7 @@ class QueueMonitorApp(tk.Tk):
 
         ttk.Button(bottom, text="Close", command=close_settings).pack(side="right")
         win.protocol("WM_DELETE_WINDOW", close_settings)
+        win.bind("<Escape>", lambda _e: close_settings())
 
         try:
             win.grab_set()
@@ -1391,15 +1499,13 @@ class QueueMonitorApp(tk.Tk):
         sep = self._history_sep
 
         if self.show_log_var.get():
-            history.configure(
-                padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
-            )
+            history.configure(padding=UI_HISTORY_FRAME_PAD_EXPANDED)
             body.grid(row=2, column=0, sticky="nsew")
             if sep is not None:
                 sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
             history.rowconfigure(2, weight=1)
             try:
-                panes.paneconfigure(history, minsize=100, stretch="always")
+                panes.paneconfigure(history, minsize=UI_HISTORY_PANE_MIN_EXPANDED, stretch="always")
             except Exception:
                 pass
             try:
@@ -1407,7 +1513,7 @@ class QueueMonitorApp(tk.Tk):
             except Exception:
                 pass
         else:
-            history.configure(padding=(UI_SECTION_PAD, 2, UI_SECTION_PAD, 0))
+            history.configure(padding=UI_HISTORY_FRAME_PAD_COLLAPSED)
             body.grid_remove()
             if sep is not None:
                 sep.grid_remove()
@@ -1452,8 +1558,8 @@ class QueueMonitorApp(tk.Tk):
                 pass
 
             ph = max(1, pw.winfo_height())
-            sash_w = 6
-            sashpad = 2
+            sash_w = UI_PANE_SASH_WIDTH
+            sashpad = UI_PANE_SASH_PAD
             status_min = 200
             target = ph - need - sash_w - 2 * sashpad - 1
             s0 = int(float(pw.sashpos(0)))
@@ -1993,11 +2099,110 @@ class QueueMonitorApp(tk.Tk):
         return f"{m:d}:{s:05.2f}"
 
     @staticmethod
-    def _format_queue_rate(mpp: Optional[float]) -> str:
-        """Window estimate: average minutes per queue position advanced."""
+    def _format_queue_rate(mpp: Optional[float], *, compact: bool = False) -> str:
+        """Window estimate: average minutes per queue position (value line next to STATUS)."""
         if mpp is not None and mpp > 0:
-            return f"{mpp:.2f} min/pos"
+            if compact:
+                return f"{mpp:.2f} min/pos"
+            return f"{mpp:.2f} minute/position"
         return "—"
+
+    def _queue_rate_display_compact(self) -> bool:
+        try:
+            return int(self.winfo_width()) < UI_RATE_COMPACT_WIDTH
+        except (tk.TclError, ValueError, TypeError):
+            return False
+
+    def _schedule_resize_refresh(self, evt: Optional[tk.Event] = None) -> None:
+        if evt is not None and getattr(evt, "widget", None) is not self:
+            return
+        if self._configure_resize_job is not None:
+            try:
+                self.after_cancel(self._configure_resize_job)
+            except Exception:
+                pass
+        self._configure_resize_job = self.after(150, self._on_resize_refresh_done)
+
+    def _on_resize_refresh_done(self) -> None:
+        self._configure_resize_job = None
+        self.update_time_estimates()
+
+    def _bind_static_tooltip(self, widget: tk.Misc, text: str) -> None:
+        state: dict[str, Optional[object]] = {"win": None, "job": None}
+
+        def hide(_evt: object = None) -> None:
+            jid = state["job"]
+            if jid is not None:
+                try:
+                    self.after_cancel(jid)
+                except Exception:
+                    pass
+                state["job"] = None
+            tw = state["win"]
+            if tw is not None:
+                try:
+                    if isinstance(tw, tk.Toplevel) and tw.winfo_exists():
+                        tw.destroy()
+                except Exception:
+                    pass
+                state["win"] = None
+
+        def show_delayed(_evt: object) -> None:
+            hide()
+
+            def show() -> None:
+                state["job"] = None
+                try:
+                    if not widget.winfo_exists():
+                        return
+                except Exception:
+                    return
+                x = int(widget.winfo_rootx() + widget.winfo_width() // 2)
+                y = int(widget.winfo_rooty() + widget.winfo_height() + 6)
+                tip = tk.Toplevel(self)
+                tip.wm_overrideredirect(True)
+                try:
+                    tip.attributes("-topmost", True)
+                except Exception:
+                    pass
+                tk.Label(
+                    tip,
+                    text=text,
+                    justify="left",
+                    background=UI_TOOLTIP_BG,
+                    foreground=UI_TOOLTIP_FG,
+                    padx=10,
+                    pady=8,
+                    wraplength=340,
+                ).pack()
+                state["win"] = tip
+                tip.update_idletasks()
+                tw = tip.winfo_reqwidth()
+                tip.geometry(f"+{x - tw // 2}+{y}")
+
+            state["job"] = self.after(420, show)
+
+        widget.bind("<Enter>", show_delayed, add=True)
+        widget.bind("<Leave>", hide, add=True)
+
+    def _bind_keyboard_shortcuts(self) -> None:
+        self.bind("<Control-m>", self._shortcut_toggle_monitoring)
+        self.bind("<Control-M>", self._shortcut_toggle_monitoring)
+
+        def on_space(evt: tk.Event) -> str | None:
+            w = self.focus_get()
+            if w is not None:
+                cls = getattr(w, "winfo_class", lambda: "")()
+                if cls in ("Text", "TEntry", "Entry", "TCombobox", "Spinbox", "TSpinbox"):
+                    return None
+            self.toggle_monitoring()
+            return "break"
+
+        self.bind("<space>", on_space)
+
+    def _shortcut_toggle_monitoring(self, _evt: tk.Event) -> str:
+        self.toggle_monitoring()
+        return "break"
 
     def estimate_seconds_remaining(self) -> Optional[float]:
         current_pos = self.last_position
@@ -2225,7 +2430,7 @@ class QueueMonitorApp(tk.Tk):
             self.predicted_remaining_var.set("—")
             mpp_raw = self._minutes_per_position_from_window()
             mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-            self.queue_rate_var.set(self._format_queue_rate(mpp))
+            self.queue_rate_var.set(self._format_queue_rate(mpp, compact=self._queue_rate_display_compact()))
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
             return
@@ -2264,7 +2469,7 @@ class QueueMonitorApp(tk.Tk):
         # ETA updates _pred_speed_scale; min/pos prefers empirical window throughput, else model.
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-        self.queue_rate_var.set(self._format_queue_rate(mpp))
+        self.queue_rate_var.set(self._format_queue_rate(mpp, compact=self._queue_rate_display_compact()))
 
         # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
         # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
