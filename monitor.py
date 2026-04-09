@@ -1546,14 +1546,22 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(alerts_fr, text="Sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
         _sound_entry = ttk.Entry(alerts_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 8), pady=(10, 0))
-        _sound_browse = ttk.Button(alerts_fr, text="Browse…", command=self.browse_alert_sound, width=8)
-        _sound_browse.grid(row=2, column=3, sticky="e", pady=(10, 0))
+        _sound_actions = ttk.Frame(alerts_fr, style="Card.TFrame")
+        _sound_actions.grid(row=2, column=3, sticky="e", pady=(10, 0))
+        _sound_browse = ttk.Button(_sound_actions, text="Browse…", command=self.browse_alert_sound, width=8)
+        _sound_browse.pack(side="left", padx=(0, 6))
+        _sound_preview = ttk.Button(_sound_actions, text="Preview", command=self.preview_alert_sound, width=8)
+        _sound_preview.pack(side="left")
         self._bind_static_tooltip(
             _sound_entry,
             "Sound file for threshold alerts (alert sound must be on). Pre-filled with the OS default alert "
             "file the app already uses for the built-in sound (editable).",
         )
         self._bind_static_tooltip(_sound_browse, "Choose a .wav or other supported audio file for threshold alerts.")
+        self._bind_static_tooltip(
+            _sound_preview,
+            "Play the current sound path (or built-in default) once — ignores the Alert sound checkbox.",
+        )
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
@@ -2009,6 +2017,10 @@ class QueueMonitorApp(tk.Tk):
         )
         if selected:
             self.alert_sound_path_var.set(selected)
+
+    def preview_alert_sound(self) -> None:
+        """Play the configured alert sound once (for Settings); does not check Alert sound enabled."""
+        self.play_sound()
 
     def parse_int(self, raw: str, name: str, minimum: int = 0) -> int:
         try:

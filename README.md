@@ -187,7 +187,7 @@ The status string reflects tail-of-log classification, for example:
 
 - **Thresholds** (comma-separated positions).
 - **Poll (s)** — seconds between log reads.
-- **Alert popup** / **Alert sound** / optional **Sound file** path (**Browse…**) / **Log every position change**.
+- **Alert popup** / **Alert sound** / optional **Sound file** path (**Browse…**, **Preview**) / **Log every position change**.
 - **Window (points)** — rolling **prediction window** size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
