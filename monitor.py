@@ -77,6 +77,46 @@ def save_config(data: dict) -> None:
         pass
 
 
+def get_history_path() -> Path:
+    config_path = get_config_path()
+    return config_path.parent / "history.json"
+
+
+def load_history() -> list[tuple[float, int]]:
+    path = get_history_path()
+    try:
+        if not path.is_file():
+            return []
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if not isinstance(data, list):
+            return []
+        out: list[tuple[float, int]] = []
+        for item in data:
+            if not isinstance(item, list) or len(item) != 2:
+                continue
+            t, pos = item[0], item[1]
+            if not isinstance(t, (int, float)) or not isinstance(pos, int):
+                continue
+            out.append((float(t), int(pos)))
+        out.sort(key=lambda x: x[0])
+        return out
+    except Exception:
+        return []
+
+
+def save_history(points: list[tuple[float, int]]) -> None:
+    path = get_history_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8") as handle:
+            json.dump([[t, p] for t, p in points], handle, indent=2)
+        tmp.replace(path)
+    except Exception:
+        pass
+
+
 def resolve_log_file(raw: str) -> Optional[Path]:
     path = expand_path(raw)
 
@@ -151,7 +191,6 @@ class QueueMonitorApp(tk.Tk):
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
         self.avg_speed_var = tk.StringVar(value="—")
-        self.recent_window_var = tk.StringVar(value="—")
         self.alert_at_var = tk.StringVar(value=str(self.config.get("alert_at", "10")))
         self.step_var = tk.StringVar(value=str(self.config.get("step", "5")))
         self.repeat_sec_var = tk.StringVar(value=str(self.config.get("repeat_sec", "30")))
@@ -162,6 +201,8 @@ class QueueMonitorApp(tk.Tk):
 
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
+        self.session_epoch: float = time.time()
+        self.last_history_save_epoch: float = 0.0
         self.job_id: Optional[str] = None
         self.current_log_file: Optional[Path] = None
         self.last_position: Optional[int] = None
@@ -175,6 +216,12 @@ class QueueMonitorApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.write_history(f"App started. Waiting for a path. Parser looks for queue lines like 'Client is in connect queue at position: N'.")
+
+        historical = load_history()
+        if historical:
+            for item in historical[-MAX_GRAPH_POINTS:]:
+                self.graph_points.append(item)
+            self.redraw_graph()
 
         try:
             geometry = self.config.get("window_geometry", "")
@@ -243,7 +290,6 @@ class QueueMonitorApp(tk.Tk):
             ("Elapsed", self.elapsed_var),
             ("Predicted remaining", self.predicted_remaining_var),
             ("Avg speed (window)", self.avg_speed_var),
-            ("Recent positions", self.recent_window_var),
             ("Last change", self.last_change_var),
             ("Last alert", self.last_alert_var),
             ("Resolved log path", self.resolved_path_var),
@@ -298,7 +344,6 @@ class QueueMonitorApp(tk.Tk):
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
         self.avg_speed_var.set("—")
-        self.recent_window_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
 
@@ -438,6 +483,13 @@ class QueueMonitorApp(tk.Tk):
         now = time.time()
         self.graph_points.append((now, position))
         self.redraw_graph()
+        self.persist_history_if_due(now)
+
+    def persist_history_if_due(self, now_epoch: float) -> None:
+        if now_epoch - self.last_history_save_epoch < 10.0:
+            return
+        self.last_history_save_epoch = now_epoch
+        save_history(list(self.graph_points))
 
     def format_duration(self, seconds: float) -> str:
         if seconds < 0:
@@ -496,15 +548,6 @@ class QueueMonitorApp(tk.Tk):
         else:
             self.avg_speed_var.set(f"{speed * 60.0:.2f} pos/min (n={n})")
 
-        if not trail:
-            self.recent_window_var.set("—")
-        else:
-            trimmed = trail[-12:]
-            text = " → ".join(str(v) for v in trimmed)
-            if len(trail) > len(trimmed):
-                text = f"… → {text}"
-            self.recent_window_var.set(text)
-
         seconds_remaining = self.estimate_seconds_remaining()
         if seconds_remaining is None:
             self.predicted_remaining_var.set("—")
@@ -558,10 +601,16 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
         canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill="#555555")
 
-        line = []
+        historical_line = []
+        session_line = []
         for t, v in points:
-            line.extend([x_of(t), y_of(v)])
-        canvas.create_line(*line, fill="#2b7cff", width=2, smooth=False)
+            target = session_line if t >= self.session_epoch else historical_line
+            target.extend([x_of(t), y_of(v)])
+
+        if len(historical_line) >= 4:
+            canvas.create_line(*historical_line, fill="#a0a0a0", width=2, smooth=False)
+        if len(session_line) >= 4:
+            canvas.create_line(*session_line, fill="#2b7cff", width=2, smooth=False)
 
         last_t, last_v = points[-1]
         lx = x_of(last_t)
