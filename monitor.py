@@ -39,6 +39,24 @@ QUEUE_RE = re.compile(
     r")\D*(\d+)",
     re.IGNORECASE,
 )
+
+
+def queue_position_match(line: str) -> Optional[re.Match[str]]:
+    """Best queue-index match on this line, or None.
+
+    If the phrase appears more than once (wrapped / duplicated fragments), the *first* ``re.search``
+    can latch onto a stale number (e.g. 110) while a later clause on the same line has the real
+    position — we take the *last* non-percentage match. Skip digits immediately followed by ``%``.
+    """
+    matches = list(QUEUE_RE.finditer(line))
+    for m in reversed(matches):
+        tail = line[m.end(1) :].lstrip()
+        if tail.startswith("%"):
+            continue
+        return m
+    return None
+
+
 # Lines matching these (but not queue position lines) start a new "queue run" for segmentation
 # and threshold resets. Empirically from v1.22 client-main.log (e.g. VSL Unstable):
 #   "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at..."
@@ -260,7 +278,7 @@ def read_log_file_tail_text(log_file: Path, tail_bytes: int) -> Optional[str]:
 def is_queue_run_boundary_line(line: str) -> bool:
     """True for log lines that indicate a new connection attempt / queue run (not position updates)."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     for pat in QUEUE_RUN_BOUNDARY_RES:
         if pat.search(s):
@@ -271,7 +289,7 @@ def is_queue_run_boundary_line(line: str) -> bool:
 def is_disconnected_line(line: str) -> bool:
     """Log line indicates the client is no longer in the connect queue (failure / drop)."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     for pat in DISCONNECTED_LINE_RES:
         if pat.search(s):
@@ -282,7 +300,7 @@ def is_disconnected_line(line: str) -> bool:
 def is_grace_disconnect_line(line: str) -> bool:
     """Mid-teardown errors before the game logs a definitive session-destroy line."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     for pat in GRACE_DISCONNECT_LINE_RES:
         if pat.search(s):
@@ -293,7 +311,7 @@ def is_grace_disconnect_line(line: str) -> bool:
 def is_final_crash_line(line: str) -> bool:
     """Definitive crash / teardown after grace (then we treat as Interrupted)."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     for pat in FINAL_CRASH_LINE_RES:
         if pat.search(s):
@@ -304,7 +322,7 @@ def is_final_crash_line(line: str) -> bool:
 def is_hard_disconnect_line(line: str) -> bool:
     """Disconnect that is not grace-period noise (kick, menu, explicit disconnect, …)."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     if is_grace_disconnect_line(s) or is_final_crash_line(s):
         return False
@@ -314,7 +332,7 @@ def is_hard_disconnect_line(line: str) -> bool:
 def is_reconnecting_line(line: str) -> bool:
     """Log line indicates a new connection attempt is in progress (after disconnect or cold start)."""
     s = line.strip()
-    if not s or QUEUE_RE.search(s):
+    if not s or queue_position_match(s):
         return False
     for pat in RECONNECTING_LINE_RES:
         if pat.search(s):
@@ -337,7 +355,7 @@ def classify_tail_connection_state(data: str) -> tuple[str, Optional[int]]:
         s = line.strip()
         if not s:
             continue
-        m = QUEUE_RE.search(s)
+        m = queue_position_match(s)
         if m:
             try:
                 last_pos = int(m.group(1))
@@ -370,7 +388,7 @@ def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
         if is_queue_run_boundary_line(line):
             session += 1
             continue
-        m = QUEUE_RE.search(line)
+        m = queue_position_match(line)
         if not m:
             continue
         try:
@@ -406,7 +424,7 @@ def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     """
     last_t: Optional[float] = None
     for line in data.splitlines():
-        if not QUEUE_RE.search(line):
+        if not queue_position_match(line):
             continue
         t = parse_log_timestamp_epoch(line)
         if t is None:
@@ -450,9 +468,12 @@ def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[i
 
     data = decode_log_bytes(raw, start_offset=start)
     out: list[int] = []
-    for match in QUEUE_RE.finditer(data):
+    for line in data.splitlines():
+        m = queue_position_match(line)
+        if not m:
+            continue
         try:
-            out.append(int(match.group(1)))
+            out.append(int(m.group(1)))
         except Exception:
             pass
     return out
