@@ -4,29 +4,98 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 
 ## Requirements
 
-- **Python 3.10+** (tested on 3.14; any recent 3.x with Tkinter should work)
-- **Tkinter** — usually bundled with Python on Windows; on Linux install your distro’s `python3-tk` package
+- **Python 3.10+** (any recent 3.x with Tkinter)
+- **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
 
 No third-party pip dependencies.
 
-## Run
+## Install Python and Tkinter
+
+### Windows
+
+1. Install **Python** from [python.org](https://www.python.org/downloads/) (64-bit is fine).
+2. In the installer, enable **“Add python.exe to PATH”** and use the default options so **tcl/tk** (needed for the GUI) is included.
+3. Open **Command Prompt** or **PowerShell**, go to the folder that contains `monitor.py`, and run:
+
+   ```powershell
+   python monitor.py
+   ```
+
+   If `python` is not found, try `py monitor.py` (Windows Python launcher).
+
+### macOS
+
+1. Install **Python 3** from [python.org](https://www.python.org/downloads/macos/) **or** with Homebrew (`brew install python`).
+2. The python.org macOS build normally includes **Tkinter**. If you use Homebrew-only Python and the window fails to open, install a Tk-enabled build (for example `brew install python-tk` where available, or prefer the official installer).
+3. In **Terminal**:
+
+   ```bash
+   cd /path/to/vs-q-monitor
+   python3 monitor.py
+   ```
+
+### Linux (Debian / Ubuntu / derivatives)
+
+1. Install Python and Tk:
+
+   ```bash
+   sudo apt update
+   sudo apt install python3 python3-tk
+   ```
+
+2. Run:
+
+   ```bash
+   cd /path/to/vs-q-monitor
+   python3 monitor.py
+   ```
+
+### Linux (Fedora / RHEL-like)
 
 ```bash
-python monitor.py
+sudo dnf install python3 python3-tkinter
+cd /path/to/vs-q-monitor
+python3 monitor.py
 ```
 
-By default the app **starts monitoring** as soon as it opens (if the log path resolves). To open the UI without auto-start:
+(Package names may differ slightly; search your package manager for **python** + **tk**.)
+
+## Run (all platforms)
+
+From the directory that contains `monitor.py`:
+
+| Platform   | Typical command   |
+|-----------|-------------------|
+| Windows   | `python monitor.py` or `py monitor.py` |
+| macOS/Linux | `python3 monitor.py` |
+
+By default the app **starts monitoring** when it opens (if the log path resolves). To open the UI **without** auto-start:
 
 ```bash
-python monitor.py --no-start
+python3 monitor.py --no-start
 ```
 
-Point at a **log file** or a **directory** to search (see below):
+(On Windows, use `python` instead of `python3` if that is what works on your machine.)
 
-```bash
-python monitor.py --path "%APPDATA%/VintagestoryData/client-main.log"
+### Pointing at the log
+
+You can pass a **file** or a **folder** to search for `client-main.log`:
+
+**Windows (Command Prompt / PowerShell)**
+
+```powershell
+python monitor.py --path "%APPDATA%\VintagestoryData\client-main.log"
 python monitor.py --path "C:\path\to\VintagestoryData"
 ```
+
+**macOS / Linux (bash)**
+
+```bash
+python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData/client-main.log"
+python3 monitor.py --path "$HOME/.config/VintagestoryData/client-main.log"
+```
+
+Exact Vintage Story data locations depend on your install; use the **File or directory** field in the app if unsure.
 
 ## Log file
 
@@ -35,7 +104,7 @@ The game writes queue lines similar to:
 - `Client is in connect queue at position: N`
 - `Your position in the queue is: N`
 
-Default path hint in the UI: `%APPDATA%/VintagestoryData/client-main.log` (Windows). If you pass a folder, the app looks for `client-main.log` (and a few fallbacks) under common layouts.
+The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...`). On macOS or Linux, browse to your Vintage Story data folder or paste the full path to `client-main.log`. If you pass a **directory**, the app searches for `client-main.log` (and a few fallbacks) under common layouts.
 
 ## Features (short)
 
