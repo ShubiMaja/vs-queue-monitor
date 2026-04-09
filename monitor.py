@@ -675,7 +675,6 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_var = tk.StringVar(value="—")
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
-        self.progress_pct_var = tk.StringVar(value="—")
         self.queue_rate_var = tk.StringVar(value="—")
         _at_cfg = self.config.get("alert_thresholds")
         if isinstance(_at_cfg, str) and _at_cfg.strip():
@@ -1078,7 +1077,7 @@ class QueueMonitorApp(tk.Tk):
         self._lbl_kpi_position = tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
         )
-        self._lbl_kpi_position.grid(row=0, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
+        self._lbl_kpi_position.grid(row=0, column=0, sticky="ew", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
         self._lbl_kpi_status = tk.Label(
             summary,
             text="STATUS",
@@ -1102,7 +1101,9 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
         )
-        self._position_value_label.grid(row=1, column=0, sticky="nw", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM))
+        self._position_value_label.grid(
+            row=1, column=0, sticky="ew", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+        )
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
