@@ -1079,9 +1079,14 @@ class QueueMonitorApp(tk.Tk):
         _spy = UI_SUMMARY_INNER_PAD_Y_TOP
 
         self._lbl_kpi_position = tk.Label(
-            summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
+            summary,
+            text="POSITION",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_POSITION,
+            font=("TkDefaultFont", 9, "bold"),
+            anchor="w",
         )
-        self._lbl_kpi_position.grid(row=0, column=0, sticky="ew", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, UI_INNER_PAD_Y_SM))
+        self._lbl_kpi_position.grid(row=0, column=0, sticky="w", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(_spy, 2))
         self._lbl_kpi_status = tk.Label(
             summary,
             text="STATUS",
@@ -1104,9 +1109,10 @@ class QueueMonitorApp(tk.Tk):
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
+            anchor="w",
         )
         self._position_value_label.grid(
-            row=1, column=0, sticky="ew", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
+            row=1, column=0, sticky="w", padx=(_spx, UI_INNER_PAD_Y_SM), pady=(0, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         )
         self._status_value_label = tk.Label(
             summary,
@@ -1137,43 +1143,52 @@ class QueueMonitorApp(tk.Tk):
         time_pair.columnconfigure(1, weight=0)
         time_pair.columnconfigure(2, weight=0)
         self._lbl_elapsed_header = tk.Label(
-            time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
+            time_pair,
+            text="ELAPSED",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_ELAPSED,
+            font=("TkDefaultFont", 9, "bold"),
+            anchor="w",
         )
-        self._lbl_elapsed_header.grid(row=0, column=0, sticky="e", padx=(0, 4))
+        self._lbl_elapsed_header.grid(row=0, column=0, sticky="ew", padx=(0, 4))
         self._elapsed_value_label = tk.Label(
             time_pair,
             textvariable=self.elapsed_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
+            anchor="e",
         )
-        self._elapsed_value_label.grid(row=1, column=0, sticky="e", pady=(2, 0))
+        self._elapsed_value_label.grid(row=1, column=0, sticky="ew", pady=(2, 0))
         self._lbl_remaining_header = tk.Label(
             time_pair,
             text="REMAINING",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
+            anchor="w",
         )
-        self._lbl_remaining_header.grid(row=0, column=1, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0))
+        self._lbl_remaining_header.grid(row=0, column=1, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0))
         self._remaining_value_label = tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
+            anchor="e",
         )
-        self._remaining_value_label.grid(row=1, column=1, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        self._remaining_value_label.grid(row=1, column=1, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
         self._lbl_progress_header = tk.Label(
             time_pair,
             text="PROGRESS",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_PROGRESS,
             font=("TkDefaultFont", 9, "bold"),
+            anchor="w",
         )
-        self._lbl_progress_header.grid(row=0, column=2, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0))
+        self._lbl_progress_header.grid(row=0, column=2, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0))
         _prog_cell = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
-        _prog_cell.grid(row=1, column=2, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        _prog_cell.grid(row=1, column=2, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
         self._queue_progress = ttk.Progressbar(
             _prog_cell,
             style="Thin.TProgressbar",
