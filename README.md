@@ -119,8 +119,8 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 
 | Area | Behavior |
 |------|----------|
-| **Status bar** | Position, status, elapsed, remaining ETA, progress (elapsed vs ETA when known) |
-| **Graph** | Recent queue position over time; optional log-scaled Y axis |
+| **Queue graph** | Position, status, rate, elapsed, remaining, wait-progress bar, then the time-series chart (optional log-scaled Y) |
+| **Status** | Last change, alerts, resolved log path |
 | **Alerts** | Comma-separated thresholds; **default** `10, 5, 3, 2, 1`. One alert per threshold per downward crossing per queue run |
 | **Reconnect / interrupt** | Distinguishes grace-period TCP errors vs final teardown; optional log-silence detection; **Interrupted** freezes elapsed but **keeps tailing** the log |
 | **New queue** | After an interrupt, if a **new queue run** appears in the log, a dialog offers to **re-seed** the graph for that run |

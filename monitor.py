@@ -1018,101 +1018,12 @@ class QueueMonitorApp(tk.Tk):
         )
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=0)
-        graph_frame.rowconfigure(1, weight=1)
+        graph_frame.rowconfigure(1, weight=0)
+        graph_frame.rowconfigure(2, weight=1)
 
-        pbar_frame = tk.Frame(graph_frame, bg=UI_BG_CARD)
-        pbar_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        pbar_frame.columnconfigure(0, weight=1)
-        tk.Label(
-            pbar_frame,
-            text="Elapsed share of estimated total wait (elapsed + remaining). 100% at queue front.",
-            bg=UI_BG_CARD,
-            fg=UI_TEXT_MUTED,
-            font=("TkDefaultFont", 8),
-            wraplength=520,
-            justify="left",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        self._queue_progress = ttk.Progressbar(
-            pbar_frame,
-            mode="determinate",
-            maximum=100.0,
-        )
-        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(0, 0))
-        self._bind_static_tooltip(
-            self._queue_progress,
-            "Fill = 100 × elapsed ÷ (elapsed + estimated remaining) when both are known; "
-            "100% at queue front; 0% when interrupted or ETA unknown.",
-        )
-
-        _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
-        graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
-        graph_stack.grid(
-            row=1,
-            column=0,
-            sticky="nsew",
-            padx=(_gsp_l, _gsp_r),
-            pady=(_gsp_t, _gsp_b),
-        )
-        graph_stack.rowconfigure(0, weight=1)
-        graph_stack.columnconfigure(0, weight=1)
-        self.graph_canvas = tk.Canvas(
-            graph_stack, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
-        )
-        _gdp_l, _gdp_t, _gdp_r, _gdp_b = UI_GRAPH_DARK_INNER_PAD
-        self.graph_canvas.grid(
-            row=0,
-            column=0,
-            sticky="nsew",
-            padx=(_gdp_l, _gdp_r),
-            pady=(_gdp_t, _gdp_b),
-        )
-        self._graph_y_scale_btn = ttk.Button(
-            graph_stack,
-            text="Y \u2192 log",
-            width=12,
-            command=self._toggle_graph_y_scale,
-        )
-        self._graph_y_scale_btn.place(
-            relx=1.0,
-            rely=0.0,
-            anchor="ne",
-            x=-(_gdp_r + 10),
-            y=_gdp_t + 8,
-        )
-        self._graph_y_scale_btn.lift()
-        self._update_graph_y_scale_button_text()
-        self._bind_static_tooltip(
-            self._graph_y_scale_btn,
-            "Toggle Y axis: linear (even spacing) vs log (more detail when queue position is low).",
-        )
-        self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
-        self.graph_canvas.bind("<Motion>", self.on_graph_motion)
-        self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
-
-        status = ttk.LabelFrame(
-            panes,
-            text="Status",
-            style="Pane.TLabelframe",
-            padding=UI_PANE_LABELFRAME_PAD,
-        )
-        status.columnconfigure(0, weight=1)
-
-        status_body = ttk.Frame(
-            status,
-            style="Card.TFrame",
-            padding=(
-                UI_STATUS_BODY_PAD,
-                UI_STATUS_BODY_PAD_TOP,
-                UI_STATUS_BODY_PAD,
-                UI_STATUS_BODY_PAD,
-            ),
-        )
-        status_body.grid(row=0, column=0, sticky="nsew")
-        status_body.columnconfigure(0, weight=1)
-
-        # Headers row 0 / values row 1: POSITION | STATUS | RATE  <-->  ELAPSED | REMAINING (spacer column grows).
-        summary = tk.Frame(status_body, bg=UI_SUMMARY_BG)
-        summary.grid(row=0, column=0, sticky="ew")
+        # POSITION / STATUS / RATE / elapsed / remaining — same block as progress + graph.
+        summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
+        summary.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         summary.columnconfigure(0, weight=0)
         summary.columnconfigure(1, weight=0)
         summary.columnconfigure(2, weight=0)
@@ -1191,6 +1102,96 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 18, "bold"),
         ).grid(row=1, column=1, sticky="nw", padx=(16, 0), pady=(2, 0))
 
+        pbar_frame = tk.Frame(graph_frame, bg=UI_BG_CARD)
+        pbar_frame.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+        pbar_frame.columnconfigure(0, weight=1)
+        tk.Label(
+            pbar_frame,
+            text="Elapsed share of estimated total wait (elapsed + remaining). 100% at queue front.",
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            font=("TkDefaultFont", 8),
+            wraplength=520,
+            justify="left",
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self._queue_progress = ttk.Progressbar(
+            pbar_frame,
+            mode="determinate",
+            maximum=100.0,
+        )
+        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(0, 0))
+        self._bind_static_tooltip(
+            self._queue_progress,
+            "Fill = 100 × elapsed ÷ (elapsed + estimated remaining) when both are known; "
+            "100% at queue front; 0% when interrupted or ETA unknown.",
+        )
+
+        _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
+        graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
+        graph_stack.grid(
+            row=2,
+            column=0,
+            sticky="nsew",
+            padx=(_gsp_l, _gsp_r),
+            pady=(_gsp_t, _gsp_b),
+        )
+        graph_stack.rowconfigure(0, weight=1)
+        graph_stack.columnconfigure(0, weight=1)
+        self.graph_canvas = tk.Canvas(
+            graph_stack, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
+        )
+        _gdp_l, _gdp_t, _gdp_r, _gdp_b = UI_GRAPH_DARK_INNER_PAD
+        self.graph_canvas.grid(
+            row=0,
+            column=0,
+            sticky="nsew",
+            padx=(_gdp_l, _gdp_r),
+            pady=(_gdp_t, _gdp_b),
+        )
+        self._graph_y_scale_btn = ttk.Button(
+            graph_stack,
+            text="Y \u2192 log",
+            width=12,
+            command=self._toggle_graph_y_scale,
+        )
+        self._graph_y_scale_btn.place(
+            relx=1.0,
+            rely=0.0,
+            anchor="ne",
+            x=-(_gdp_r + 10),
+            y=_gdp_t + 8,
+        )
+        self._graph_y_scale_btn.lift()
+        self._update_graph_y_scale_button_text()
+        self._bind_static_tooltip(
+            self._graph_y_scale_btn,
+            "Toggle Y axis: linear (even spacing) vs log (more detail when queue position is low).",
+        )
+        self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
+        self.graph_canvas.bind("<Motion>", self.on_graph_motion)
+        self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
+
+        status = ttk.LabelFrame(
+            panes,
+            text="Status",
+            style="Pane.TLabelframe",
+            padding=UI_PANE_LABELFRAME_PAD,
+        )
+        status.columnconfigure(0, weight=1)
+
+        status_body = ttk.Frame(
+            status,
+            style="Card.TFrame",
+            padding=(
+                UI_STATUS_BODY_PAD,
+                UI_STATUS_BODY_PAD_TOP,
+                UI_STATUS_BODY_PAD,
+                UI_STATUS_BODY_PAD,
+            ),
+        )
+        status_body.grid(row=0, column=0, sticky="nsew")
+        status_body.columnconfigure(0, weight=1)
+
         self.history_frame = ttk.Frame(
             panes,
             style="HistoryTabStrip.TFrame",
@@ -1218,7 +1219,7 @@ class QueueMonitorApp(tk.Tk):
 
         # stretch: extra vertical space goes mostly to graph + history; status stays content-sized.
         panes.add(graph_frame, minsize=120, stretch="always")
-        panes.add(status, minsize=200, stretch="never")
+        panes.add(status, minsize=140, stretch="never")
         panes.add(self.history_frame, minsize=UI_HISTORY_PANE_MIN_EXPANDED, stretch="always")
 
         details = ttk.Frame(
@@ -1226,7 +1227,7 @@ class QueueMonitorApp(tk.Tk):
             padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD),
             style="Card.TFrame",
         )
-        details.grid(row=1, column=0, sticky="ew", pady=(UI_SECTION_PAD, 0))
+        details.grid(row=0, column=0, sticky="ew", pady=(0, 0))
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
 
