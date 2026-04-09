@@ -186,10 +186,10 @@ UI_PANE_SASH_PAD = 3
 # Main paned LabelFrames (Queue graph, Status): labelmargins (L,T,R,B); padding is the client area (clam).
 UI_PANE_LABELFRAME_LABEL_MARGINS = (14, 10, 14, 6)
 UI_PANE_LABELFRAME_PAD = (14, 14, 14, 14)
-# Queue graph only: slightly tighter top under the title so gray→black gap isn’t tall.
-UI_GRAPH_LABELFRAME_PAD = (14, 8, 14, 14)
-# Inset of the black graph_stack from the gray LabelFrame: L, T, R, B (T smaller than sides/bottom).
-UI_GRAPH_STACK_PAD = (12, 8, 16, 16)
+# Queue graph: same client padding as Status so pane titles and content columns line up.
+UI_GRAPH_LABELFRAME_PAD = UI_PANE_LABELFRAME_PAD
+# Black graph_stack: no extra L/R inset — same width as the summary strip above (only vertical gap).
+UI_GRAPH_STACK_PAD = (0, 8, 0, 16)
 # Inset of the plot canvas inside the black graph_stack: L, T, R, B (left small — Y-axis draws in pad_left).
 UI_GRAPH_DARK_INNER_PAD = (8, 12, 16, 18)
 # Extra top inset inside status_body (Pane LabelFrame already adds UI_PANE_LABELFRAME_PAD).
@@ -721,6 +721,7 @@ class QueueMonitorApp(tk.Tk):
         self._starting: bool = False
         self._start_seq: int = 0
         self._loading_spinner: Optional[ttk.Progressbar] = None
+        self._settings_btn: Optional[ttk.Button] = None
         self._queue_progress: Optional[ttk.Progressbar] = None
         self._status_value_label: Optional[tk.Label] = None
         # Wall time when we first observed position ≤1 this run; used to freeze "queue total" elapsed.
@@ -792,7 +793,7 @@ class QueueMonitorApp(tk.Tk):
         style.configure("HistoryTabStrip.TFrame", background=UI_BG_CARD)
         style.configure(
             "HistoryTab.TButton",
-            padding=(10, 5),
+            padding=(4, 4),
             background=_card,
             foreground=UI_TEXT_PRIMARY,
             bordercolor=_bd,
@@ -968,20 +969,25 @@ class QueueMonitorApp(tk.Tk):
 
         path_row = ttk.Frame(top, style="Card.TFrame")
         path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
-        path_row.columnconfigure(1, weight=1)
-        ttk.Label(path_row, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(4, 8))
-        entry = ttk.Entry(path_row, textvariable=self.source_path_var)
+        path_row.columnconfigure(0, weight=1)
+        path_left = ttk.Frame(path_row, style="Card.TFrame")
+        path_left.grid(row=0, column=0, sticky="ew")
+        path_left.columnconfigure(1, weight=1)
+        ttk.Label(path_left, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(4, 8))
+        entry = ttk.Entry(path_left, textvariable=self.source_path_var)
         entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
-        ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=2, padx=(0, 6))
-        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=3, padx=(0, 8))
 
-        self._loading_spinner = ttk.Progressbar(path_row, mode="indeterminate", length=120)
-
-        ttk.Button(
-            path_row,
+        path_actions = ttk.Frame(path_row, style="Card.TFrame")
+        path_actions.grid(row=0, column=1, sticky="e")
+        ttk.Button(path_actions, text="Browse file", command=self.browse_file).pack(side="left", padx=(0, 6))
+        ttk.Button(path_actions, text="Browse folder", command=self.browse_folder).pack(side="left", padx=(0, 8))
+        self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
+        self._settings_btn = ttk.Button(
+            path_actions,
             text="\u2699  Settings",
             command=self.open_settings,
-        ).grid(row=0, column=5, sticky="e", padx=(8, 4))
+        )
+        self._settings_btn.pack(side="left", padx=(8, 4))
 
         ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
@@ -1103,7 +1109,7 @@ class QueueMonitorApp(tk.Tk):
 
         # Separator: scannability between KPI row and progress (same panel as metrics).
         _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
-        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(_spx, _spx), pady=(8, 0))
+        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(0, 0), pady=(8, 0))
 
         pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
         pbar_frame.grid(
@@ -1111,7 +1117,7 @@ class QueueMonitorApp(tk.Tk):
             column=0,
             columnspan=5,
             sticky="ew",
-            padx=(_spx, _spx),
+            padx=(0, 0),
             pady=(10, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
         )
         pbar_frame.columnconfigure(0, weight=1)
@@ -1121,15 +1127,15 @@ class QueueMonitorApp(tk.Tk):
             bg=UI_SUMMARY_BG,
             fg=UI_TEXT_MUTED,
             font=("TkDefaultFont", 8),
-            wraplength=560,
+            wraplength=720,
             justify="left",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        ).grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, 6))
         self._queue_progress = ttk.Progressbar(
             pbar_frame,
             mode="determinate",
             maximum=100.0,
         )
-        self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(0, 0))
+        self._queue_progress.grid(row=1, column=0, sticky="ew", padx=(_spx, _spx), pady=(0, 0))
         self._bind_static_tooltip(
             self._queue_progress,
             "Fill = 100 × elapsed ÷ (elapsed + estimated remaining) when both are known; "
@@ -1207,9 +1213,13 @@ class QueueMonitorApp(tk.Tk):
 
         history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
         history_tab_strip.grid(row=0, column=0, sticky="ew")
+        ttk.Label(history_tab_strip, text="History", style="Pane.TLabelframe.Label").pack(
+            side="left", padx=(0, 6), pady=(2, 0)
+        )
         self._history_tab_btn = ttk.Button(
             history_tab_strip,
-            text="History  \u25bc",
+            text="\u25bc",
+            width=3,
             style="HistoryTab.TButton",
             command=self._toggle_history_panel,
         )
@@ -1484,9 +1494,9 @@ class QueueMonitorApp(tk.Tk):
         if btn is None:
             return
         if self.show_log_var.get():
-            btn.configure(text="History  \u25bc")
+            btn.configure(text="\u25bc")
         else:
-            btn.configure(text="History  \u25b2")
+            btn.configure(text="\u25b2")
 
     def _toggle_history_panel(self) -> None:
         self.show_log_var.set(not self.show_log_var.get())
@@ -1621,11 +1631,14 @@ class QueueMonitorApp(tk.Tk):
             return
         if show:
             self.start_stop_button.state(["disabled"])
-            self._loading_spinner.grid(row=0, column=4, padx=(8, 8), sticky="w")
+            if self._settings_btn is not None:
+                self._loading_spinner.pack(side="left", padx=(8, 8), before=self._settings_btn)
+            else:
+                self._loading_spinner.pack(side="left", padx=(8, 8))
             self._loading_spinner.start(12)
         else:
             self._loading_spinner.stop()
-            self._loading_spinner.grid_remove()
+            self._loading_spinner.pack_forget()
             self.start_stop_button.state(["!disabled"])
             self.update_start_stop_button()
 
