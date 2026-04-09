@@ -532,10 +532,22 @@ def segment_queue_points(points: list[tuple[float, int, int]]) -> list[tuple[flo
 
 def compute_seed_graph_from_log(
     log_file: Path,
-) -> Optional[tuple[list[tuple[float, int]], int, int, float, int, int, int]]:
+) -> Optional[
+        tuple[
+            list[tuple[float, int]],
+            int,
+            int,
+            float,
+            int,
+            int,
+            int,
+            Optional[int],
+        ]
+    ]:
     """Read and parse the log off the UI thread. Returns None if no queue segment was found.
 
-    Last int is queue_run_session_id from the log tail (incremented when boundary lines appear).
+    Second-to-last int: queue_run_session_id. Last: authoritative queue position from the same tail
+    parse as ``parse_tail_last_queue_reading`` (must match UI — segment last point alone can drift).
     """
     tail_bytes = SEED_LOG_TAIL_BYTES
     points3: list[tuple[float, int, int]] = []
@@ -565,7 +577,9 @@ def compute_seed_graph_from_log(
         return None
 
     text = read_log_file_tail_text(log_file, tail_bytes)
-    _, queue_run_session_id = parse_tail_last_queue_reading(text) if text else (None, 0)
+    authoritative_pos, queue_run_session_id = (
+        parse_tail_last_queue_reading(text) if text else (None, 0)
+    )
 
     segment_points = segment_tuples[-MAX_GRAPH_POINTS:]
     return (
@@ -576,6 +590,7 @@ def compute_seed_graph_from_log(
         min(segment_positions),
         max(segment_positions),
         queue_run_session_id,
+        authoritative_pos,
     )
 
 
@@ -1318,7 +1333,18 @@ class QueueMonitorApp(tk.Tk):
         self,
         seq: int,
         resolved: Path,
-        seed_data: Optional[tuple[list[tuple[float, int]], int, int, float, int, int, int]],
+        seed_data: Optional[
+            tuple[
+                list[tuple[float, int]],
+                int,
+                int,
+                float,
+                int,
+                int,
+                int,
+                Optional[int],
+            ]
+        ],
         error: Optional[Exception],
     ) -> None:
         if seq != self._start_seq:
@@ -1484,16 +1510,41 @@ class QueueMonitorApp(tk.Tk):
 
     def _apply_seed_result(
         self,
-        data: Optional[tuple[list[tuple[float, int]], int, int, float, int, int, int]],
+        data: Optional[
+            tuple[
+                list[tuple[float, int]],
+                int,
+                int,
+                float,
+                int,
+                int,
+                int,
+                Optional[int],
+            ]
+        ],
     ) -> None:
         if data is None:
             return
-        segment_points, segment_len, positions_len, tail_mb, seg_min, seg_max, queue_run_session_id = data
+        (
+            segment_points,
+            segment_len,
+            positions_len,
+            tail_mb,
+            seg_min,
+            seg_max,
+            queue_run_session_id,
+            authoritative_pos,
+        ) = data
         self._last_queue_run_session = queue_run_session_id
         self.graph_points.clear()
         for item in segment_points:
             self.graph_points.append(item)
-        self.current_point = segment_points[-1] if segment_points else None
+        # Segment last point can disagree with walk's last event (e.g. stale duplicate clause).
+        # Always align the plotted tail and POSITION with parse_tail_last_queue_reading.
+        if authoritative_pos is not None and self.graph_points:
+            t_last = self.graph_points[-1][0]
+            self.graph_points[-1] = (t_last, authoritative_pos)
+        self.current_point = self.graph_points[-1] if self.graph_points else None
         if self.current_point is not None:
             _t, pos = self.current_point
             self.last_position = pos
