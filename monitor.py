@@ -138,13 +138,13 @@ UI_PROGRESS_TROUGH = "#2e3742"
 UI_BUTTON_BG = "#2e3742"
 UI_BUTTON_BG_ACTIVE = "#384556"
 UI_GRAPH_BG = "#0d0f12"
-UI_GRAPH_BORDER = "#2e3742"
-UI_GRAPH_GRID = "#252a33"
-UI_GRAPH_AXIS = "#6e7680"
+# Filled plot area: slightly lifted from canvas margin — contrast without a stroked border.
+UI_GRAPH_PLOT = "#141820"
+UI_GRAPH_GRID = "#1e232c"
+UI_GRAPH_AXIS = "#4a5260"
 UI_GRAPH_TEXT = "#9fa7b3"
 UI_GRAPH_LINE = "#5794f2"
-UI_GRAPH_MARKER_OUTLINE = "#ff9830"
-UI_GRAPH_MARKER_FILL = "#ffb357"
+UI_GRAPH_MARKER = "#6b9bd6"
 UI_GRAPH_EMPTY = "#6e7680"
 UI_TOOLTIP_BG = "#1f2329"
 UI_TOOLTIP_FG = "#d8d9da"
@@ -674,7 +674,12 @@ class QueueMonitorApp(tk.Tk):
         style.configure("App.TFrame", background=UI_BG_APP)
         style.configure("Card.TFrame", background=UI_BG_CARD)
         style.configure("TLabel", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
-        style.configure("TLabelframe", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure(
+            "TLabelframe",
+            background=UI_BG_CARD,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=UI_SEPARATOR,
+        )
         style.configure("TLabelframe.Label", background=UI_BG_CARD, foreground=UI_TEXT_MUTED)
         style.configure("TCheckbutton", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
         style.configure(
@@ -1921,17 +1926,18 @@ class QueueMonitorApp(tk.Tk):
         plot_w = max(1, width - pad_left - pad_right)
         plot_h = max(1, height - pad_top - pad_bottom)
 
+        x0 = pad_left
+        y0 = pad_top
+        x1 = pad_left + plot_w
+        y1 = pad_top + plot_h
+        canvas.create_rectangle(x0, y0, x1, y1, fill=UI_GRAPH_PLOT, outline="")
+
         points = list(self.graph_points)
         if len(points) > MAX_DRAW_POINTS:
             step = max(1, len(points) // MAX_DRAW_POINTS)
             points = points[::step]
         self.graph_points_drawn = points
         if len(points) < 2:
-            x0 = pad_left
-            y0 = pad_top
-            x1 = pad_left + plot_w
-            y1 = pad_top + plot_h
-            canvas.create_rectangle(x0, y0, x1, y1, outline=UI_GRAPH_BORDER)
             if len(points) == 1:
                 _t, pos = points[0]
                 canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"{pos}", fill=UI_GRAPH_TEXT)
@@ -1974,13 +1980,9 @@ class QueueMonitorApp(tk.Tk):
             frac = frac ** GRAPH_LOG_GAMMA
             return pad_top + frac * plot_h
 
-        # Axes & ticks
+        # Axes & ticks (grid/axes are soft lines on the solid plot fill — no frame stroke)
         axis_color = UI_GRAPH_AXIS
         text_color = UI_GRAPH_TEXT
-        x0 = pad_left
-        y0 = pad_top
-        x1 = pad_left + plot_w
-        y1 = pad_top + plot_h
         canvas.create_line(x0, y0, x0, y1, fill=axis_color)
         canvas.create_line(x0, y1, x1, y1, fill=axis_color)
 
@@ -2072,7 +2074,6 @@ class QueueMonitorApp(tk.Tk):
             if 0 < idx < len(tick_times) - 1:
                 canvas.create_line(x, y0, x, y1, fill=UI_GRAPH_GRID)
 
-        canvas.create_rectangle(x0, y0, x1, y1, outline=UI_GRAPH_BORDER)
         canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
         line = []
@@ -2086,10 +2087,8 @@ class QueueMonitorApp(tk.Tk):
         last_t, last_v = marker
         lx = x_of(last_t)
         ly = y_of(last_v)
-        canvas.create_oval(
-            lx - 4, ly - 4, lx + 4, ly + 4, outline=UI_GRAPH_MARKER_OUTLINE, fill=UI_GRAPH_MARKER_FILL
-        )
-        canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill=UI_GRAPH_MARKER_OUTLINE)
+        canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, outline="", fill=UI_GRAPH_MARKER)
+        canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill=UI_GRAPH_TEXT)
 
     def on_graph_motion(self, evt: tk.Event) -> None:
         points = self.graph_points_drawn
