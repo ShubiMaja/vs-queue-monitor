@@ -841,10 +841,14 @@ class QueueMonitorApp(tk.Tk):
 
         tick_vals = sorted(set(tick_vals), reverse=True)
 
+        last_y_label: Optional[float] = None
+        min_label_dy = 16
         for idx, val in enumerate(tick_vals):
             y = y_of(val)
             canvas.create_line(x0 - 4, y, x0, y, fill=axis_color)
-            canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
+            if last_y_label is None or abs(y - last_y_label) >= min_label_dy:
+                canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
+                last_y_label = y
             if 0 < idx < len(tick_vals) - 1:
                 canvas.create_line(x0, y, x1, y, fill="#efefef")
 
@@ -891,11 +895,15 @@ class QueueMonitorApp(tk.Tk):
         if tick_times[-1] < t1 - interval * 0.4:
             tick_times.append(t1)
 
+        last_x_label: Optional[float] = None
+        min_label_dx = 58
         for idx, t in enumerate(tick_times):
             x = x_of(t)
             label = datetime.fromtimestamp(t).strftime(fmt)
             canvas.create_line(x, y1, x, y1 + 4, fill=axis_color)
-            canvas.create_text(x, y1 + 14, anchor="n", text=label, fill=text_color)
+            if last_x_label is None or abs(x - last_x_label) >= min_label_dx:
+                canvas.create_text(x, y1 + 14, anchor="n", text=label, fill=text_color)
+                last_x_label = x
             if 0 < idx < len(tick_times) - 1:
                 canvas.create_line(x, y0, x, y1, fill="#efefef")
 
