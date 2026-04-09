@@ -42,7 +42,7 @@ TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 5000
 MAX_DRAW_POINTS = 1200
-PREDICTION_WINDOW_POINTS = 30
+DEFAULT_PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 
@@ -275,6 +275,9 @@ class QueueMonitorApp(tk.Tk):
         self.step_var = tk.StringVar(value=str(self.config.get("step", "5")))
         self.repeat_sec_var = tk.StringVar(value=str(self.config.get("repeat_sec", "30")))
         self.poll_sec_var = tk.StringVar(value=str(self.config.get("poll_sec", "2")))
+        self.avg_window_var = tk.StringVar(
+            value=str(self.config.get("avg_window_points", DEFAULT_PREDICTION_WINDOW_POINTS)),
+        )
         self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
@@ -340,9 +343,12 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(settings, text="Poll sec").grid(row=0, column=6, sticky="w", padx=(0, 4))
         ttk.Entry(settings, width=6, textvariable=self.poll_sec_var).grid(row=0, column=7, padx=(0, 12))
 
-        ttk.Checkbutton(settings, text="Popup", variable=self.popup_enabled_var).grid(row=0, column=8, padx=(0, 8))
-        ttk.Checkbutton(settings, text="Sound", variable=self.sound_enabled_var).grid(row=0, column=9, padx=(0, 8), sticky="w")
-        ttk.Checkbutton(settings, text="Show every change", variable=self.show_every_change_var).grid(row=0, column=10, padx=(0, 8), sticky="w")
+        ttk.Label(settings, text="Avg window").grid(row=0, column=8, sticky="w", padx=(0, 4))
+        ttk.Entry(settings, width=6, textvariable=self.avg_window_var).grid(row=0, column=9, padx=(0, 12))
+
+        ttk.Checkbutton(settings, text="Popup", variable=self.popup_enabled_var).grid(row=0, column=10, padx=(0, 8))
+        ttk.Checkbutton(settings, text="Sound", variable=self.sound_enabled_var).grid(row=0, column=11, padx=(0, 8), sticky="w")
+        ttk.Checkbutton(settings, text="Show every change", variable=self.show_every_change_var).grid(row=0, column=12, padx=(0, 8), sticky="w")
 
         buttons = ttk.Frame(controls)
         buttons.grid(row=2, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 10))
@@ -396,6 +402,7 @@ class QueueMonitorApp(tk.Tk):
             "step": self.step_var.get(),
             "repeat_sec": self.repeat_sec_var.get(),
             "poll_sec": self.poll_sec_var.get(),
+            "avg_window_points": self.avg_window_var.get(),
             "popup_enabled": bool(self.popup_enabled_var.get()),
             "sound_enabled": bool(self.sound_enabled_var.get()),
             "show_every_change": bool(self.show_every_change_var.get()),
@@ -414,6 +421,7 @@ class QueueMonitorApp(tk.Tk):
         self.step_var.set("5")
         self.repeat_sec_var.set("30")
         self.poll_sec_var.set("2")
+        self.avg_window_var.set(str(DEFAULT_PREDICTION_WINDOW_POINTS))
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
         self.show_every_change_var.set(False)
@@ -678,7 +686,13 @@ class QueueMonitorApp(tk.Tk):
         if len(points) < 2:
             return None, 0, [p for _t, p in points]
 
-        recent = points[-(PREDICTION_WINDOW_POINTS + 1) :]
+        try:
+            window_points = int(float(self.avg_window_var.get()))
+        except Exception:
+            window_points = DEFAULT_PREDICTION_WINDOW_POINTS
+        window_points = max(2, min(10_000, window_points))
+
+        recent = points[-(window_points + 1) :]
         trail = [p for _t, p in recent]
 
         rates: list[float] = []
