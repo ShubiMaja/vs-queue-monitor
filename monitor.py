@@ -1363,6 +1363,15 @@ class QueueMonitorApp(tk.Tk):
         self._on_show_log_write()
         self._on_show_status_write()
         self.update_start_stop_button()
+        # First real layout pass: sash positions and pane heights can be wrong until the window maps.
+        self.after_idle(self._sync_collapsible_panes_after_map)
+
+    def _sync_collapsible_panes_after_map(self) -> None:
+        try:
+            self._on_show_log_write()
+            self._on_show_status_write()
+        except (tk.TclError, RuntimeError):
+            pass
 
     def open_settings(self) -> None:
         """Alerts, polling, and display options — kept out of the main layout (Material-style gear entry)."""
@@ -1605,12 +1614,19 @@ class QueueMonitorApp(tk.Tk):
         title: tk.Misc,
         toggle: Callable[[], None],
     ) -> None:
-        """Whole header bar + title toggle; chevron keeps its own command (no double toggle)."""
+        """Whole header bar + title toggle; chevron keeps its own command (no double toggle).
+
+        Pack an expanding tk.Frame to the right of the title + arrow so the full row height/width
+        receives clicks (ttk strip alone often only sizes to its packed children).
+        """
 
         def on_click(_evt: object) -> None:
             toggle()
 
-        for w in (strip, title):
+        filler = tk.Frame(strip, bg=UI_BG_CARD, cursor="hand2", highlightthickness=0, bd=0)
+        filler.pack(side="left", fill=tk.BOTH, expand=True)
+
+        for w in (strip, title, filler):
             try:
                 w.configure(cursor="hand2")
             except tk.TclError:
