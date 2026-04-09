@@ -829,24 +829,21 @@ class QueueMonitorApp(tk.Tk):
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
         entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=1, padx=(0, 6))
-        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2)
+        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2, padx=(0, 8))
 
-        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
+        transport = ttk.Frame(path_row, style="Card.TFrame")
+        transport.grid(row=0, column=3, sticky="e", padx=(0, 8))
+        self.start_stop_button = ttk.Button(transport, text="\u25b6  Start", command=self.toggle_monitoring)
+        self.start_stop_button.pack(side="left")
+        self._loading_spinner = ttk.Progressbar(transport, mode="indeterminate", length=100)
 
-        actions_row = ttk.Frame(top, style="Card.TFrame")
-        actions_row.grid(row=2, column=0, columnspan=2, sticky="ew")
-        actions_row.columnconfigure(0, weight=1)
-        actions = ttk.Frame(actions_row, style="Card.TFrame")
-        actions.grid(row=0, column=0, sticky="w")
-        self.start_stop_button = ttk.Button(actions, text="Start", command=self.toggle_monitoring)
-        self.start_stop_button.pack(side="left", padx=(0, 10))
-        self._loading_spinner = ttk.Progressbar(actions, mode="indeterminate", length=100)
-        ttk.Button(actions, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
         ttk.Button(
-            actions_row,
+            path_row,
             text="\u2699  Settings",
             command=self.open_settings,
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=0, column=4, sticky="e")
+
+        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
         # PanedWindow does not support highlightthickness on all Tk builds (e.g. Windows + Python 3.14).
@@ -1134,7 +1131,7 @@ class QueueMonitorApp(tk.Tk):
     def update_start_stop_button(self) -> None:
         if self.start_stop_button is None:
             return
-        self.start_stop_button.configure(text=("Stop" if self.running else "Start"))
+        self.start_stop_button.configure(text=("\u23f9  Stop" if self.running else "\u25b6  Start"))
 
     def toggle_monitoring(self) -> None:
         if self._starting:
@@ -1292,16 +1289,6 @@ class QueueMonitorApp(tk.Tk):
         selected = filedialog.askdirectory(title="Select folder to search")
         if selected:
             self.source_path_var.set(selected)
-
-    def resolve_and_show(self) -> None:
-        resolved = resolve_log_file(self.source_path_var.get())
-        if resolved:
-            self.resolved_path_var.set(str(resolved))
-            self.write_history(f"Resolved path to: {resolved}")
-            messagebox.showinfo("Resolved", f"Using log file:\n\n{resolved}")
-        else:
-            self.resolved_path_var.set("")
-            messagebox.showerror("Not found", "Could not find client-main.log from that file or directory.")
 
     def parse_int(self, raw: str, name: str, minimum: int = 0) -> int:
         try:
