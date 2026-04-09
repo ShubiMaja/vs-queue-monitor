@@ -391,6 +391,37 @@ class QueueMonitorApp(tk.Tk):
         status = ttk.LabelFrame(panes, text="Status")
         status.columnconfigure(0, weight=1)
 
+        # Summary bar: Position + Status + Remaining
+        summary = tk.Frame(status, bg="#111827", padx=12, pady=10)
+        summary.grid(row=0, column=0, sticky="ew")
+        summary.columnconfigure(1, weight=1)
+        summary.columnconfigure(2, weight=1)
+
+        tk.Label(summary, text="POSITION", bg="#111827", fg="#93c5fd", font=("TkDefaultFont", 9, "bold")).grid(
+            row=0, column=0, sticky="w"
+        )
+        tk.Label(summary, textvariable=self.position_var, bg="#111827", fg="#ffffff", font=("TkDefaultFont", 24, "bold")).grid(
+            row=1, column=0, sticky="w"
+        )
+
+        tk.Label(summary, text="STATUS", bg="#111827", fg="#a7f3d0", font=("TkDefaultFont", 9, "bold")).grid(
+            row=0, column=1, sticky="w", padx=(18, 0)
+        )
+        tk.Label(summary, textvariable=self.status_var, bg="#111827", fg="#ffffff", font=("TkDefaultFont", 13, "bold")).grid(
+            row=1, column=1, sticky="w", padx=(18, 0)
+        )
+
+        tk.Label(summary, text="REMAINING", bg="#111827", fg="#fcd34d", font=("TkDefaultFont", 9, "bold")).grid(
+            row=0, column=2, sticky="e"
+        )
+        tk.Label(
+            summary,
+            textvariable=self.predicted_remaining_var,
+            bg="#111827",
+            fg="#ffffff",
+            font=("TkDefaultFont", 18, "bold"),
+        ).grid(row=1, column=2, sticky="e")
+
         self.history_frame = ttk.LabelFrame(panes, text="History")
         self.history_frame.rowconfigure(0, weight=1)
         self.history_frame.columnconfigure(0, weight=1)
@@ -399,24 +430,6 @@ class QueueMonitorApp(tk.Tk):
         panes.add(status, weight=0)
         panes.add(self.history_frame, weight=3)
 
-        hero = ttk.Frame(status, padding=(8, 8, 8, 4))
-        hero.grid(row=0, column=0, sticky="ew")
-        hero.columnconfigure(1, weight=1)
-
-        ttk.Label(hero, text="Position").grid(row=0, column=0, sticky="w")
-        ttk.Label(
-            hero,
-            textvariable=self.position_var,
-            font=("TkDefaultFont", 22, "bold"),
-        ).grid(row=0, column=1, sticky="w", padx=(10, 0))
-
-        ttk.Label(hero, text="Status").grid(row=1, column=0, sticky="w", pady=(2, 0))
-        ttk.Label(
-            hero,
-            textvariable=self.status_var,
-            font=("TkDefaultFont", 12, "bold"),
-        ).grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(2, 0))
-
         details = ttk.Frame(status, padding=(8, 4, 8, 8))
         details.grid(row=1, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
@@ -424,7 +437,6 @@ class QueueMonitorApp(tk.Tk):
 
         rows = [
             ("Elapsed", self.elapsed_var),
-            ("Predicted remaining", self.predicted_remaining_var),
             ("Avg speed (window)", self.avg_speed_var),
             ("Last change", self.last_change_var),
             ("Last alert", self.last_alert_var),
