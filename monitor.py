@@ -788,7 +788,8 @@ class QueueMonitorApp(tk.Tk):
         style.configure("App.TFrame", background=UI_BG_APP)
         style.configure("TFrame", background=_card, borderwidth=0)
         style.configure("Card.TFrame", background=_card)
-        style.configure("HistoryTabStrip.TFrame", background=UI_BG_APP)
+        # Match Queue graph / Status pane surface so the History header is not a floating strip on app bg.
+        style.configure("HistoryTabStrip.TFrame", background=UI_BG_CARD)
         style.configure(
             "HistoryTab.TButton",
             padding=(10, 5),
@@ -1017,10 +1018,9 @@ class QueueMonitorApp(tk.Tk):
         )
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=0)
-        graph_frame.rowconfigure(1, weight=0)
-        graph_frame.rowconfigure(2, weight=1)
+        graph_frame.rowconfigure(1, weight=1)
 
-        # POSITION / STATUS / RATE / elapsed / remaining — same block as progress + graph.
+        # POSITION / STATUS / RATE / elapsed / remaining + progress (one dark “instrument” strip, then chart).
         summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 6))
         summary.columnconfigure(0, weight=0)
@@ -1101,24 +1101,29 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 18, "bold"),
         ).grid(row=1, column=1, sticky="nw", padx=(16, 0), pady=(2, 0))
 
-        pbar_frame = tk.Frame(graph_frame, bg=UI_BG_CARD)
+        # Separator: scannability between KPI row and progress (same panel as metrics).
+        _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
+        _sum_sep.grid(row=2, column=0, columnspan=5, sticky="ew", padx=(_spx, _spx), pady=(8, 0))
+
+        pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
         pbar_frame.grid(
-            row=1,
+            row=3,
             column=0,
+            columnspan=5,
             sticky="ew",
-            padx=(UI_SUMMARY_INNER_PAD_X, UI_SUMMARY_INNER_PAD_X),
-            pady=(0, 8),
+            padx=(_spx, _spx),
+            pady=(10, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
         )
         pbar_frame.columnconfigure(0, weight=1)
         tk.Label(
             pbar_frame,
-            text="Elapsed share of estimated total wait (elapsed + remaining). 100% at queue front.",
-            bg=UI_BG_CARD,
+            text="Progress through estimated wait — full bar at queue front.",
+            bg=UI_SUMMARY_BG,
             fg=UI_TEXT_MUTED,
             font=("TkDefaultFont", 8),
-            wraplength=520,
+            wraplength=560,
             justify="left",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ).grid(row=0, column=0, sticky="w", pady=(0, 6))
         self._queue_progress = ttk.Progressbar(
             pbar_frame,
             mode="determinate",
@@ -1134,7 +1139,7 @@ class QueueMonitorApp(tk.Tk):
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
         graph_stack.grid(
-            row=2,
+            row=1,
             column=0,
             sticky="nsew",
             padx=(_gsp_l, _gsp_r),
