@@ -40,7 +40,8 @@ QUEUE_RE = re.compile(
 DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
-MAX_GRAPH_POINTS = 360
+MAX_GRAPH_POINTS = 5000
+MAX_DRAW_POINTS = 1200
 PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
@@ -680,6 +681,9 @@ class QueueMonitorApp(tk.Tk):
         plot_h = max(1, height - 2 * pad_y)
 
         points = list(self.graph_points)
+        if len(points) > MAX_DRAW_POINTS:
+            step = max(1, len(points) // MAX_DRAW_POINTS)
+            points = points[::step]
         if len(points) < 2:
             canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
             if len(points) == 1:
