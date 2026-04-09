@@ -1417,11 +1417,10 @@ class QueueMonitorApp(tk.Tk):
             win.transient(self)
         except Exception:
             pass
-        win.minsize(440, 360)
-        win.geometry("480x400")
+        win.minsize(380, 1)
 
         outer = ttk.Frame(win, padding=(16, 14), style="Card.TFrame")
-        outer.pack(fill="both", expand=True)
+        outer.pack(fill="x")
 
         alerts_fr = ttk.LabelFrame(outer, text="Alerts & polling", padding=(10, 8))
         alerts_fr.pack(fill="x", pady=(0, 8))
@@ -1479,13 +1478,15 @@ class QueueMonitorApp(tk.Tk):
         win.update_idletasks()
         try:
             self.update_idletasks()
+            w = max(380, int(win.winfo_reqwidth()))
+            h = int(win.winfo_reqheight())
             px = self.winfo_rootx()
             py = self.winfo_rooty()
             pw = self.winfo_width()
             ph = self.winfo_height()
-            ww = win.winfo_width()
-            wh = win.winfo_height()
-            win.geometry(f"+{px + max(0, (pw - ww) // 2)}+{py + max(0, (ph - wh) // 2)}")
+            x = px + max(0, (pw - w) // 2)
+            y = py + max(0, (ph - h) // 2)
+            win.geometry(f"{w}x{h}+{x}+{y}")
         except Exception:
             pass
 
