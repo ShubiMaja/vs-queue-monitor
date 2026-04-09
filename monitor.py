@@ -868,22 +868,24 @@ class QueueMonitorApp(tk.Tk):
 
         graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
         graph_frame.columnconfigure(0, weight=1)
-        graph_frame.rowconfigure(1, weight=1)
-        graph_bar = ttk.Frame(graph_frame, style="Card.TFrame")
-        graph_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(4, 2))
-        graph_bar.columnconfigure(0, weight=1)
+        graph_frame.rowconfigure(0, weight=1)
+        graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
+        graph_stack.grid(row=0, column=0, sticky="nsew", padx=10, pady=(4, 10))
+        graph_stack.rowconfigure(0, weight=1)
+        graph_stack.columnconfigure(0, weight=1)
+        self.graph_canvas = tk.Canvas(
+            graph_stack, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
+        )
+        self.graph_canvas.grid(row=0, column=0, sticky="nsew")
         self._graph_y_scale_btn = ttk.Button(
-            graph_bar,
-            text="Y: log",
-            width=11,
+            graph_stack,
+            text="Y \u2192 log",
+            width=12,
             command=self._toggle_graph_y_scale,
         )
-        self._graph_y_scale_btn.grid(row=0, column=1, sticky="e")
+        self._graph_y_scale_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-8, y=8)
+        self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
-        self.graph_canvas = tk.Canvas(
-            graph_frame, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
-        )
-        self.graph_canvas.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
@@ -2099,9 +2101,9 @@ class QueueMonitorApp(tk.Tk):
         if btn is None:
             return
         if self.graph_log_scale_var.get():
-            btn.configure(text="Y: log")
+            btn.configure(text="Y \u2192 log")
         else:
-            btn.configure(text="Y: linear")
+            btn.configure(text="Y \u2192 linear")
 
     def _toggle_graph_y_scale(self) -> None:
         self.graph_log_scale_var.set(not self.graph_log_scale_var.get())
