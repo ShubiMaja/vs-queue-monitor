@@ -668,6 +668,7 @@ class QueueMonitorApp(tk.Tk):
         self.start_stop_button: Optional[ttk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
         self._graph_y_scale_btn: Optional[ttk.Button] = None
+        self._history_tab_btn: Optional[ttk.Button] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
@@ -704,6 +705,7 @@ class QueueMonitorApp(tk.Tk):
         self._build_ui()
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.graph_log_scale_var.trace_add("write", lambda *_: self._update_graph_y_scale_button_text())
+        self.show_log_var.trace_add("write", self._on_show_log_write)
         self._bind_config_persist_traces()
         self.start_timer()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -815,7 +817,7 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top bar: log path + transport + history panel toggle. Other options in Settings (gear).
+        # Top bar: log path + transport. History panel: bottom tab. Other options in Settings (gear).
         top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
@@ -840,12 +842,6 @@ class QueueMonitorApp(tk.Tk):
         self.start_stop_button.pack(side="left", padx=(0, 10))
         self._loading_spinner = ttk.Progressbar(actions, mode="indeterminate", length=100)
         ttk.Button(actions, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
-        ttk.Checkbutton(
-            actions,
-            text="History panel",
-            variable=self.show_log_var,
-            command=self.update_log_visibility,
-        ).pack(side="left", padx=(16, 0))
         ttk.Button(
             actions_row,
             text="\u2699  Settings",
@@ -1027,7 +1023,18 @@ class QueueMonitorApp(tk.Tk):
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
 
-        self.update_log_visibility()
+        ttk.Separator(outer, orient=tk.HORIZONTAL).pack(fill="x", pady=(8, 0))
+        bottom_bar = ttk.Frame(outer, style="Card.TFrame")
+        bottom_bar.pack(fill="x", pady=(4, 0))
+        self._history_tab_btn = ttk.Button(
+            bottom_bar,
+            text="▼  History",
+            width=16,
+            command=self._toggle_history_panel,
+        )
+        self._history_tab_btn.pack(side="right")
+
+        self._on_show_log_write()
         self.update_start_stop_button()
 
     def open_settings(self) -> None:
@@ -1096,7 +1103,7 @@ class QueueMonitorApp(tk.Tk):
             except Exception:
                 pass
             self.persist_config()
-            self.update_log_visibility()
+            self._on_show_log_write()
             self.redraw_graph()
 
         ttk.Button(bottom, text="Close", command=close_settings).pack(side="right")
@@ -1231,7 +1238,23 @@ class QueueMonitorApp(tk.Tk):
         self.persist_config()
         self.write_history("Settings reset to defaults.")
 
+        self._on_show_log_write()
+
+    def _update_history_tab_button_text(self) -> None:
+        btn = self._history_tab_btn
+        if btn is None:
+            return
+        if self.show_log_var.get():
+            btn.configure(text="▼  History")
+        else:
+            btn.configure(text="▲  History")
+
+    def _toggle_history_panel(self) -> None:
+        self.show_log_var.set(not self.show_log_var.get())
+
+    def _on_show_log_write(self, *_args: object) -> None:
         self.update_log_visibility()
+        self._update_history_tab_button_text()
 
     def update_log_visibility(self) -> None:
         if self.history_frame is None or self.panes is None:
