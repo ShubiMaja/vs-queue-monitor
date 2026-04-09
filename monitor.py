@@ -281,6 +281,7 @@ class QueueMonitorApp(tk.Tk):
             value=str(self.config.get("avg_window_points", DEFAULT_PREDICTION_WINDOW_POINTS)),
         )
         self.show_log_var = tk.BooleanVar(value=bool(self.config.get("show_log", True)))
+        self.graph_log_scale_var = tk.BooleanVar(value=bool(self.config.get("graph_log_scale", True)))
         self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
@@ -356,6 +357,12 @@ class QueueMonitorApp(tk.Tk):
         ttk.Checkbutton(settings, text="Show log", variable=self.show_log_var, command=self.update_log_visibility).grid(
             row=0,
             column=13,
+            padx=(0, 8),
+            sticky="w",
+        )
+        ttk.Checkbutton(settings, text="Log graph scale", variable=self.graph_log_scale_var, command=self.redraw_graph).grid(
+            row=0,
+            column=14,
             padx=(0, 8),
             sticky="w",
         )
@@ -440,6 +447,7 @@ class QueueMonitorApp(tk.Tk):
             "poll_sec": self.poll_sec_var.get(),
             "avg_window_points": self.avg_window_var.get(),
             "show_log": bool(self.show_log_var.get()),
+            "graph_log_scale": bool(self.graph_log_scale_var.get()),
             "popup_enabled": bool(self.popup_enabled_var.get()),
             "sound_enabled": bool(self.sound_enabled_var.get()),
             "show_every_change": bool(self.show_every_change_var.get()),
@@ -460,6 +468,7 @@ class QueueMonitorApp(tk.Tk):
         self.poll_sec_var.set("2")
         self.avg_window_var.set(str(DEFAULT_PREDICTION_WINDOW_POINTS))
         self.show_log_var.set(True)
+        self.graph_log_scale_var.set(True)
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
         self.show_every_change_var.set(False)
@@ -843,8 +852,12 @@ class QueueMonitorApp(tk.Tk):
 
         def y_of(v: int) -> float:
             # Smaller queue positions should appear "lower" on the graph.
-            # Log scale (with gamma) so low values get more visual resolution.
             vv = max(vmin, min(vmax, v))
+            if not self.graph_log_scale_var.get():
+                frac = (vmax - vv) / max(1, (vmax - vmin))  # 0 at vmax, 1 at vmin
+                return pad_top + frac * plot_h
+
+            # Log scale (with gamma) so low values get more visual resolution.
             lvmin = math.log(vmin + 1.0)
             lvmax = math.log(vmax + 1.0)
             lv = math.log(vv + 1.0)
