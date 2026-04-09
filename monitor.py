@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -786,13 +787,22 @@ class QueueMonitorApp(tk.Tk):
         vmax = max(vals)
         if vmax == vmin:
             vmax = vmin + 1
+        vmin = max(0, vmin)
 
         def x_of(t: float) -> float:
             return pad_left + (t - t0) / (t1 - t0) * plot_w
 
         def y_of(v: int) -> float:
             # Smaller queue positions should appear "lower" on the graph.
-            return pad_top + (vmax - v) / (vmax - vmin) * plot_h
+            # Logarithmic scale: higher resolution at lower queue positions.
+            lvmin = math.log(vmin + 1.0)
+            lvmax = math.log(vmax + 1.0)
+            lv = math.log(max(vmin, min(vmax, v)) + 1.0)
+            if lvmax <= lvmin:
+                frac = 0.0
+            else:
+                frac = (lvmax - lv) / (lvmax - lvmin)
+            return pad_top + frac * plot_h
 
         # Axes & ticks
         axis_color = "#c8c8c8"
@@ -804,11 +814,22 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_line(x0, y0, x0, y1, fill=axis_color)
         canvas.create_line(x0, y1, x1, y1, fill=axis_color)
 
-        # Y ticks (positions)
+        # Y ticks (positions) - log-spaced for readability at low values
         y_ticks = 6
+        lvmin = math.log(vmin + 1.0)
+        lvmax = math.log(vmax + 1.0)
+        seen: set[int] = set()
         for i in range(y_ticks):
             frac = i / (y_ticks - 1)
-            val = int(round(vmax - frac * (vmax - vmin)))
+            if lvmax <= lvmin:
+                val = int(vmax)
+            else:
+                lv = lvmax - frac * (lvmax - lvmin)
+                val = int(round(math.exp(lv) - 1.0))
+            val = max(vmin, min(vmax, val))
+            if val in seen:
+                continue
+            seen.add(val)
             y = y0 + frac * plot_h
             canvas.create_line(x0 - 4, y, x0, y, fill=axis_color)
             canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
