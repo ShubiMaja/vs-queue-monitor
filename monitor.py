@@ -931,8 +931,16 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=UI_ENTRY_FIELD,
             lightcolor=UI_ENTRY_FIELD,
             insertcolor=UI_TEXT_PRIMARY,
+            borderwidth=0,
         )
-        style.map("Path.TEntry", focuscolor=[("!focus", UI_ENTRY_FIELD), ("focus", _bd)])
+        # Keep focus/border/light/dark flat — clam’s focus ring draws bright corner dots on Windows.
+        style.map(
+            "Path.TEntry",
+            focuscolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
+            bordercolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
+            lightcolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
+            darkcolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
+        )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
             "Horizontal.TProgressbar",
@@ -1012,7 +1020,7 @@ class QueueMonitorApp(tk.Tk):
         path_left = ttk.Frame(path_row, style="Card.TFrame")
         path_left.grid(row=0, column=0, sticky="ew")
         path_left.columnconfigure(1, weight=1)
-        self._lbl_log_path = ttk.Label(path_left, text="Log file/folder")
+        self._lbl_log_path = ttk.Label(path_left, text="Log location")
         self._lbl_log_path.grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
         self._path_entry = ttk.Entry(path_left, textvariable=self.source_path_var, style="Path.TEntry")
         self._path_entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
@@ -2466,10 +2474,13 @@ class QueueMonitorApp(tk.Tk):
         )
         bt(
             self._lbl_log_path,
-            "Path to client-main.log or a folder that contains it. "
+            "Log location: path to client-main.log, or a folder to search for it. "
             "Use $APPDATA and similar tokens where supported.",
         )
-        bt(self._path_entry, "Editable log path or folder; Browse picks a file or directory.")
+        bt(
+            self._path_entry,
+            "Editable log location path; Browse file / Browse folder picks a file or directory.",
+        )
         bt(self._btn_browse_file, "Choose client-main.log (or another log file) directly.")
         bt(self._btn_browse_folder, "Choose a folder; the app searches for client-main.log inside.")
         bt(
