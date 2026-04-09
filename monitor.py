@@ -35,6 +35,7 @@ TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 360
 PREDICTION_WINDOW_POINTS = 30
+SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 
 
 def expand_path(raw: str) -> Path:
@@ -72,46 +73,6 @@ def save_config(data: dict) -> None:
         tmp = path.with_suffix(".tmp")
         with tmp.open("w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2, sort_keys=True)
-        tmp.replace(path)
-    except Exception:
-        pass
-
-
-def get_history_path() -> Path:
-    config_path = get_config_path()
-    return config_path.parent / "history.json"
-
-
-def load_history() -> list[tuple[float, int]]:
-    path = get_history_path()
-    try:
-        if not path.is_file():
-            return []
-        with path.open("r", encoding="utf-8") as handle:
-            data = json.load(handle)
-        if not isinstance(data, list):
-            return []
-        out: list[tuple[float, int]] = []
-        for item in data:
-            if not isinstance(item, list) or len(item) != 2:
-                continue
-            t, pos = item[0], item[1]
-            if not isinstance(t, (int, float)) or not isinstance(pos, int):
-                continue
-            out.append((float(t), int(pos)))
-        out.sort(key=lambda x: x[0])
-        return out
-    except Exception:
-        return []
-
-
-def save_history(points: list[tuple[float, int]]) -> None:
-    path = get_history_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        with tmp.open("w", encoding="utf-8") as handle:
-            json.dump([[t, p] for t, p in points], handle, indent=2)
         tmp.replace(path)
     except Exception:
         pass
@@ -172,6 +133,39 @@ def read_latest_position(log_file: Path) -> Optional[int]:
     return int(matches[-1])
 
 
+def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[int]:
+    try:
+        with log_file.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            start = max(0, size - tail_bytes)
+            handle.seek(start)
+            data = handle.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return []
+
+    out: list[int] = []
+    for match in QUEUE_RE.finditer(data):
+        try:
+            out.append(int(match.group(1)))
+        except Exception:
+            pass
+    return out
+
+
+def find_current_queue_segment(positions: list[int]) -> list[int]:
+    if not positions:
+        return []
+    start_idx = 0
+    for i in range(len(positions) - 1, 0, -1):
+        prev_pos = positions[i - 1]
+        cur_pos = positions[i]
+        if prev_pos + 1 < cur_pos:
+            start_idx = i
+            break
+    return positions[start_idx:]
+
+
 class QueueMonitorApp(tk.Tk):
     def __init__(self, initial_path: str = "", auto_start: bool = False) -> None:
         super().__init__()
@@ -202,7 +196,6 @@ class QueueMonitorApp(tk.Tk):
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
         self.session_epoch: float = time.time()
-        self.last_history_save_epoch: float = 0.0
         self.job_id: Optional[str] = None
         self.current_log_file: Optional[Path] = None
         self.last_position: Optional[int] = None
@@ -217,11 +210,7 @@ class QueueMonitorApp(tk.Tk):
 
         self.write_history(f"App started. Waiting for a path. Parser looks for queue lines like 'Client is in connect queue at position: N'.")
 
-        historical = load_history()
-        if historical:
-            for item in historical[-MAX_GRAPH_POINTS:]:
-                self.graph_points.append(item)
-            self.redraw_graph()
+        # Graph history is seeded from the log when monitoring starts.
 
         try:
             geometry = self.config.get("window_geometry", "")
@@ -413,9 +402,12 @@ class QueueMonitorApp(tk.Tk):
             self.resolved_path_var.set(str(resolved))
             self.running = True
             self.monitor_start_epoch = time.time()
+            self.session_epoch = time.time()
             self.status_var.set("Monitoring")
             self.write_history(f"Monitoring started. Log file: {resolved}")
             self.persist_config()
+
+            self.seed_graph_from_log(resolved)
 
             if self.job_id is not None:
                 self.after_cancel(self.job_id)
@@ -434,6 +426,25 @@ class QueueMonitorApp(tk.Tk):
             self.after_cancel(self.job_id)
             self.job_id = None
         self.write_history("Monitoring stopped.")
+
+    def seed_graph_from_log(self, log_file: Path) -> None:
+        positions = extract_recent_positions_from_log(log_file, SEED_LOG_TAIL_BYTES)
+        segment = find_current_queue_segment(positions)
+        if not segment:
+            return
+
+        now = time.time()
+        try:
+            spacing = float(self.poll_sec_var.get())
+        except Exception:
+            spacing = 2.0
+        spacing = max(0.2, min(10.0, spacing))
+
+        self.graph_points.clear()
+        start_t = now - spacing * (len(segment) - 1)
+        for i, pos in enumerate(segment[-MAX_GRAPH_POINTS:]):
+            self.graph_points.append((start_t + i * spacing, pos))
+        self.redraw_graph()
 
     def poll_once(self) -> None:
         if not self.running:
@@ -483,13 +494,6 @@ class QueueMonitorApp(tk.Tk):
         now = time.time()
         self.graph_points.append((now, position))
         self.redraw_graph()
-        self.persist_history_if_due(now)
-
-    def persist_history_if_due(self, now_epoch: float) -> None:
-        if now_epoch - self.last_history_save_epoch < 10.0:
-            return
-        self.last_history_save_epoch = now_epoch
-        save_history(list(self.graph_points))
 
     def format_duration(self, seconds: float) -> str:
         if seconds < 0:
