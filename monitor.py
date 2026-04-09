@@ -838,6 +838,8 @@ class QueueMonitorApp(tk.Tk):
         end = ((vmax + tick_step - 1) // tick_step) * tick_step
         for val in range(start, end + 1, tick_step):
             if vmin <= val <= vmax:
+                if val == 0 and vmin > 0:
+                    continue
                 tick_vals.append(val)
 
         # When zoomed in low, label 1..5 individually.
