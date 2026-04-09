@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "vs-q-monitor: Run GUI",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [],
+      "env": {},
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "vs-q-monitor: Run GUI (auto-start)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["--start"],
+      "env": {},
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

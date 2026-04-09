@@ -1,229 +1,431 @@
 #!/usr/bin/env python3
-# monitor.py
-# Version: 1.0.0
+"""
+Vintage Story Queue Monitor GUI
+Version: 1.0.0
+
+Cross-platform Tkinter app that watches a Vintage Story client log for queue
+position changes and raises popup + sound alerts.
+"""
+
+from __future__ import annotations
 
 import argparse
 import os
 import re
 import sys
 import time
+import traceback
 from pathlib import Path
+from typing import Optional
+
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
 try:
-    import winsound
-except ImportError:
+    import winsound  # type: ignore
+except Exception:  # pragma: no cover
     winsound = None
 
-QUEUE_RE = re.compile(r"Client is in connect queue at position:\s*(\d+)")
 VERSION = "1.0.0"
+QUEUE_RE = re.compile(r"Client is in connect queue at position:\s*(\d+)")
+DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
+TAIL_BYTES = 128 * 1024
+POPUP_TIMEOUT_MS = 12_000
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
-
-
-def normalize_path(raw: str) -> Path:
-    if not raw:
-        return Path()
-
-    expanded = os.path.expandvars(raw)
+def expand_path(raw: str) -> Path:
+    expanded = os.path.expandvars(raw.strip())
     expanded = os.path.expanduser(expanded)
-
-    # Normalize slashes
-    expanded = expanded.replace("\\", "/")
-
     return Path(expanded)
 
 
-def resolve_log_file(raw: str) -> Path | None:
-    p = normalize_path(raw)
+def resolve_log_file(raw: str) -> Optional[Path]:
+    path = expand_path(raw)
 
-    if p.is_file():
-        return p
+    if path.is_file():
+        return path
 
-    if p.is_dir():
-        candidates = []
+    if not path.exists() or not path.is_dir():
+        return None
 
-        # direct child
-        direct = p / "client-main.log"
-        if direct.is_file():
-            return direct
+    candidate_paths: list[Path] = [
+        path / "client-main.log",
+        path / "Logs" / "client-main.log",
+        path / "logs" / "client-main.log",
+        path / "client.log",
+        path / "Logs" / "client.log",
+        path / "logs" / "client.log",
+    ]
 
-        # recursive search
-        for found in p.rglob("client-main.log"):
-            candidates.append(found)
+    for candidate in candidate_paths:
+        if candidate.is_file():
+            return candidate
 
-        if candidates:
-            # pick the newest
-            candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-            return candidates[0]
+    matches: list[Path] = []
+    patterns = ["client-main.log", "*client-main*.log", "*client*.log"]
+    for pattern in patterns:
+        try:
+            matches.extend(path.rglob(pattern))
+        except Exception:
+            pass
 
-    return None
+    file_matches = [m for m in matches if m.is_file()]
+    if not file_matches:
+        return None
+
+    file_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return file_matches[0]
 
 
-def read_latest_position(log_file: Path, tail_bytes: int = 65536) -> int | None:
+def read_latest_position(log_file: Path) -> Optional[int]:
     try:
-        with log_file.open("rb") as f:
-            f.seek(0, os.SEEK_END)
-            size = f.tell()
-            start = max(0, size - tail_bytes)
-            f.seek(start)
-            data = f.read().decode("utf-8", errors="ignore")
+        with log_file.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            start = max(0, size - TAIL_BYTES)
+            handle.seek(start)
+            data = handle.read().decode("utf-8", errors="ignore")
     except Exception:
         return None
 
     matches = QUEUE_RE.findall(data)
     if not matches:
         return None
-
     return int(matches[-1])
 
 
-def play_alert(sound_repeats: int, sound_file: str | None) -> None:
-    if winsound is None:
-        return
+class QueueMonitorApp(tk.Tk):
+    def __init__(self, initial_path: str = "", auto_start: bool = False) -> None:
+        super().__init__()
+        self.title(f"Vintage Story Queue Monitor v{VERSION}")
+        self.geometry("930x640")
+        self.minsize(860, 560)
 
-    if sound_file:
-        sf = resolve_log_file(sound_file) if Path(sound_file).is_dir() else normalize_path(sound_file)
-        if sf and Path(sf).is_file():
-            try:
-                winsound.PlaySound(str(sf), winsound.SND_FILENAME)
-                return
-            except Exception:
-                pass
+        self.source_path_var = tk.StringVar(value=initial_path or DEFAULT_PATH)
+        self.resolved_path_var = tk.StringVar(value="")
+        self.status_var = tk.StringVar(value="Idle")
+        self.position_var = tk.StringVar(value="—")
+        self.last_change_var = tk.StringVar(value="—")
+        self.last_alert_var = tk.StringVar(value="—")
+        self.alert_at_var = tk.StringVar(value="10")
+        self.step_var = tk.StringVar(value="5")
+        self.repeat_sec_var = tk.StringVar(value="30")
+        self.poll_sec_var = tk.StringVar(value="2")
+        self.popup_enabled_var = tk.BooleanVar(value=True)
+        self.sound_enabled_var = tk.BooleanVar(value=True)
+        self.show_every_change_var = tk.BooleanVar(value=False)
 
-    for _ in range(sound_repeats):
+        self.running = False
+        self.job_id: Optional[str] = None
+        self.current_log_file: Optional[Path] = None
+        self.last_position: Optional[int] = None
+        self.last_alert_position: Optional[int] = None
+        self.last_alert_epoch: float = 0.0
+        self.active_popup: Optional[tk.Toplevel] = None
+
+        self._build_ui()
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        self.write_history(f"App started. Waiting for a path. Parser looks for queue lines like 'Client is in connect queue at position: N'.")
+
+        if auto_start:
+            self.after(250, self.start_monitoring)
+
+    def _build_ui(self) -> None:
+        outer = ttk.Frame(self, padding=12)
+        outer.pack(fill="both", expand=True)
+
+        controls = ttk.LabelFrame(outer, text="Monitor")
+        controls.pack(fill="x")
+        controls.columnconfigure(1, weight=1)
+
+        ttk.Label(controls, text="File or directory").grid(row=0, column=0, sticky="w", padx=8, pady=8)
+        entry = ttk.Entry(controls, textvariable=self.source_path_var)
+        entry.grid(row=0, column=1, sticky="ew", padx=8, pady=8)
+        ttk.Button(controls, text="Browse File", command=self.browse_file).grid(row=0, column=2, padx=4, pady=8)
+        ttk.Button(controls, text="Browse Folder", command=self.browse_folder).grid(row=0, column=3, padx=4, pady=8)
+
+        settings = ttk.Frame(controls)
+        settings.grid(row=1, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
+        for idx in range(10):
+            settings.columnconfigure(idx, weight=0)
+        settings.columnconfigure(9, weight=1)
+
+        ttk.Label(settings, text="Alert at ≤").grid(row=0, column=0, sticky="w", padx=(0, 4))
+        ttk.Entry(settings, width=6, textvariable=self.alert_at_var).grid(row=0, column=1, padx=(0, 12))
+        ttk.Label(settings, text="Step").grid(row=0, column=2, sticky="w", padx=(0, 4))
+        ttk.Entry(settings, width=6, textvariable=self.step_var).grid(row=0, column=3, padx=(0, 12))
+        ttk.Label(settings, text="Repeat sec").grid(row=0, column=4, sticky="w", padx=(0, 4))
+        ttk.Entry(settings, width=6, textvariable=self.repeat_sec_var).grid(row=0, column=5, padx=(0, 12))
+        ttk.Label(settings, text="Poll sec").grid(row=0, column=6, sticky="w", padx=(0, 4))
+        ttk.Entry(settings, width=6, textvariable=self.poll_sec_var).grid(row=0, column=7, padx=(0, 12))
+
+        ttk.Checkbutton(settings, text="Popup", variable=self.popup_enabled_var).grid(row=0, column=8, padx=(0, 8))
+        ttk.Checkbutton(settings, text="Sound", variable=self.sound_enabled_var).grid(row=0, column=9, padx=(0, 8), sticky="w")
+        ttk.Checkbutton(settings, text="Show every change", variable=self.show_every_change_var).grid(row=0, column=10, padx=(0, 8), sticky="w")
+
+        buttons = ttk.Frame(controls)
+        buttons.grid(row=2, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 10))
+        ttk.Button(buttons, text="Start", command=self.start_monitoring).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Stop", command=self.stop_monitoring).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+
+        status = ttk.LabelFrame(outer, text="Status")
+        status.pack(fill="x", pady=(12, 0))
+        status.columnconfigure(1, weight=1)
+
+        rows = [
+            ("Status", self.status_var),
+            ("Current queue position", self.position_var),
+            ("Last change", self.last_change_var),
+            ("Last alert", self.last_alert_var),
+            ("Resolved log path", self.resolved_path_var),
+        ]
+        for row_idx, (label_text, var) in enumerate(rows):
+            ttk.Label(status, text=label_text).grid(row=row_idx, column=0, sticky="nw", padx=8, pady=6)
+            ttk.Label(status, textvariable=var, wraplength=720).grid(row=row_idx, column=1, sticky="nw", padx=8, pady=6)
+
+        history_frame = ttk.LabelFrame(outer, text="History")
+        history_frame.pack(fill="both", expand=True, pady=(12, 0))
+        history_frame.rowconfigure(0, weight=1)
+        history_frame.columnconfigure(0, weight=1)
+
+        self.history_text = tk.Text(history_frame, height=20, wrap="word", state="disabled")
+        self.history_text.grid(row=0, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(history_frame, orient="vertical", command=self.history_text.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.history_text.configure(yscrollcommand=scrollbar.set)
+
+    def write_history(self, message: str) -> None:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.history_text.configure(state="normal")
+        self.history_text.insert("end", f"[{timestamp}] {message}\n")
+        self.history_text.see("end")
+        self.history_text.configure(state="disabled")
+
+    def browse_file(self) -> None:
+        selected = filedialog.askopenfilename(title="Select client log")
+        if selected:
+            self.source_path_var.set(selected)
+
+    def browse_folder(self) -> None:
+        selected = filedialog.askdirectory(title="Select folder to search")
+        if selected:
+            self.source_path_var.set(selected)
+
+    def resolve_and_show(self) -> None:
+        resolved = resolve_log_file(self.source_path_var.get())
+        if resolved:
+            self.resolved_path_var.set(str(resolved))
+            self.write_history(f"Resolved path to: {resolved}")
+            messagebox.showinfo("Resolved", f"Using log file:\n\n{resolved}")
+        else:
+            self.resolved_path_var.set("")
+            messagebox.showerror("Not found", "Could not find client-main.log from that file or directory.")
+
+    def parse_int(self, raw: str, name: str, minimum: int = 0) -> int:
         try:
-            winsound.Beep(1400, 250)
-            time.sleep(0.1)
-            winsound.Beep(1000, 250)
-            time.sleep(0.1)
-        except Exception:
-            try:
-                winsound.MessageBeep(winsound.MB_ICONHAND)
-            except Exception:
-                pass
-            time.sleep(0.25)
+            value = int(float(raw))
+        except Exception as exc:
+            raise ValueError(f"{name} must be a number") from exc
+        if value < minimum:
+            raise ValueError(f"{name} must be >= {minimum}")
+        return value
 
+    def parse_float(self, raw: str, name: str, minimum: float = 0.1) -> float:
+        try:
+            value = float(raw)
+        except Exception as exc:
+            raise ValueError(f"{name} must be a number") from exc
+        if value < minimum:
+            raise ValueError(f"{name} must be >= {minimum}")
+        return value
 
-def show_popup(title: str, message: str) -> None:
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(0, message, title, 0x30)
-    except Exception:
-        pass
+    def start_monitoring(self) -> None:
+        try:
+            resolved = resolve_log_file(self.source_path_var.get())
+            if not resolved:
+                raise ValueError("Could not find client-main.log from that file or directory.")
 
+            self.alert_at = self.parse_int(self.alert_at_var.get(), "Alert at", 1)
+            self.step = self.parse_int(self.step_var.get(), "Step", 1)
+            self.repeat_sec = self.parse_int(self.repeat_sec_var.get(), "Repeat sec", 1)
+            self.poll_sec = self.parse_float(self.poll_sec_var.get(), "Poll sec", 0.2)
 
-def should_alert(
-    position: int,
-    last_alert_position: int | None,
-    last_alert_time: float,
-    alert_at: int,
-    position_step: int,
-    repeat_alert_seconds: int,
-) -> tuple[bool, str]:
-    now = time.time()
-    elapsed = now - last_alert_time
+            self.current_log_file = resolved
+            self.resolved_path_var.set(str(resolved))
+            self.running = True
+            self.status_var.set("Monitoring")
+            self.write_history(f"Monitoring started. Log file: {resolved}")
 
-    if last_alert_position is None:
-        if position <= alert_at:
-            return True, f"position <= {alert_at}"
+            if self.job_id is not None:
+                self.after_cancel(self.job_id)
+                self.job_id = None
+
+            self.poll_once()
+        except Exception as exc:
+            self.status_var.set("Error")
+            messagebox.showerror("Start failed", str(exc))
+
+    def stop_monitoring(self) -> None:
+        self.running = False
+        self.status_var.set("Stopped")
+        if self.job_id is not None:
+            self.after_cancel(self.job_id)
+            self.job_id = None
+        self.write_history("Monitoring stopped.")
+
+    def poll_once(self) -> None:
+        if not self.running:
+            return
+
+        try:
+            resolved = resolve_log_file(self.source_path_var.get())
+            if resolved is not None:
+                if self.current_log_file != resolved:
+                    self.current_log_file = resolved
+                    self.resolved_path_var.set(str(resolved))
+                    self.write_history(f"Now watching: {resolved}")
+
+            if not self.current_log_file or not self.current_log_file.is_file():
+                self.status_var.set("Waiting for log file")
+            else:
+                position = read_latest_position(self.current_log_file)
+                if position is not None:
+                    self.status_var.set("Monitoring")
+                    self.position_var.set(str(position))
+
+                    if position != self.last_position:
+                        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                        self.last_change_var.set(timestamp)
+                        if self.show_every_change_var.get() or self.last_position is None:
+                            self.write_history(f"Queue position: {position}")
+                        else:
+                            self.write_history(f"Queue changed: {self.last_position} → {position}")
+                        self.last_position = position
+
+                    should_alert, reason = self.compute_alert(position)
+                    if should_alert:
+                        self.raise_alert(position, reason)
+                else:
+                    self.status_var.set("Watching log, queue line not found yet")
+        except Exception as exc:
+            self.status_var.set("Error")
+            self.write_history(f"Error: {exc}")
+            self.write_history(traceback.format_exc().splitlines()[-1])
+
+        self.job_id = self.after(int(self.poll_sec * 1000), self.poll_once)
+
+    def compute_alert(self, position: int) -> tuple[bool, str]:
+        now = time.time()
+        elapsed = now - self.last_alert_epoch
+
+        if self.last_alert_position is None:
+            if position <= self.alert_at:
+                return True, f"position <= {self.alert_at}"
+            return False, ""
+
+        improvement = self.last_alert_position - position
+        if position <= self.alert_at and elapsed >= self.repeat_sec:
+            return True, f"still at or below {self.alert_at} after {int(elapsed)}s"
+
+        if improvement >= self.step and elapsed >= self.repeat_sec:
+            return True, f"improved by {improvement} since last alert"
+
         return False, ""
 
-    improvement = last_alert_position - position
+    def raise_alert(self, position: int, reason: str) -> None:
+        self.last_alert_position = position
+        self.last_alert_epoch = time.time()
+        self.last_alert_var.set(time.strftime("%Y-%m-%d %H:%M:%S"))
+        self.write_history(f"ALERT: queue position {position} ({reason})")
 
-    if position <= alert_at and elapsed >= repeat_alert_seconds:
-        return True, f"still at or below {alert_at} after {int(elapsed)}s"
+        if self.sound_enabled_var.get():
+            self.play_sound()
+        if self.popup_enabled_var.get():
+            self.show_popup(position, reason)
 
-    if improvement >= position_step and elapsed >= repeat_alert_seconds:
-        return True, f"improved by {improvement} since last alert"
+    def play_sound(self) -> None:
+        if winsound is not None and sys.platform.startswith("win"):
+            for _ in range(6):
+                try:
+                    winsound.Beep(1400, 180)
+                    winsound.Beep(1000, 180)
+                except Exception:
+                    break
+        else:
+            self._ring_bell(0)
 
-    return False, ""
+    def _ring_bell(self, count: int) -> None:
+        if count >= 6:
+            return
+        try:
+            self.bell()
+        except Exception:
+            pass
+        self.after(220, lambda: self._ring_bell(count + 1))
+
+    def show_popup(self, position: int, reason: str) -> None:
+        if self.active_popup is not None and self.active_popup.winfo_exists():
+            try:
+                self.active_popup.destroy()
+            except Exception:
+                pass
+
+        popup = tk.Toplevel(self)
+        self.active_popup = popup
+        popup.title("Queue Alert")
+        popup.attributes("-topmost", True)
+        popup.resizable(False, False)
+        popup.configure(padx=18, pady=18)
+
+        try:
+            popup.transient(self)
+        except Exception:
+            pass
+
+        ttk.Label(
+            popup,
+            text=f"Queue position is now {position}",
+            font=("TkDefaultFont", 15, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+        ttk.Label(
+            popup,
+            text=f"Reason: {reason}",
+            wraplength=360,
+        ).pack(anchor="w", pady=(0, 12))
+        ttk.Button(popup, text="Dismiss", command=popup.destroy).pack(anchor="e")
+
+        popup.update_idletasks()
+        width = popup.winfo_width()
+        height = popup.winfo_height()
+        screen_w = popup.winfo_screenwidth()
+        screen_h = popup.winfo_screenheight()
+        x = max(40, screen_w - width - 50)
+        y = max(40, screen_h - height - 90)
+        popup.geometry(f"+{x}+{y}")
+
+        popup.after(POPUP_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
+
+    def on_close(self) -> None:
+        self.stop_monitoring()
+        self.destroy()
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Vintage Story Queue Monitor GUI")
+    parser.add_argument("--path", dest="path", default="", help="Initial file or directory path")
+    parser.add_argument("--start", action="store_true", help="Auto-start monitoring after launch")
+    return parser
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Monitor Vintage Story queue position and alert on Windows.")
-    parser.add_argument("--file", "-f", default=r"%APPDATA%/VintagestoryData/client-main.log",
-                        help="Path to client-main.log, or a directory to search")
-    parser.add_argument("--alert-at", "-a", type=int, default=10,
-                        help="Alert when queue position is <= this value")
-    parser.add_argument("--step", "-s", type=int, default=5,
-                        help="Alert when position improves by this many spots since last alert")
-    parser.add_argument("--repeat-sec", "-r", type=int, default=30,
-                        help="Minimum seconds between repeated alerts")
-    parser.add_argument("--poll-sec", "-p", type=float, default=2.0,
-                        help="Polling interval in seconds")
-    parser.add_argument("--sound-repeats", type=int, default=8,
-                        help="Number of beep repetitions")
-    parser.add_argument("--sound-file", default="",
-                        help="Optional WAV file to play instead of beeps")
-    parser.add_argument("--show-every-change", action="store_true",
-                        help="Print every queue change")
-    parser.add_argument("--popup", type=int, choices=[0, 1], default=1,
-                        help="Enable popup alerts")
-    parser.add_argument("--sound", type=int, choices=[0, 1], default=1,
-                        help="Enable sound alerts")
-
+    parser = build_arg_parser()
     args = parser.parse_args()
 
-    log_file = resolve_log_file(args.file)
-
-    log(f"monitor.py v{VERSION}")
-    log(f"Input path: {args.file}")
-
-    if not log_file:
-        print("Log file not found.", file=sys.stderr)
-        print("Try one of these:", file=sys.stderr)
-        print(r'  python monitor.py --file "%APPDATA%\VintagestoryData\client-main.log"', file=sys.stderr)
-        print(r'  python monitor.py --file "%APPDATA%\VSLInstallations\Unstable"', file=sys.stderr)
-        print(r'  python monitor.py --file "%APPDATA%"', file=sys.stderr)
-        return 1
-
-    log(f"Watching: {log_file}")
-    log(f"Alert when <= {args.alert_at}, step improvement {args.step}, repeat every {args.repeat_sec}s")
-
-    last_position = None
-    last_alert_position = None
-    last_alert_time = 0.0
-
-    try:
-        while True:
-            position = read_latest_position(log_file)
-
-            if position is not None:
-                if position != last_position:
-                    if args.show_every_change or last_position is None:
-                        log(f"Queue position: {position}")
-                    last_position = position
-
-                alert, reason = should_alert(
-                    position=position,
-                    last_alert_position=last_alert_position,
-                    last_alert_time=last_alert_time,
-                    alert_at=args.alert_at,
-                    position_step=args.step,
-                    repeat_alert_seconds=args.repeat_sec,
-                )
-
-                if alert:
-                    log(f"ALERT: queue position {position} ({reason})")
-                    last_alert_position = position
-                    last_alert_time = time.time()
-
-                    if args.sound:
-                        play_alert(args.sound_repeats, args.sound_file or None)
-
-                    if args.popup:
-                        show_popup(
-                            "Vintage Story Queue Alert",
-                            f"Queue position is now {position}\n\nReason: {reason}"
-                        )
-
-            time.sleep(args.poll_sec)
-
-    except KeyboardInterrupt:
-        log("Stopped.")
-        return 0
+    app = QueueMonitorApp(initial_path=args.path, auto_start=args.start)
+    app.mainloop()
+    return 0
 
 
 if __name__ == "__main__":
