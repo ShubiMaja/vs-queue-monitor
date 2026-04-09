@@ -615,6 +615,7 @@ class QueueMonitorApp(tk.Tk):
         self.history_frame: Optional[ttk.LabelFrame] = None
         self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
+        self._settings_win: Optional[tk.Toplevel] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
@@ -713,63 +714,37 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        controls = ttk.LabelFrame(outer, text="Monitor", padding=(12, 10))
-        controls.pack(fill="x")
-        controls.columnconfigure(1, weight=1)
+        # Top bar: log path + transport (always visible). Secondary options live in Settings (gear) — same idea as
+        # Material app bars: primary task first, configuration behind an explicit affordance.
+        top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
+        top.pack(fill="x")
+        top.columnconfigure(1, weight=1)
 
-        ttk.Label(controls, text="Log file or folder").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 4))
-        path_row = ttk.Frame(controls, style="Card.TFrame")
-        path_row.grid(row=0, column=1, columnspan=3, sticky="ew", pady=(0, 6))
+        ttk.Label(top, text="Log file or folder").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 4))
+        path_row = ttk.Frame(top, style="Card.TFrame")
+        path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
         path_row.columnconfigure(0, weight=1)
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
         entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=1, padx=(0, 6))
         ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2)
 
-        ttk.Separator(controls, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=4, sticky="ew", pady=(4, 10))
+        ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
-        alerts_fr = ttk.LabelFrame(controls, text="Alerts & polling", padding=(10, 8))
-        alerts_fr.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 8))
-        alerts_fr.columnconfigure(1, weight=1)
-
-        ttk.Label(alerts_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(alerts_fr, textvariable=self.alert_thresholds_var, width=36).grid(
-            row=0, column=1, sticky="ew", padx=(0, 12)
-        )
-        ttk.Label(alerts_fr, text="Poll (s)").grid(row=0, column=2, sticky="w", padx=(0, 6))
-        ttk.Entry(alerts_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=3, sticky="w")
-
-        checks1 = ttk.Frame(alerts_fr, style="Card.TFrame")
-        checks1.grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
-        ttk.Checkbutton(checks1, text="Alert popup", variable=self.popup_enabled_var).pack(side="left", padx=(0, 14))
-        ttk.Checkbutton(checks1, text="Alert sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
-        ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var).pack(
-            side="left", padx=(0, 0)
-        )
-
-        display_fr = ttk.LabelFrame(controls, text="Panels & prediction", padding=(10, 8))
-        display_fr.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(0, 10))
-        display_fr.columnconfigure(3, weight=1)
-
-        ttk.Checkbutton(
-            display_fr,
-            text="Show history panel",
-            variable=self.show_log_var,
-            command=self.update_log_visibility,
-        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
-        ttk.Checkbutton(display_fr, text="Log scale on graph Y axis", variable=self.graph_log_scale_var, command=self.redraw_graph).grid(
-            row=0, column=1, sticky="w", padx=(0, 16)
-        )
-        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=2, sticky="w", padx=(0, 8))
-        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=3, sticky="w")
-
-        buttons = ttk.Frame(controls, style="Card.TFrame")
-        buttons.grid(row=4, column=0, columnspan=4, sticky="w", pady=(2, 0))
-        self.start_stop_button = ttk.Button(buttons, text="Start", command=self.toggle_monitoring)
+        actions_row = ttk.Frame(top, style="Card.TFrame")
+        actions_row.grid(row=2, column=0, columnspan=2, sticky="ew")
+        actions_row.columnconfigure(0, weight=1)
+        actions = ttk.Frame(actions_row, style="Card.TFrame")
+        actions.grid(row=0, column=0, sticky="w")
+        self.start_stop_button = ttk.Button(actions, text="Start", command=self.toggle_monitoring)
         self.start_stop_button.pack(side="left", padx=(0, 10))
-        self._loading_spinner = ttk.Progressbar(buttons, mode="indeterminate", length=100)
-        ttk.Button(buttons, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
+        self._loading_spinner = ttk.Progressbar(actions, mode="indeterminate", length=100)
+        ttk.Button(actions, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            actions_row,
+            text="\u2699  Settings",
+            command=self.open_settings,
+        ).grid(row=0, column=1, sticky="e")
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
         panes = tk.PanedWindow(
@@ -915,6 +890,109 @@ class QueueMonitorApp(tk.Tk):
 
         self.update_log_visibility()
         self.update_start_stop_button()
+
+    def open_settings(self) -> None:
+        """Alerts, polling, and display options — kept out of the main layout (Material-style gear entry)."""
+        if self._settings_win is not None:
+            try:
+                if self._settings_win.winfo_exists():
+                    self._settings_win.lift()
+                    self._settings_win.focus_force()
+                    return
+            except Exception:
+                pass
+            self._settings_win = None
+
+        win = tk.Toplevel(self)
+        self._settings_win = win
+        win.title("Settings")
+        win.configure(bg=UI_BG_CARD)
+        try:
+            win.transient(self)
+        except Exception:
+            pass
+        win.minsize(440, 360)
+        win.geometry("480x400")
+
+        outer = ttk.Frame(win, padding=(16, 14), style="Card.TFrame")
+        outer.pack(fill="both", expand=True)
+
+        alerts_fr = ttk.LabelFrame(outer, text="Alerts & polling", padding=(10, 8))
+        alerts_fr.pack(fill="x", pady=(0, 8))
+        alerts_fr.columnconfigure(1, weight=1)
+
+        ttk.Label(alerts_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(alerts_fr, textvariable=self.alert_thresholds_var, width=36).grid(
+            row=0, column=1, sticky="ew", padx=(0, 12)
+        )
+        ttk.Label(alerts_fr, text="Poll (s)").grid(row=0, column=2, sticky="w", padx=(0, 6))
+        ttk.Entry(alerts_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=3, sticky="w")
+
+        checks1 = ttk.Frame(alerts_fr, style="Card.TFrame")
+        checks1.grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        ttk.Checkbutton(checks1, text="Alert popup", variable=self.popup_enabled_var).pack(side="left", padx=(0, 14))
+        ttk.Checkbutton(checks1, text="Alert sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
+        ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var).pack(
+            side="left", padx=(0, 0)
+        )
+
+        display_fr = ttk.LabelFrame(outer, text="Panels & prediction", padding=(10, 8))
+        display_fr.pack(fill="x", pady=(0, 10))
+        display_fr.columnconfigure(3, weight=1)
+
+        ttk.Checkbutton(
+            display_fr,
+            text="Show history panel",
+            variable=self.show_log_var,
+            command=self.update_log_visibility,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
+        ttk.Checkbutton(
+            display_fr,
+            text="Log scale on graph Y axis",
+            variable=self.graph_log_scale_var,
+            command=self.redraw_graph,
+        ).grid(row=0, column=1, sticky="w", padx=(0, 16))
+        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=2, sticky="w", padx=(0, 8))
+        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=3, sticky="w")
+
+        bottom = ttk.Frame(outer, style="Card.TFrame")
+        bottom.pack(fill="x", pady=(8, 0))
+        ttk.Button(bottom, text="Reset defaults", command=self.reset_defaults).pack(side="left")
+
+        def close_settings() -> None:
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            self._settings_win = None
+            try:
+                win.destroy()
+            except Exception:
+                pass
+            self.persist_config()
+            self.update_log_visibility()
+            self.redraw_graph()
+
+        ttk.Button(bottom, text="Close", command=close_settings).pack(side="right")
+        win.protocol("WM_DELETE_WINDOW", close_settings)
+
+        try:
+            win.grab_set()
+        except Exception:
+            pass
+
+        win.update_idletasks()
+        try:
+            self.update_idletasks()
+            px = self.winfo_rootx()
+            py = self.winfo_rooty()
+            pw = self.winfo_width()
+            ph = self.winfo_height()
+            ww = win.winfo_width()
+            wh = win.winfo_height()
+            win.geometry(f"+{px + max(0, (pw - ww) // 2)}+{py + max(0, (ph - wh) // 2)}")
+        except Exception:
+            pass
 
     def _on_avg_window_write(self, *_args: object) -> None:
         """Recompute avg speed / remaining when the rolling window size changes."""
@@ -2266,6 +2344,16 @@ class QueueMonitorApp(tk.Tk):
         popup.after(POPUP_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
     def on_close(self) -> None:
+        if self._settings_win is not None:
+            try:
+                self._settings_win.grab_release()
+            except Exception:
+                pass
+            try:
+                self._settings_win.destroy()
+            except Exception:
+                pass
+            self._settings_win = None
         self.persist_config()
         self.stop_monitoring()
         self.stop_timer()
