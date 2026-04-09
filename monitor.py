@@ -535,8 +535,8 @@ class QueueMonitorApp(tk.Tk):
     def __init__(self, initial_path: str = "", auto_start: bool = False) -> None:
         super().__init__()
         self.title(f"Vintage Story Queue Monitor v{VERSION}")
-        self.geometry("930x640")
-        self.minsize(860, 560)
+        self.geometry("960x700")
+        self.minsize(880, 580)
 
         self.config: dict = load_config()
         self.source_path_var = tk.StringVar(
@@ -640,77 +640,73 @@ class QueueMonitorApp(tk.Tk):
             self.after(250, self.start_monitoring)
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self, padding=12)
+        # Slightly cleaner spacing and contrast than default Windows "vista" for dense forms.
+        try:
+            style = ttk.Style()
+            if "clam" in style.theme_names():
+                style.theme_use("clam")
+        except Exception:
+            pass
+
+        outer = ttk.Frame(self, padding=(16, 14))
         outer.pack(fill="both", expand=True)
 
-        controls = ttk.LabelFrame(outer, text="Monitor")
+        controls = ttk.LabelFrame(outer, text="Monitor", padding=(12, 10))
         controls.pack(fill="x")
         controls.columnconfigure(1, weight=1)
 
-        ttk.Label(controls, text="File or directory").grid(row=0, column=0, sticky="w", padx=8, pady=8)
-        entry = ttk.Entry(controls, textvariable=self.source_path_var)
-        entry.grid(row=0, column=1, sticky="ew", padx=8, pady=8)
-        ttk.Button(controls, text="Browse File", command=self.browse_file).grid(row=0, column=2, padx=4, pady=8)
-        ttk.Button(controls, text="Browse Folder", command=self.browse_folder).grid(row=0, column=3, padx=4, pady=8)
+        ttk.Label(controls, text="Log file or folder").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 4))
+        path_row = ttk.Frame(controls)
+        path_row.grid(row=0, column=1, columnspan=3, sticky="ew", pady=(0, 6))
+        path_row.columnconfigure(0, weight=1)
+        entry = ttk.Entry(path_row, textvariable=self.source_path_var)
+        entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=1, padx=(0, 6))
+        ttk.Button(path_row, text="Browse folder", command=self.browse_folder).grid(row=0, column=2)
 
-        settings = ttk.Frame(controls)
-        settings.grid(row=1, column=0, columnspan=4, sticky="ew", padx=8, pady=(0, 8))
-        for idx in range(15):
-            settings.columnconfigure(idx, weight=0)
-        settings.columnconfigure(9, weight=1)
+        ttk.Separator(controls, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=4, sticky="ew", pady=(4, 10))
 
-        ttk.Label(settings, text="Threshold alerts").grid(row=0, column=0, sticky="w", padx=(0, 4))
-        ttk.Entry(settings, width=28, textvariable=self.alert_thresholds_var).grid(
-            row=0, column=1, columnspan=3, sticky="ew", padx=(0, 12)
-        )
-        ttk.Label(settings, text="Poll sec").grid(row=0, column=4, sticky="w", padx=(0, 4))
-        ttk.Entry(settings, width=6, textvariable=self.poll_sec_var).grid(row=0, column=5, padx=(0, 12))
+        alerts_fr = ttk.LabelFrame(controls, text="Alerts & polling", padding=(10, 8))
+        alerts_fr.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(0, 8))
+        alerts_fr.columnconfigure(1, weight=1)
 
-        ttk.Checkbutton(settings, text="Alert popup", variable=self.popup_enabled_var).grid(
-            row=0, column=6, padx=(0, 8)
+        ttk.Label(alerts_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(alerts_fr, textvariable=self.alert_thresholds_var, width=36).grid(
+            row=0, column=1, sticky="ew", padx=(0, 12)
         )
-        ttk.Checkbutton(settings, text="Alert sound", variable=self.sound_enabled_var).grid(
-            row=0, column=7, padx=(0, 8), sticky="w"
+        ttk.Label(alerts_fr, text="Poll (s)").grid(row=0, column=2, sticky="w", padx=(0, 6))
+        ttk.Entry(alerts_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=3, sticky="w")
+
+        checks1 = ttk.Frame(alerts_fr)
+        checks1.grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
+        ttk.Checkbutton(checks1, text="Alert popup", variable=self.popup_enabled_var).pack(side="left", padx=(0, 14))
+        ttk.Checkbutton(checks1, text="Alert sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
+        ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var).pack(
+            side="left", padx=(0, 0)
         )
-        ttk.Checkbutton(settings, text="On change", variable=self.show_every_change_var).grid(
-            row=0, column=8, padx=(0, 8), sticky="w"
+
+        display_fr = ttk.LabelFrame(controls, text="Panels & prediction", padding=(10, 8))
+        display_fr.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(0, 10))
+        display_fr.columnconfigure(3, weight=1)
+
+        ttk.Checkbutton(
+            display_fr,
+            text="Show history panel",
+            variable=self.show_log_var,
+            command=self.update_log_visibility,
+        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
+        ttk.Checkbutton(display_fr, text="Log scale on graph Y axis", variable=self.graph_log_scale_var, command=self.redraw_graph).grid(
+            row=0, column=1, sticky="w", padx=(0, 16)
         )
-        # Put rarely-toggled options on a second row so they don't get pushed off-screen.
-        ttk.Checkbutton(settings, text="Show log", variable=self.show_log_var, command=self.update_log_visibility).grid(
-            row=1,
-            column=0,
-            padx=(0, 12),
-            pady=(6, 0),
-            sticky="w",
-        )
-        ttk.Checkbutton(settings, text="Log graph scale", variable=self.graph_log_scale_var, command=self.redraw_graph).grid(
-            row=1,
-            column=1,
-            padx=(0, 12),
-            pady=(6, 0),
-            sticky="w",
-        )
-        ttk.Label(settings, text="Prediction window (points)").grid(
-            row=2,
-            column=0,
-            sticky="w",
-            padx=(0, 8),
-            pady=(8, 0),
-        )
-        ttk.Entry(settings, width=8, textvariable=self.avg_window_var).grid(
-            row=2,
-            column=1,
-            sticky="w",
-            padx=(0, 12),
-            pady=(8, 0),
-        )
+        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=2, sticky="w", padx=(0, 8))
+        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=3, sticky="w")
 
         buttons = ttk.Frame(controls)
-        buttons.grid(row=2, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 10))
+        buttons.grid(row=4, column=0, columnspan=4, sticky="w", pady=(2, 0))
         self.start_stop_button = ttk.Button(buttons, text="Start", command=self.toggle_monitoring)
-        self.start_stop_button.pack(side="left", padx=(0, 8))
+        self.start_stop_button.pack(side="left", padx=(0, 10))
         self._loading_spinner = ttk.Progressbar(buttons, mode="indeterminate", length=100)
-        ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
         # Classic tk.PanedWindow: visible, grabbable sashes (ttk’s are often too thin on Windows).
@@ -726,18 +722,18 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
         self.panes = panes
-        panes.pack(fill="both", expand=True, pady=(12, 0))
+        panes.pack(fill="both", expand=True, pady=(14, 0))
 
-        graph_frame = ttk.LabelFrame(panes, text="Queue graph")
+        graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=1)
-        self.graph_canvas = tk.Canvas(graph_frame, height=170, highlightthickness=0, background="white")
-        self.graph_canvas.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        self.graph_canvas = tk.Canvas(graph_frame, height=200, highlightthickness=0, background="white")
+        self.graph_canvas.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
-        status = ttk.LabelFrame(panes, text="Status")
+        status = ttk.LabelFrame(panes, text="Status", padding=(4, 6, 4, 2))
         status.columnconfigure(0, weight=1)
 
         # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
@@ -795,7 +791,7 @@ class QueueMonitorApp(tk.Tk):
         )
         self._queue_progress.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
 
-        self.history_frame = ttk.LabelFrame(panes, text="History")
+        self.history_frame = ttk.LabelFrame(panes, text="History", padding=(4, 6, 4, 4))
         self.history_frame.rowconfigure(0, weight=1)
         self.history_frame.columnconfigure(0, weight=1)
 
@@ -804,7 +800,7 @@ class QueueMonitorApp(tk.Tk):
         panes.add(status, minsize=200, stretch="never")
         panes.add(self.history_frame, minsize=100, stretch="always")
 
-        details = ttk.Frame(status, padding=(8, 4, 8, 8))
+        details = ttk.Frame(status, padding=(12, 8, 12, 10))
         details.grid(row=1, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
@@ -815,15 +811,23 @@ class QueueMonitorApp(tk.Tk):
             ("Last threshold alert", self.last_alert_var),
             ("Resolved log path", self.resolved_path_var),
         ]
-        wrap = 360
+        wrap = 420
         for idx, (label_text, var) in enumerate(rows):
             row_idx = idx // 2
             col = 0 if idx % 2 == 0 else 2
-            ttk.Label(details, text=label_text).grid(row=row_idx, column=col, sticky="nw", padx=(0, 8), pady=4)
-            ttk.Label(details, textvariable=var, wraplength=wrap).grid(row=row_idx, column=col + 1, sticky="nw", pady=4)
+            ttk.Label(details, text=label_text).grid(row=row_idx, column=col, sticky="nw", padx=(0, 10), pady=5)
+            ttk.Label(details, textvariable=var, wraplength=wrap).grid(row=row_idx, column=col + 1, sticky="nw", pady=5)
 
-        self.history_text = tk.Text(self.history_frame, height=20, wrap="word", state="disabled")
-        self.history_text.grid(row=0, column=0, sticky="nsew")
+        self.history_text = tk.Text(
+            self.history_frame,
+            height=18,
+            wrap="word",
+            state="disabled",
+            font=("Segoe UI", 9) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
+            padx=6,
+            pady=6,
+        )
+        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=4)
         scrollbar = ttk.Scrollbar(self.history_frame, orient="vertical", command=self.history_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
