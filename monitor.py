@@ -30,7 +30,11 @@ except Exception:  # pragma: no cover
 
 VERSION = "1.0.0"
 QUEUE_RE = re.compile(
-    r"(?:Client is in connect queue at position:\s*|Your position in the queue is:\s*)(\d+)",
+    r"(?:"
+    r"client\s+is\s+in\s+connect\s+queue\s+at\s+position"
+    r"|your\s+position\s+in\s+the\s+queue\s+is"
+    r")\D*(\d+)",
+    re.IGNORECASE,
 )
 DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
@@ -38,7 +42,7 @@ POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 360
 PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
-SEED_LOG_MAX_BYTES = 64 * 1024 * 1024
+SEED_LOG_MAX_BYTES = 256 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 
 
