@@ -156,6 +156,7 @@ UI_ACCENT_STATUS = "#73bf69"
 UI_ACCENT_ELAPSED = "#b877d9"
 UI_ACCENT_REMAINING = "#ff9830"
 UI_ACCENT_RATE = "#96d9f8"
+UI_ACCENT_PROGRESS = "#8be9fd"
 UI_DANGER = "#f2495c"
 UI_ENTRY_FIELD = "#0d0f12"
 UI_SEPARATOR = "#2e3742"
@@ -674,6 +675,7 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_var = tk.StringVar(value="—")
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
+        self.progress_pct_var = tk.StringVar(value="—")
         self.queue_rate_var = tk.StringVar(value="—")
         _at_cfg = self.config.get("alert_thresholds")
         if isinstance(_at_cfg, str) and _at_cfg.strip():
@@ -943,6 +945,15 @@ class QueueMonitorApp(tk.Tk):
             lightcolor=UI_PROGRESS_TROUGH,
         )
         style.configure(
+            "Thin.TProgressbar",
+            troughcolor=UI_PROGRESS_TROUGH,
+            background=UI_ACCENT_POSITION,
+            thickness=3,
+            bordercolor=_bd,
+            darkcolor=UI_PROGRESS_TROUGH,
+            lightcolor=UI_PROGRESS_TROUGH,
+        )
+        style.configure(
             "Vertical.TScrollbar",
             background=_card,
             troughcolor=UI_BG_APP,
@@ -1059,7 +1070,7 @@ class QueueMonitorApp(tk.Tk):
         summary.columnconfigure(0, weight=0)
         summary.columnconfigure(1, weight=0)
         summary.columnconfigure(2, weight=0)
-        summary.columnconfigure(3, weight=0)
+        summary.columnconfigure(3, weight=1)
 
         _spx = UI_SUMMARY_INNER_PAD_X
         _spy = UI_SUMMARY_INNER_PAD_Y_TOP
@@ -1119,10 +1130,11 @@ class QueueMonitorApp(tk.Tk):
         )
         time_pair.columnconfigure(0, weight=0)
         time_pair.columnconfigure(1, weight=0)
+        time_pair.columnconfigure(2, weight=0)
         self._lbl_elapsed_header = tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
         )
-        self._lbl_elapsed_header.grid(row=0, column=0, sticky="nw", padx=(0, 4))
+        self._lbl_elapsed_header.grid(row=0, column=0, sticky="e", padx=(0, 4))
         self._elapsed_value_label = tk.Label(
             time_pair,
             textvariable=self.elapsed_var,
@@ -1130,7 +1142,7 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
         )
-        self._elapsed_value_label.grid(row=1, column=0, sticky="nw", pady=(2, 0))
+        self._elapsed_value_label.grid(row=1, column=0, sticky="e", pady=(2, 0))
         self._lbl_remaining_header = tk.Label(
             time_pair,
             text="REMAINING",
@@ -1138,7 +1150,7 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
         )
-        self._lbl_remaining_header.grid(row=0, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0))
+        self._lbl_remaining_header.grid(row=0, column=1, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0))
         self._remaining_value_label = tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
@@ -1146,43 +1158,40 @@ class QueueMonitorApp(tk.Tk):
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
         )
-        self._remaining_value_label.grid(row=1, column=1, sticky="nw", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
-
-        # Separator: scannability between KPI row and progress (same panel as metrics).
-        _sum_sep = tk.Frame(summary, bg=UI_SEPARATOR, height=1)
-        _sum_sep.grid(row=2, column=0, columnspan=4, sticky="ew", padx=(0, 0), pady=(UI_INNER_PAD_Y_MD, 0))
-
-        pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        pbar_frame.grid(
-            row=3,
-            column=0,
-            columnspan=4,
-            sticky="ew",
-            padx=(0, 0),
-            pady=(UI_INNER_PAD_Y_SM, UI_SUMMARY_INNER_PAD_Y_BOTTOM),
-        )
-        pbar_frame.columnconfigure(0, weight=1)
-        self._lbl_progress_hint = tk.Label(
-            pbar_frame,
-            text="Progress through estimated wait — full bar at queue front.",
+        self._remaining_value_label.grid(row=1, column=1, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
+        self._lbl_progress_header = tk.Label(
+            time_pair,
+            text="PROGRESS",
             bg=UI_SUMMARY_BG,
-            fg=UI_TEXT_MUTED,
-            font=("TkDefaultFont", 8),
-            wraplength=720,
-            justify="left",
+            fg=UI_ACCENT_PROGRESS,
+            font=("TkDefaultFont", 9, "bold"),
         )
-        self._lbl_progress_hint.grid(row=0, column=0, sticky="w", padx=(_spx, _spx), pady=(0, UI_INNER_PAD_Y_SM))
+        self._lbl_progress_header.grid(row=0, column=2, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0))
+        _prog_cell = tk.Frame(time_pair, bg=UI_SUMMARY_BG)
+        _prog_cell.grid(row=1, column=2, sticky="e", padx=(UI_INNER_PAD_Y_MD, 0), pady=(2, 0))
         self._queue_progress = ttk.Progressbar(
-            pbar_frame,
+            _prog_cell,
+            style="Thin.TProgressbar",
             mode="determinate",
             maximum=100.0,
+            length=96,
         )
-        self._queue_progress.grid(row=1, column=0, sticky="ew", padx=(_spx, _spx), pady=(0, 0))
-        self._bind_static_tooltip(
-            self._queue_progress,
-            "Fill = 100 × elapsed ÷ (elapsed + estimated remaining) when both are known; "
-            "100% at queue front; 0% when interrupted or ETA unknown.",
+        self._queue_progress.pack(anchor="e", pady=(0, 1))
+        self._progress_pct_label = tk.Label(
+            _prog_cell,
+            textvariable=self.progress_pct_var,
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            font=("TkDefaultFont", 24, "bold"),
         )
+        self._progress_pct_label.pack(anchor="e")
+        _prog_tip = (
+            "Share of estimated total wait already elapsed: 100 × elapsed ÷ (elapsed + estimated remaining) "
+            "when both are known; 100% at queue front; — when interrupted or ETA unknown."
+        )
+        self._bind_static_tooltip(self._lbl_progress_header, _prog_tip)
+        self._bind_static_tooltip(self._queue_progress, _prog_tip)
+        self._bind_static_tooltip(self._progress_pct_label, _prog_tip)
 
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         self._graph_stack_frame = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
@@ -1554,6 +1563,7 @@ class QueueMonitorApp(tk.Tk):
         self.position_var.set("—")
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
+        self.progress_pct_var.set("—")
         self.queue_rate_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
@@ -2481,9 +2491,12 @@ class QueueMonitorApp(tk.Tk):
             "Estimated remaining wait from position and throughput (not shown at front or if unknown).",
         )
         bt(
-            self._lbl_progress_hint,
-            "Progress bar: share of estimated total wait already elapsed (elapsed ÷ elapsed+remaining). "
-            "100% at the queue front.",
+            self._lbl_progress_header,
+            "Label: share of estimated total wait already elapsed (matches the percent and thin bar).",
+        )
+        bt(
+            self._progress_pct_label,
+            "Percent of estimated total wait already elapsed; thin bar above uses the same value.",
         )
         bt(
             self._graph_stack_frame,
@@ -2766,6 +2779,7 @@ class QueueMonitorApp(tk.Tk):
             self.queue_rate_var.set(self._format_queue_rate(mpp))
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
+            self.progress_pct_var.set("—")
             return
 
         if self.running and pos is not None:
@@ -2818,16 +2832,19 @@ class QueueMonitorApp(tk.Tk):
         if self._queue_progress is not None:
             if pos is not None and pos <= 1:
                 self._queue_progress["value"] = 100.0
+                self.progress_pct_var.set("100%")
             elif elapsed_sec is not None and seconds_remaining is not None:
                 total = elapsed_sec + max(0.0, float(seconds_remaining))
                 if total > 1e-6:
-                    self._queue_progress["value"] = min(
-                        100.0, max(0.0, 100.0 * elapsed_sec / total)
-                    )
+                    p = min(100.0, max(0.0, 100.0 * elapsed_sec / total))
+                    self._queue_progress["value"] = p
+                    self.progress_pct_var.set(f"{p:.0f}%")
                 else:
                     self._queue_progress["value"] = 0.0
+                    self.progress_pct_var.set("0%")
             else:
                 self._queue_progress["value"] = 0.0
+                self.progress_pct_var.set("—")
 
     def _update_graph_y_scale_button_text(self) -> None:
         btn = self._graph_y_scale_btn
