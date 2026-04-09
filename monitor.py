@@ -29,7 +29,7 @@ import traceback
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -1238,12 +1238,14 @@ class QueueMonitorApp(tk.Tk):
         self.status_frame.columnconfigure(0, weight=1)
         self.status_frame.rowconfigure(2, weight=1)
 
-        status_tab_strip = ttk.Frame(self.status_frame, style="HistoryTabStrip.TFrame")
-        status_tab_strip.grid(row=0, column=0, sticky="ew")
-        self._lbl_status_section_title = ttk.Label(status_tab_strip, text="Status", style="Pane.TLabelframe.Label")
+        self._status_tab_strip = ttk.Frame(self.status_frame, style="HistoryTabStrip.TFrame")
+        self._status_tab_strip.grid(row=0, column=0, sticky="ew")
+        self._lbl_status_section_title = ttk.Label(
+            self._status_tab_strip, text="Status", style="Pane.TLabelframe.Label"
+        )
         self._lbl_status_section_title.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         self._status_tab_btn = ttk.Button(
-            status_tab_strip,
+            self._status_tab_strip,
             text="\u25bc",
             width=3,
             style="HistoryTab.TButton",
@@ -1274,18 +1276,25 @@ class QueueMonitorApp(tk.Tk):
         self.history_frame.columnconfigure(0, weight=1)
         self.history_frame.rowconfigure(2, weight=1)
 
-        history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
-        history_tab_strip.grid(row=0, column=0, sticky="ew")
-        self._lbl_history_section_title = ttk.Label(history_tab_strip, text="History", style="Pane.TLabelframe.Label")
+        self._history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
+        self._history_tab_strip.grid(row=0, column=0, sticky="ew")
+        self._lbl_history_section_title = ttk.Label(
+            self._history_tab_strip, text="History", style="Pane.TLabelframe.Label"
+        )
         self._lbl_history_section_title.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         self._history_tab_btn = ttk.Button(
-            history_tab_strip,
+            self._history_tab_strip,
             text="\u25bc",
             width=3,
             style="HistoryTab.TButton",
             command=self._toggle_history_panel,
         )
         self._history_tab_btn.pack(side="left", padx=(0, 0), pady=(0, 0))
+
+        self._wire_collapsible_header(self._status_tab_strip, self._lbl_status_section_title, self._toggle_status_panel)
+        self._wire_collapsible_hand_cursor(self._status_tab_btn)
+        self._wire_collapsible_header(self._history_tab_strip, self._lbl_history_section_title, self._toggle_history_panel)
+        self._wire_collapsible_hand_cursor(self._history_tab_btn)
 
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
         self._history_sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
@@ -1589,6 +1598,31 @@ class QueueMonitorApp(tk.Tk):
         """Window/pane resize: refit collapsed History and Status so empty bands don’t linger."""
         self._schedule_fit_history_collapsed(_event)
         self._schedule_fit_status_collapsed(_event)
+
+    def _wire_collapsible_header(
+        self,
+        strip: tk.Misc,
+        title: tk.Misc,
+        toggle: Callable[[], None],
+    ) -> None:
+        """Whole header bar + title toggle; chevron keeps its own command (no double toggle)."""
+
+        def on_click(_evt: object) -> None:
+            toggle()
+
+        for w in (strip, title):
+            try:
+                w.configure(cursor="hand2")
+            except tk.TclError:
+                pass
+            w.bind("<Button-1>", on_click, add=True)
+
+    @staticmethod
+    def _wire_collapsible_hand_cursor(widget: tk.Misc) -> None:
+        try:
+            widget.configure(cursor="hand2")
+        except tk.TclError:
+            pass
 
     def _toggle_history_panel(self) -> None:
         self.show_log_var.set(not self.show_log_var.get())
@@ -2441,16 +2475,30 @@ class QueueMonitorApp(tk.Tk):
             "use the Y button for linear vs log vertical scale.",
         )
         bt(self.graph_canvas, "Hover near the blue line for time and position at that point.")
-        bt(self._lbl_status_section_title, "Status section: last change, alerts, and resolved log path.")
-        bt(self._status_tab_btn, "Expand or collapse the Status details.")
+        bt(
+            self._status_tab_strip,
+            "Click anywhere on this bar (title or empty area) to show or hide Status details.",
+        )
+        bt(
+            self._lbl_status_section_title,
+            "Status: last change, alerts, resolved path. Click the title to expand or collapse.",
+        )
+        bt(self._status_tab_btn, "Expand or collapse Status (same as the title or the rest of the bar).")
         bt(self._lbl_det_last_change, "Label: when the queue position last changed in the log.")
         bt(self._lbl_det_last_change_val, "Timestamp of the last queue position change.")
         bt(self._lbl_det_alert, "Label: when a threshold alert last fired (popup/sound).")
         bt(self._lbl_det_alert_val, "Last alert position and reason, or — if none this run.")
         bt(self._lbl_det_path, "Label: actual file path used after resolving $APPDATA and symlinks.")
         bt(self._lbl_det_path_val, "Full resolved path to the log file being read.")
-        bt(self._lbl_history_section_title, "History: timestamped messages from this session.")
-        bt(self._history_tab_btn, "Expand or collapse the History log.")
+        bt(
+            self._history_tab_strip,
+            "Click anywhere on this bar (title or empty area) to show or hide the History log.",
+        )
+        bt(
+            self._lbl_history_section_title,
+            "History: timestamped messages from this session. Click the title to expand or collapse.",
+        )
+        bt(self._history_tab_btn, "Expand or collapse History (same as the title or the rest of the bar).")
         bt(self.history_text, "Session log: path events, queue updates, alerts, and warnings.")
         bt(self._history_scrollbar, "Scroll the history log.")
 
