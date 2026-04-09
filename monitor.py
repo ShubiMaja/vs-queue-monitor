@@ -171,6 +171,8 @@ UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
 UI_SECTION_PAD = 12
+# Extra inset inside Status (summary + details) so copy never sits on the Labelframe rim.
+UI_STATUS_INNER_PAD = UI_SECTION_PAD + 8
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -975,26 +977,28 @@ class QueueMonitorApp(tk.Tk):
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
         status = ttk.LabelFrame(
-            panes, text="Status", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+            panes,
+            text="Status",
+            padding=(UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD, UI_STATUS_INNER_PAD),
         )
         status.columnconfigure(0, weight=1)
 
         # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
-        summary = tk.Frame(status, bg=UI_SUMMARY_BG, padx=UI_SECTION_PAD + 4, pady=UI_SECTION_PAD + 2)
-        summary.grid(row=0, column=0, sticky="ew")
+        summary = tk.Frame(status, bg=UI_SUMMARY_BG)
+        summary.grid(row=0, column=0, sticky="ew", padx=0, pady=(0, 0))
         summary.columnconfigure(0, weight=1)
         summary.columnconfigure(1, weight=1)
 
         tk.Label(
             summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
-        ).grid(row=0, column=0, sticky="w")
+        ).grid(row=0, column=0, sticky="w", padx=(4, 0))
         tk.Label(
             summary,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 24, "bold"),
-        ).grid(row=1, column=0, sticky="w")
+        ).grid(row=1, column=0, sticky="w", padx=(4, 0))
 
         tk.Label(
             summary, text="STATUS", bg=UI_SUMMARY_BG, fg=UI_ACCENT_STATUS, font=("TkDefaultFont", 9, "bold")
@@ -1009,7 +1013,7 @@ class QueueMonitorApp(tk.Tk):
         self._status_value_label.grid(row=1, column=1, sticky="w", padx=(18, 0))
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, UI_SECTION_PAD))
+        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, 8))
         tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
         ).grid(row=0, column=0, sticky="w")
@@ -1036,7 +1040,7 @@ class QueueMonitorApp(tk.Tk):
         ).grid(row=1, column=1, sticky="w", padx=(20, 0))
 
         pbar_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        pbar_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0), padx=(4, 4))
         pbar_frame.columnconfigure(0, weight=1)
         rate_row = tk.Frame(pbar_frame, bg=UI_SUMMARY_BG)
         rate_row.grid(row=0, column=0, sticky="ew")
@@ -1091,10 +1095,10 @@ class QueueMonitorApp(tk.Tk):
 
         details = ttk.Frame(
             status,
-            padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD),
+            padding=(UI_SECTION_PAD + 2, UI_SECTION_PAD + 2, UI_SECTION_PAD + 2, UI_SECTION_PAD + 2),
             style="Card.TFrame",
         )
-        details.grid(row=1, column=0, sticky="ew")
+        details.grid(row=1, column=0, sticky="ew", pady=(UI_SECTION_PAD, 0))
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
 
