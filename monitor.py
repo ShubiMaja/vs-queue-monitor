@@ -120,6 +120,30 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 
+# UI palette: cool slate surfaces + sky / emerald / indigo / amber accents (WCAG-friendly contrast).
+UI_BG_APP = "#f1f5f9"
+UI_BG_CARD = "#ffffff"
+UI_TEXT_PRIMARY = "#334155"
+UI_TEXT_MUTED = "#64748b"
+UI_SUMMARY_BG = "#1e293b"
+UI_SUMMARY_VALUE = "#f8fafc"
+UI_ACCENT_POSITION = "#38bdf8"
+UI_ACCENT_STATUS = "#4ade80"
+UI_ACCENT_ELAPSED = "#a5b4fc"
+UI_ACCENT_REMAINING = "#fbbf24"
+UI_DANGER = "#fda4af"
+UI_GRAPH_BG = "#f8fafc"
+UI_GRAPH_BORDER = "#cbd5e1"
+UI_GRAPH_GRID = "#e2e8f0"
+UI_GRAPH_AXIS = "#94a3b8"
+UI_GRAPH_TEXT = "#475569"
+UI_GRAPH_LINE = "#0ea5e9"
+UI_GRAPH_MARKER_OUTLINE = "#e11d48"
+UI_GRAPH_MARKER_FILL = "#f43f5e"
+UI_GRAPH_EMPTY = "#64748b"
+UI_TOOLTIP_BG = "#1e293b"
+UI_TOOLTIP_FG = "#f1f5f9"
+
 
 def parse_alert_thresholds(raw: str) -> list[int]:
     """Comma-separated queue positions (default 10, 5, 3, 2, 1); each fires at most once per
@@ -639,16 +663,35 @@ class QueueMonitorApp(tk.Tk):
         if auto_start:
             self.after(250, self.start_monitoring)
 
+    def _configure_ttk_theme(self, style: ttk.Style) -> None:
+        """Apply app-wide background and text colors (clam-friendly)."""
+        self.configure(bg=UI_BG_APP)
+        style.configure("App.TFrame", background=UI_BG_APP)
+        style.configure("Card.TFrame", background=UI_BG_CARD)
+        style.configure("TLabel", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TLabelframe", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TLabelframe.Label", background=UI_BG_CARD, foreground=UI_TEXT_MUTED)
+        style.configure("TCheckbutton", background=UI_BG_CARD, foreground=UI_TEXT_PRIMARY)
+        style.configure("TButton", padding=(10, 4))
+        style.configure("TEntry", fieldbackground="#f8fafc", foreground=UI_TEXT_PRIMARY)
+        style.configure("TSeparator", background="#cbd5e1")
+        style.configure(
+            "Horizontal.TProgressbar",
+            troughcolor="#334155",
+            background=UI_ACCENT_POSITION,
+            thickness=8,
+        )
+
     def _build_ui(self) -> None:
-        # Slightly cleaner spacing and contrast than default Windows "vista" for dense forms.
         try:
             style = ttk.Style()
             if "clam" in style.theme_names():
                 style.theme_use("clam")
+            self._configure_ttk_theme(style)
         except Exception:
             pass
 
-        outer = ttk.Frame(self, padding=(16, 14))
+        outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
         controls = ttk.LabelFrame(outer, text="Monitor", padding=(12, 10))
@@ -656,7 +699,7 @@ class QueueMonitorApp(tk.Tk):
         controls.columnconfigure(1, weight=1)
 
         ttk.Label(controls, text="Log file or folder").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=(0, 4))
-        path_row = ttk.Frame(controls)
+        path_row = ttk.Frame(controls, style="Card.TFrame")
         path_row.grid(row=0, column=1, columnspan=3, sticky="ew", pady=(0, 6))
         path_row.columnconfigure(0, weight=1)
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
@@ -677,7 +720,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(alerts_fr, text="Poll (s)").grid(row=0, column=2, sticky="w", padx=(0, 6))
         ttk.Entry(alerts_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=3, sticky="w")
 
-        checks1 = ttk.Frame(alerts_fr)
+        checks1 = ttk.Frame(alerts_fr, style="Card.TFrame")
         checks1.grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
         ttk.Checkbutton(checks1, text="Alert popup", variable=self.popup_enabled_var).pack(side="left", padx=(0, 14))
         ttk.Checkbutton(checks1, text="Alert sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
@@ -701,7 +744,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=2, sticky="w", padx=(0, 8))
         ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=3, sticky="w")
 
-        buttons = ttk.Frame(controls)
+        buttons = ttk.Frame(controls, style="Card.TFrame")
         buttons.grid(row=4, column=0, columnspan=4, sticky="w", pady=(2, 0))
         self.start_stop_button = ttk.Button(buttons, text="Start", command=self.toggle_monitoring)
         self.start_stop_button.pack(side="left", padx=(0, 10))
@@ -721,13 +764,19 @@ class QueueMonitorApp(tk.Tk):
             panes.configure(opaqueresize=True)
         except Exception:
             pass
+        try:
+            panes.configure(background=UI_BG_APP)
+        except Exception:
+            pass
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(14, 0))
 
         graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=1)
-        self.graph_canvas = tk.Canvas(graph_frame, height=200, highlightthickness=0, background="white")
+        self.graph_canvas = tk.Canvas(
+            graph_frame, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG
+        )
         self.graph_canvas.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
@@ -737,50 +786,58 @@ class QueueMonitorApp(tk.Tk):
         status.columnconfigure(0, weight=1)
 
         # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
-        summary = tk.Frame(status, bg="#111827", padx=12, pady=10)
+        summary = tk.Frame(status, bg=UI_SUMMARY_BG, padx=14, pady=12)
         summary.grid(row=0, column=0, sticky="ew")
         summary.columnconfigure(0, weight=1)
         summary.columnconfigure(1, weight=1)
 
-        tk.Label(summary, text="POSITION", bg="#111827", fg="#93c5fd", font=("TkDefaultFont", 9, "bold")).grid(
-            row=0, column=0, sticky="w"
-        )
-        tk.Label(summary, textvariable=self.position_var, bg="#111827", fg="#ffffff", font=("TkDefaultFont", 24, "bold")).grid(
-            row=1, column=0, sticky="w"
-        )
+        tk.Label(
+            summary, text="POSITION", bg=UI_SUMMARY_BG, fg=UI_ACCENT_POSITION, font=("TkDefaultFont", 9, "bold")
+        ).grid(row=0, column=0, sticky="w")
+        tk.Label(
+            summary,
+            textvariable=self.position_var,
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            font=("TkDefaultFont", 24, "bold"),
+        ).grid(row=1, column=0, sticky="w")
 
-        tk.Label(summary, text="STATUS", bg="#111827", fg="#a7f3d0", font=("TkDefaultFont", 9, "bold")).grid(
-            row=0, column=1, sticky="w", padx=(18, 0)
-        )
+        tk.Label(
+            summary, text="STATUS", bg=UI_SUMMARY_BG, fg=UI_ACCENT_STATUS, font=("TkDefaultFont", 9, "bold")
+        ).grid(row=0, column=1, sticky="w", padx=(18, 0))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
-            bg="#111827",
-            fg="#ffffff",
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 13, "bold"),
         )
         self._status_value_label.grid(row=1, column=1, sticky="w", padx=(18, 0))
 
-        time_pair = tk.Frame(summary, bg="#111827")
+        time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
         time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, 0))
-        tk.Label(time_pair, text="ELAPSED", bg="#111827", fg="#fde68a", font=("TkDefaultFont", 9, "bold")).grid(
-            row=0, column=0, sticky="w"
-        )
+        tk.Label(
+            time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
+        ).grid(row=0, column=0, sticky="w")
         tk.Label(
             time_pair,
             textvariable=self.elapsed_var,
-            bg="#111827",
-            fg="#ffffff",
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
         ).grid(row=1, column=0, sticky="w")
-        tk.Label(time_pair, text="REMAINING", bg="#111827", fg="#fcd34d", font=("TkDefaultFont", 9, "bold")).grid(
-            row=0, column=1, sticky="w", padx=(20, 0)
-        )
+        tk.Label(
+            time_pair,
+            text="REMAINING",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_REMAINING,
+            font=("TkDefaultFont", 9, "bold"),
+        ).grid(row=0, column=1, sticky="w", padx=(20, 0))
         tk.Label(
             time_pair,
             textvariable=self.predicted_remaining_var,
-            bg="#111827",
-            fg="#ffffff",
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
             font=("TkDefaultFont", 18, "bold"),
         ).grid(row=1, column=1, sticky="w", padx=(20, 0))
 
@@ -824,8 +881,13 @@ class QueueMonitorApp(tk.Tk):
             wrap="word",
             state="disabled",
             font=("Segoe UI", 9) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
-            padx=6,
-            pady=6,
+            padx=8,
+            pady=8,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+            insertbackground=UI_TEXT_PRIMARY,
+            highlightthickness=0,
+            borderwidth=0,
         )
         self.history_text.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=4)
         scrollbar = ttk.Scrollbar(self.history_frame, orient="vertical", command=self.history_text.yview)
@@ -973,7 +1035,7 @@ class QueueMonitorApp(tk.Tk):
     def _set_status_line(self, text: str, *, danger: bool = False) -> None:
         self.status_var.set(text)
         if self._status_value_label is not None:
-            self._status_value_label.configure(fg="#f87171" if danger else "#ffffff")
+            self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
     def browse_file(self) -> None:
         selected = filedialog.askopenfilename(title="Select client log")
@@ -1855,12 +1917,12 @@ class QueueMonitorApp(tk.Tk):
             y0 = pad_top
             x1 = pad_left + plot_w
             y1 = pad_top + plot_h
-            canvas.create_rectangle(x0, y0, x1, y1, outline="#d0d0d0")
+            canvas.create_rectangle(x0, y0, x1, y1, outline=UI_GRAPH_BORDER)
             if len(points) == 1:
                 _t, pos = points[0]
-                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"{pos}", fill="#555555")
+                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"{pos}", fill=UI_GRAPH_TEXT)
             else:
-                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text="No data yet", fill="#777777")
+                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text="No data yet", fill=UI_GRAPH_EMPTY)
             return
 
         t0 = points[0][0]
@@ -1899,8 +1961,8 @@ class QueueMonitorApp(tk.Tk):
             return pad_top + frac * plot_h
 
         # Axes & ticks
-        axis_color = "#c8c8c8"
-        text_color = "#5a5a5a"
+        axis_color = UI_GRAPH_AXIS
+        text_color = UI_GRAPH_TEXT
         x0 = pad_left
         y0 = pad_top
         x1 = pad_left + plot_w
@@ -1939,7 +2001,7 @@ class QueueMonitorApp(tk.Tk):
                 canvas.create_text(x0 - 6, y, anchor="e", text=str(val), fill=text_color)
                 last_y_label = y
             if 0 < idx < len(tick_vals) - 1:
-                canvas.create_line(x0, y, x1, y, fill="#efefef")
+                canvas.create_line(x0, y, x1, y, fill=UI_GRAPH_GRID)
 
         # X ticks (time) - fixed interval ("5 per tick" style)
         span = t1 - t0
@@ -1994,9 +2056,9 @@ class QueueMonitorApp(tk.Tk):
                 canvas.create_text(x, y1 + 14, anchor="n", text=label, fill=text_color)
                 last_x_label = x
             if 0 < idx < len(tick_times) - 1:
-                canvas.create_line(x, y0, x, y1, fill="#efefef")
+                canvas.create_line(x, y0, x, y1, fill=UI_GRAPH_GRID)
 
-        canvas.create_rectangle(x0, y0, x1, y1, outline="#d0d0d0")
+        canvas.create_rectangle(x0, y0, x1, y1, outline=UI_GRAPH_BORDER)
         canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
         line = []
@@ -2004,14 +2066,16 @@ class QueueMonitorApp(tk.Tk):
             line.extend([x_of(t), y_of(v)])
 
         if len(line) >= 4:
-            canvas.create_line(*line, fill="#2b7cff", width=2, smooth=False)
+            canvas.create_line(*line, fill=UI_GRAPH_LINE, width=2, smooth=False)
 
         marker = self.current_point or points[-1]
         last_t, last_v = marker
         lx = x_of(last_t)
         ly = y_of(last_v)
-        canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, outline="#d12c2c", fill="#d12c2c")
-        canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill="#d12c2c")
+        canvas.create_oval(
+            lx - 4, ly - 4, lx + 4, ly + 4, outline=UI_GRAPH_MARKER_OUTLINE, fill=UI_GRAPH_MARKER_FILL
+        )
+        canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill=UI_GRAPH_MARKER_OUTLINE)
 
     def on_graph_motion(self, evt: tk.Event) -> None:
         points = self.graph_points_drawn
@@ -2054,7 +2118,9 @@ class QueueMonitorApp(tk.Tk):
             tip = tk.Toplevel(self)
             tip.wm_overrideredirect(True)
             tip.attributes("-topmost", True)
-            label = tk.Label(tip, text=text, justify="left", background="#111111", foreground="#ffffff", padx=8, pady=6)
+            label = tk.Label(
+                tip, text=text, justify="left", background=UI_TOOLTIP_BG, foreground=UI_TOOLTIP_FG, padx=10, pady=8
+            )
             label.pack()
             self.graph_tooltip = tip
         else:
