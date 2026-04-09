@@ -145,6 +145,25 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 
+# Same files pre-filled in Settings (Sound file) and tried first by play_default_system_alert_sound().
+_DEFAULT_ALERT_WIN_MEDIA_NAMES = (
+    "Windows Notify System Generic.wav",
+    "Windows Notify Calendar.wav",
+    "Windows Notify Email.wav",
+    "Windows Notify.wav",
+    "notify.wav",
+    "Ring01.wav",
+)
+_DEFAULT_ALERT_MAC_NAMES = ("Glass.aiff", "Ping.aiff", "Tink.aiff", "Pop.aiff", "Funk.aiff")
+_DEFAULT_ALERT_LINUX_PATHS = (
+    "/usr/share/sounds/freedesktop/stereo/complete.oga",
+    "/usr/share/sounds/freedesktop/stereo/dialog-information.oga",
+    "/usr/share/sounds/freedesktop/stereo/message.oga",
+    "/usr/share/sounds/oxygen/stereo/dialog-information.ogg",
+    "/usr/share/sounds/gnome/default/alerts/glass.ogg",
+    "/usr/share/sounds/sound-icons/glass-water-1.wav",
+)
+
 # UI palette: Grafana-inspired dark (canvas/panel tones, series-style accents, readable contrast).
 UI_BG_APP = "#111217"
 UI_BG_CARD = "#181b1f"
@@ -237,6 +256,26 @@ def expand_path(raw: str) -> Path:
     return Path(expanded)
 
 
+def iter_default_alert_sound_paths() -> list[Path]:
+    """Ordered candidate paths for the OS default alert (same order as playback)."""
+    if sys.platform.startswith("win"):
+        media = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Media"
+        return [media / n for n in _DEFAULT_ALERT_WIN_MEDIA_NAMES]
+    if sys.platform == "darwin":
+        return [Path("/System/Library/Sounds") / n for n in _DEFAULT_ALERT_MAC_NAMES]
+    if sys.platform.startswith("linux"):
+        return [Path(p) for p in _DEFAULT_ALERT_LINUX_PATHS]
+    return []
+
+
+def default_alert_sound_path_for_display() -> str:
+    """First existing default alert file path for Settings, or empty string."""
+    for p in iter_default_alert_sound_paths():
+        if p.is_file():
+            return str(p)
+    return ""
+
+
 def play_alert_sound_file(path: Path) -> bool:
     """Try to play an audio file; return True if playback was started (async where supported)."""
     sp = str(path)
@@ -279,9 +318,12 @@ def play_alert_sound_file(path: Path) -> bool:
 
 
 def play_default_system_alert_sound() -> bool:
-    """Play a single pleasant OS-defined alert when no custom file is set. Return True if played."""
+    """Play OS default alert: same files as Settings pre-fill, then Windows registry/MessageBeep fallback."""
+    for p in iter_default_alert_sound_paths():
+        if p.is_file() and play_alert_sound_file(p):
+            return True
+
     if winsound is not None and sys.platform.startswith("win"):
-        # Registry-backed notification sounds (async). Order: notification / asterisk / MessageBeep fallback.
         for alias in ("SystemNotification", "SystemAsterisk", "SystemExclamation", "SystemDefault"):
             try:
                 winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
@@ -297,51 +339,6 @@ def play_default_system_alert_sound() -> bool:
                 return True
             except Exception:
                 pass
-        return False
-
-    if sys.platform == "darwin":
-        for name in ("Glass.aiff", "Ping.aiff", "Tink.aiff", "Pop.aiff", "Funk.aiff"):
-            p = Path("/System/Library/Sounds") / name
-            if p.is_file():
-                try:
-                    subprocess.Popen(
-                        ["afplay", str(p)],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        stdin=subprocess.DEVNULL,
-                        start_new_session=True,
-                    )
-                    return True
-                except Exception:
-                    continue
-        return False
-
-    if sys.platform.startswith("linux"):
-        candidates = (
-            "/usr/share/sounds/freedesktop/stereo/complete.oga",
-            "/usr/share/sounds/freedesktop/stereo/dialog-information.oga",
-            "/usr/share/sounds/freedesktop/stereo/message.oga",
-            "/usr/share/sounds/oxygen/stereo/dialog-information.ogg",
-            "/usr/share/sounds/gnome/default/alerts/glass.ogg",
-            "/usr/share/sounds/sound-icons/glass-water-1.wav",
-        )
-        for c in candidates:
-            if not Path(c).is_file():
-                continue
-            for cmd in (["paplay", c], ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", c]):
-                try:
-                    subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        stdin=subprocess.DEVNULL,
-                        start_new_session=True,
-                    )
-                    return True
-                except Exception:
-                    continue
-        return False
-
     return False
 
 
@@ -803,9 +800,11 @@ class QueueMonitorApp(tk.Tk):
         self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
         _asp = self.config.get("alert_sound_path")
-        self.alert_sound_path_var = tk.StringVar(
-            value=_asp.strip() if isinstance(_asp, str) and _asp.strip() else "",
-        )
+        if isinstance(_asp, str) and _asp.strip():
+            _sound_initial = _asp.strip()
+        else:
+            _sound_initial = default_alert_sound_path_for_display()
+        self.alert_sound_path_var = tk.StringVar(value=_sound_initial)
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
 
         self.running = False
@@ -1562,9 +1561,8 @@ class QueueMonitorApp(tk.Tk):
         _sound_browse.grid(row=2, column=3, sticky="e", pady=(10, 0))
         self._bind_static_tooltip(
             _sound_entry,
-            "Optional path to a sound file played when a threshold alert fires (alert sound must be on). "
-            "Windows: .wav via built-in player; macOS: afplay; Linux: paplay/aplay if installed. "
-            "Leave empty for the OS default alert sound (Windows / macOS / common Linux themes).",
+            "Sound file for threshold alerts (alert sound must be on). Pre-filled with the OS default alert "
+            "file the app already uses for the built-in sound (editable).",
         )
         self._bind_static_tooltip(_sound_browse, "Choose a .wav or other supported audio file for threshold alerts.")
 
@@ -1701,7 +1699,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_log_scale_var.set(True)
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
-        self.alert_sound_path_var.set("")
+        self.alert_sound_path_var.set(default_alert_sound_path_for_display())
         self.show_every_change_var.set(False)
 
         self.resolved_path_var.set("")

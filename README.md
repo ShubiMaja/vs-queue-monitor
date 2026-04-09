@@ -230,7 +230,7 @@ Typical keys:
 | `graph_log_scale` | Graph Y axis: log vs linear |
 | `popup_enabled` | Threshold alert popup |
 | `sound_enabled` | Threshold alert sound |
-| `alert_sound_path` | Optional path to an audio file for alerts (empty = OS default alert sound) |
+| `alert_sound_path` | Alert sound file path (defaults to the same OS file the app uses for built-in playback) |
 | `show_every_change` | Log every queue position line vs only changes |
 | `window_geometry` | Last main window size/position |
 | `version` | App version string written at save time |
