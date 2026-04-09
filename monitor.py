@@ -278,6 +278,73 @@ def play_alert_sound_file(path: Path) -> bool:
     return False
 
 
+def play_default_system_alert_sound() -> bool:
+    """Play a single pleasant OS-defined alert when no custom file is set. Return True if played."""
+    if winsound is not None and sys.platform.startswith("win"):
+        # Registry-backed notification sounds (async). Order: notification / asterisk / MessageBeep fallback.
+        for alias in ("SystemNotification", "SystemAsterisk", "SystemExclamation", "SystemDefault"):
+            try:
+                winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
+                return True
+            except Exception:
+                continue
+        try:
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            return True
+        except Exception:
+            try:
+                winsound.MessageBeep()
+                return True
+            except Exception:
+                pass
+        return False
+
+    if sys.platform == "darwin":
+        for name in ("Glass.aiff", "Ping.aiff", "Tink.aiff", "Pop.aiff", "Funk.aiff"):
+            p = Path("/System/Library/Sounds") / name
+            if p.is_file():
+                try:
+                    subprocess.Popen(
+                        ["afplay", str(p)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
+                    return True
+                except Exception:
+                    continue
+        return False
+
+    if sys.platform.startswith("linux"):
+        candidates = (
+            "/usr/share/sounds/freedesktop/stereo/complete.oga",
+            "/usr/share/sounds/freedesktop/stereo/dialog-information.oga",
+            "/usr/share/sounds/freedesktop/stereo/message.oga",
+            "/usr/share/sounds/oxygen/stereo/dialog-information.ogg",
+            "/usr/share/sounds/gnome/default/alerts/glass.ogg",
+            "/usr/share/sounds/sound-icons/glass-water-1.wav",
+        )
+        for c in candidates:
+            if not Path(c).is_file():
+                continue
+            for cmd in (["paplay", c], ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", c]):
+                try:
+                    subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        start_new_session=True,
+                    )
+                    return True
+                except Exception:
+                    continue
+        return False
+
+    return False
+
+
 def get_config_path() -> Path:
     if sys.platform.startswith("win"):
         base = Path(os.environ.get("APPDATA", Path.home()))
@@ -1496,7 +1563,7 @@ class QueueMonitorApp(tk.Tk):
             _sound_entry,
             "Optional path to a sound file played when a threshold alert fires (alert sound must be on). "
             "Windows: .wav via built-in player; macOS: afplay; Linux: paplay/aplay if installed. "
-            "Leave empty for the default beep.",
+            "Leave empty for the OS default alert sound (Windows / macOS / common Linux themes).",
         )
         self._bind_static_tooltip(_sound_browse, "Choose a .wav or other supported audio file for threshold alerts.")
 
@@ -3283,24 +3350,12 @@ class QueueMonitorApp(tk.Tk):
             p = expand_path(raw)
             if p.is_file() and play_alert_sound_file(p):
                 return
-        if winsound is not None and sys.platform.startswith("win"):
-            for _ in range(6):
-                try:
-                    winsound.Beep(1400, 180)
-                    winsound.Beep(1000, 180)
-                except Exception:
-                    break
-        else:
-            self._ring_bell(0)
-
-    def _ring_bell(self, count: int) -> None:
-        if count >= 6:
+        if play_default_system_alert_sound():
             return
         try:
             self.bell()
         except Exception:
             pass
-        self.after(220, lambda: self._ring_bell(count + 1))
 
     def show_popup(self, position: int, reason: str) -> None:
         if self.active_popup is not None and self.active_popup.winfo_exists():

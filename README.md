@@ -160,7 +160,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 - **Once per threshold per queue run** until the run resets (log boundary / new session / segmentation rules).
 - **Minimum interval** between popup/sound alerts to reduce duplicate fires from noisy logs.
 - **Popup** (optional): small always-on-top window with dismiss; auto-closes after a timeout.
-- **Sound** (optional): default is a **beep** pattern on Windows or the terminal **bell** elsewhere. You can set an optional **Sound file** path in Settings (`.wav` on Windows; macOS uses `afplay`; Linux may use `paplay` / `aplay` if installed).
+- **Sound** (optional): default uses the **system notification sound** (Windows registry aliases / `MessageBeep`, macOS **Glass**-style sounds in `/System/Library/Sounds`, Linux **freedesktop** / common theme files via `paplay` when available). If that fails, a single terminal **bell**. You can set a custom **Sound file** in Settings instead.
 
 ### ETA, rate, and progress
 
@@ -230,7 +230,7 @@ Typical keys:
 | `graph_log_scale` | Graph Y axis: log vs linear |
 | `popup_enabled` | Threshold alert popup |
 | `sound_enabled` | Threshold alert sound |
-| `alert_sound_path` | Optional path to an audio file for alerts (empty = default beep/bell) |
+| `alert_sound_path` | Optional path to an audio file for alerts (empty = OS default alert sound) |
 | `show_every_change` | Log every queue position line vs only changes |
 | `window_geometry` | Last main window size/position |
 | `version` | App version string written at save time |
