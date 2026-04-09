@@ -953,8 +953,12 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 16), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top: play/stop + one line: label, path entry, browse, settings.
-        top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, UI_INNER_PAD_Y_MD))
+        # Top: play/stop + one line: label, path entry, browse, settings (no separator — avoids bright rule on Windows).
+        top = ttk.Frame(
+            outer,
+            style="Card.TFrame",
+            padding=(0, 0, 0, UI_INNER_PAD_Y_MD + UI_SECTION_PAD + UI_INNER_PAD_Y_MD),
+        )
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
@@ -991,10 +995,6 @@ class QueueMonitorApp(tk.Tk):
             command=self.open_settings,
         )
         self._settings_btn.pack(side="left", padx=(UI_INNER_PAD_Y_SM, 0))
-
-        ttk.Separator(top, orient=tk.HORIZONTAL).grid(
-            row=1, column=0, columnspan=2, sticky="ew", pady=(UI_INNER_PAD_Y_MD, UI_SECTION_PAD)
-        )
 
         # Classic tk.PanedWindow: flat sash + resize cursor. showhandle/GROOVE draws light-bordered Motif boxes on Windows.
         panes = tk.PanedWindow(
