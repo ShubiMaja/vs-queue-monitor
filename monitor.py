@@ -301,6 +301,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_points_drawn: list[tuple[float, int]] = []
         self.graph_tooltip: Optional[tk.Toplevel] = None
         self.history_frame: Optional[ttk.LabelFrame] = None
+        self.panes: Optional[ttk.PanedWindow] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -375,6 +376,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
         panes = ttk.PanedWindow(outer, orient="vertical")
+        self.panes = panes
         panes.pack(fill="both", expand=True, pady=(12, 0))
 
         graph_frame = ttk.LabelFrame(panes, text="Queue graph")
@@ -497,14 +499,18 @@ class QueueMonitorApp(tk.Tk):
         self.update_log_visibility()
 
     def update_log_visibility(self) -> None:
-        if self.history_frame is None:
+        if self.history_frame is None or self.panes is None:
             return
+        panes = self.panes
+        history = self.history_frame
+        pane_widgets = set(panes.panes())
+
         if self.show_log_var.get():
-            if not self.history_frame.winfo_ismapped():
-                self.history_frame.pack(fill="both", expand=True, pady=(12, 0))
+            if str(history) not in pane_widgets:
+                panes.add(history, weight=3)
         else:
-            if self.history_frame.winfo_ismapped():
-                self.history_frame.pack_forget()
+            if str(history) in pane_widgets:
+                panes.forget(history)
 
     def write_history(self, message: str) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
