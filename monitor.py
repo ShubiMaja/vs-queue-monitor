@@ -170,7 +170,7 @@ UI_PLAY_BTN_ACTIVE = "#2ea043"
 UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
 # Main panes (graph, status, history) and key inner blocks.
-UI_SECTION_PAD = 10
+UI_SECTION_PAD = 12
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -891,12 +891,12 @@ class QueueMonitorApp(tk.Tk):
         outer.pack(fill="both", expand=True)
 
         # Top: play/stop + one line: label, path entry, browse, settings.
-        top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
+        top = ttk.Frame(outer, style="Card.TFrame", padding=(4, 0, 4, 10))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
 
         play_wrap = ttk.Frame(top, style="Card.TFrame")
-        play_wrap.grid(row=0, column=0, sticky="nw", padx=(0, 12), pady=(0, 2))
+        play_wrap.grid(row=0, column=0, sticky="nw", padx=(0, 12), pady=(2, 2))
         self.start_stop_button = ttk.Button(
             play_wrap,
             text="\u25b6",
@@ -910,7 +910,7 @@ class QueueMonitorApp(tk.Tk):
         path_row = ttk.Frame(top, style="Card.TFrame")
         path_row.grid(row=0, column=1, sticky="ew", pady=(0, 6))
         path_row.columnconfigure(1, weight=1)
-        ttk.Label(path_row, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Label(path_row, text="Log file/folder").grid(row=0, column=0, sticky="w", padx=(4, 8))
         entry = ttk.Entry(path_row, textvariable=self.source_path_var)
         entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
         ttk.Button(path_row, text="Browse file", command=self.browse_file).grid(row=0, column=2, padx=(0, 6))
@@ -922,7 +922,7 @@ class QueueMonitorApp(tk.Tk):
             path_row,
             text="\u2699  Settings",
             command=self.open_settings,
-        ).grid(row=0, column=5, sticky="e")
+        ).grid(row=0, column=5, sticky="e", padx=(8, 4))
 
         ttk.Separator(top, orient=tk.HORIZONTAL).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(2, 10))
 
@@ -967,7 +967,7 @@ class QueueMonitorApp(tk.Tk):
             width=12,
             command=self._toggle_graph_y_scale,
         )
-        self._graph_y_scale_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-8, y=8)
+        self._graph_y_scale_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
@@ -1009,7 +1009,7 @@ class QueueMonitorApp(tk.Tk):
         self._status_value_label.grid(row=1, column=1, sticky="w", padx=(18, 0))
 
         time_pair = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, 0))
+        time_pair.grid(row=0, column=2, rowspan=2, sticky="e", padx=(24, UI_SECTION_PAD))
         tk.Label(
             time_pair, text="ELAPSED", bg=UI_SUMMARY_BG, fg=UI_ACCENT_ELAPSED, font=("TkDefaultFont", 9, "bold")
         ).grid(row=0, column=0, sticky="w")
@@ -1099,17 +1099,17 @@ class QueueMonitorApp(tk.Tk):
         details.columnconfigure(3, weight=1)
 
         wrap = 420
-        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, text="Last change").grid(row=0, column=0, sticky="nw", padx=(4, 10), pady=(6, 4))
         ttk.Label(details, textvariable=self.last_change_var, wraplength=wrap).grid(
-            row=0, column=1, sticky="nw", pady=5
+            row=0, column=1, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
-        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, text="Last threshold alert").grid(row=0, column=2, sticky="nw", padx=(0, 10), pady=(6, 4))
         ttk.Label(details, textvariable=self.last_alert_var, wraplength=wrap).grid(
-            row=0, column=3, sticky="nw", pady=5
+            row=0, column=3, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
-        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(0, 10), pady=5)
+        ttk.Label(details, text="Resolved log path").grid(row=1, column=0, sticky="nw", padx=(4, 10), pady=(6, 4))
         ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2).grid(
-            row=1, column=1, columnspan=3, sticky="nw", pady=5
+            row=1, column=1, columnspan=3, sticky="nw", padx=(0, 4), pady=(6, 4)
         )
 
         self.history_text = tk.Text(
@@ -1126,7 +1126,9 @@ class QueueMonitorApp(tk.Tk):
             highlightthickness=0,
             borderwidth=0,
         )
-        self.history_text.grid(row=0, column=0, sticky="nsew", padx=(2, 0), pady=(0, 0))
+        self.history_text.grid(
+            row=0, column=0, sticky="nsew", padx=(UI_SECTION_PAD, 6), pady=(4, UI_SECTION_PAD)
+        )
         scrollbar = ttk.Scrollbar(self._history_body, orient="vertical", command=self.history_text.yview)
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
@@ -2290,11 +2292,11 @@ class QueueMonitorApp(tk.Tk):
         if width <= 10 or height <= 10:
             return
 
-        # Leave space for axis labels (especially X time labels).
-        pad_left = 58
-        pad_right = 12
-        pad_top = 10
-        pad_bottom = 28
+        # Leave space for axis labels (especially X time labels) and the Y-scale overlay.
+        pad_left = 64
+        pad_right = 22
+        pad_top = 12
+        pad_bottom = 32
         plot_w = max(1, width - pad_left - pad_right)
         plot_h = max(1, height - pad_top - pad_bottom)
 
