@@ -1344,18 +1344,19 @@ class QueueMonitorApp(tk.Tk):
             padx=(_gdp_l, _gdp_r),
             pady=(_gdp_t, _gdp_b),
         )
+        # Child of the canvas so the control sits inset on the plot, not in the outer stack margin.
         self._graph_y_scale_btn = ttk.Button(
-            graph_stack,
+            self.graph_canvas,
             text="Y \u2192 log",
-            width=12,
+            width=11,
             command=self._toggle_graph_y_scale,
         )
         self._graph_y_scale_btn.place(
             relx=1.0,
             rely=0.0,
             anchor="ne",
-            x=-(_gdp_r + 10),
-            y=_gdp_t + 8,
+            x=-6,
+            y=6,
         )
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
