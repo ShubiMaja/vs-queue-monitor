@@ -781,8 +781,7 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top bar: log path + transport (always visible). Secondary options live in Settings (gear) — same idea as
-        # Material app bars: primary task first, configuration behind an explicit affordance.
+        # Top bar: log path + transport + history panel toggle. Other options in Settings (gear).
         top = ttk.Frame(outer, style="Card.TFrame", padding=(0, 0, 0, 10))
         top.pack(fill="x")
         top.columnconfigure(1, weight=1)
@@ -807,6 +806,12 @@ class QueueMonitorApp(tk.Tk):
         self.start_stop_button.pack(side="left", padx=(0, 10))
         self._loading_spinner = ttk.Progressbar(actions, mode="indeterminate", length=100)
         ttk.Button(actions, text="Resolve path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+        ttk.Checkbutton(
+            actions,
+            text="History panel",
+            variable=self.show_log_var,
+            command=self.update_log_visibility,
+        ).pack(side="left", padx=(16, 0))
         ttk.Button(
             actions_row,
             text="\u2699  Settings",
@@ -1025,24 +1030,17 @@ class QueueMonitorApp(tk.Tk):
             side="left", padx=(0, 0)
         )
 
-        display_fr = ttk.LabelFrame(outer, text="Panels & prediction", padding=(10, 8))
+        display_fr = ttk.LabelFrame(outer, text="Graph & prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
-        display_fr.columnconfigure(3, weight=1)
 
-        ttk.Checkbutton(
-            display_fr,
-            text="Show history panel",
-            variable=self.show_log_var,
-            command=self.update_log_visibility,
-        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
         ttk.Checkbutton(
             display_fr,
             text="Log scale on graph Y axis",
             variable=self.graph_log_scale_var,
             command=self.redraw_graph,
-        ).grid(row=0, column=1, sticky="w", padx=(0, 16))
-        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=2, sticky="w", padx=(0, 8))
-        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=3, sticky="w")
+        ).grid(row=0, column=0, sticky="w", padx=(0, 16))
+        ttk.Label(display_fr, text="Prediction window (points)").grid(row=0, column=1, sticky="w", padx=(0, 8))
+        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=2, sticky="w")
 
         bottom = ttk.Frame(outer, style="Card.TFrame")
         bottom.pack(fill="x", pady=(8, 0))
