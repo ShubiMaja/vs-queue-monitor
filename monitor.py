@@ -34,6 +34,7 @@ DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 360
+PREDICTION_WINDOW_POINTS = 30
 
 
 def expand_path(raw: str) -> Path:
@@ -147,6 +148,8 @@ class QueueMonitorApp(tk.Tk):
         self.position_var = tk.StringVar(value="—")
         self.last_change_var = tk.StringVar(value="—")
         self.last_alert_var = tk.StringVar(value="—")
+        self.elapsed_var = tk.StringVar(value="—")
+        self.predicted_remaining_var = tk.StringVar(value="—")
         self.alert_at_var = tk.StringVar(value=str(self.config.get("alert_at", "10")))
         self.step_var = tk.StringVar(value=str(self.config.get("step", "5")))
         self.repeat_sec_var = tk.StringVar(value=str(self.config.get("repeat_sec", "30")))
@@ -156,6 +159,7 @@ class QueueMonitorApp(tk.Tk):
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
 
         self.running = False
+        self.monitor_start_epoch: Optional[float] = None
         self.job_id: Optional[str] = None
         self.current_log_file: Optional[Path] = None
         self.last_position: Optional[int] = None
@@ -234,6 +238,8 @@ class QueueMonitorApp(tk.Tk):
         rows = [
             ("Status", self.status_var),
             ("Current queue position", self.position_var),
+            ("Elapsed", self.elapsed_var),
+            ("Predicted remaining", self.predicted_remaining_var),
             ("Last change", self.last_change_var),
             ("Last alert", self.last_alert_var),
             ("Resolved log path", self.resolved_path_var),
@@ -285,6 +291,8 @@ class QueueMonitorApp(tk.Tk):
         self.resolved_path_var.set("")
         self.status_var.set("Idle")
         self.position_var.set("—")
+        self.elapsed_var.set("—")
+        self.predicted_remaining_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
 
@@ -353,6 +361,7 @@ class QueueMonitorApp(tk.Tk):
             self.current_log_file = resolved
             self.resolved_path_var.set(str(resolved))
             self.running = True
+            self.monitor_start_epoch = time.time()
             self.status_var.set("Monitoring")
             self.write_history(f"Monitoring started. Log file: {resolved}")
             self.persist_config()
@@ -368,6 +377,7 @@ class QueueMonitorApp(tk.Tk):
 
     def stop_monitoring(self) -> None:
         self.running = False
+        self.monitor_start_epoch = None
         self.status_var.set("Stopped")
         if self.job_id is not None:
             self.after_cancel(self.job_id)
@@ -379,6 +389,7 @@ class QueueMonitorApp(tk.Tk):
             return
 
         try:
+            self.update_time_estimates()
             resolved = resolve_log_file(self.source_path_var.get())
             if resolved is not None:
                 if self.current_log_file != resolved:
@@ -394,6 +405,7 @@ class QueueMonitorApp(tk.Tk):
                     self.status_var.set("Monitoring")
                     self.position_var.set(str(position))
                     self.append_graph_point(position)
+                    self.update_time_estimates()
 
                     if position != self.last_position:
                         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -420,6 +432,58 @@ class QueueMonitorApp(tk.Tk):
         now = time.time()
         self.graph_points.append((now, position))
         self.redraw_graph()
+
+    def format_duration(self, seconds: float) -> str:
+        if seconds < 0:
+            seconds = 0
+        total = int(round(seconds))
+        hours = total // 3600
+        minutes = (total % 3600) // 60
+        secs = total % 60
+        if hours:
+            return f"{hours:d}:{minutes:02d}:{secs:02d}"
+        return f"{minutes:d}:{secs:02d}"
+
+    def estimate_seconds_remaining(self) -> Optional[float]:
+        if self.last_position is None:
+            return None
+        points = list(self.graph_points)
+        if len(points) < 2:
+            return None
+
+        recent = points[-(PREDICTION_WINDOW_POINTS + 1) :]
+        rates: list[float] = []
+        for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
+            dt = t1 - t0
+            if dt <= 0:
+                continue
+            improvement = p0 - p1
+            if improvement <= 0:
+                continue
+            rates.append(improvement / dt)
+
+        if not rates:
+            return None
+
+        speed = sum(rates) / len(rates)  # positions per second
+        if speed <= 0:
+            return None
+
+        remaining_positions = max(0, self.last_position - 1)
+        return remaining_positions / speed
+
+    def update_time_estimates(self) -> None:
+        now = time.time()
+        if self.running and self.monitor_start_epoch is not None:
+            self.elapsed_var.set(self.format_duration(now - self.monitor_start_epoch))
+        else:
+            self.elapsed_var.set("—")
+
+        seconds_remaining = self.estimate_seconds_remaining()
+        if seconds_remaining is None:
+            self.predicted_remaining_var.set("—")
+        else:
+            self.predicted_remaining_var.set(self.format_duration(seconds_remaining))
 
     def redraw_graph(self) -> None:
         canvas = self.graph_canvas
