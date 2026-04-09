@@ -218,6 +218,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Button(buttons, text="Start", command=self.start_monitoring).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Stop", command=self.stop_monitoring).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
         graph_frame = ttk.LabelFrame(outer, text="Queue graph")
         graph_frame.pack(fill="x", pady=(12, 0))
@@ -268,6 +269,30 @@ class QueueMonitorApp(tk.Tk):
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
+
+    def reset_defaults(self) -> None:
+        self.stop_monitoring()
+
+        self.source_path_var.set(DEFAULT_PATH)
+        self.alert_at_var.set("10")
+        self.step_var.set("5")
+        self.repeat_sec_var.set("30")
+        self.poll_sec_var.set("2")
+        self.popup_enabled_var.set(True)
+        self.sound_enabled_var.set(True)
+        self.show_every_change_var.set(False)
+
+        self.resolved_path_var.set("")
+        self.status_var.set("Idle")
+        self.position_var.set("—")
+        self.last_change_var.set("—")
+        self.last_alert_var.set("—")
+
+        self.graph_points.clear()
+        self.redraw_graph()
+
+        self.persist_config()
+        self.write_history("Settings reset to defaults.")
 
     def write_history(self, message: str) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
