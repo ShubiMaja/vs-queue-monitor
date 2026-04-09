@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 
-# vs_queue_alert.sh
-# Version: 1.0.0
-# Watches a Vintage Story client log for queue position changes and raises
-# loud Windows alerts using PowerShell popups + beeps.
+# monitor.sh
+# Version: 1.1.0
+# Watches Vintage Story client-main.log for queue position changes
+# and alerts on Windows via PowerShell popup + loud beeps.
 #
-# Intended for Git Bash / MSYS2 / Cygwin on Windows.
-# Native Windows notifications are invoked through powershell.exe.
+# Git Bash / MSYS2 / Cygwin on Windows.
 
 set -u
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
-# =========================
-# Default configuration
-# =========================
 LOG_FILE="${APPDATA:-}/VintagestoryData/client-main.log"
 POLL_SECONDS=2
 ALERT_AT=10
@@ -26,10 +22,12 @@ SOUND_REPEATS=8
 SOUND_FILE=""
 TAIL_LINES=250
 SHOW_EVERY_CHANGE=0
+POPUP_TIMEOUT=15
 
 LAST_POSITION=""
 LAST_ALERT_POSITION=""
 LAST_ALERT_EPOCH=0
+ALERT_REASON=""
 
 usage() {
   cat <<EOF
@@ -42,17 +40,19 @@ Options:
   -s, --step N              Alert when position improves by N since last alert (default: ${POSITION_STEP})
   -r, --repeat-sec N        Minimum seconds between repeated alerts (default: ${REPEAT_ALERT_SECONDS})
   -p, --poll-sec N          Poll interval in seconds (default: ${POLL_SECONDS})
-  --tail-lines N            How many trailing log lines to inspect each poll (default: ${TAIL_LINES})
+  --tail-lines N            Number of trailing log lines to inspect per poll (default: ${TAIL_LINES})
   --popup 0|1               Enable popup alerts (default: ${ENABLE_POPUP})
   --sound 0|1               Enable sound alerts (default: ${ENABLE_SOUND})
   --sound-repeats N         Number of fallback beep repetitions (default: ${SOUND_REPEATS})
   --sound-file PATH         Optional WAV file to play for alerts
+  --popup-timeout N         Popup timeout in seconds (default: ${POPUP_TIMEOUT})
   --show-every-change 0|1   Print every queue change to terminal (default: ${SHOW_EVERY_CHANGE})
   -h, --help                Show help
 
 Examples:
-  $(basename "$0") --file "/c/Users/Joe/AppData/Roaming/VintagestoryData/client-main.log" --alert-at 8 --repeat-sec 20
-  $(basename "$0") --alert-at 15 --step 3 --sound-file "/c/Users/Joe/Downloads/alarm.wav"
+  $(basename "$0") --file "$APPDATA/VSLInstallations/Unstable/client-main.log"
+  $(basename "$0") --file "C:\\Users\\Joe\\AppData\\Roaming\\VSLInstallations\\Unstable\\client-main.log"
+  $(basename "$0") --alert-at 8 --step 3 --repeat-sec 20
 EOF
 }
 
@@ -61,16 +61,55 @@ log() {
 }
 
 is_number() {
-  [[ "$1" =~ ^[0-9]+$ ]]
+  [[ "${1:-}" =~ ^[0-9]+$ ]]
+}
+
+normalize_path() {
+  local p="${1:-}"
+
+  [[ -z "$p" ]] && {
+    printf '%s' "$p"
+    return
+  }
+
+  # Turn backslashes into forward slashes so mixed APPDATA paths work.
+  p="${p//\\//}"
+
+  # Convert Windows drive path to Git Bash/Cygwin path if possible.
+  if [[ "$p" =~ ^[A-Za-z]:/ ]]; then
+    if command -v cygpath >/dev/null 2>&1; then
+      cygpath -u "$p"
+      return
+    fi
+  fi
+
+  printf '%s' "$p"
 }
 
 win_path() {
-  local p="$1"
+  local p="${1:-}"
+
+  [[ -z "$p" ]] && {
+    printf '%s' "$p"
+    return
+  }
+
+  # Already Windows-ish
+  if [[ "$p" =~ ^[A-Za-z]:[\\/] ]]; then
+    printf '%s' "${p//\//\\}"
+    return
+  fi
+
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -w "$p"
-  else
-    printf '%s' "$p"
+    return
   fi
+
+  printf '%s' "$p"
+}
+
+escape_ps_single() {
+  printf "%s" "$1" | sed "s/'/''/g"
 }
 
 get_latest_position() {
@@ -85,49 +124,55 @@ get_latest_position() {
 show_popup() {
   local title="$1"
   local message="$2"
+  local ps_title ps_message
+
+  ps_title="$(escape_ps_single "$title")"
+  ps_message="$(escape_ps_single "$message")"
 
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-Add-Type -AssemblyName PresentationFramework | Out-Null
-[System.Windows.MessageBox]::Show('$message', '$title') | Out-Null
-" >/dev/null 2>&1 || true
+    \$wshell = New-Object -ComObject WScript.Shell
+    \$null = \$wshell.Popup('$ps_message', $POPUP_TIMEOUT, '$ps_title', 48)
+  " >/dev/null 2>&1 &
 }
 
 play_sound() {
-  if [[ "$ENABLE_SOUND" != "1" ]]; then
-    return 0
-  fi
+  [[ "$ENABLE_SOUND" == "1" ]] || return 0
 
   if [[ -n "$SOUND_FILE" && -f "$SOUND_FILE" ]]; then
     local sound_file_win
     sound_file_win="$(win_path "$SOUND_FILE")"
+    sound_file_win="$(escape_ps_single "$sound_file_win")"
+
     powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-try {
-  Add-Type -AssemblyName System.Windows.Extensions | Out-Null
-  \$player = New-Object System.Media.SoundPlayer '$sound_file_win'
-  \$player.Load()
-  \$player.PlaySync()
-} catch {
-  [console]::beep(1200, 400)
-  Start-Sleep -Milliseconds 150
-  [console]::beep(1200, 400)
-}
-" >/dev/null 2>&1 || true
+      try {
+        \$player = New-Object System.Media.SoundPlayer '$sound_file_win'
+        \$player.Load()
+        \$player.PlaySync()
+      } catch {
+        for (\$i = 0; \$i -lt $SOUND_REPEATS; \$i++) {
+          [console]::Beep(1400, 250)
+          Start-Sleep -Milliseconds 100
+          [console]::Beep(1000, 250)
+          Start-Sleep -Milliseconds 100
+        }
+      }
+    " >/dev/null 2>&1 &
     return 0
   fi
 
   powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-for (\$i = 0; \$i -lt ${SOUND_REPEATS}; \$i++) {
-  try {
-    [console]::beep(1400, 250)
-    Start-Sleep -Milliseconds 100
-    [console]::beep(1000, 250)
-    Start-Sleep -Milliseconds 100
-  } catch {
-    [System.Media.SystemSounds]::Hand.Play()
-    Start-Sleep -Milliseconds 250
-  }
-}
-" >/dev/null 2>&1 || true
+    for (\$i = 0; \$i -lt $SOUND_REPEATS; \$i++) {
+      try {
+        [console]::Beep(1400, 250)
+        Start-Sleep -Milliseconds 100
+        [console]::Beep(1000, 250)
+        Start-Sleep -Milliseconds 100
+      } catch {
+        [System.Media.SystemSounds]::Hand.Play()
+        Start-Sleep -Milliseconds 250
+      }
+    }
+  " >/dev/null 2>&1 &
 }
 
 alert_user() {
@@ -140,6 +185,7 @@ alert_user() {
   LAST_ALERT_POSITION="$position"
 
   log "ALERT: queue position ${position} (${reason})"
+
   play_sound
 
   if [[ "$ENABLE_POPUP" == "1" ]]; then
@@ -150,12 +196,11 @@ alert_user() {
 should_alert() {
   local position="$1"
   local now elapsed improvement
+
   now="$(date +%s)"
   elapsed=$(( now - LAST_ALERT_EPOCH ))
 
-  if ! is_number "$position"; then
-    return 1
-  fi
+  is_number "$position" || return 1
 
   if [[ -z "$LAST_ALERT_POSITION" ]]; then
     if (( position <= ALERT_AT )); then
@@ -183,47 +228,51 @@ should_alert() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -f|--file)
-      LOG_FILE="$2"
+      LOG_FILE="${2:-}"
       shift 2
       ;;
     -a|--alert-at)
-      ALERT_AT="$2"
+      ALERT_AT="${2:-}"
       shift 2
       ;;
     -s|--step)
-      POSITION_STEP="$2"
+      POSITION_STEP="${2:-}"
       shift 2
       ;;
     -r|--repeat-sec)
-      REPEAT_ALERT_SECONDS="$2"
+      REPEAT_ALERT_SECONDS="${2:-}"
       shift 2
       ;;
     -p|--poll-sec)
-      POLL_SECONDS="$2"
+      POLL_SECONDS="${2:-}"
       shift 2
       ;;
     --tail-lines)
-      TAIL_LINES="$2"
+      TAIL_LINES="${2:-}"
       shift 2
       ;;
     --popup)
-      ENABLE_POPUP="$2"
+      ENABLE_POPUP="${2:-}"
       shift 2
       ;;
     --sound)
-      ENABLE_SOUND="$2"
+      ENABLE_SOUND="${2:-}"
       shift 2
       ;;
     --sound-repeats)
-      SOUND_REPEATS="$2"
+      SOUND_REPEATS="${2:-}"
       shift 2
       ;;
     --sound-file)
-      SOUND_FILE="$2"
+      SOUND_FILE="${2:-}"
+      shift 2
+      ;;
+    --popup-timeout)
+      POPUP_TIMEOUT="${2:-}"
       shift 2
       ;;
     --show-every-change)
-      SHOW_EVERY_CHANGE="$2"
+      SHOW_EVERY_CHANGE="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -238,14 +287,28 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for n in "$ALERT_AT" "$POSITION_STEP" "$REPEAT_ALERT_SECONDS" "$POLL_SECONDS" "$TAIL_LINES" "$SOUND_REPEATS" "$ENABLE_POPUP" "$ENABLE_SOUND" "$SHOW_EVERY_CHANGE"; do
+for n in \
+  "$ALERT_AT" \
+  "$POSITION_STEP" \
+  "$REPEAT_ALERT_SECONDS" \
+  "$POLL_SECONDS" \
+  "$TAIL_LINES" \
+  "$SOUND_REPEATS" \
+  "$ENABLE_POPUP" \
+  "$ENABLE_SOUND" \
+  "$SHOW_EVERY_CHANGE" \
+  "$POPUP_TIMEOUT"
+do
   if ! is_number "$n"; then
     echo "Invalid numeric value: $n" >&2
     exit 1
   fi
 done
 
-log "vs_queue_alert.sh v${VERSION}"
+LOG_FILE="$(normalize_path "$LOG_FILE")"
+SOUND_FILE="$(normalize_path "$SOUND_FILE")"
+
+log "monitor.sh v${VERSION}"
 log "Watching: $LOG_FILE"
 log "Alert when <= ${ALERT_AT}, step improvement ${POSITION_STEP}, repeat every ${REPEAT_ALERT_SECONDS}s"
 
@@ -275,4 +338,3 @@ while true; do
 
   sleep "$POLL_SECONDS"
 done
-
