@@ -1681,18 +1681,18 @@ class QueueMonitorApp(tk.Tk):
 
         if self.show_status_var.get():
             sf.configure(padding=UI_HISTORY_FRAME_PAD_EXPANDED)
-            body.grid(row=2, column=0, sticky="nsew")
+            # Hug content height: no extra vertical stretch inside the pane; width still fills.
+            body.grid(row=2, column=0, sticky="new")
             if sep is not None:
                 sep.grid(row=1, column=0, sticky="ew", pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
-            sf.rowconfigure(2, weight=1)
+            sf.rowconfigure(2, weight=0)
             try:
                 panes.paneconfigure(sf, minsize=UI_STATUS_PANE_MIN_EXPANDED, stretch="never")
             except Exception:
                 pass
-            try:
-                panes.paneconfigure(sf, height="")
-            except Exception:
-                pass
+            self.after(1, self._fit_status_pane_expanded)
+            self.after(50, self._fit_status_pane_expanded)
+            self.after(200, self._fit_status_pane_expanded)
         else:
             sf.configure(padding=UI_HISTORY_FRAME_PAD_COLLAPSED)
             body.grid_remove()
@@ -1720,6 +1720,18 @@ class QueueMonitorApp(tk.Tk):
     def _fit_status_collapsed_run(self) -> None:
         self._fit_status_collapsed_job = None
         self._fit_status_pane_collapsed()
+
+    def _fit_status_pane_expanded(self) -> None:
+        """Set the Status pane height to fit all visible content (no clipping, no wasted band)."""
+        if self.panes is None or self.status_frame is None or not self.show_status_var.get():
+            return
+        try:
+            self.update_idletasks()
+            sf = self.status_frame
+            need = max(UI_STATUS_PANE_MIN_EXPANDED, int(sf.winfo_reqheight()))
+            self.panes.paneconfigure(sf, height=need)
+        except (tk.TclError, ValueError, AttributeError, TypeError):
+            pass
 
     def _fit_status_pane_collapsed(self) -> None:
         """Shrink the middle pane so only the Status tab row shows when content is hidden."""
@@ -2217,7 +2229,10 @@ class QueueMonitorApp(tk.Tk):
                         self._last_queue_line_epoch = None
                         self.position_var.set("—")
                         self.last_position = None
-                    elif kind in ("reconnecting", "grace") or log_silent:
+                    elif (kind in ("reconnecting", "grace") or log_silent) and not (
+                        position is not None and position <= 1
+                    ):
+                        # At queue front (≤1), tail lines often still look "connecting"; keep Completed/Monitoring.
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
@@ -2228,7 +2243,7 @@ class QueueMonitorApp(tk.Tk):
                             self._set_status_line("Connecting…")
                         self.position_var.set("—")
                         self.last_position = None
-                    elif position is not None and not log_silent:
+                    elif position is not None and (not log_silent or position <= 1):
                         prev_pos = self.last_position
                         now = time.time()
                         stale_limit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT
