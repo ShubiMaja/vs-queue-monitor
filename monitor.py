@@ -370,11 +370,31 @@ class QueueMonitorApp(tk.Tk):
 
         status = ttk.LabelFrame(outer, text="Status")
         status.pack(fill="x", pady=(12, 0))
-        status.columnconfigure(1, weight=1)
+        status.columnconfigure(0, weight=1)
+
+        hero = ttk.Frame(status, padding=(8, 8, 8, 4))
+        hero.grid(row=0, column=0, sticky="ew")
+        hero.columnconfigure(1, weight=1)
+
+        ttk.Label(hero, text="Queue position").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            hero,
+            textvariable=self.position_var,
+            font=("TkDefaultFont", 22, "bold"),
+        ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+
+        ttk.Label(hero, text="Status").grid(row=1, column=0, sticky="w", pady=(2, 0))
+        ttk.Label(
+            hero,
+            textvariable=self.status_var,
+            font=("TkDefaultFont", 12, "bold"),
+        ).grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(2, 0))
+
+        details = ttk.Frame(status, padding=(8, 4, 8, 8))
+        details.grid(row=1, column=0, sticky="ew")
+        details.columnconfigure(1, weight=1)
 
         rows = [
-            ("Status", self.status_var),
-            ("Current queue position", self.position_var),
             ("Elapsed", self.elapsed_var),
             ("Predicted remaining", self.predicted_remaining_var),
             ("Avg speed (window)", self.avg_speed_var),
@@ -383,8 +403,8 @@ class QueueMonitorApp(tk.Tk):
             ("Resolved log path", self.resolved_path_var),
         ]
         for row_idx, (label_text, var) in enumerate(rows):
-            ttk.Label(status, text=label_text).grid(row=row_idx, column=0, sticky="nw", padx=8, pady=6)
-            ttk.Label(status, textvariable=var, wraplength=720).grid(row=row_idx, column=1, sticky="nw", padx=8, pady=6)
+            ttk.Label(details, text=label_text).grid(row=row_idx, column=0, sticky="nw", padx=(0, 8), pady=4)
+            ttk.Label(details, textvariable=var, wraplength=740).grid(row=row_idx, column=1, sticky="nw", pady=4)
 
         history_frame = ttk.LabelFrame(outer, text="History")
         history_frame.pack(fill="both", expand=True, pady=(12, 0))
