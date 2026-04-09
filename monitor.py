@@ -393,6 +393,7 @@ class QueueMonitorApp(tk.Tk):
         details = ttk.Frame(status, padding=(8, 4, 8, 8))
         details.grid(row=1, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
+        details.columnconfigure(3, weight=1)
 
         rows = [
             ("Elapsed", self.elapsed_var),
@@ -402,9 +403,12 @@ class QueueMonitorApp(tk.Tk):
             ("Last alert", self.last_alert_var),
             ("Resolved log path", self.resolved_path_var),
         ]
-        for row_idx, (label_text, var) in enumerate(rows):
-            ttk.Label(details, text=label_text).grid(row=row_idx, column=0, sticky="nw", padx=(0, 8), pady=4)
-            ttk.Label(details, textvariable=var, wraplength=740).grid(row=row_idx, column=1, sticky="nw", pady=4)
+        wrap = 360
+        for idx, (label_text, var) in enumerate(rows):
+            row_idx = idx // 2
+            col = 0 if idx % 2 == 0 else 2
+            ttk.Label(details, text=label_text).grid(row=row_idx, column=col, sticky="nw", padx=(0, 8), pady=4)
+            ttk.Label(details, textvariable=var, wraplength=wrap).grid(row=row_idx, column=col + 1, sticky="nw", pady=4)
 
         history_frame = ttk.LabelFrame(outer, text="History")
         history_frame.pack(fill="both", expand=True, pady=(12, 0))
