@@ -1931,11 +1931,11 @@ class QueueMonitorApp(tk.Tk):
         else:
             self.avg_speed_var.set("—")
 
-        seconds_remaining: Optional[float]
-        if pos is not None and pos > 1 and mpp is not None and mpp > 0:
+        # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
+        # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
+        seconds_remaining = self.estimate_seconds_remaining()
+        if seconds_remaining is None and pos is not None and pos > 1 and mpp is not None and mpp > 0:
             seconds_remaining = max(0.0, float(pos - 1) * mpp * 60.0)
-        else:
-            seconds_remaining = self.estimate_seconds_remaining()
 
         if seconds_remaining is None:
             self.predicted_remaining_var.set("—")
