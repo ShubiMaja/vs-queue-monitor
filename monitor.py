@@ -269,6 +269,7 @@ class QueueMonitorApp(tk.Tk):
         self.last_change_var = tk.StringVar(value="—")
         self.last_alert_var = tk.StringVar(value="—")
         self.elapsed_var = tk.StringVar(value="—")
+        self.runtime_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
         self.avg_speed_var = tk.StringVar(value="—")
         self.alert_at_var = tk.StringVar(value=str(self.config.get("alert_at", "10")))
@@ -281,6 +282,7 @@ class QueueMonitorApp(tk.Tk):
 
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
+        self.runtime_job_id: Optional[str] = None
         self.job_id: Optional[str] = None
         self.current_log_file: Optional[Path] = None
         self.last_position: Optional[int] = None
@@ -367,6 +369,7 @@ class QueueMonitorApp(tk.Tk):
             ("Status", self.status_var),
             ("Current queue position", self.position_var),
             ("Elapsed", self.elapsed_var),
+            ("Running (live)", self.runtime_var),
             ("Predicted remaining", self.predicted_remaining_var),
             ("Avg speed (window)", self.avg_speed_var),
             ("Last change", self.last_change_var),
@@ -421,6 +424,7 @@ class QueueMonitorApp(tk.Tk):
         self.status_var.set("Idle")
         self.position_var.set("—")
         self.elapsed_var.set("—")
+        self.runtime_var.set("—")
         self.predicted_remaining_var.set("—")
         self.avg_speed_var.set("—")
         self.last_change_var.set("—")
@@ -498,6 +502,7 @@ class QueueMonitorApp(tk.Tk):
             self.persist_config()
 
             self.seed_graph_from_log(resolved)
+            self.start_runtime_timer()
 
             if self.job_id is not None:
                 self.after_cancel(self.job_id)
@@ -511,11 +516,37 @@ class QueueMonitorApp(tk.Tk):
     def stop_monitoring(self) -> None:
         self.running = False
         self.monitor_start_epoch = None
+        self.stop_runtime_timer()
         self.status_var.set("Stopped")
         if self.job_id is not None:
             self.after_cancel(self.job_id)
             self.job_id = None
         self.write_history("Monitoring stopped.")
+
+    def start_runtime_timer(self) -> None:
+        if self.runtime_job_id is not None:
+            try:
+                self.after_cancel(self.runtime_job_id)
+            except Exception:
+                pass
+            self.runtime_job_id = None
+        self.tick_runtime()
+
+    def stop_runtime_timer(self) -> None:
+        if self.runtime_job_id is not None:
+            try:
+                self.after_cancel(self.runtime_job_id)
+            except Exception:
+                pass
+            self.runtime_job_id = None
+        self.runtime_var.set("—")
+
+    def tick_runtime(self) -> None:
+        if not self.running or self.monitor_start_epoch is None:
+            self.runtime_job_id = None
+            return
+        self.runtime_var.set(self.format_duration(time.time() - self.monitor_start_epoch))
+        self.runtime_job_id = self.after(500, self.tick_runtime)
 
     def seed_graph_from_log(self, log_file: Path) -> None:
         tail_bytes = SEED_LOG_TAIL_BYTES
