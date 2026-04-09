@@ -36,6 +36,7 @@ POPUP_TIMEOUT_MS = 12_000
 MAX_GRAPH_POINTS = 360
 PREDICTION_WINDOW_POINTS = 30
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
+SEED_LOG_MAX_BYTES = 64 * 1024 * 1024
 
 
 def expand_path(raw: str) -> Path:
@@ -428,8 +429,29 @@ class QueueMonitorApp(tk.Tk):
         self.write_history("Monitoring stopped.")
 
     def seed_graph_from_log(self, log_file: Path) -> None:
-        positions = extract_recent_positions_from_log(log_file, SEED_LOG_TAIL_BYTES)
-        segment = find_current_queue_segment(positions)
+        tail_bytes = SEED_LOG_TAIL_BYTES
+        positions: list[int] = []
+        segment: list[int] = []
+
+        while True:
+            positions = extract_recent_positions_from_log(log_file, tail_bytes)
+            segment = find_current_queue_segment(positions)
+
+            # If the segment doesn't include a detected "jump up" boundary and we
+            # haven't scanned the whole file yet, keep expanding the read window.
+            try:
+                file_size = log_file.stat().st_size
+            except Exception:
+                file_size = tail_bytes
+
+            scanned_all = tail_bytes >= file_size
+            hit_cap = tail_bytes >= SEED_LOG_MAX_BYTES
+            boundary_found = len(segment) > 0 and len(segment) < len(positions)
+
+            if boundary_found or scanned_all or hit_cap:
+                break
+            tail_bytes = min(SEED_LOG_MAX_BYTES, tail_bytes * 2)
+
         if not segment:
             return
 
@@ -445,6 +467,7 @@ class QueueMonitorApp(tk.Tk):
         for i, pos in enumerate(segment[-MAX_GRAPH_POINTS:]):
             self.graph_points.append((start_t + i * spacing, pos))
         self.redraw_graph()
+        self.write_history(f"Seeded graph with {min(len(segment), MAX_GRAPH_POINTS)} points from log (scanned ~{tail_bytes / (1024 * 1024):.1f} MB).")
 
     def poll_once(self) -> None:
         if not self.running:
