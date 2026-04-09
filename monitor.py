@@ -10,6 +10,7 @@ position changes and raises popup + sound alerts.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -37,6 +38,40 @@ def expand_path(raw: str) -> Path:
     expanded = os.path.expandvars(raw.strip())
     expanded = os.path.expanduser(expanded)
     return Path(expanded)
+
+
+def get_config_path() -> Path:
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home()))
+        return base / "vs-q-monitor" / "config.json"
+    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return base / "vs-q-monitor" / "config.json"
+
+
+def load_config() -> dict:
+    path = get_config_path()
+    try:
+        if not path.is_file():
+            return {}
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        return {}
+    return {}
+
+
+def save_config(data: dict) -> None:
+    path = get_config_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        with tmp.open("w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, sort_keys=True)
+        tmp.replace(path)
+    except Exception:
+        pass
 
 
 def resolve_log_file(raw: str) -> Optional[Path]:
@@ -101,19 +136,22 @@ class QueueMonitorApp(tk.Tk):
         self.geometry("930x640")
         self.minsize(860, 560)
 
-        self.source_path_var = tk.StringVar(value=initial_path or DEFAULT_PATH)
+        self.config: dict = load_config()
+        self.source_path_var = tk.StringVar(
+            value=initial_path or self.config.get("source_path", "") or DEFAULT_PATH,
+        )
         self.resolved_path_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Idle")
         self.position_var = tk.StringVar(value="—")
         self.last_change_var = tk.StringVar(value="—")
         self.last_alert_var = tk.StringVar(value="—")
-        self.alert_at_var = tk.StringVar(value="10")
-        self.step_var = tk.StringVar(value="5")
-        self.repeat_sec_var = tk.StringVar(value="30")
-        self.poll_sec_var = tk.StringVar(value="2")
-        self.popup_enabled_var = tk.BooleanVar(value=True)
-        self.sound_enabled_var = tk.BooleanVar(value=True)
-        self.show_every_change_var = tk.BooleanVar(value=False)
+        self.alert_at_var = tk.StringVar(value=str(self.config.get("alert_at", "10")))
+        self.step_var = tk.StringVar(value=str(self.config.get("step", "5")))
+        self.repeat_sec_var = tk.StringVar(value=str(self.config.get("repeat_sec", "30")))
+        self.poll_sec_var = tk.StringVar(value=str(self.config.get("poll_sec", "2")))
+        self.popup_enabled_var = tk.BooleanVar(value=bool(self.config.get("popup_enabled", True)))
+        self.sound_enabled_var = tk.BooleanVar(value=bool(self.config.get("sound_enabled", True)))
+        self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
 
         self.running = False
         self.job_id: Optional[str] = None
@@ -127,6 +165,13 @@ class QueueMonitorApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.write_history(f"App started. Waiting for a path. Parser looks for queue lines like 'Client is in connect queue at position: N'.")
+
+        try:
+            geometry = self.config.get("window_geometry", "")
+            if isinstance(geometry, str) and geometry:
+                self.geometry(geometry)
+        except Exception:
+            pass
 
         if auto_start:
             self.after(250, self.start_monitoring)
@@ -196,6 +241,23 @@ class QueueMonitorApp(tk.Tk):
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.history_text.configure(yscrollcommand=scrollbar.set)
 
+    def get_config_snapshot(self) -> dict:
+        return {
+            "source_path": self.source_path_var.get(),
+            "alert_at": self.alert_at_var.get(),
+            "step": self.step_var.get(),
+            "repeat_sec": self.repeat_sec_var.get(),
+            "poll_sec": self.poll_sec_var.get(),
+            "popup_enabled": bool(self.popup_enabled_var.get()),
+            "sound_enabled": bool(self.sound_enabled_var.get()),
+            "show_every_change": bool(self.show_every_change_var.get()),
+            "window_geometry": self.geometry(),
+            "version": VERSION,
+        }
+
+    def persist_config(self) -> None:
+        save_config(self.get_config_snapshot())
+
     def write_history(self, message: str) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         self.history_text.configure(state="normal")
@@ -257,6 +319,7 @@ class QueueMonitorApp(tk.Tk):
             self.running = True
             self.status_var.set("Monitoring")
             self.write_history(f"Monitoring started. Log file: {resolved}")
+            self.persist_config()
 
             if self.job_id is not None:
                 self.after_cancel(self.job_id)
@@ -408,6 +471,7 @@ class QueueMonitorApp(tk.Tk):
         popup.after(POPUP_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
     def on_close(self) -> None:
+        self.persist_config()
         self.stop_monitoring()
         self.destroy()
 
