@@ -401,7 +401,7 @@ class QueueMonitorApp(tk.Tk):
         hero.grid(row=0, column=0, sticky="ew")
         hero.columnconfigure(1, weight=1)
 
-        ttk.Label(hero, text="Queue position").grid(row=0, column=0, sticky="w")
+        ttk.Label(hero, text="Position").grid(row=0, column=0, sticky="w")
         ttk.Label(
             hero,
             textvariable=self.position_var,
