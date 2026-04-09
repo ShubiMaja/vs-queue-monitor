@@ -1018,12 +1018,12 @@ class QueueMonitorApp(tk.Tk):
         )
         self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
-        self.history_frame = ttk.Frame(panes, padding=(4, 6, 4, 4))
+        self.history_frame = ttk.Frame(panes, style="HistoryTabStrip.TFrame", padding=(4, 6, 4, 4))
         self.history_frame.columnconfigure(0, weight=1)
         self.history_frame.rowconfigure(2, weight=1)
 
         history_tab_strip = ttk.Frame(self.history_frame, style="HistoryTabStrip.TFrame")
-        history_tab_strip.grid(row=0, column=0, sticky="ew", pady=(0, 0))
+        history_tab_strip.grid(row=0, column=0, sticky="ew")
         self._history_tab_btn = ttk.Button(
             history_tab_strip,
             text="History  \u25bc",
@@ -1033,7 +1033,7 @@ class QueueMonitorApp(tk.Tk):
         self._history_tab_btn.pack(side="left", padx=(2, 0), pady=(2, 0))
 
         self._history_sep = ttk.Separator(self.history_frame, orient=tk.HORIZONTAL)
-        self._history_sep.grid(row=1, column=0, sticky="ew", pady=(4, 4))
+        self._history_sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
 
         self._history_body = ttk.Frame(self.history_frame)
         self._history_body.rowconfigure(0, weight=1)
@@ -1325,23 +1325,47 @@ class QueueMonitorApp(tk.Tk):
         sep = self._history_sep
 
         if self.show_log_var.get():
+            history.configure(padding=(4, 6, 4, 4))
             body.grid(row=2, column=0, sticky="nsew")
             if sep is not None:
-                sep.grid(row=1, column=0, sticky="ew", pady=(4, 4))
+                sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
             history.rowconfigure(2, weight=1)
             try:
                 panes.paneconfigure(history, minsize=100, stretch="always")
             except Exception:
                 pass
         else:
+            history.configure(padding=(4, 2, 4, 0))
             body.grid_remove()
             if sep is not None:
                 sep.grid_remove()
             history.rowconfigure(2, weight=0)
             try:
-                panes.paneconfigure(history, minsize=40, stretch="never")
+                panes.paneconfigure(history, minsize=1, stretch="never")
             except Exception:
                 pass
+            self.after_idle(self._fit_history_pane_collapsed)
+
+    def _fit_history_pane_collapsed(self) -> None:
+        """Shrink the bottom PanedWindow pane so only the History tab row shows (no empty band)."""
+        if self.panes is None or self.history_frame is None or self.show_log_var.get():
+            return
+        try:
+            self.update_idletasks()
+            pw = self.panes
+            hf = self.history_frame
+            need = max(1, hf.winfo_reqheight())
+            ph = max(1, pw.winfo_height())
+            sash_w = 6
+            status_min = 200
+            target = ph - need - sash_w - 2
+            s0 = int(float(pw.sashpos(0)))
+            lo = s0 + sash_w + status_min
+            target = max(int(target), lo)
+            target = min(target, ph - 4)
+            pw.sashpos(1, target)
+        except (tk.TclError, ValueError, AttributeError, TypeError):
+            pass
 
     def write_history(self, message: str) -> None:
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
