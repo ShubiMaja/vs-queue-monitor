@@ -290,6 +290,8 @@ class QueueMonitorApp(tk.Tk):
         self.graph_points: deque[tuple[float, int]] = deque(maxlen=MAX_GRAPH_POINTS)
         self.graph_canvas: Optional[tk.Canvas] = None
         self.current_point: Optional[tuple[float, int]] = None
+        self.graph_points_drawn: list[tuple[float, int]] = []
+        self.graph_tooltip: Optional[tk.Toplevel] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -354,6 +356,8 @@ class QueueMonitorApp(tk.Tk):
         self.graph_canvas = tk.Canvas(graph_frame, height=170, highlightthickness=0, background="white")
         self.graph_canvas.grid(row=0, column=0, sticky="ew", padx=8, pady=8)
         self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
+        self.graph_canvas.bind("<Motion>", self.on_graph_motion)
+        self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
         status = ttk.LabelFrame(outer, text="Status")
         status.pack(fill="x", pady=(12, 0))
@@ -691,6 +695,7 @@ class QueueMonitorApp(tk.Tk):
         if len(points) > MAX_DRAW_POINTS:
             step = max(1, len(points) // MAX_DRAW_POINTS)
             points = points[::step]
+        self.graph_points_drawn = points
         if len(points) < 2:
             canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
             if len(points) == 1:
@@ -718,8 +723,29 @@ class QueueMonitorApp(tk.Tk):
             # Smaller queue positions should appear "lower" on the graph.
             return pad_y + (vmax - v) / (vmax - vmin) * plot_h
 
+        # Axes & ticks
+        axis_color = "#c8c8c8"
+        text_color = "#5a5a5a"
+        canvas.create_line(pad_x, pad_y, pad_x, pad_y + plot_h, fill=axis_color)
+        canvas.create_line(pad_x, pad_y + plot_h, pad_x + plot_w, pad_y + plot_h, fill=axis_color)
+
+        # Y ticks (positions)
+        for frac, val in [(0.0, vmax), (0.5, int(round((vmin + vmax) / 2))), (1.0, vmin)]:
+            y = pad_y + frac * plot_h
+            canvas.create_line(pad_x - 4, y, pad_x, y, fill=axis_color)
+            canvas.create_text(pad_x - 6, y, anchor="e", text=str(val), fill=text_color)
+
+        # X ticks (time)
+        t_left = datetime.fromtimestamp(t0).strftime("%H:%M:%S")
+        t_mid = datetime.fromtimestamp((t0 + t1) / 2).strftime("%H:%M:%S")
+        t_right = datetime.fromtimestamp(t1).strftime("%H:%M:%S")
+        for frac, label in [(0.0, t_left), (0.5, t_mid), (1.0, t_right)]:
+            x = pad_x + frac * plot_w
+            canvas.create_line(x, pad_y + plot_h, x, pad_y + plot_h + 4, fill=axis_color)
+            canvas.create_text(x, pad_y + plot_h + 14, anchor="n", text=label, fill=text_color)
+
         canvas.create_rectangle(pad_x, pad_y, pad_x + plot_w, pad_y + plot_h, outline="#d0d0d0")
-        canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill="#555555")
+        canvas.create_text(pad_x + 6, pad_y + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
         line = []
         for t, v in points:
@@ -734,6 +760,65 @@ class QueueMonitorApp(tk.Tk):
         ly = y_of(last_v)
         canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, outline="#d12c2c", fill="#d12c2c")
         canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill="#d12c2c")
+
+    def on_graph_motion(self, evt: tk.Event) -> None:
+        points = self.graph_points_drawn
+        canvas = self.graph_canvas
+        if canvas is None or len(points) < 2:
+            return
+
+        width = int(canvas.winfo_width())
+        height = int(canvas.winfo_height())
+        if width <= 10 or height <= 10:
+            return
+
+        pad_x = 12
+        pad_y = 10
+        plot_w = max(1, width - 2 * pad_x)
+        plot_h = max(1, height - 2 * pad_y)
+
+        x = max(pad_x, min(pad_x + plot_w, evt.x))
+        t0 = points[0][0]
+        t1 = points[-1][0]
+        if t1 <= t0:
+            return
+        target_t = t0 + (x - pad_x) / plot_w * (t1 - t0)
+
+        # Find nearest point by time
+        best = points[0]
+        best_dt = abs(best[0] - target_t)
+        for pt in points[1:]:
+            dt = abs(pt[0] - target_t)
+            if dt < best_dt:
+                best = pt
+                best_dt = dt
+
+        t, pos = best
+        ts = datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
+        self.show_graph_tooltip(evt.x_root, evt.y_root, f"{ts}\npos {pos}")
+
+    def show_graph_tooltip(self, x_root: int, y_root: int, text: str) -> None:
+        if self.graph_tooltip is None or not self.graph_tooltip.winfo_exists():
+            tip = tk.Toplevel(self)
+            tip.wm_overrideredirect(True)
+            tip.attributes("-topmost", True)
+            label = tk.Label(tip, text=text, justify="left", background="#111111", foreground="#ffffff", padx=8, pady=6)
+            label.pack()
+            self.graph_tooltip = tip
+        else:
+            label = self.graph_tooltip.winfo_children()[0]
+            if isinstance(label, tk.Label):
+                label.configure(text=text)
+
+        self.graph_tooltip.geometry(f"+{x_root + 12}+{y_root + 12}")
+
+    def hide_graph_tooltip(self) -> None:
+        if self.graph_tooltip is not None and self.graph_tooltip.winfo_exists():
+            try:
+                self.graph_tooltip.destroy()
+            except Exception:
+                pass
+        self.graph_tooltip = None
 
     def compute_alert(self, position: int) -> tuple[bool, str]:
         now = time.time()
