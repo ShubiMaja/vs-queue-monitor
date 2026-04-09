@@ -731,7 +731,7 @@ class QueueMonitorApp(tk.Tk):
         if speed is None or n <= 0:
             self.avg_speed_var.set("—")
         else:
-            self.avg_speed_var.set(f"{speed * 60.0:.2f} pos/min (n={n})")
+            self.avg_speed_var.set(f"{speed * 60.0:.2f} pos/min")
 
         seconds_remaining = self.estimate_seconds_remaining()
         if seconds_remaining is None:
