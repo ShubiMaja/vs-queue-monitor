@@ -302,6 +302,7 @@ class QueueMonitorApp(tk.Tk):
         self.graph_tooltip: Optional[tk.Toplevel] = None
         self.history_frame: Optional[ttk.LabelFrame] = None
         self.panes: Optional[ttk.PanedWindow] = None
+        self.start_stop_button: Optional[ttk.Button] = None
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -370,8 +371,8 @@ class QueueMonitorApp(tk.Tk):
 
         buttons = ttk.Frame(controls)
         buttons.grid(row=2, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 10))
-        ttk.Button(buttons, text="Start", command=self.start_monitoring).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Stop", command=self.stop_monitoring).pack(side="left", padx=(0, 8))
+        self.start_stop_button = ttk.Button(buttons, text="Start", command=self.toggle_monitoring)
+        self.start_stop_button.pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Resolve Path", command=self.resolve_and_show).pack(side="left", padx=(0, 8))
         ttk.Button(buttons, text="Reset defaults", command=self.reset_defaults).pack(side="left", padx=(0, 8))
 
@@ -456,6 +457,18 @@ class QueueMonitorApp(tk.Tk):
         self.history_text.configure(yscrollcommand=scrollbar.set)
 
         self.update_log_visibility()
+        self.update_start_stop_button()
+
+    def update_start_stop_button(self) -> None:
+        if self.start_stop_button is None:
+            return
+        self.start_stop_button.configure(text=("Stop" if self.running else "Start"))
+
+    def toggle_monitoring(self) -> None:
+        if self.running:
+            self.stop_monitoring()
+        else:
+            self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
         return {
@@ -587,6 +600,7 @@ class QueueMonitorApp(tk.Tk):
             self.status_var.set("Monitoring")
             self.write_history(f"Monitoring started. Log file: {resolved}")
             self.persist_config()
+            self.update_start_stop_button()
 
             self.seed_graph_from_log(resolved)
             self.start_timer()
@@ -598,6 +612,8 @@ class QueueMonitorApp(tk.Tk):
             self.poll_once()
         except Exception as exc:
             self.status_var.set("Error")
+            self.running = False
+            self.update_start_stop_button()
             messagebox.showerror("Start failed", str(exc))
 
     def stop_monitoring(self) -> None:
@@ -609,6 +625,7 @@ class QueueMonitorApp(tk.Tk):
             self.after_cancel(self.job_id)
             self.job_id = None
         self.write_history("Monitoring stopped.")
+        self.update_start_stop_button()
 
     def start_timer(self) -> None:
         if self.timer_job_id is not None:
