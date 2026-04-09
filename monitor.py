@@ -892,7 +892,7 @@ class QueueMonitorApp(tk.Tk):
         rate_row.grid(row=0, column=0, sticky="ew")
         tk.Label(
             rate_row,
-            text="RATE",
+            text="MIN/POS",
             bg=UI_SUMMARY_BG,
             fg=UI_TEXT_MUTED,
             font=("TkDefaultFont", 8, "bold"),
@@ -1680,9 +1680,9 @@ class QueueMonitorApp(tk.Tk):
 
     @staticmethod
     def _format_queue_rate(mpp: Optional[float]) -> str:
-        """Positions per minute from minutes per position (window estimate)."""
+        """Window estimate: average minutes per queue position advanced."""
         if mpp is not None and mpp > 0:
-            return f"{1.0 / mpp:.2f} pos/min"
+            return f"{mpp:.2f} min/pos"
         return "—"
 
     def estimate_seconds_remaining(self) -> Optional[float]:
