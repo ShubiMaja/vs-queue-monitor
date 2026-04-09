@@ -169,6 +169,8 @@ UI_PLAY_BTN_BG = "#1f883d"
 UI_PLAY_BTN_ACTIVE = "#2ea043"
 UI_STOP_BTN_BG = "#cf222e"
 UI_STOP_BTN_ACTIVE = "#f85149"
+# Main panes (graph, status, history) and key inner blocks.
+UI_SECTION_PAD = 10
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
@@ -885,7 +887,7 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
-        outer = ttk.Frame(self, padding=(16, 14), style="App.TFrame")
+        outer = ttk.Frame(self, padding=(20, 18), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
         # Top: play/stop + one line: label, path entry, browse, settings.
@@ -943,14 +945,16 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
         self.panes = panes
-        panes.pack(fill="both", expand=True, pady=(14, 0))
+        panes.pack(fill="both", expand=True, pady=(UI_SECTION_PAD, UI_SECTION_PAD))
         panes.bind("<Configure>", self._schedule_fit_history_collapsed, add=True)
 
-        graph_frame = ttk.LabelFrame(panes, text="Queue graph", padding=(4, 6, 4, 4))
+        graph_frame = ttk.LabelFrame(
+            panes, text="Queue graph", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+        )
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=1)
         graph_stack = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
-        graph_stack.grid(row=0, column=0, sticky="nsew", padx=10, pady=(4, 10))
+        graph_stack.grid(row=0, column=0, sticky="nsew", padx=UI_SECTION_PAD, pady=UI_SECTION_PAD)
         graph_stack.rowconfigure(0, weight=1)
         graph_stack.columnconfigure(0, weight=1)
         self.graph_canvas = tk.Canvas(
@@ -970,11 +974,13 @@ class QueueMonitorApp(tk.Tk):
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
-        status = ttk.LabelFrame(panes, text="Status", padding=(4, 6, 4, 2))
+        status = ttk.LabelFrame(
+            panes, text="Status", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+        )
         status.columnconfigure(0, weight=1)
 
         # Summary bar: Position + Status; Elapsed + Remaining grouped side by side on the right
-        summary = tk.Frame(status, bg=UI_SUMMARY_BG, padx=14, pady=12)
+        summary = tk.Frame(status, bg=UI_SUMMARY_BG, padx=UI_SECTION_PAD + 4, pady=UI_SECTION_PAD + 2)
         summary.grid(row=0, column=0, sticky="ew")
         summary.columnconfigure(0, weight=1)
         summary.columnconfigure(1, weight=1)
@@ -1055,7 +1061,9 @@ class QueueMonitorApp(tk.Tk):
         )
         self._queue_progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
-        self.history_frame = ttk.Frame(panes, style="HistoryTabStrip.TFrame", padding=(4, 6, 4, 4))
+        self.history_frame = ttk.Frame(
+            panes, style="HistoryTabStrip.TFrame", padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+        )
         self.history_frame.columnconfigure(0, weight=1)
         self.history_frame.rowconfigure(2, weight=1)
 
@@ -1081,7 +1089,11 @@ class QueueMonitorApp(tk.Tk):
         panes.add(status, minsize=200, stretch="never")
         panes.add(self.history_frame, minsize=100, stretch="always")
 
-        details = ttk.Frame(status, padding=(12, 8, 12, 10), style="Card.TFrame")
+        details = ttk.Frame(
+            status,
+            padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD),
+            style="Card.TFrame",
+        )
         details.grid(row=1, column=0, sticky="ew")
         details.columnconfigure(1, weight=1)
         details.columnconfigure(3, weight=1)
@@ -1106,8 +1118,8 @@ class QueueMonitorApp(tk.Tk):
             wrap="word",
             state="disabled",
             font=("Segoe UI", 9) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
-            padx=8,
-            pady=8,
+            padx=UI_SECTION_PAD,
+            pady=UI_SECTION_PAD,
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
             insertbackground=UI_TEXT_PRIMARY,
@@ -1354,7 +1366,9 @@ class QueueMonitorApp(tk.Tk):
         sep = self._history_sep
 
         if self.show_log_var.get():
-            history.configure(padding=(4, 6, 4, 4))
+            history.configure(
+                padding=(UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD, UI_SECTION_PAD)
+            )
             body.grid(row=2, column=0, sticky="nsew")
             if sep is not None:
                 sep.grid(row=1, column=0, sticky="ew", pady=(2, 4))
@@ -1368,7 +1382,7 @@ class QueueMonitorApp(tk.Tk):
             except Exception:
                 pass
         else:
-            history.configure(padding=(4, 2, 4, 0))
+            history.configure(padding=(UI_SECTION_PAD, 2, UI_SECTION_PAD, 0))
             body.grid_remove()
             if sep is not None:
                 sep.grid_remove()
