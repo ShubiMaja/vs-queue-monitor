@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.35
+Version: 1.0.36
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -27,6 +27,7 @@ import sys
 import threading
 import time
 import traceback
+import types
 import webbrowser
 from collections import deque
 from datetime import datetime
@@ -41,7 +42,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.35"
+VERSION = "1.0.36"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -4907,8 +4908,249 @@ class QueueMonitorApp(tk.Tk):
         self.destroy()
 
 
+def _should_use_tui_auto() -> bool:
+    """Prefer terminal UI when no GUI display is available (e.g. Unix headless)."""
+    env = (os.environ.get("VS_QUEUE_MONITOR_UI") or "").strip().lower()
+    if env in ("gui", "tk", "window", "windows"):
+        return False
+    if env in ("tui", "text", "terminal", "term"):
+        return True
+    if sys.platform == "win32":
+        return False
+    display = (os.environ.get("DISPLAY") or "").strip()
+    if not display:
+        return True
+    return False
+
+
+def run_gui(initial_path: str = "", auto_start: bool = True) -> int:
+    app = QueueMonitorApp(initial_path=initial_path, auto_start=auto_start)
+    app.mainloop()
+    return 0
+
+
+def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
+    try:
+        from textual.app import App, ComposeResult
+        from textual.binding import Binding
+        from textual.containers import Horizontal
+        from textual.widgets import Footer, Header, Input, RichLog, Static
+    except ImportError:
+        print(
+            "Terminal UI requires Textual. Install: pip install -r requirements.txt",
+            file=sys.stderr,
+        )
+        return 1
+
+    def _patch_messagebox_for_tui() -> None:
+        import tkinter.messagebox as mb
+
+        _orig = mb.askyesno
+
+        def _askyesno(title: str, message: str, **kwargs: Any) -> bool:
+            if "New queue detected" in (title or ""):
+                return True
+            return _orig(title, message, **kwargs)
+
+        mb.askyesno = _askyesno  # type: ignore[assignment]
+
+    def _sparkline(points: list[tuple[float, int]], width: int = 56) -> str:
+        if len(points) < 2:
+            return "—"
+        ys = [p for _t, p in points]
+        if len(ys) > width:
+            ys = ys[-width:]
+        lo, hi = min(ys), max(ys)
+        blocks = "▁▂▃▄▅▆▇█"
+        if hi == lo:
+            return "█" * len(ys)
+        out: list[str] = []
+        for y in ys:
+            frac = (float(y) - float(lo)) / (float(hi) - float(lo))
+            out.append(blocks[min(7, max(0, int(frac * 8.0)))])
+        return "".join(out)
+
+    class VSQueueTui(App[None]):
+        """Textual front-end; embeds hidden ``QueueMonitorApp`` for identical logic."""
+
+        CSS = """
+    Screen { align: left middle; }
+    #metrics { height: auto; min-height: 12; }
+    #log { height: 1fr; border: solid $primary; }
+    #pathrow { height: auto; margin-top: 1; }
+    """
+
+        BINDINGS = [
+            Binding("q", "quit", "Quit"),
+            Binding("space", "toggle_monitor", "Play/Stop"),
+            Binding("o", "open_settings", "Settings"),
+            Binding("r", "refresh_view", "Refresh"),
+        ]
+
+        def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
+            super().__init__()
+            self._initial_path = initial_path
+            self._auto_start = auto_start
+            self._gui: Optional[QueueMonitorApp] = None
+
+        def compose(self) -> ComposeResult:
+            yield Header(show_clock=True)
+            yield Static("", id="metrics")
+            yield RichLog(id="log", highlight=True, markup=True)
+            with Horizontal(id="pathrow"):
+                yield Static("Logs folder: ", id="path_lbl")
+                yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
+            yield Footer()
+
+        def on_mount(self) -> None:
+            _patch_messagebox_for_tui()
+            self._gui = QueueMonitorApp(initial_path=self._initial_path, auto_start=False)
+            self._gui.withdraw()
+            log = self.query_one("#log", RichLog)
+            g = self._gui
+
+            def write_history_tui(self2: QueueMonitorApp, message: str) -> None:
+                QueueMonitorApp.write_history(self2, message)
+                try:
+                    log.write_line(message)
+                except Exception:
+                    pass
+
+            g.write_history = types.MethodType(write_history_tui, g)  # type: ignore[method-assign]
+
+            self.query_one("#path_input", Input).value = g.source_path_var.get()
+            self.set_interval(0.02, self._pump_tk)
+            self.set_interval(0.2, self._refresh_metrics)
+            if self._auto_start:
+                self.call_later(self._start_gui_monitor)
+
+        def _start_gui_monitor(self) -> None:
+            g = self._gui
+            if g is not None:
+                g.start_monitoring()
+
+        def _pump_tk(self) -> None:
+            g = self._gui
+            if g is None:
+                return
+            try:
+                g.update()
+            except tk.TclError:
+                self.exit()
+
+        def _refresh_metrics(self) -> None:
+            g = self._gui
+            if g is None:
+                return
+            try:
+                pos = g.position_var.get()
+                st = g.status_var.get()
+                rate = g.queue_rate_var.get()
+                glo = g.global_rate_var.get()
+                elapsed = g.elapsed_var.get()
+                rem = g.predicted_remaining_var.get()
+                path = g.resolved_path_var.get() or "—"
+                n_roll = g._rolling_window_points_int()  # type: ignore[attr-defined]
+                hdr = f"RATE (Rolling {n_roll})"
+                pts = list(g.graph_points)
+                spark = _sparkline(pts)
+                prog = 0.0
+                if g._queue_progress is not None:
+                    try:
+                        prog = float(g._queue_progress["value"])
+                    except (tk.TclError, TypeError, ValueError):
+                        prog = 0.0
+                text = (
+                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (hidden Tk engine — same logic as GUI)\n\n"
+                    f"Position: [cyan]{pos}[/]    Status: [green]{st}[/]\n"
+                    f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
+                    f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
+                    f"Log: {path}\n"
+                    f"Queue shape: {spark}\n"
+                )
+                self.query_one("#metrics", Static).update(text)
+            except Exception as exc:
+                self.query_one("#metrics", Static).update(f"[red]Display error: {exc}[/]")
+
+        def on_input_submitted(self, event: Input.Submitted) -> None:
+            if event.input.id != "path_input":
+                return
+            g = self._gui
+            if g is None:
+                return
+            raw = event.value.strip()
+            g.source_path_var.set(raw or DEFAULT_PATH)
+            try:
+                save_config(g.get_config_snapshot())
+            except Exception:
+                pass
+            if g.running:
+                g.stop_monitoring()
+            g.after(100, g.start_monitoring)
+            self._write_log(f"Path set to: {raw or DEFAULT_PATH}")
+
+        def _write_log(self, line: str) -> None:
+            try:
+                self.query_one("#log", RichLog).write_line(line)
+            except Exception:
+                pass
+
+        def action_toggle_monitor(self) -> None:
+            g = self._gui
+            if g is not None:
+                g.toggle_monitoring()
+
+        def action_open_settings(self) -> None:
+            g = self._gui
+            if g is not None:
+                g.open_settings()
+
+        def action_refresh_view(self) -> None:
+            self._refresh_metrics()
+
+        def action_quit(self) -> None:
+            g = self._gui
+            if g is not None:
+                try:
+                    g.on_close()
+                except Exception:
+                    try:
+                        g.destroy()
+                    except Exception:
+                        pass
+            self.exit()
+
+        def on_unmount(self) -> None:
+            g = self._gui
+            if g is not None:
+                try:
+                    if g.winfo_exists():
+                        g.on_close()
+                except Exception:
+                    pass
+
+    app = VSQueueTui(initial_path=initial_path, auto_start=auto_start)
+    app.run()
+    return 0
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="VS Queue Monitor — Vintage Story queue monitor GUI")
+    parser = argparse.ArgumentParser(
+        description="VS Queue Monitor — Vintage Story queue monitor (GUI or terminal UI)",
+    )
+    ui = parser.add_mutually_exclusive_group()
+    ui.add_argument(
+        "--gui",
+        action="store_true",
+        help="Force the graphical window (Tk). Default on Windows and when DISPLAY is set.",
+    )
+    ui.add_argument(
+        "--tui",
+        "--text",
+        dest="tui",
+        action="store_true",
+        help="Force the terminal UI (Textual). Implied when no GUI display (e.g. headless Linux).",
+    )
     parser.add_argument(
         "--path",
         dest="path",
@@ -4926,10 +5168,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
-
-    app = QueueMonitorApp(initial_path=args.path, auto_start=not args.no_start)
-    app.mainloop()
-    return 0
+    auto_tui = _should_use_tui_auto()
+    use_tui = bool(args.tui) or (not args.gui and auto_tui)
+    if use_tui:
+        return run_tui(initial_path=args.path, auto_start=not args.no_start)
+    return run_gui(initial_path=args.path, auto_start=not args.no_start)
 
 
 if __name__ == "__main__":
