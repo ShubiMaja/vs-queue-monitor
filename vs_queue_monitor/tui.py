@@ -109,7 +109,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         from textual.binding import Binding
         from textual.containers import Horizontal, Vertical
         from textual.screen import ModalScreen
-        from textual.widgets import Button, Footer, Header, Input, RichLog, Static
+        from textual.widgets import Button, Input, RichLog, Static
     except ImportError:
         print(
             "Terminal UI requires Textual. Install: pip install -r requirements.txt",
@@ -358,13 +358,16 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
+    #pathrow { height: auto; width: 100%; }
     #metrics { height: auto; min-height: 7; width: 100%; }
-    #info { height: auto; min-height: 5; width: 100%; }
     #graph_panel { height: 1fr; width: 100%; border: solid $primary; }
     #graph_title { height: auto; padding: 0 1; color: $text-muted; }
     #graph { height: 1fr; width: 100%; padding: 0 1; }
-    #log { height: 10; width: 100%; }
-    #pathrow { height: auto; margin-top: 1; width: 100%; }
+    #panel_header { height: auto; padding: 0 1; color: $text-muted; background: $panel; }
+    #info_panel { height: auto; width: 100%; border: solid $primary; }
+    #info_body { height: auto; width: 100%; padding: 0 1; }
+    #history_panel { height: auto; width: 100%; border: solid $primary; }
+    #log { height: 10; width: 100%; padding: 0 1; }
     """
 
         BINDINGS = [
@@ -392,23 +395,42 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._info_collapsed: bool = False
 
         def compose(self) -> ComposeResult:
-            yield Header(show_clock=True)
+            with Horizontal(id="pathrow"):
+                yield Static("Logs folder: ", id="path_lbl")
+                yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
+
             yield Static("", id="metrics")
             with Vertical(id="graph_panel"):
                 yield Static("Queue graph", id="graph_title")
                 yield Static("", id="graph")
-            yield Static("", id="info")
-            yield RichLog(id="log", highlight=True, markup=True)
-            with Horizontal(id="pathrow"):
-                yield Static("Logs folder: ", id="path_lbl")
-                yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
-            yield Footer()
+            with Vertical(id="info_panel"):
+                yield Static("▼ Info  (i)", id="info_header")
+                yield Static("", id="info_body")
+            with Vertical(id="history_panel"):
+                yield Static("▶ History  (h/l)", id="history_header")
+                yield RichLog(id="log", highlight=True, markup=True)
 
         def _headless_append_history(self, message: str) -> None:
             try:
                 self.query_one("#log", RichLog).write_line(message)
             except Exception:
                 pass
+
+        def on_static_clicked(self, event: object) -> None:
+            # Clickable collapsible headers (GUI-like chevrons).
+            try:
+                from textual.events import Click  # type: ignore
+
+                if not isinstance(event, Click):
+                    return
+                wid = getattr(event, "control", None)
+                wid_id = getattr(wid, "id", None)
+            except Exception:
+                return
+            if wid_id == "history_header":
+                self.action_toggle_history()
+            elif wid_id == "info_header":
+                self.action_toggle_info()
 
         class _SettingsScreen(ModalScreen[None]):
             DEFAULT_CSS = """
@@ -451,6 +473,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     Input(value=e.alert_thresholds_var.get(), id="alert_thresholds"),
                     Label("Rolling window (points)"),
                     Input(value=e.avg_window_var.get(), id="avg_window"),
+                    Label("Warning sound path"),
+                    Input(value=e.alert_sound_path_var.get(), id="alert_sound_path"),
                     Checkbox(
                         "Graph Y log scale",
                         value=bool(e.graph_log_scale_var.get()),
@@ -481,6 +505,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                         value=bool(e.completion_sound_enabled_var.get()),
                         id="completion_sound_enabled",
                     ),
+                    Label("Completion sound path"),
+                    Input(value=e.completion_sound_path_var.get(), id="completion_sound_path"),
                     Horizontal(
                         Button("Save", id="save", variant="primary"),
                         Button("Close", id="close", variant="default"),
@@ -498,6 +524,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     parse_alert_thresholds(raw_thr)
                     e.alert_thresholds_var.set(raw_thr)
                     e.avg_window_var.set(self.query_one("#avg_window", Input).value.strip())
+                    e.alert_sound_path_var.set(self.query_one("#alert_sound_path", Input).value.strip())
                     e.graph_log_scale_var.set(bool(self.query_one("#graph_log_scale", Checkbox).value))
                     e.show_every_change_var.set(bool(self.query_one("#show_every_change", Checkbox).value))
                     e.popup_enabled_var.set(bool(self.query_one("#popup_enabled", Checkbox).value))
@@ -508,6 +535,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     e.completion_sound_enabled_var.set(
                         bool(self.query_one("#completion_sound_enabled", Checkbox).value),
                     )
+                    e.completion_sound_path_var.set(self.query_one("#completion_sound_path", Input).value.strip())
                     save_config(e.get_config_snapshot())
                 except ValueError as exc:
                     try:
@@ -549,10 +577,26 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._apply_panel_visibility()
 
         def _apply_history_collapsed(self) -> None:
-            # When collapsed, hide the log panel so the graph expands into that space.
             try:
                 log = self.query_one("#log", RichLog)
                 log.display = not self._history_collapsed
+            except Exception:
+                pass
+            try:
+                hdr = self.query_one("#history_header", Static)
+                hdr.update(("▶" if self._history_collapsed else "▼") + " History  (h/l)")
+            except Exception:
+                pass
+
+        def _apply_info_collapsed(self) -> None:
+            try:
+                body = self.query_one("#info_body", Static)
+                body.display = not self._info_collapsed
+            except Exception:
+                pass
+            try:
+                hdr = self.query_one("#info_header", Static)
+                hdr.update(("▶" if self._info_collapsed else "▼") + " Info  (i)")
             except Exception:
                 pass
 
@@ -566,13 +610,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             except Exception:
                 pass
             try:
-                self.query_one("#info", Static).display = not self._info_collapsed
-            except Exception:
-                pass
-            try:
                 self.query_one("#pathrow", Horizontal).display = not self._path_hidden
             except Exception:
                 pass
+            self._apply_info_collapsed()
 
         def action_toggle_history(self) -> None:
             self._history_collapsed = not self._history_collapsed
@@ -643,7 +684,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"Resolved log path: {path}\n"
                     f"Global rate: {glo}"
                 )
-                self.query_one("#info", Static).update(info_text)
+                self.query_one("#info_body", Static).update(info_text)
 
                 # Graph fills the middle section; resize-aware.
                 term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
