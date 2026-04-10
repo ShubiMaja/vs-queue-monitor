@@ -1559,7 +1559,8 @@ class QueueMonitorApp(tk.Tk):
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label=f"About {APP_DISPLAY_NAME}", command=self.show_about)
         menubar.add_cascade(label="Help", menu=help_menu)
-        self.config(menu=menubar)
+        # self.config is the on-disk settings dict; use Tk.config for the menu bar.
+        super().config(menu=menubar)
 
         # Top: play/stop + one line: label, path entry, browse, settings (no separator — avoids bright rule on Windows).
         top = ttk.Frame(
