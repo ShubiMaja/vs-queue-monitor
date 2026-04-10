@@ -167,25 +167,46 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 out.append(chr(0x2800 + mask) if mask else " ")
             body = ("".join(out).rstrip() or "—")
             if show_labels and label_w > 0:
-                if line_idx == 0:
-                    prefix = f"{hi:>{label_w-1}} "
-                elif line_idx == lines_n - 1:
-                    prefix = f"{lo:>{label_w-1}} "
+                # Label each row band similar to GUI y-axis ticks.
+                if lines_n <= 1:
+                    y_label = hi
                 else:
-                    prefix = " " * label_w
+                    # Map line index to value (top=hi, bottom=lo).
+                    frac_y = line_idx / float(lines_n - 1)
+                    y_label = int(round(float(hi) - frac_y * float(hi - lo)))
+                prefix = f"{y_label:>{label_w-1}} "
                 out_lines.append(prefix + body)
             else:
                 out_lines.append(body)
 
         if show_labels:
             try:
-                left = datetime.fromtimestamp(t0).strftime("%H:%M:%S")
-                right = datetime.fromtimestamp(t1).strftime("%H:%M:%S")
+                span = float(t1 - t0)
+                fmt = "%H:%M:%S" if span < 60 * 60 else "%H:%M"
+                left = datetime.fromtimestamp(t0).strftime(fmt)
+                mid = datetime.fromtimestamp((t0 + t1) / 2.0).strftime(fmt)
+                right = datetime.fromtimestamp(t1).strftime(fmt)
                 total_w = (label_w + cols) if label_w > 0 else cols
                 if total_w < 20:
                     total_w = 20
-                mid_spaces = max(1, total_w - len(left) - len(right))
-                out_lines.append(left + (" " * mid_spaces) + right)
+                # Tick marks line.
+                tick_line = [" "] * total_w
+                for frac in (0.0, 0.5, 1.0):
+                    x = int(round(frac * float(total_w - 1)))
+                    tick_line[x] = "|"
+                out_lines.append("".join(tick_line).rstrip())
+
+                # Label line (left / mid / right).
+                label_line = [" "] * total_w
+                def _place(txt: str, pos: int) -> None:
+                    start = max(0, min(total_w - len(txt), pos))
+                    for i, ch in enumerate(txt):
+                        if 0 <= start + i < total_w:
+                            label_line[start + i] = ch
+                _place(left, 0)
+                _place(mid, total_w // 2 - len(mid) // 2)
+                _place(right, total_w - len(right))
+                out_lines.append("".join(label_line).rstrip())
             except Exception:
                 pass
 
