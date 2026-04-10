@@ -23,12 +23,13 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 | Path | Role |
 |------|------|
 | `vs_queue_monitor/core.py` | Parsing, config, log I/O — **no UI** |
-| `vs_queue_monitor/gui.py` | Tk desktop UI (`QueueMonitorApp`) |
+| `vs_queue_monitor/engine.py` | Shared queue monitor logic (`QueueMonitorEngine`) — **no Tk** |
+| `vs_queue_monitor/gui.py` | Tk desktop UI (`QueueMonitorApp` + engine) |
 | `vs_queue_monitor/cli.py` | CLI (`--gui` / `--tui`) and startup |
-| `vs_queue_monitor/tui.py` | Textual terminal UI |
+| `vs_queue_monitor/tui.py` | Textual terminal UI (engine only — **SSH-safe**, no Tk) |
 | `monitor.py` | Thin entrypoint; same as `python -m vs_queue_monitor` |
 
-The terminal UI uses the **same** `QueueMonitorApp` queue logic as the GUI (a withdrawn Tk root updated on a timer) so behavior stays identical without maintaining two parsers. Settings from the TUI still open the **Tk** settings window (**o**).
+The terminal UI drives the **same** `QueueMonitorEngine` as the GUI (Textual + headless hooks). No Tk or `DISPLAY` is required for `--tui`, so it works over **SSH** when Textual can render in your terminal. The **o** shortcut logs a note that full settings are in the GUI or config file (no Tk window in headless mode).
 
 ## Quick start
 
@@ -43,9 +44,9 @@ Equivalent: `python3 -m vs_queue_monitor`. On Windows use `python` or `py` inste
 
 **UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
 
-Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **o** opens Settings (Tk window), **q** quits. Legacy: `python main-tui.py` is equivalent to `python monitor.py --tui`.
+Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **o** shows the settings hint in the log, **q** quits. Legacy: `python main-tui.py` is equivalent to `python monitor.py --tui`.
 
-You need [Python 3.10+ with Tkinter](#install-python-and-tkinter).
+The **graphical** window needs [Python 3.10+ with Tkinter](#install-python-and-tkinter). The **terminal UI** only needs Python 3.10+ and Textual from `requirements.txt` (no Tk).
 
 ### Without Git
 
