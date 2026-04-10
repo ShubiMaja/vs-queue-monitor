@@ -283,6 +283,14 @@ class HeadlessMonitorHooks:
         pass
 
     def open_settings_ui(self) -> None:
+        self.append_history("Opening Settings (TUI)…")
+        app = self.textual_app
+        if app is not None and hasattr(app, "action_open_settings"):
+            try:
+                app.action_open_settings()
+                return
+            except Exception:
+                pass
         self.append_history("Settings are not available in headless TUI (edit config JSON or use the GUI).")
 
     def window_geometry_for_save(self) -> str:
