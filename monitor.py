@@ -644,6 +644,21 @@ def resolve_log_file(raw: str) -> Optional[Path]:
     return file_matches[0]
 
 
+def expand_logs_folder_path(raw: str) -> Path:
+    """Resolve the Logs folder field to an existing directory (legacy file path → parent)."""
+    path = expand_path((raw or "").strip())
+    if not path.exists():
+        raise ValueError(
+            "That path does not exist. Set Logs folder to your Vintage Story data directory "
+            "(or the Logs folder inside it)."
+        )
+    if path.is_file():
+        return path.parent
+    if path.is_dir():
+        return path
+    raise ValueError("That path is not a usable folder.")
+
+
 def read_log_file_tail_text(log_file: Path, tail_bytes: int) -> Optional[str]:
     try:
         with log_file.open("rb") as handle:
@@ -2829,40 +2844,17 @@ class QueueMonitorApp(tk.Tk):
             ).pack(side="left")
 
     def _apply_browsed_log_path(self, raw: str) -> None:
-        """Set log source from a browsed folder path (resolve_log_file picks the log file inside)."""
+        """Set log source from a browsed folder; the client log may appear later (e.g. after starting VS)."""
         raw = (raw or "").strip()
         if not raw:
             return
         try:
-            p = expand_path(raw)
+            folder = expand_logs_folder_path(raw)
+        except ValueError as exc:
+            messagebox.showerror("Invalid folder", str(exc), parent=self)
+            return
         except Exception:
-            messagebox.showerror(
-                "Invalid path",
-                "Could not resolve that path.",
-                parent=self,
-            )
-            return
-
-        if p.is_dir():
-            folder = p
-        elif p.is_file():
-            folder = p.parent
-        else:
-            messagebox.showerror(
-                "Folder not found",
-                "That path does not exist or is not a folder.",
-                parent=self,
-            )
-            return
-
-        resolved = resolve_log_file(str(folder))
-        if resolved is None:
-            messagebox.showerror(
-                "No client log found",
-                "No Vintage Story client log (e.g. client-main.log) was found under that folder.\n\n"
-                "Choose your Vintage Story data directory (often …\\VintagestoryData) or the Logs folder inside it.",
-                parent=self,
-            )
+            messagebox.showerror("Invalid path", "Could not resolve that path.", parent=self)
             return
 
         self.source_path_var.set(str(folder))
@@ -2975,38 +2967,51 @@ class QueueMonitorApp(tk.Tk):
         if self._starting:
             return
         try:
-            resolved = resolve_log_file(self.source_path_var.get())
-            if not resolved:
-                raise ValueError(
-                    "Could not find a client log under that folder. Set Logs folder to your Vintage Story "
-                    "data directory (or the Logs folder inside it), or use Browse…."
-                )
-
-            try:
-                parse_alert_thresholds(self.alert_thresholds_var.get())
-            except ValueError as exc:
-                raise ValueError(str(exc)) from exc
-            self._alert_thresholds_fired.clear()
-            self._position_one_reached_at = None
-            self._progress_at_front_entry = None
-            self._left_connect_queue_detected = False
-            self._queue_completion_notified_this_run = False
-            self._last_queue_run_session = -1
-            self._last_queue_position_change_epoch = None
-            self._queue_stale_latched = False
-            self._queue_stale_logged_once = False
-            self._mpp_floor_position = None
-            self._mpp_floor_value = None
-            self.last_alert_epoch = 0.0
-            self.poll_sec = self.parse_float(self.poll_sec_var.get(), "Poll sec", 0.2)
+            folder = expand_logs_folder_path(self.source_path_var.get())
+        except ValueError as exc:
+            self._set_status_line("Error")
+            messagebox.showerror("Start failed", str(exc))
+            return
         except Exception as exc:
             self._set_status_line("Error")
             messagebox.showerror("Start failed", str(exc))
             return
 
+        self.source_path_var.set(str(folder))
+
+        try:
+            parse_alert_thresholds(self.alert_thresholds_var.get())
+        except ValueError as exc:
+            self._set_status_line("Error")
+            messagebox.showerror("Start failed", str(exc))
+            return
+
+        self._alert_thresholds_fired.clear()
+        self._position_one_reached_at = None
+        self._progress_at_front_entry = None
+        self._left_connect_queue_detected = False
+        self._queue_completion_notified_this_run = False
+        self._last_queue_run_session = -1
+        self._last_queue_position_change_epoch = None
+        self._queue_stale_latched = False
+        self._queue_stale_logged_once = False
+        self._mpp_floor_position = None
+        self._mpp_floor_value = None
+        self.last_alert_epoch = 0.0
+        self.poll_sec = self.parse_float(self.poll_sec_var.get(), "Poll sec", 0.2)
+
+        resolved = resolve_log_file(str(folder))
+
         self._starting = True
         self._start_seq += 1
         seq = self._start_seq
+
+        if resolved is None:
+            self._show_start_loading(True)
+            self._set_status_line("Starting…")
+            self.after(0, lambda: self._finish_start_monitoring(seq, None, None, None))
+            return
+
         self._show_start_loading(True)
         self._set_status_line("Loading log…")
 
@@ -3023,7 +3028,7 @@ class QueueMonitorApp(tk.Tk):
     def _finish_start_monitoring(
         self,
         seq: int,
-        resolved: Path,
+        resolved: Optional[Path],
         seed_data: Optional[
             tuple[
                 list[tuple[float, int]],
@@ -3051,6 +3056,35 @@ class QueueMonitorApp(tk.Tk):
             self._show_start_loading(False)
             self._set_status_line("Error")
             messagebox.showerror("Start failed", str(error))
+            return
+
+        if resolved is None:
+            self.current_log_file = None
+            self.resolved_path_var.set("—")
+            self.running = True
+            self.monitor_start_epoch = time.time()
+            self._interrupted_elapsed_sec = None
+            self._frozen_rates_at_interrupt = None
+            self._interrupted_mode = False
+            self._interrupt_baseline_session = -1
+            self._dismissed_new_queue_session = None
+            self._set_status_line("Waiting for log file")
+            self.write_history(
+                "Monitoring started. No client log file yet (e.g. client-main.log) under this folder — "
+                "watching until it appears (start Vintage Story or check the path)."
+            )
+            self.persist_config()
+            self._show_start_loading(False)
+            self.graph_points.clear()
+            self.current_point = None
+            self.last_position = None
+            self._set_position_display(None)
+            self.redraw_graph()
+            self.start_timer()
+            if self.job_id is not None:
+                self.after_cancel(self.job_id)
+                self.job_id = None
+            self.poll_once()
             return
 
         self.current_log_file = resolved
@@ -3158,7 +3192,7 @@ class QueueMonitorApp(tk.Tk):
             self._set_status_line("Monitoring")
         else:
             self.write_history("Could not find queue data in the log for the new run.")
-            self._set_status_line("Watching log, queue line not found yet")
+            self._set_status_line("No connect-queue line in log tail yet")
             self.graph_points.clear()
             self.current_point = None
             self.last_position = None
@@ -3500,8 +3534,8 @@ class QueueMonitorApp(tk.Tk):
                             if should_alert:
                                 self.raise_alert(position, reason)
                             self._maybe_notify_queue_completion(position, text)
-                    elif not log_silent:
-                        self._set_status_line("Watching log, queue line not found yet")
+                    else:
+                        self._set_status_line("No connect-queue line in log tail yet")
         except Exception as exc:
             self._set_status_line("Error")
             self.write_history(f"Error: {exc}")

@@ -128,7 +128,7 @@ From the directory that contains `monitor.py`:
 | Windows   | `python monitor.py` or `py monitor.py` |
 | macOS/Linux | `python3 monitor.py` |
 
-By default the app **starts monitoring** when it opens (if the log path resolves). To open the UI **without** auto-start:
+By default the app **starts monitoring** when it opens (if the **Logs folder** path exists). If no client log file is there yet, status stays **Waiting for log file** until it appears. To open the UI **without** auto-start:
 
 ```bash
 python3 monitor.py --no-start
@@ -174,9 +174,9 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Logs folder and resolution
 
-- **Logs folder** field plus **Browse…** (folder picker only). A browsed folder is **accepted only** if a client log can be **resolved** under it (same rules as below); otherwise the picker shows an error and the path is unchanged. Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
-- The app always **searches** under that folder for `client-main.log` / `client.log` in common locations (`Logs/`, `logs/`, etc.), then filenames matching `*client-main*.log` or `*client*.log`. It does **not** pick unrelated `*.log` files (so a random folder with other logs is rejected).
-- **Resolved path** (the actual log file opened) appears in the **Info** section when monitoring (along with timing and rate details below).
+- **Logs folder** field plus **Browse…** (folder picker only). The folder must **exist**; it does **not** need to contain a log file yet (e.g. before the first Vintage Story run). Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
+- When you **Play**, the app **searches** under that folder for `client-main.log` / `client.log` in common locations (`Logs/`, `logs/`, etc.), then filenames matching `*client-main*.log` or `*client*.log`. It does **not** pick unrelated `*.log` files. If none exist yet, monitoring still starts and status shows **Waiting for log file** until one appears.
+- **Resolved path** (the actual log file opened) appears in the **Info** section once a file is found (along with timing and rate details below).
 
 ### Monitoring
 
