@@ -34,6 +34,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         height_lines: int = 3,
         log_scale: bool = True,
         show_labels: bool = True,
+        grid_every_chars: int = 10,
     ) -> str:
         """Multi-line graph using stacked Unicode braille (2×4 dots per cell per line)."""
         # Braille cells are 2 columns wide. We'll plot one dot per column.
@@ -163,12 +164,26 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             # Ensure end-of-bin is visible (may be inside range; harmless).
             set_level(le)
 
+        grid_every = max(0, int(grid_every_chars))
+        grid_dot = "⠂"
+        grid_tag_open = "[grey30]"
+        grid_tag_close = "[/grey30]"
+
         out_lines: list[str] = []
         for line_idx, line_cells in enumerate(cells_by_line):
-            out = []
-            for mask in line_cells:
-                out.append(chr(0x2800 + mask) if mask else " ")
-            body = ("".join(out).rstrip() or "—")
+            out: list[str] = []
+            for i, mask in enumerate(line_cells):
+                if mask:
+                    out.append(chr(0x2800 + mask))
+                    continue
+                is_grid_col = grid_every > 0 and (i % grid_every == 0)
+                is_right_edge = i == (len(line_cells) - 1)
+                if is_grid_col or is_right_edge:
+                    out.append(f"{grid_tag_open}{grid_dot}{grid_tag_close}")
+                else:
+                    out.append(" ")
+
+            body = "".join(out) or "—"
             if show_labels and label_w > 0:
                 # Label each row band similar to GUI y-axis ticks.
                 if lines_n <= 1:
