@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.3
+Version: 1.0.4
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,12 +41,10 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
-# Optional: set in frozen/CI builds when .git is unavailable (short hash is enough).
-_ENV_GIT_COMMIT = "VSQM_GIT_COMMIT"
 
 # Window icon: embedded GIF so ``monitor.py`` ships as one file. Repo copy: ``assets/app_icon.gif`` (same bytes).
 _APP_ICON_GIF_B64 = (
@@ -339,28 +337,6 @@ def format_position_display(pos: int) -> str:
     if pos == 1:
         return "1 \U0001f389"
     return str(pos)
-
-
-def resolve_git_commit_short() -> str:
-    """Short git SHA for About: ``VSQM_GIT_COMMIT`` env, else ``git rev-parse`` next to ``monitor.py``."""
-    raw = (os.environ.get(_ENV_GIT_COMMIT) or "").strip()
-    if raw:
-        return raw.split()[0][:40]
-    try:
-        root = Path(__file__).resolve().parent
-        r = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=3,
-            check=False,
-        )
-        if r.returncode == 0 and r.stdout:
-            return r.stdout.strip()[:40]
-    except (OSError, subprocess.SubprocessError, ValueError):
-        pass
-    return "unknown"
 
 
 def _windows_media_dir() -> Path:
@@ -1166,7 +1142,7 @@ class QueueMonitorApp(tk.Tk):
         return self
 
     def show_about(self) -> None:
-        """Modal About: app name, version, git commit, GitHub link, window-icon blurb."""
+        """Modal About: name, short description, version, project link, disclaimer."""
         if self._about_win is not None:
             try:
                 if self._about_win.winfo_exists():
@@ -1223,36 +1199,22 @@ class QueueMonitorApp(tk.Tk):
             anchor="w",
         ).pack(anchor="w", pady=(2, 0))
 
-        commit = resolve_git_commit_short()
         tk.Label(
             outer,
-            text=f"Version {VERSION}   ·   Build {commit}",
+            text=f"Version {VERSION}",
             bg=UI_BG_CARD,
             fg=UI_TEXT_MUTED,
-            font=("Consolas", 10) if sys.platform.startswith("win") else ("TkFixedFont", 10),
+            font=("Segoe UI", 10) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
             anchor="w",
             justify="left",
         ).pack(anchor="w", pady=(14, 0))
 
-        tk.Label(
-            outer,
-            text=(
-                "Window icon is embedded in this app (GIF; no external files). "
-                "The repo keeps a matching copy under assets/app_icon.gif."
-            ),
-            bg=UI_BG_CARD,
-            fg=UI_TEXT_MUTED,
-            wraplength=400,
-            justify="left",
-            anchor="w",
-        ).pack(anchor="w", pady=(10, 0))
-
         link_wrap = tk.Frame(outer, bg=UI_BG_CARD)
         link_wrap.pack(anchor="w", pady=(12, 0))
-        tk.Label(link_wrap, text="Source: ", bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY, anchor="w").pack(side="left")
+        tk.Label(link_wrap, text="Website: ", bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY, anchor="w").pack(side="left")
         link_lbl = tk.Label(
             link_wrap,
-            text=GITHUB_REPO_URL.replace("https://", ""),
+            text="GitHub project page",
             bg=UI_BG_CARD,
             fg=UI_LINK,
             cursor="hand2",
@@ -2089,7 +2051,7 @@ class QueueMonitorApp(tk.Tk):
         self._bind_static_tooltip(_btn_reset, "Reset all settings here to defaults.")
         _btn_about = ttk.Button(bottom, text="About…", command=self.show_about)
         _btn_about.pack(side="left", padx=(10, 0))
-        self._bind_static_tooltip(_btn_about, "Version and source link.")
+        self._bind_static_tooltip(_btn_about, "Version and project website.")
 
         def close_settings() -> None:
             try:
