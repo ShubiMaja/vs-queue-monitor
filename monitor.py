@@ -2402,6 +2402,7 @@ class QueueMonitorApp(tk.Tk):
             sf.rowconfigure(2, weight=0)
             try:
                 self.update_idletasks()
+                panes.paneconfigure(sf, height="")
                 panes.paneconfigure(sf, minsize=self._collapsed_status_pane_minsize(), stretch="never")
             except Exception:
                 pass
@@ -2445,8 +2446,11 @@ class QueueMonitorApp(tk.Tk):
             sf = self.status_frame
             sf.update_idletasks()
             need = self._collapsed_status_pane_minsize()
+            # Do not set a numeric height here — that locks the pane. Clear any expanded height lock
+            # and use minsize + stretch=never so the row tracks font/DPI (see update_status_visibility).
             try:
-                pw.paneconfigure(sf, height=need)
+                pw.paneconfigure(sf, height="")
+                pw.paneconfigure(sf, minsize=need, stretch="never")
             except (tk.TclError, ValueError):
                 pass
             ph = max(1, pw.winfo_height())
@@ -2500,6 +2504,7 @@ class QueueMonitorApp(tk.Tk):
             history.rowconfigure(2, weight=0)
             try:
                 self.update_idletasks()
+                panes.paneconfigure(history, height="")
                 panes.paneconfigure(history, minsize=self._collapsed_history_pane_minsize(), stretch="never")
             except Exception:
                 pass
@@ -2534,7 +2539,8 @@ class QueueMonitorApp(tk.Tk):
             need = self._collapsed_history_pane_minsize()
 
             try:
-                pw.paneconfigure(hf, height=need)
+                pw.paneconfigure(hf, height="")
+                pw.paneconfigure(hf, minsize=need, stretch="never")
             except (tk.TclError, ValueError):
                 pass
 
