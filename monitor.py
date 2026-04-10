@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.20
+Version: 1.0.21
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.20"
+VERSION = "1.0.21"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -144,6 +144,22 @@ QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
 )
 DEFAULT_PATH = "$APPDATA/VintagestoryData"
 TAIL_BYTES = 128 * 1024
+
+
+def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
+    """Path shown in Logs folder: always a directory string. Saved or CLI paths to a file become its parent."""
+    raw = (cli_path or "").strip()
+    if not raw:
+        raw = (config_source_path or "").strip()
+    if not raw:
+        raw = DEFAULT_PATH
+    try:
+        p = expand_path(raw)
+        if p.is_file():
+            return str(p.parent)
+    except Exception:
+        pass
+    return raw
 POPUP_TIMEOUT_MS = 12_000
 POPUP_COMPLETION_TIMEOUT_MS = 14_000
 # Threshold vs completion popups: large glyph + title (color emoji when the OS font supports it).
@@ -978,9 +994,12 @@ class QueueMonitorApp(tk.Tk):
         self._apply_window_icon()
 
         self.config: dict = load_config()
-        self.source_path_var = tk.StringVar(
-            value=initial_path or self.config.get("source_path", "") or DEFAULT_PATH,
-        )
+        _cfg_src = self.config.get("source_path", "")
+        _cfg_src = _cfg_src.strip() if isinstance(_cfg_src, str) else ""
+        _initial_logs = initial_logs_folder_path(initial_path, _cfg_src)
+        self.source_path_var = tk.StringVar(value=_initial_logs)
+        if _initial_logs != _cfg_src:
+            self.after_idle(self.persist_config)
         self.resolved_path_var = tk.StringVar(value="")
         self.status_var = tk.StringVar(value="Idle")
         self.position_var = tk.StringVar(value="—")
@@ -3511,11 +3530,17 @@ class QueueMonitorApp(tk.Tk):
         """Hover help for the main window (uses the same delayed toplevel as _bind_static_tooltip)."""
         bt = self._bind_static_tooltip
         bt(self.start_stop_button, "Start or stop monitoring.")
-        bt(self._lbl_log_path, "Folder that contains the client log (app picks client-main.log, etc.).")
-        bt(self._path_entry, "Path to VintagestoryData, Logs, or another folder that contains the client .log.")
+        bt(
+            self._lbl_log_path,
+            "Folder to search (not a .log file). The app opens client-main.log when present, then other client log names.",
+        )
+        bt(
+            self._path_entry,
+            "VintagestoryData or Logs folder path. Resolution prefers client-main.log under common layouts.",
+        )
         bt(
             self._btn_browse_logs,
-            "Choose the folder; the app finds the correct log file name inside — do not pick a .log file.",
+            "Pick a folder only. The app resolves client-main.log (or another matching client log) inside.",
         )
         bt(self._settings_btn, "Settings")
         bt(self._loading_spinner, "Loading…")

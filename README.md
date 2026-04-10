@@ -153,7 +153,7 @@ python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData"
 python3 monitor.py --path "$HOME/.config/VintagestoryData"
 ```
 
-Exact Vintage Story data locations depend on your install; use **Browse…** on **Logs folder** in the app if unsure. A saved path that still points at a **file** from older versions is treated as that file’s **parent folder** when resolving.
+Exact Vintage Story data locations depend on your install; use **Browse…** on **Logs folder** in the app if unsure. The default is a **folder** path (`%APPDATA%/VintagestoryData` on Windows), not a `.log` file. If an older saved setting still pointed at a **file**, the app rewrites it to that file’s **parent folder** in the field (and config) on startup. Resolution **prefers `client-main.log`** when present, then other matching names.
 
 ## Log file
 
