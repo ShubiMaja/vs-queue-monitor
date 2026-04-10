@@ -175,6 +175,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("space", "toggle_monitor", "Play/Stop"),
             Binding("o", "open_settings", "Settings"),
             Binding("r", "refresh_view", "Refresh"),
+            Binding("h", "toggle_history", "History"),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -182,6 +183,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._initial_path = initial_path
             self._auto_start = auto_start
             self._engine: Optional[QueueMonitorEngine] = None
+            self._history_collapsed: bool = False
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
@@ -211,6 +213,23 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self.set_interval(0.2, self._refresh_metrics)
             if self._auto_start:
                 self.call_later(eng.start_monitoring)
+            self._apply_history_collapsed()
+
+        def _apply_history_collapsed(self) -> None:
+            # When collapsed, hide the log panel so the graph expands into that space.
+            try:
+                log = self.query_one("#log", RichLog)
+                log.display = not self._history_collapsed
+            except Exception:
+                pass
+
+        def action_toggle_history(self) -> None:
+            self._history_collapsed = not self._history_collapsed
+            self._apply_history_collapsed()
+            try:
+                self._refresh_metrics()
+            except Exception:
+                pass
 
         def on_resize(self) -> None:
             # Force an immediate redraw on terminal resize (GUI-like behavior).
