@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import sys
-from bisect import bisect_right
 from datetime import datetime
 from typing import Optional
 
@@ -12,14 +11,96 @@ from . import APP_DISPLAY_NAME, VERSION
 from .core import (
     DEFAULT_PATH,
     GRAPH_LOG_GAMMA,
+    UI_ACCENT_ELAPSED,
+    UI_ACCENT_POSITION,
+    UI_ACCENT_PROGRESS,
+    UI_ACCENT_RATE,
+    UI_ACCENT_REMAINING,
+    UI_ACCENT_STATUS,
+    UI_ACCENT_WARNINGS,
     UI_GRAPH_AXIS,
     UI_GRAPH_GRID,
     UI_GRAPH_LINE,
     UI_GRAPH_TEXT,
+    UI_SUMMARY_VALUE,
+    UI_TEXT_MUTED,
+    parse_alert_thresholds,
     save_config,
 )
 from .engine import QueueMonitorEngine
 from .hooks import HeadlessMonitorHooks
+
+
+def _gui_graph_y_tick_values(vmin: int, vmax: int) -> list[int]:
+    """Same tick set as ``gui.redraw_graph`` (reverse-sorted)."""
+    tick_step = 5
+    tick_vals: list[int] = []
+    start = vmin // tick_step * tick_step
+    end = (vmax + tick_step - 1) // tick_step * tick_step
+    for val in range(start, end + 1, tick_step):
+        if vmin <= val <= vmax:
+            if val == 0 and vmin > 0:
+                continue
+            tick_vals.append(val)
+    if vmin <= 5 <= vmax:
+        tick_vals.extend([1, 2, 3, 4, 5])
+    tick_vals.extend([vmin, vmax])
+    return sorted(set(tick_vals), reverse=True)
+
+
+def _gui_graph_time_ticks(t0: float, t1: float, plot_cols: int) -> tuple[list[float], str]:
+    """Major x tick times + label format; dedup matches ``gui.redraw_graph`` pixel rule (≈2 columns)."""
+    span = t1 - t0
+    if span <= 0:
+        span = 1.0
+    candidates = [5, 10, 15, 30, 60, 5 * 60, 10 * 60, 15 * 60, 30 * 60, 60 * 60, 2 * 60 * 60, 6 * 60 * 60]
+    target_ticks = 6
+    interval = candidates[-1]
+    for c in candidates:
+        if span / c <= target_ticks:
+            interval = c
+            break
+    fmt = "%H:%M:%S" if interval < 60 * 60 else "%H:%M"
+    first_tick = math.ceil(t0 / interval) * interval
+    last_tick = math.floor(t1 / interval) * interval
+    tick_times: list[float] = []
+    t = first_tick
+    while t <= last_tick + 1e-06:
+        tick_times.append(t)
+        t += interval
+    if not tick_times or tick_times[0] - t0 > interval * 0.4:
+        tick_times.insert(0, t0)
+    if tick_times[-1] < t1 - interval * 0.4:
+        tick_times.append(t1)
+    plot_w = float(max(1, plot_cols))
+    _dedup: list[float] = []
+    for tv in sorted(tick_times):
+        xv = (tv - t0) / span * plot_w
+        if not _dedup or abs(xv - (_dedup[-1] - t0) / span * plot_w) > 2.0:
+            _dedup.append(tv)
+    return _dedup, fmt
+
+
+def _tui_warnings_kpi_markup(engine: QueueMonitorEngine) -> str:
+    """Threshold list with muted “passed” styling (mirrors ``_refresh_warnings_kpi``)."""
+    try:
+        thresholds = parse_alert_thresholds(engine.alert_thresholds_var.get())
+    except ValueError:
+        return f"[{UI_TEXT_MUTED}]—[/]"
+    if not thresholds:
+        return f"[{UI_TEXT_MUTED}]—[/]"
+    pos = engine.last_position
+    if pos is None and engine.current_point is not None:
+        pos = engine.current_point[1]
+    fired = engine._alert_thresholds_fired
+    parts: list[str] = []
+    for i, t in enumerate(thresholds):
+        if i > 0:
+            parts.append(f"[{UI_TEXT_MUTED}] · [/]")
+        passed = pos is not None and pos <= t or t in fired
+        col = UI_TEXT_MUTED if passed else UI_SUMMARY_VALUE
+        parts.append(f"[{col}]{t}[/]")
+    return "".join(parts)
 
 
 def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
@@ -43,8 +124,6 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         height_lines: int = 3,
         log_scale: bool = True,
         show_labels: bool = True,
-        grid_every_chars: int = 10,
-        hgrid_every_lines: int = 2,
         line_color: str = UI_GRAPH_LINE,
         grid_color: str = UI_GRAPH_GRID,
         label_color: str = UI_GRAPH_TEXT,
@@ -113,6 +192,28 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             gui_frac = gui_frac**GRAPH_LOG_GAMMA
             return 1.0 - gui_frac
 
+        # GUI-aligned grid: horizontal lines only at *interior* Y ticks (often none for narrow ranges).
+        tick_vals = _gui_graph_y_tick_values(lo, hi)
+        h_grid_lines: set[int] = set()
+        for idx, val in enumerate(tick_vals):
+            if 0 < idx < len(tick_vals) - 1:
+                vv = max(lo, min(hi, int(val)))
+                lv = int(round(frac_for(vv) * float(y_levels - 1)))
+                y_from_top = (y_levels - 1) - lv
+                line_idx_g = y_from_top // 4
+                h_grid_lines.add(max(0, min(lines_n - 1, line_idx_g)))
+
+        span_t = float(t1 - t0)
+        if span_t <= 0:
+            span_t = 1.0
+        tick_times, fmt = _gui_graph_time_ticks(t0, t1, cols)
+        v_grid_cols: set[int] = set()
+        for idx, tv in enumerate(tick_times):
+            if 0 < idx < len(tick_times) - 1:
+                xf = (tv - t0) / span_t
+                ci = int(min(cols - 1, max(0, round(xf * float(max(1, cols - 1))))))
+                v_grid_cols.add(ci)
+
         # Build braille cells.
         # Braille dot mapping for 2×4:
         # left column:  1,2,3,7  (top→bottom)
@@ -178,16 +279,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             # Ensure end-of-bin is visible (may be inside range; harmless).
             set_level(le)
 
-        # Add subtle grid lines (both vertical and horizontal) into empty cells.
-        grid_every = max(0, int(grid_every_chars))
-        h_every = max(0, int(hgrid_every_lines))
-        # Use a single-dot braille mask for grid.
-        # Pick a dot that looks like a small point (left column, second dot).
+        # Grid: interior horizontal (see ``h_grid_lines``) + interior vertical major ticks (``v_grid_cols``).
         GRID_DOT_MASK = 0x02
         for line_idx in range(lines_n):
-            want_h = h_every > 0 and (line_idx % h_every == 0)
+            want_h = line_idx in h_grid_lines
             for i in range(cols):
-                want_v = grid_every > 0 and (i % grid_every == 0 or i == cols - 1)
+                want_v = i in v_grid_cols
                 if want_h or want_v:
                     grid_by_line[line_idx][i] |= GRID_DOT_MASK
 
@@ -227,31 +324,29 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         if show_labels:
             try:
-                span = float(t1 - t0)
-                fmt = "%H:%M:%S" if span < 60 * 60 else "%H:%M"
-                left = datetime.fromtimestamp(t0).strftime(fmt)
-                mid = datetime.fromtimestamp((t0 + t1) / 2.0).strftime(fmt)
-                right = datetime.fromtimestamp(t1).strftime(fmt)
                 total_w = (label_w + cols) if label_w > 0 else cols
                 if total_w < 20:
                     total_w = 20
-                # Tick marks line.
                 tick_line = [" "] * total_w
-                for frac in (0.0, 0.5, 1.0):
-                    x = int(round(frac * float(total_w - 1)))
-                    tick_line[x] = "|"
+                for tv in tick_times:
+                    xpos = int(round((tv - t0) / span_t * float(total_w - 1)))
+                    xpos = max(0, min(total_w - 1, xpos))
+                    tick_line[xpos] = "|"
                 out_lines.append(f"[{UI_GRAPH_AXIS}]" + "".join(tick_line).rstrip() + f"[/{UI_GRAPH_AXIS}]")
 
-                # Label line (left / mid / right).
+                min_label_dx = float(max(8, min(20, max(1, cols) // 5)))
+                last_x_f: Optional[float] = None
                 label_line = [" "] * total_w
-                def _place(txt: str, pos: int) -> None:
-                    start = max(0, min(total_w - len(txt), pos))
-                    for i, ch in enumerate(txt):
-                        if 0 <= start + i < total_w:
-                            label_line[start + i] = ch
-                _place(left, 0)
-                _place(mid, total_w // 2 - len(mid) // 2)
-                _place(right, total_w - len(right))
+                for t in tick_times:
+                    x_f = (t - t0) / span_t * float(total_w - 1)
+                    if last_x_f is None or abs(x_f - last_x_f) >= min_label_dx:
+                        txt = datetime.fromtimestamp(t).strftime(fmt)
+                        start = int(round(x_f)) - len(txt) // 2
+                        start = max(0, min(total_w - len(txt), start))
+                        for i, ch in enumerate(txt):
+                            if 0 <= start + i < total_w:
+                                label_line[start + i] = ch
+                        last_x_f = x_f
                 out_lines.append(f"{label_tag_open}" + "".join(label_line).rstrip() + f"{label_tag_close}")
             except Exception:
                 pass
@@ -264,6 +359,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         CSS = """
     Screen { align: left top; }
     #metrics { height: auto; min-height: 7; width: 100%; }
+    #info { height: auto; min-height: 5; width: 100%; }
     #graph_panel { height: 1fr; width: 100%; border: solid $primary; }
     #graph_title { height: auto; padding: 0 1; color: $text-muted; }
     #graph { height: 1fr; width: 100%; padding: 0 1; }
@@ -281,6 +377,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("g", "toggle_graph", "Graph"),
             Binding("m", "toggle_metrics", "Metrics"),
             Binding("p", "toggle_path", "Path"),
+            Binding("i", "toggle_info", "Info"),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -292,6 +389,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._graph_hidden: bool = False
             self._metrics_hidden: bool = False
             self._path_hidden: bool = False
+            self._info_collapsed: bool = False
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
@@ -299,6 +397,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             with Vertical(id="graph_panel"):
                 yield Static("Queue graph", id="graph_title")
                 yield Static("", id="graph")
+            yield Static("", id="info")
             yield RichLog(id="log", highlight=True, markup=True)
             with Horizontal(id="pathrow"):
                 yield Static("Logs folder: ", id="path_lbl")
@@ -323,11 +422,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
               padding: 1 2;
               background: $panel;
             }
-            _SettingsScreen > #dlg_title {
-              width: 90%;
-              max-width: 100;
-              padding: 0 2;
-              color: $text-muted;
+            _SettingsScreen > #dlg Label {
+              margin-top: 1;
             }
             """
 
@@ -336,30 +432,105 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 self._engine = engine
 
             def compose(self) -> ComposeResult:
+                from textual.containers import Horizontal, Vertical
+                from textual.widgets import Checkbox, Label
+
                 from .core import get_config_path
 
+                e = self._engine
                 cfg_path = str(get_config_path())
-                snap = self._engine.get_config_snapshot()
-                lines = [
-                    "Settings (TUI)",
-                    "",
-                    "This terminal UI doesn't have the full GUI settings window yet.",
-                    "You can still edit the config file directly or run the GUI.",
-                    "",
-                    f"Config file: {cfg_path}",
-                    "",
-                    "Quick actions:",
-                    f"- Logs folder: {snap.get('source_path', '')}",
-                    f"- Thresholds: {snap.get('alert_thresholds', '')}",
-                    f"- Poll sec: {snap.get('poll_sec', '')}",
-                    "",
-                    "Keys: h/l = History, g = Graph, m = Metrics, p = Path row, q = Quit",
-                ]
-                yield Static("\n".join(lines), id="dlg")
-                yield Button("Close", id="close", variant="primary")
+                yield Static(
+                    f"Settings (TUI)\n\nConfig file: {cfg_path}\n\n"
+                    "Edit below and Save, or change the file / use the GUI.",
+                    id="dlg_intro",
+                )
+                yield Vertical(
+                    Label("Poll interval (seconds)"),
+                    Input(value=e.poll_sec_var.get(), id="poll_sec"),
+                    Label("Alert thresholds (comma-separated)"),
+                    Input(value=e.alert_thresholds_var.get(), id="alert_thresholds"),
+                    Label("Rolling window (points)"),
+                    Input(value=e.avg_window_var.get(), id="avg_window"),
+                    Checkbox(
+                        "Graph Y log scale",
+                        value=bool(e.graph_log_scale_var.get()),
+                        id="graph_log_scale",
+                    ),
+                    Checkbox(
+                        "Log every position change in History",
+                        value=bool(e.show_every_change_var.get()),
+                        id="show_every_change",
+                    ),
+                    Checkbox(
+                        "Warning threshold alerts (notify)",
+                        value=bool(e.popup_enabled_var.get()),
+                        id="popup_enabled",
+                    ),
+                    Checkbox(
+                        "Warning sound",
+                        value=bool(e.sound_enabled_var.get()),
+                        id="sound_enabled",
+                    ),
+                    Checkbox(
+                        "Completion notify",
+                        value=bool(e.completion_popup_enabled_var.get()),
+                        id="completion_popup_enabled",
+                    ),
+                    Checkbox(
+                        "Completion sound",
+                        value=bool(e.completion_sound_enabled_var.get()),
+                        id="completion_sound_enabled",
+                    ),
+                    Horizontal(
+                        Button("Save", id="save", variant="primary"),
+                        Button("Close", id="close", variant="default"),
+                    ),
+                    id="dlg",
+                )
+
+            def _save(self) -> None:
+                e = self._engine
+                try:
+                    from textual.widgets import Checkbox
+
+                    e.poll_sec_var.set(self.query_one("#poll_sec", Input).value.strip())
+                    raw_thr = self.query_one("#alert_thresholds", Input).value.strip()
+                    parse_alert_thresholds(raw_thr)
+                    e.alert_thresholds_var.set(raw_thr)
+                    e.avg_window_var.set(self.query_one("#avg_window", Input).value.strip())
+                    e.graph_log_scale_var.set(bool(self.query_one("#graph_log_scale", Checkbox).value))
+                    e.show_every_change_var.set(bool(self.query_one("#show_every_change", Checkbox).value))
+                    e.popup_enabled_var.set(bool(self.query_one("#popup_enabled", Checkbox).value))
+                    e.sound_enabled_var.set(bool(self.query_one("#sound_enabled", Checkbox).value))
+                    e.completion_popup_enabled_var.set(
+                        bool(self.query_one("#completion_popup_enabled", Checkbox).value),
+                    )
+                    e.completion_sound_enabled_var.set(
+                        bool(self.query_one("#completion_sound_enabled", Checkbox).value),
+                    )
+                    save_config(e.get_config_snapshot())
+                except ValueError as exc:
+                    try:
+                        self.app.notify(f"Invalid threshold list: {exc}", severity="error")
+                    except Exception:
+                        pass
+                    return
+                try:
+                    self.app.notify("Settings saved", severity="information")
+                except Exception:
+                    pass
+                try:
+                    refresh = getattr(self.app, "_refresh_metrics", None)
+                    if callable(refresh):
+                        refresh()
+                except Exception:
+                    pass
 
             def on_button_pressed(self, event: Button.Pressed) -> None:
                 if event.button.id == "close":
+                    self.app.pop_screen()
+                elif event.button.id == "save":
+                    self._save()
                     self.app.pop_screen()
 
         def on_mount(self) -> None:
@@ -395,6 +566,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             except Exception:
                 pass
             try:
+                self.query_one("#info", Static).display = not self._info_collapsed
+            except Exception:
+                pass
+            try:
                 self.query_one("#pathrow", Horizontal).display = not self._path_hidden
             except Exception:
                 pass
@@ -417,6 +592,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         def action_toggle_path(self) -> None:
             self._path_hidden = not self._path_hidden
+            self._apply_panel_visibility()
+
+        def action_toggle_info(self) -> None:
+            self._info_collapsed = not self._info_collapsed
             self._apply_panel_visibility()
 
         def on_resize(self) -> None:
@@ -442,14 +621,29 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
+                warn = _tui_warnings_kpi_markup(eng)
+                st_low = st.lower()
+                st_style = "green" if "monitoring" in st_low else UI_SUMMARY_VALUE
                 metrics_text = (
                     f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
-                    f"Position: [cyan]{pos}[/]    Status: [green]{st}[/]\n"
-                    f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
-                    f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
-                    f"Log: {path}\n"
+                    f"[{UI_ACCENT_POSITION}]POSITION[/] [bold]{pos}[/]    "
+                    f"[{UI_ACCENT_STATUS}]STATUS[/] [{st_style}]{st}[/]    "
+                    f"[{UI_ACCENT_RATE}]{hdr}[/] [bold]{rate}[/]\n"
+                    f"[{UI_ACCENT_WARNINGS}]WARNINGS[/] {warn}\n"
+                    f"[{UI_ACCENT_ELAPSED}]ELAPSED[/] {elapsed}    "
+                    f"[{UI_ACCENT_REMAINING}]EST. REMAINING[/] {rem}    "
+                    f"[{UI_ACCENT_PROGRESS}]PROGRESS[/] {prog:.0f}%\n"
                 )
                 self.query_one("#metrics", Static).update(metrics_text)
+
+                info_text = (
+                    f"[dim]Info[/]\n"
+                    f"Last change: {eng.last_change_var.get()}\n"
+                    f"Last threshold alert: {eng.last_alert_var.get()}\n"
+                    f"Resolved log path: {path}\n"
+                    f"Global rate: {glo}"
+                )
+                self.query_one("#info", Static).update(info_text)
 
                 # Graph fills the middle section; resize-aware.
                 term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80

@@ -30,12 +30,13 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 | `monitor.py` | Thin entrypoint; same as `python -m vs_queue_monitor` |
 | `tools/` | `build_engine.py` regenerates `engine.py` from `_engine_raw.py`; `strip_gui.py` is an optional AST helper for refactors |
 | `_engine_raw.py` | Input for `tools/build_engine.py` — keep in sync if you use the generator |
+| `docs/GUI-TUI-PARITY.md` | Design reference: Tk GUI behavior vs Textual TUI target (layout, graph, alerts, settings) |
 
 **Cursor / VS Code:** In this workspace, `.vscode/launch.json` runs `monitor.py` with `--gui` and `VS_QUEUE_MONITOR_UI=gui`, and `.vscode/settings.json` sets the same for the **integrated terminal** so the GUI is the default when you use **Run and Debug** (pick **VS Queue Monitor: Run GUI**) or run `python monitor.py` in the editor terminal. On a headless machine where you want the TUI instead, use `python monitor.py --tui` or clear `VS_QUEUE_MONITOR_UI` in that shell.
 
 **Note:** `vs_queue_monitor/engine.py` is a package module and is not meant to be executed directly. Use `monitor.py` / `python -m vs_queue_monitor`.
 
-The terminal UI drives the **same** `QueueMonitorEngine` as the GUI (Textual + headless hooks). No Tk or `DISPLAY` is required for `--tui`, so it works over **SSH** when Textual can render in your terminal. The **o** shortcut logs a note that full settings are in the GUI or config file (no Tk window in headless mode).
+The terminal UI drives the **same** `QueueMonitorEngine` as the GUI (Textual + headless hooks). No Tk or `DISPLAY` is required for `--tui`, so it works over **SSH** when Textual can render in your terminal. The **o** shortcut opens a **Settings** modal (poll interval, thresholds, rolling window, graph/log scale, alert toggles, and completion toggles); values are saved to `config.json` like the GUI. See `docs/GUI-TUI-PARITY.md` for how the TUI maps to the desktop UI.
 
 ## Quick start
 
@@ -66,7 +67,7 @@ python3 monitor.py --gui
 
 **UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
 
-Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **h**/**l** toggles History/Logs (collapsed by default so the graph gets the space), **g** toggles Graph, **m** toggles Metrics, **p** toggles the Path row, **o** shows the settings hint in the log, **q** quits. Legacy: `python monitor-tui.py` is equivalent to `python monitor.py --tui` (and `main-tui.py` is kept only for backward compatibility).
+Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **h**/**l** toggles History/Logs (collapsed by default so the graph gets the space), **g** toggles Graph, **m** toggles Metrics, **p** toggles the Path row, **i** toggles the **Info** pane (last change, last alert, resolved path, global rate), **o** opens settings, **q** quits. Legacy: `python monitor-tui.py` is equivalent to `python monitor.py --tui` (and `main-tui.py` is kept only for backward compatibility).
 
 The **graphical** window needs [Python 3.10+ with Tkinter](#install-python-and-tkinter). The **terminal UI** only needs Python 3.10+ and Textual from `requirements.txt` (no Tk).
 
