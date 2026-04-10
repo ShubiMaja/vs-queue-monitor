@@ -187,7 +187,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Graph pane (top)
 
-- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (column title **`RATE (Rolling N)`** — **N** is the **Prediction window** in Settings; the value row is just minutes per position, e.g. `6.20 min/pos`), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
+- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (column title **`RATE (Rolling N)`** — **N** comes from **Settings → Estimation → Rolling window (points)**; the value row is just minutes per position, e.g. `6.20 min/pos`), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
 - **Chart:** step plot of queue position vs time (**0** = past queue wait); hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
@@ -196,7 +196,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 - Click the **Info** header bar or chevron to expand or collapse details.
 - When expanded, pane height fits **full content** (path, labels, wrapping text).
-- Shows **Last change**, **Last threshold alert**, **Resolved log path**, and **Global Rate** — average minutes per position over every forward queue step in the **full** graph (all segments), distinct from the KPI **Rate** line which uses the prediction window and dwell caps.
+- Shows **Last change**, **Last threshold alert**, **Resolved log path**, and **Global Rate** — average minutes per position over every forward queue step in the **full** graph (all segments), distinct from the KPI **Rate** line which uses the rolling window from **Estimation** and dwell caps.
 
 ### History pane (collapsible)
 
@@ -215,8 +215,8 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### ETA, rate, and progress
 
-- **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points). At **position 1** (at the front) it still shows an ETA by treating **one** remaining step to connecting; it is only an estimate — the log may repeat **1** for a long time.
-- **Minutes per position** for the rolling window appears in the **Rate** value row; the column header shows **`RATE (Rolling N)`** (**N** = **Prediction window** in Settings — same idea as a “last N” average). The full-graph average stays under **Info → Global Rate**. Dwell caps apply to the windowed KPI value. At **position 0** (queue finished), **Rate** and **Global Rate** stay fixed — derived from log timestamps only, not a clock that keeps running after you finish.
+- **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the **rolling window** (points under **Estimation**). At **position 1** (at the front) it still shows an ETA by treating **one** remaining step to connecting; it is only an estimate — the log may repeat **1** for a long time.
+- **Minutes per position** for the rolling window appears in the **Rate** value row; the column header shows **`RATE (Rolling N)`** (**N** = **Rolling window (points)** under **Estimation** in Settings — same idea as a “last N” average). The full-graph average stays under **Info → Global Rate**. Dwell caps apply to the windowed KPI value. At **position 0** (queue finished), **Rate** and **Global Rate** stay fixed — derived from log timestamps only, not a clock that keeps running after you finish.
 - **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; caps below **100%** while at **position 1** (at front) until the log shows past-queue-wait activity; **100%** once **position 0** is shown; empty when interrupted or ETA unknown.
 - **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.
 
@@ -241,7 +241,7 @@ The status string reflects tail-of-log classification, for example:
 - **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
 - **Completion Alerts** — **on/off only** when the log shows past-queue-wait lines (no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
 - **History** — **Log every position change**: when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are). Show or hide the panel from the main window **History** bar (still saved in config).
-- **Prediction** — **Window (points)**: rolling window size for weighted rate / ETA.
+- **Estimation** — **Rolling window (points)**: how many recent queue steps to use for rolling rate and ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
 
@@ -279,7 +279,7 @@ Typical keys:
 | `source_path` | Logs folder path string |
 | `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5, 1`); not used for completion |
 | `poll_sec` | Poll interval in seconds |
-| `avg_window_points` | Prediction window size (points) |
+| `avg_window_points` | Rolling window size in points (Estimation) |
 | `show_log` | History pane expanded (content visible); toggled from the main window, not Settings |
 | `show_status` | Info pane expanded (content visible); key name unchanged for compatibility |
 | `graph_log_scale` | Graph Y axis: log vs linear |

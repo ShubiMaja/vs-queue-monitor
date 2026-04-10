@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.33
+Version: 1.0.34
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.33"
+VERSION = "1.0.34"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1190,7 +1190,7 @@ class QueueMonitorApp(tk.Tk):
         self._fit_history_collapsed_job: Optional[str] = None
         self._pane_drag_threshold_job: Optional[str] = None
         # When the queue stalls longer than the median rate suggests, reduce this
-        # (prediction was optimistic; effective speed for ETA and display).
+        # (estimate was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
         self._stale_slots_accounted: int = 0
         self._starting: bool = False
@@ -2110,7 +2110,7 @@ class QueueMonitorApp(tk.Tk):
             pass
 
     def open_settings(self) -> None:
-        """Polling, Warning Alerts, Completion Alerts, History, prediction — gear entry."""
+        """Polling, Warning Alerts, Completion Alerts, History, estimation — gear entry."""
         if self._settings_win is not None:
             try:
                 if self._settings_win.winfo_exists():
@@ -2238,14 +2238,16 @@ class QueueMonitorApp(tk.Tk):
             "(alerts, completion, errors, and monitoring start still log).",
         )
 
-        display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
+        display_fr = ttk.LabelFrame(outer, text="Estimation", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
 
-        _win_lbl = ttk.Label(display_fr, text="Window (points)")
+        _win_lbl = ttk.Label(display_fr, text="Rolling window (points)")
         _win_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
         _win_entry = self._make_dark_entry(display_fr, width=8, textvariable=self.avg_window_var)
         _win_entry.grid(row=0, column=1, sticky="w")
-        _avg_tip = "More points: smoother time estimates (uses recent queue history)."
+        _avg_tip = (
+            "How many recent queue steps to use for rolling rate and ETA (larger = smoother, less reactive)."
+        )
         self._bind_static_tooltip(_win_lbl, _avg_tip)
         self._bind_static_tooltip(_win_entry, _avg_tip)
 
@@ -3699,8 +3701,8 @@ class QueueMonitorApp(tk.Tk):
             return f"{mpp:.2f} min/pos"
         return "—"
 
-    def _prediction_window_points_int(self) -> int:
-        """Rolling window size from Settings (same cap as speed helpers)."""
+    def _rolling_window_points_int(self) -> int:
+        """Rolling window size from Estimation → Rolling window in Settings (same cap as speed helpers)."""
         try:
             n = int(float(self.avg_window_var.get()))
         except Exception:
@@ -3708,12 +3710,12 @@ class QueueMonitorApp(tk.Tk):
         return max(2, min(10_000, n))
 
     def _refresh_kpi_rate_header(self) -> None:
-        """Header shows ``RATE (Rolling N)``; N is the prediction window from Settings."""
+        """Header shows ``RATE (Rolling N)``; N is Estimation → Rolling window in Settings."""
         lbl = getattr(self, "_lbl_kpi_rate", None)
         if lbl is None:
             return
         try:
-            n = self._prediction_window_points_int()
+            n = self._rolling_window_points_int()
             lbl.configure(text=f"RATE (Rolling {n})")
         except Exception:
             lbl.configure(text="RATE")
@@ -3852,8 +3854,8 @@ class QueueMonitorApp(tk.Tk):
         bt(self._status_value_label, "What the app is doing.")
         bt(
             self._lbl_kpi_rate,
-            "Rolling N = last N queue steps used for this rate (N = Prediction window in Settings). "
-            "Same idea as a “last N” or rolling average.",
+            "Rolling N = last N queue steps used for this rate "
+            "(N = Rolling window under Estimation in Settings). Same idea as a “last N” or rolling average.",
         )
         bt(
             self._queue_rate_value_label,
@@ -3883,7 +3885,10 @@ class QueueMonitorApp(tk.Tk):
             self._lbl_det_global_rate,
             "Average minutes per position over every queue advance in the graph (full session).",
         )
-        bt(self._lbl_det_global_rate_val, "Mean over all downward steps in the graph; KPI Rate uses the prediction window.")
+        bt(
+            self._lbl_det_global_rate_val,
+            "Mean over all downward steps in the graph; KPI Rate uses the rolling window (Estimation in Settings).",
+        )
         bt(self._lbl_det_last_change_val, "When your position last changed.")
         bt(self._lbl_det_alert_val, "Last threshold alert.")
         bt(self._lbl_det_path_val, "Log file in use.")
@@ -4049,7 +4054,7 @@ class QueueMonitorApp(tk.Tk):
         return speed, n_seg, trail
 
     def _window_recent_points(self) -> list[tuple[float, int]]:
-        """Last N graph points per prediction window setting (same slice as speed helpers)."""
+        """Last N graph points per rolling window setting (same slice as speed helpers)."""
         points = list(self.graph_points)
         if len(points) < 2:
             return []
@@ -4061,7 +4066,7 @@ class QueueMonitorApp(tk.Tk):
         return points[-(window_points + 1) :]
 
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
-        """Net positions per second over the prediction window.
+        """Net positions per second over the rolling window.
 
         While monitoring **and still in queue** (position not 0), time uses wall clock from the
         window's first point to *now*, so dwell at the current queue position (including
