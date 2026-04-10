@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.16
+Version: 1.0.17
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.16"
+VERSION = "1.0.17"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -2679,7 +2679,7 @@ class QueueMonitorApp(tk.Tk):
             self._position_emoji_label.configure(text=("\U0001f389" if pos == 1 else ""))
 
     def _refresh_warnings_kpi(self) -> None:
-        """Configured CSV thresholds; each value mutes after it fires until the next queue run."""
+        """Configured CSV thresholds; mute each value once position ≤ that threshold (or alert already fired)."""
         fr = getattr(self, "_warnings_kpi_frame", None)
         if fr is None:
             return
@@ -2712,6 +2712,9 @@ class QueueMonitorApp(tk.Tk):
                 anchor="w",
             ).pack(side="left")
             return
+        pos: Optional[int] = self.last_position
+        if pos is None and self.current_point is not None:
+            pos = self.current_point[1]
         fired = self._alert_thresholds_fired
         for i, t in enumerate(thresholds):
             if i > 0:
@@ -2723,7 +2726,10 @@ class QueueMonitorApp(tk.Tk):
                     font=KPI_VALUE_FONT,
                     anchor="w",
                 ).pack(side="left", padx=(3, 3))
-            fg = UI_TEXT_MUTED if t in fired else UI_SUMMARY_VALUE
+            # Mute when we've already crossed in a poll, or current position is at/below the threshold
+            # (covers joining mid-run without a recorded crossing, e.g. already at 6 vs threshold 10).
+            passed = (pos is not None and pos <= t) or (t in fired)
+            fg = UI_TEXT_MUTED if passed else UI_SUMMARY_VALUE
             tk.Label(
                 fr,
                 text=str(t),
@@ -3513,10 +3519,13 @@ class QueueMonitorApp(tk.Tk):
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
         bt(self._queue_rate_value_label, "Rough minutes to move one spot in line.")
-        bt(self._lbl_kpi_warnings, "Warning thresholds from Settings; muted = already alerted this queue run.")
+        bt(
+            self._lbl_kpi_warnings,
+            "Warning thresholds from Settings; muted when your position is at or below that number (or already alerted).",
+        )
         bt(
             self._warnings_kpi_frame,
-            "Values from Settings. Muted after each threshold has fired once until the next queue run.",
+            "Same: a value grays out once your queue position is ≤ that threshold, or after that alert fired.",
         )
         bt(self._elapsed_value_label, "Time in queue this run.")
         bt(self._remaining_value_label, "Estimated wait left (hidden at the front).")
