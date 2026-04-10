@@ -26,19 +26,22 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         )
         return 1
 
-    def _queue_braille_line(
+    def _queue_braille_graph(
         points: list[tuple[float, int]],
         *,
         width: int = 80,
+        height_lines: int = 3,
         log_scale: bool = True,
     ) -> str:
-        """Single-line graph using Unicode braille (2×4 dots per cell)."""
+        """Multi-line graph using stacked Unicode braille (2×4 dots per cell per line)."""
         if len(points) < 1:
             return "—"
 
         # Braille cells are 2 columns wide. We'll plot one dot per column.
         cols = max(10, int(width))
         x_cols = cols * 2
+        lines_n = max(1, int(height_lines))
+        y_levels = lines_n * 4
 
         # Time-based resampling (matches GUI x-axis semantics).
         # points are (epoch_seconds, position) in chronological order.
@@ -56,7 +59,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         lo, hi = min(vals), max(vals)
         if lo == hi:
             # Flat line: show a baseline of low dots across.
-            return "⠤" * cols
+            return "\n".join(["⠤" * cols for _ in range(lines_n)])
 
         def frac_for(v: int) -> float:
             """Return a 0..1 value where 1 maps to the *top* (worst/highest queue position).
@@ -90,7 +93,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         # left column:  1,2,3,7  (top→bottom)
         # right column: 4,5,6,8  (top→bottom)
         DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))
-        cells = [0 for _ in range(cols)]
+        cells_by_line: list[list[int]] = [[0 for _ in range(cols)] for _ in range(lines_n)]
 
         # Per-column time bins. To avoid “missing” rapid step changes when the terminal is narrow,
         # we draw a small envelope in each bin: min/max + end-of-bin value.
@@ -125,8 +128,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
             # Map values to 4 levels and set dots for the range + end marker.
             def level_for(v: int) -> int:
-                lv = int(round(frac_for(v) * 3.0))
-                return max(0, min(3, lv))
+                lv = int(round(frac_for(v) * float(y_levels - 1)))
+                return max(0, min(y_levels - 1, lv))
 
             l0 = level_for(v_min)
             l1 = level_for(v_max)
@@ -135,17 +138,27 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
             cell_idx = x // 2
             col_idx = x % 2
-            for lv in range(lo_lv, hi_lv + 1):
-                row = 3 - lv
-                cells[cell_idx] |= DOTS[col_idx][row]
-            # Ensure end-of-bin is visible (may be inside range; harmless).
-            row_e = 3 - le
-            cells[cell_idx] |= DOTS[col_idx][row_e]
 
-        out = []
-        for mask in cells:
-            out.append(chr(0x2800 + mask) if mask else " ")
-        return "".join(out).rstrip() or "—"
+            def set_level(lv: int) -> None:
+                # lv: 0..y_levels-1 where 0 is bottom, y_levels-1 is top
+                y_from_top = (y_levels - 1) - lv
+                line_idx = y_from_top // 4
+                row_in_cell = y_from_top % 4  # 0 top .. 3 bottom
+                if 0 <= line_idx < lines_n:
+                    cells_by_line[line_idx][cell_idx] |= DOTS[col_idx][row_in_cell]
+
+            for lv in range(lo_lv, hi_lv + 1):
+                set_level(lv)
+            # Ensure end-of-bin is visible (may be inside range; harmless).
+            set_level(le)
+
+        out_lines: list[str] = []
+        for line_cells in cells_by_line:
+            out = []
+            for mask in line_cells:
+                out.append(chr(0x2800 + mask) if mask else " ")
+            out_lines.append(("".join(out).rstrip() or "—"))
+        return "\n".join(out_lines)
 
     class VSQueueTui(App[None]):
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
@@ -234,9 +247,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 n_roll = eng._rolling_window_points_int()
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
-                graph = _queue_braille_line(
+                graph = _queue_braille_graph(
                     pts,
                     width=graph_w,
+                    height_lines=3,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
@@ -246,7 +260,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
                     f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
                     f"Log: {path}\n"
-                    f"Queue graph: {graph}\n"
+                    f"Queue graph:\n{graph}\n"
                 )
                 self.query_one("#metrics", Static).update(text)
             except Exception as exc:
