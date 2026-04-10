@@ -8,8 +8,10 @@
       "program": "${workspaceFolder}/monitor.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": [],
-      "env": {},
+      "args": ["--gui"],
+      "env": {
+        "VS_QUEUE_MONITOR_UI": "gui"
+      },
       "cwd": "${workspaceFolder}"
     },
     {
@@ -19,8 +21,10 @@
       "program": "${workspaceFolder}/monitor.py",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "args": ["--no-start"],
-      "env": {},
+      "args": ["--gui", "--no-start"],
+      "env": {
+        "VS_QUEUE_MONITOR_UI": "gui"
+      },
       "cwd": "${workspaceFolder}"
     }
   ]
