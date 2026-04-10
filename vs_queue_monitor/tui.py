@@ -26,7 +26,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
     try:
         from textual.app import App, ComposeResult
         from textual.binding import Binding
-        from textual.containers import Horizontal
+        from textual.containers import Horizontal, Vertical
         from textual.widgets import Footer, Header, Input, RichLog, Static
     except ImportError:
         print(
@@ -251,7 +251,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         CSS = """
     Screen { align: left top; }
     #metrics { height: auto; min-height: 7; width: 100%; }
-    #graph { height: 1fr; width: 100%; }
+    #graph_panel { height: 1fr; width: 100%; border: solid $primary; }
+    #graph_title { height: auto; padding: 0 1; color: $text-muted; }
+    #graph { height: 1fr; width: 100%; padding: 0 1; }
     #log { height: 10; width: 100%; }
     #pathrow { height: auto; margin-top: 1; width: 100%; }
     """
@@ -281,7 +283,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
             yield Static("", id="metrics")
-            yield Static("", id="graph")
+            with Vertical(id="graph_panel"):
+                yield Static("Queue graph", id="graph_title")
+                yield Static("", id="graph")
             yield RichLog(id="log", highlight=True, markup=True)
             with Horizontal(id="pathrow"):
                 yield Static("Logs folder: ", id="path_lbl")
