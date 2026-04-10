@@ -1804,8 +1804,7 @@ class QueueMonitorApp(tk.Tk):
         self._update_graph_y_scale_button_text()
         self._bind_static_tooltip(
             self._graph_y_scale_btn,
-            "Linear: equal spacing per queue position (easy to compare big jumps). "
-            "Log: low positions get more vertical room so small moves near the front are easier to read; high positions are compressed.",
+            "Linear: even spacing by position. Log: zoom the lower numbers on the chart.",
         )
         self.graph_canvas.bind("<Configure>", self._on_graph_canvas_configure)
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
@@ -1985,8 +1984,8 @@ class QueueMonitorApp(tk.Tk):
         _poll_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
         _poll_entry = self._make_dark_entry(poll_fr, width=6, textvariable=self.poll_sec_var)
         _poll_entry.grid(row=0, column=1, sticky="w")
-        self._bind_static_tooltip(_poll_lbl, "Seconds between reading the log file.")
-        self._bind_static_tooltip(_poll_entry, "Seconds between reading the log file.")
+        self._bind_static_tooltip(_poll_lbl, "How often the log is read.")
+        self._bind_static_tooltip(_poll_entry, "How often the log is read.")
 
         warn_fr = ttk.LabelFrame(outer, text="Warning Alerts", padding=(10, 8))
         warn_fr.pack(fill="x", pady=(0, 8))
@@ -1996,27 +1995,21 @@ class QueueMonitorApp(tk.Tk):
         _thr_lbl.grid(row=0, column=0, sticky="e", padx=(0, 8))
         _thr_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
         _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
-        self._bind_static_tooltip(
-            _thr_lbl,
-            "Queue positions; alert once each when crossing downward (e.g. 10, 5).",
-        )
-        self._bind_static_tooltip(
-            _thr_entry,
-            "Queue positions; alert once each when crossing downward (e.g. 10, 5).",
-        )
+        self._bind_static_tooltip(_thr_lbl, "Alert when your position drops past each number (e.g. 10, 5).")
+        self._bind_static_tooltip(_thr_entry, "Alert when your position drops past each number (e.g. 10, 5).")
 
         checks1 = ttk.Frame(warn_fr, style="Card.TFrame")
         checks1.grid(row=1, column=0, columnspan=3, sticky="w", pady=(10, 0))
         _cb_warn_pop = ttk.Checkbutton(checks1, text="Warning popup", variable=self.popup_enabled_var)
         _cb_warn_pop.pack(side="left", padx=(0, 14))
-        self._bind_static_tooltip(_cb_warn_pop, "Popup when crossing a warning threshold downward.")
+        self._bind_static_tooltip(_cb_warn_pop, "Popup when a threshold is crossed.")
         _cb_warn_snd = ttk.Checkbutton(checks1, text="Warning sound", variable=self.sound_enabled_var)
         _cb_warn_snd.pack(side="left", padx=(0, 14))
-        self._bind_static_tooltip(_cb_warn_snd, "Sound when crossing a warning threshold.")
+        self._bind_static_tooltip(_cb_warn_snd, "Sound when a threshold is crossed.")
 
         _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
         _lbl_warn_sound.grid(row=2, column=0, sticky="ne", padx=(0, 8), pady=(10, 0))
-        self._bind_static_tooltip(_lbl_warn_sound, "Custom warning sound path; OS default if empty.")
+        self._bind_static_tooltip(_lbl_warn_sound, "Optional file; default sound if empty.")
         _sound_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _sound_actions = ttk.Frame(warn_fr, style="Card.TFrame")
@@ -2025,9 +2018,9 @@ class QueueMonitorApp(tk.Tk):
         _sound_browse.pack(side="left", padx=(0, 6))
         _sound_preview = ttk.Button(_sound_actions, text="Preview", command=self.preview_alert_sound, width=8)
         _sound_preview.pack(side="left")
-        self._bind_static_tooltip(_sound_entry, "Warning sound file; OS default if empty or missing.")
-        self._bind_static_tooltip(_sound_browse, "Pick a warning sound file.")
-        self._bind_static_tooltip(_sound_preview, "Preview warning sound (ignores checkbox).")
+        self._bind_static_tooltip(_sound_entry, "Optional file; default sound if empty.")
+        self._bind_static_tooltip(_sound_browse, "Choose a sound file.")
+        self._bind_static_tooltip(_sound_preview, "Play the warning sound once.")
 
         comp_fr = ttk.LabelFrame(outer, text="Completion Alerts", padding=(10, 8))
         comp_fr.pack(fill="x", pady=(0, 8))
@@ -2039,23 +2032,20 @@ class QueueMonitorApp(tk.Tk):
             wraplength=440,
         )
         _comp_intro.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
-        self._bind_static_tooltip(
-            _comp_intro,
-            "Separate from warning thresholds: one shot at the front (≤1), popup/sound toggles only.",
-        )
+        self._bind_static_tooltip(_comp_intro, "When you reach the front of the line.")
 
         checks2 = ttk.Frame(comp_fr, style="Card.TFrame")
         checks2.grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 0))
         _cb_comp_pop = ttk.Checkbutton(checks2, text="Completion popup", variable=self.completion_popup_enabled_var)
         _cb_comp_pop.pack(side="left", padx=(0, 14))
-        self._bind_static_tooltip(_cb_comp_pop, "Popup when you reach the front (≤1).")
+        self._bind_static_tooltip(_cb_comp_pop, "Popup when you reach the front.")
         _cb_comp_snd = ttk.Checkbutton(checks2, text="Completion sound", variable=self.completion_sound_enabled_var)
         _cb_comp_snd.pack(side="left", padx=(0, 0))
-        self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front (≤1).")
+        self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front.")
 
         _lbl_comp_sound = ttk.Label(comp_fr, text="Completion sound file")
         _lbl_comp_sound.grid(row=2, column=0, sticky="ne", padx=(0, 8), pady=(10, 0))
-        self._bind_static_tooltip(_lbl_comp_sound, "Custom completion sound path; OS default if empty.")
+        self._bind_static_tooltip(_lbl_comp_sound, "Optional file; default sound if empty.")
         _comp_entry = self._make_dark_entry(comp_fr, textvariable=self.completion_sound_path_var)
         _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _comp_actions = ttk.Frame(comp_fr, style="Card.TFrame")
@@ -2064,9 +2054,9 @@ class QueueMonitorApp(tk.Tk):
         _comp_browse.pack(side="left", padx=(0, 6))
         _comp_preview = ttk.Button(_comp_actions, text="Preview", command=self.preview_completion_sound, width=8)
         _comp_preview.pack(side="left")
-        self._bind_static_tooltip(_comp_entry, "Completion sound file.")
-        self._bind_static_tooltip(_comp_browse, "Pick a completion sound file.")
-        self._bind_static_tooltip(_comp_preview, "Preview completion sound (ignores checkbox).")
+        self._bind_static_tooltip(_comp_entry, "Optional file; default sound if empty.")
+        self._bind_static_tooltip(_comp_browse, "Choose a sound file.")
+        self._bind_static_tooltip(_comp_preview, "Play the completion sound once.")
 
         history_fr = ttk.LabelFrame(outer, text="History", padding=(10, 8))
         history_fr.pack(fill="x", pady=(0, 8))
@@ -2074,10 +2064,7 @@ class QueueMonitorApp(tk.Tk):
             history_fr, text="Log every position change", variable=self.show_every_change_var
         )
         _cb_log_every.pack(anchor="w")
-        self._bind_static_tooltip(
-            _cb_log_every,
-            "Log each queue line; off = only crosses and milestones. Expand/collapse the panel from the main History bar.",
-        )
+        self._bind_static_tooltip(_cb_log_every, "Log every line from the client, or only important changes.")
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
@@ -2086,7 +2073,7 @@ class QueueMonitorApp(tk.Tk):
         _win_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
         _win_entry = self._make_dark_entry(display_fr, width=8, textvariable=self.avg_window_var)
         _win_entry.grid(row=0, column=1, sticky="w")
-        _avg_tip = "How many recent queue samples feed ETA / min-per-position (larger = smoother)."
+        _avg_tip = "More points: smoother time estimates (uses recent queue history)."
         self._bind_static_tooltip(_win_lbl, _avg_tip)
         self._bind_static_tooltip(_win_entry, _avg_tip)
 
@@ -2094,13 +2081,10 @@ class QueueMonitorApp(tk.Tk):
         bottom.pack(fill="x", pady=(8, 0))
         _btn_reset = ttk.Button(bottom, text="Reset defaults", command=self.reset_defaults)
         _btn_reset.pack(side="left")
-        self._bind_static_tooltip(_btn_reset, "Restore default paths, thresholds, poll, and toggles.")
+        self._bind_static_tooltip(_btn_reset, "Reset all settings here to defaults.")
         _btn_about = ttk.Button(bottom, text="About…", command=self.show_about)
         _btn_about.pack(side="left", padx=(10, 0))
-        self._bind_static_tooltip(
-            _btn_about,
-            "Version, git build, GitHub source, and how the window icon is shipped.",
-        )
+        self._bind_static_tooltip(_btn_about, "Version and source link.")
 
         def close_settings() -> None:
             try:
@@ -2119,7 +2103,7 @@ class QueueMonitorApp(tk.Tk):
 
         _btn_close = ttk.Button(bottom, text="Close", command=close_settings)
         _btn_close.pack(side="right")
-        self._bind_static_tooltip(_btn_close, "Save settings and close.")
+        self._bind_static_tooltip(_btn_close, "Save and close.")
         win.protocol("WM_DELETE_WINDOW", close_settings)
         win.bind("<Escape>", lambda _e: close_settings())
 
@@ -3236,7 +3220,7 @@ class QueueMonitorApp(tk.Tk):
 
     @staticmethod
     def _format_queue_rate(mpp: Optional[float]) -> str:
-        """Shown as min/pos; full wording is in the rate tooltip."""
+        """Minutes per queue step for the RATE display."""
         if mpp is not None and mpp > 0:
             return f"{mpp:.2f} min/pos"
         return "—"
@@ -3256,17 +3240,14 @@ class QueueMonitorApp(tk.Tk):
         self.update_time_estimates()
 
     def _progress_tooltip_text(self) -> str:
-        """KPI progress strip: same model as the thin bar; includes live % when hovering."""
+        """Progress bar hover: percent of estimated wait so far."""
         p = 0.0
         if self._queue_progress is not None:
             try:
                 p = float(self._queue_progress["value"])
             except (tk.TclError, TypeError, ValueError):
                 pass
-        return (
-            "How much of the estimated total wait is done (full at the front). "
-            f"Currently {p:.0f}%."
-        )
+        return f"Estimated wait so far: {p:.0f}%."
 
     def _clamp_tooltip_in_host(
         self, host: tk.Misc, tip: tk.Toplevel, x_left: int, y_top: int, margin: int = 6
@@ -3358,43 +3339,33 @@ class QueueMonitorApp(tk.Tk):
     def _bind_main_tooltips(self) -> None:
         """Hover help for the main window (uses the same delayed toplevel as _bind_static_tooltip)."""
         bt = self._bind_static_tooltip
-        bt(self.start_stop_button, "Start or stop monitoring. Space or Ctrl+M when not typing in a field.")
-        bt(self._lbl_log_path, "Log file or folder ($APPDATA, etc. supported).")
-        bt(self._path_entry, "Path to the log or folder.")
+        bt(self.start_stop_button, "Start or stop monitoring.")
+        bt(self._lbl_log_path, "Client log file or folder.")
+        bt(self._path_entry, "File or folder path.")
         bt(
             self._btn_browse,
-            "Choose a log file to monitor, or cancel that dialog to choose a folder "
-            "(newest matching .log is used). Restarts if already running.",
+            "Pick a log file, or cancel to pick a folder (newest .log is used).",
         )
-        bt(self._settings_btn, "Poll, alerts, sounds, history, prediction window.")
-        bt(self._loading_spinner, "Loading log…")
+        bt(self._settings_btn, "Settings")
+        bt(self._loading_spinner, "Loading…")
         bt(self._graph_labelframe, "Queue position over time.")
-        bt(self._lbl_kpi_position, "Caption: queue position.")
-        bt(self._position_value_label, "Current position (lower is closer; 1 ≈ front).")
-        bt(self._lbl_kpi_status, "Caption: status.")
-        bt(self._status_value_label, "Monitoring, interrupted, completed, etc.")
-        bt(self._lbl_kpi_rate, "Caption: min/pos.")
-        bt(self._queue_rate_value_label, "Avg. minutes to move one spot (recent window; lower = faster).")
-        bt(self._lbl_elapsed_header, "Caption: time in queue this run.")
-        bt(self._elapsed_value_label, "Elapsed this session.")
-        bt(self._lbl_remaining_header, "Caption: estimated time remaining.")
-        bt(self._remaining_value_label, "Estimated time left (hidden at front or if unknown).")
-        bt(self._graph_stack_frame, "Position vs time. Hover for values; Y toggles axis scale.")
-        bt(self.graph_canvas, "Hover: vertical line and ring snap to the nearest sample; tooltip shows time and position.")
-        bt(self._status_tab_strip, "Click to show or hide Status.")
-        bt(self._lbl_status_section_title, "Status details. Click to expand or collapse.")
-        bt(self._status_tab_btn, "Expand or collapse Status.")
-        bt(self._lbl_det_last_change, "Caption: last position change.")
-        bt(self._lbl_det_last_change_val, "When the position last changed.")
-        bt(self._lbl_det_alert, "Caption: last warning alert.")
-        bt(self._lbl_det_alert_val, "Last threshold alert, or —.")
-        bt(self._lbl_det_path, "Caption: resolved log path.")
-        bt(self._lbl_det_path_val, "Full path to the log file.")
-        bt(self._history_tab_strip, "Click to show or hide History.")
-        bt(self._lbl_history_section_title, "Session log. Click to expand or collapse.")
-        bt(self._history_tab_btn, "Expand or collapse History.")
-        bt(self.history_text, "Messages from this session.")
-        bt(self._history_scrollbar, "Scroll.")
+        bt(self._position_value_label, "Smaller number = closer to the front.")
+        bt(self._status_value_label, "What the app is doing.")
+        bt(self._queue_rate_value_label, "Rough minutes to move one spot in line.")
+        bt(self._elapsed_value_label, "Time in queue this run.")
+        bt(self._remaining_value_label, "Estimated wait left (hidden at the front).")
+        bt(self._graph_stack_frame, "Drag edges to resize panels. Y: chart scale.")
+        bt(self.graph_canvas, "Move the mouse for time and position.")
+        bt(self._status_tab_strip, "Show or hide Status.")
+        bt(self._lbl_status_section_title, "Show or hide Status.")
+        bt(self._status_tab_btn, "Show or hide Status.")
+        bt(self._lbl_det_last_change_val, "When your position last changed.")
+        bt(self._lbl_det_alert_val, "Last threshold alert.")
+        bt(self._lbl_det_path_val, "Log file in use.")
+        bt(self._history_tab_strip, "Show or hide History.")
+        bt(self._lbl_history_section_title, "Show or hide History.")
+        bt(self._history_tab_btn, "Show or hide History.")
+        bt(self.history_text, "Session log.")
 
     def _bind_keyboard_shortcuts(self) -> None:
         self.bind("<Control-m>", self._shortcut_toggle_monitoring)
