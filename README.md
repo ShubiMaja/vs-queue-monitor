@@ -48,6 +48,22 @@ python3 monitor.py
 
 Equivalent: `python3 -m vs_queue_monitor`. On Windows use `python` or `py` instead of `python3` if needed.
 
+### Run the GUI (Tk window)
+
+- **Windows** (default):
+
+```bash
+python monitor.py
+```
+
+- **macOS / Linux**:
+
+```bash
+python3 monitor.py --gui
+```
+
+- **Cursor / VS Code**: Run and Debug → **VS Queue Monitor: Run GUI**
+
 **UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
 
 Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **o** shows the settings hint in the log, **q** quits. Legacy: `python main-tui.py` is equivalent to `python monitor.py --tui`.
