@@ -34,26 +34,25 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         log_scale: bool = True,
     ) -> str:
         """Multi-line graph using stacked Unicode braille (2×4 dots per cell per line)."""
-        if len(points) < 1:
-            return "—"
-
         # Braille cells are 2 columns wide. We'll plot one dot per column.
         cols = max(10, int(width))
         x_cols = cols * 2
         lines_n = max(1, int(height_lines))
         y_levels = lines_n * 4
+        if len(points) < 1:
+            return "\n".join(["—"] * lines_n)
 
         # Time-based resampling (matches GUI x-axis semantics).
         # points are (epoch_seconds, position) in chronological order.
         times = [float(t) for t, _p in points]
         vals = [int(p) for _t, p in points]
         if not times:
-            return "—"
+            return "\n".join(["—"] * lines_n)
         t0 = times[0]
         t1 = times[-1]
         if t1 <= t0:
             # Degenerate: no span; fall back to constant.
-            return "⠤" * cols
+            return "\n".join(["⠤" * cols for _ in range(lines_n)])
 
         # Determine overall range from samples.
         lo, hi = min(vals), max(vals)
