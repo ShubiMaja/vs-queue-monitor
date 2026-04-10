@@ -52,17 +52,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             # Degenerate: no span; fall back to constant.
             return "⠤" * cols
 
-        # For each x, find the last sample at or before target time (step function).
-        ys: list[int] = []
-        for i in range(x_cols):
-            frac_x = i / float(max(1, x_cols - 1))
-            tt = t0 + frac_x * (t1 - t0)
-            idx = bisect_right(times, tt) - 1
-            if idx < 0:
-                idx = 0
-            ys.append(vals[idx])
-
-        lo, hi = min(ys), max(ys)
+        # Determine overall range from samples.
+        lo, hi = min(vals), max(vals)
         if lo == hi:
             # Flat line: show a baseline of low dots across.
             return "⠤" * cols
@@ -101,20 +92,55 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))
         cells = [0 for _ in range(cols)]
 
-        # Pad left with first value so we always draw full width.
-        if len(ys) < x_cols:
-            ys = [ys[0]] * (x_cols - len(ys)) + ys
+        # Per-column time bins. To avoid “missing” rapid step changes when the terminal is narrow,
+        # we draw a small envelope in each bin: min/max + end-of-bin value.
+        dt = (t1 - t0) / float(x_cols)
+        if dt <= 0.0:
+            dt = 1.0
+
+        # Starting value at t0 (step function).
+        idx = 0
+        v_curr = vals[0]
+        while idx + 1 < len(times) and times[idx + 1] <= t0 + 1e-9:
+            idx += 1
+            v_curr = vals[idx]
 
         for x in range(x_cols):
-            v = ys[x]
-            frac = frac_for(v)  # 0..1 (low..high)
-            # Map to 4 vertical levels. Higher queue position => higher dot.
-            level = int(round(frac * 3.0))
-            level = max(0, min(3, level))
-            row = 3 - level  # 0 top .. 3 bottom
+            a = t0 + x * dt
+            b = a + dt
+
+            v_min = v_curr
+            v_max = v_curr
+            v_end = v_curr
+
+            # Consume samples in (a, b]; step changes occur at sample times.
+            while idx + 1 < len(times) and times[idx + 1] <= b + 1e-9:
+                idx += 1
+                v_curr = vals[idx]
+                v_end = v_curr
+                if v_curr < v_min:
+                    v_min = v_curr
+                if v_curr > v_max:
+                    v_max = v_curr
+
+            # Map values to 4 levels and set dots for the range + end marker.
+            def level_for(v: int) -> int:
+                lv = int(round(frac_for(v) * 3.0))
+                return max(0, min(3, lv))
+
+            l0 = level_for(v_min)
+            l1 = level_for(v_max)
+            le = level_for(v_end)
+            lo_lv, hi_lv = sorted((l0, l1))
+
             cell_idx = x // 2
             col_idx = x % 2
-            cells[cell_idx] |= DOTS[col_idx][row]
+            for lv in range(lo_lv, hi_lv + 1):
+                row = 3 - lv
+                cells[cell_idx] |= DOTS[col_idx][row]
+            # Ensure end-of-bin is visible (may be inside range; harmless).
+            row_e = 3 - le
+            cells[cell_idx] |= DOTS[col_idx][row_e]
 
         out = []
         for mask in cells:
