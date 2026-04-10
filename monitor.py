@@ -141,6 +141,19 @@ DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
 POPUP_COMPLETION_TIMEOUT_MS = 14_000
+# Threshold vs completion popups: large glyph + title (color emoji when the OS font supports it).
+ALERT_POPUP_EMOJI_THRESHOLD = "\u26a0\ufe0f"  # ⚠️
+ALERT_POPUP_EMOJI_COMPLETION = "\U0001f389"  # 🎉
+
+
+def _alert_popup_emoji_font(size: int = 48) -> tuple[str, int, str]:
+    if sys.platform.startswith("win"):
+        return ("Segoe UI Emoji", size, "normal")
+    if sys.platform == "darwin":
+        return ("Apple Color Emoji", size, "normal")
+    return ("TkDefaultFont", size, "normal")
+
+
 MAX_GRAPH_POINTS = 5000
 MAX_DRAW_POINTS = 1200
 # When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
@@ -3777,7 +3790,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_popup = popup
-        popup.title("Threshold warning")
+        popup.title(f"{ALERT_POPUP_EMOJI_THRESHOLD} Threshold warning")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -3787,15 +3800,31 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
-        ttk.Label(
-            popup,
+        row = tk.Frame(popup, bg=UI_BG_CARD)
+        row.pack(fill="x", pady=(0, 4))
+        tk.Label(
+            row,
+            text=ALERT_POPUP_EMOJI_THRESHOLD,
+            font=_alert_popup_emoji_font(52),
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+        ).pack(side="left", anchor="nw", padx=(0, 12))
+        txt = tk.Frame(row, bg=UI_BG_CARD)
+        txt.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            txt,
             text=f"Queue position is now {position}",
             font=("TkDefaultFont", 15, "bold"),
-        ).pack(anchor="w", pady=(0, 8))
-        ttk.Label(
-            popup,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(0, 6))
+        tk.Label(
+            txt,
             text=f"Reason: {reason}",
+            justify="left",
             wraplength=360,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 12))
         ttk.Button(popup, text="Dismiss", command=popup.destroy).pack(anchor="e")
 
@@ -3820,7 +3849,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_completion_popup = popup
-        popup.title("Queue complete")
+        popup.title(f"{ALERT_POPUP_EMOJI_COMPLETION} Queue complete")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -3830,15 +3859,26 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
+        row = tk.Frame(popup, bg=UI_BG_CARD)
+        row.pack(fill="x", pady=(0, 4))
         tk.Label(
-            popup,
+            row,
+            text=ALERT_POPUP_EMOJI_COMPLETION,
+            font=_alert_popup_emoji_font(56),
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+        ).pack(side="left", anchor="nw", padx=(0, 12))
+        txt = tk.Frame(row, bg=UI_BG_CARD)
+        txt.pack(side="left", fill="x", expand=True)
+        tk.Label(
+            txt,
             text="You're at the front of the queue",
             font=("TkDefaultFont", 15, "bold"),
             bg=UI_BG_CARD,
             fg=UI_ACCENT_STATUS,
         ).pack(anchor="w", pady=(0, 8))
         tk.Label(
-            popup,
+            txt,
             text=(
                 f"Position {position}: you can connect when the game finishes assigning you.\n\n"
                 "Queue completion is fixed at the front (≤1) — not a configurable threshold. "
