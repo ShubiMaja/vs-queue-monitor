@@ -168,15 +168,15 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Window layout
 
-- Three vertical **panes** — **Queue graph** (top), **Status** (middle), **History** (bottom) — separated by **draggable sashes**.
-- **Status** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
+- Three vertical **panes** — **Queue graph** (top), **Info** (middle), **History** (bottom) — separated by **draggable sashes**.
+- **Info** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
 - Dark, **tooltip-heavy** UI (hover for control explanations).
 
 ### Logs folder and resolution
 
 - **Logs folder** field plus **Browse…** (folder picker only). Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
 - The app always **searches** under that folder for `client-main.log` in common locations (`Logs/`, `logs/`, etc.), then broader filename patterns, then newest `*.log` as a last resort — so the correct client log name is used and you cannot accidentally select the wrong file in a picker.
-- **Resolved path** (the actual log file opened) is shown in the Status section when monitoring.
+- **Resolved path** (the actual log file opened) appears in the **Info** section when monitoring (along with timing and rate details below).
 
 ### Monitoring
 
@@ -186,16 +186,16 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Queue graph pane
 
-- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
+- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state — not the Info panel name), **Rate** (minutes per position from the prediction window / dwell model), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
 - **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
 
-### Status pane (collapsible)
+### Info pane (collapsible)
 
-- Click the **Status** header bar or chevron to expand or collapse details.
+- Click the **Info** header bar or chevron to expand or collapse details.
 - When expanded, pane height fits **full content** (path, labels, wrapping text).
-- Shows **Last change**, **Last threshold alert**, and **Resolved log path** (and related labels).
+- Shows **Last change**, **Last threshold alert**, **Resolved log path**, and **Global Rate** — average minutes per position over every forward queue step in the **full** graph (all segments), distinct from the KPI **Rate** which uses the prediction window and dwell caps.
 
 ### History pane (collapsible)
 
@@ -279,7 +279,7 @@ Typical keys:
 | `poll_sec` | Poll interval in seconds |
 | `avg_window_points` | Prediction window size (points) |
 | `show_log` | History pane expanded (content visible); toggled from the main window, not Settings |
-| `show_status` | Status pane expanded (content visible) |
+| `show_status` | Info pane expanded (content visible); key name unchanged for compatibility |
 | `graph_log_scale` | Graph Y axis: log vs linear |
 | `popup_enabled` | Warning (threshold) popup |
 | `completion_popup_enabled` | Queue completion (front) popup |

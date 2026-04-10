@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.21
+Version: 1.0.22
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.21"
+VERSION = "1.0.22"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1008,6 +1008,7 @@ class QueueMonitorApp(tk.Tk):
         self.elapsed_var = tk.StringVar(value="—")
         self.predicted_remaining_var = tk.StringVar(value="—")
         self.queue_rate_var = tk.StringVar(value="—")
+        self.global_rate_var = tk.StringVar(value="—")
         _at_cfg = self.config.get("alert_thresholds")
         if isinstance(_at_cfg, str) and _at_cfg.strip():
             _alert_default = _at_cfg.strip()
@@ -1853,7 +1854,7 @@ class QueueMonitorApp(tk.Tk):
         )
         self._status_tab_btn.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM), pady=(0, 0))
         self._lbl_status_section_title = ttk.Label(
-            self._status_tab_strip, text="Status", style="Pane.TLabelframe.Label"
+            self._status_tab_strip, text="Info", style="Pane.TLabelframe.Label"
         )
         self._lbl_status_section_title.pack(side="left", padx=(0, 0), pady=(0, 0))
 
@@ -1942,6 +1943,10 @@ class QueueMonitorApp(tk.Tk):
         self._lbl_det_path.grid(row=1, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
         self._lbl_det_path_val = ttk.Label(details, textvariable=self.resolved_path_var, wraplength=wrap * 2)
         self._lbl_det_path_val.grid(row=1, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy)
+        self._lbl_det_global_rate = ttk.Label(details, text="Global Rate")
+        self._lbl_det_global_rate.grid(row=2, column=0, sticky="nw", padx=(0, _g), pady=_dpy)
+        self._lbl_det_global_rate_val = ttk.Label(details, textvariable=self.global_rate_var, wraplength=wrap * 2)
+        self._lbl_det_global_rate_val.grid(row=2, column=1, columnspan=3, sticky="nw", padx=(0, UI_INNER_PAD_Y_SM), pady=_dpy)
 
         self.history_text = tk.Text(
             self._history_body,
@@ -2264,6 +2269,7 @@ class QueueMonitorApp(tk.Tk):
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
         self.queue_rate_var.set("—")
+        self.global_rate_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
         if self._queue_progress is not None:
@@ -3560,9 +3566,14 @@ class QueueMonitorApp(tk.Tk):
         bt(self._remaining_value_label, "Estimated wait left (hidden at the front).")
         bt(self._graph_stack_frame, "Drag edges to resize panels. Y: chart scale.")
         bt(self.graph_canvas, "Move the mouse for time and position.")
-        bt(self._status_tab_strip, "Show or hide Status.")
-        bt(self._lbl_status_section_title, "Show or hide Status.")
-        bt(self._status_tab_btn, "Show or hide Status.")
+        bt(self._status_tab_strip, "Show or hide Info panel.")
+        bt(self._lbl_status_section_title, "Show or hide Info panel.")
+        bt(self._status_tab_btn, "Show or hide Info panel.")
+        bt(
+            self._lbl_det_global_rate,
+            "Average minutes per position over every queue advance in the graph (full session).",
+        )
+        bt(self._lbl_det_global_rate_val, "Same — mean over all downward steps; KPI Rate uses the prediction window.")
         bt(self._lbl_det_last_change_val, "When your position last changed.")
         bt(self._lbl_det_alert_val, "Last threshold alert.")
         bt(self._lbl_det_path_val, "Log file in use.")
@@ -3784,6 +3795,35 @@ class QueueMonitorApp(tk.Tk):
             return self._mpp_floor_value
         return mpp_raw
 
+    def _global_avg_minutes_per_position(self) -> Optional[float]:
+        """Mean minutes/position over every forward (downward) step in the full graph — all segments, all slots."""
+        pts = list(self.graph_points)
+        if len(pts) < 2:
+            return None
+        mpps: list[float] = []
+        for (t0, p0), (t1, p1) in zip(pts, pts[1:]):
+            dt = float(t1) - float(t0)
+            if dt <= 0:
+                continue
+            improvement = int(p0) - int(p1)
+            if improvement <= 0:
+                continue
+            mpp = (dt / 60.0) / float(improvement)
+            if mpp > 0 and math.isfinite(mpp):
+                mpps.append(mpp)
+        if not mpps:
+            return None
+        return sum(mpps) / len(mpps)
+
+    def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
+        """KPI Rate (window / dwell model) and Info Global Rate (mean over full history segments). Returns capped mpp for ETA fallback."""
+        mpp_raw = self._minutes_per_position_from_window()
+        mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
+        self.queue_rate_var.set(self._format_queue_rate(mpp))
+        g_mpp = self._global_avg_minutes_per_position()
+        self.global_rate_var.set(self._format_queue_rate(g_mpp))
+        return mpp
+
     def _current_queue_position(self) -> Optional[int]:
         pos = self.last_position
         if pos is None and self.current_point is not None:
@@ -3814,9 +3854,7 @@ class QueueMonitorApp(tk.Tk):
             elapsed_sec = self._interrupted_elapsed_sec
             self.elapsed_var.set(self.format_duration(elapsed_sec))
             self.predicted_remaining_var.set("—")
-            mpp_raw = self._minutes_per_position_from_window()
-            mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-            self.queue_rate_var.set(self._format_queue_rate(mpp))
+            self._refresh_queue_and_global_rate(pos)
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
             return
@@ -3852,10 +3890,8 @@ class QueueMonitorApp(tk.Tk):
         else:
             self.elapsed_var.set("—")
 
-        # ETA updates _pred_speed_scale; min/pos prefers empirical window throughput, else model.
-        mpp_raw = self._minutes_per_position_from_window()
-        mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
-        self.queue_rate_var.set(self._format_queue_rate(mpp))
+        # ETA updates _pred_speed_scale; KPI Rate + Info Global Rate from window model vs full history.
+        mpp = self._refresh_queue_and_global_rate(pos)
 
         # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
         # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
