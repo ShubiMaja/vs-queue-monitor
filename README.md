@@ -10,13 +10,63 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 - **AI-assisted code:** A large share of this project was written or refactored with AI / coding assistants. That means **more risk of subtle mistakes** (logic, edge cases, platform quirks). You are responsible for validating paths, alerts, ETAs, and anything safety- or time-sensitive.
 - **Not official:** Not affiliated with Vintage Story or its developers. **No warranty** — use at your own risk.
 
-
 ## Requirements
 
 - **Python 3.10+** (any recent 3.x with Tkinter)
 - **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
 
 No third-party pip dependencies.
+
+## Quick start
+
+You need [Python 3.10+ with Tkinter](#install-python-and-tkinter). No `pip` install step.
+
+### Without Git
+
+Fetches **latest `main`** as a GitHub source archive into **Downloads**; unpacked folder: `vs-queue-monitor-main`.
+
+**macOS, Linux, Git Bash**
+
+```bash
+cd "$HOME/Downloads" && curl -L https://github.com/ShubiMaja/vs-queue-monitor/archive/refs/heads/main.tar.gz | tar xz
+```
+
+```bash
+cd "$HOME/Downloads/vs-queue-monitor-main" && python3 monitor.py
+```
+
+**Windows PowerShell** (Windows 10+, built-in `tar`)
+
+```powershell
+Set-Location $env:USERPROFILE\Downloads; Invoke-WebRequest -Uri "https://github.com/ShubiMaja/vs-queue-monitor/archive/refs/heads/main.tar.gz" -OutFile "vsqm.tar.gz"; tar -xf vsqm.tar.gz
+```
+
+```powershell
+Set-Location $env:USERPROFILE\Downloads\vs-queue-monitor-main; python monitor.py
+```
+
+On Windows, use `py` instead of `python` if needed. For a **tagged release**, use that tag in the archive URL, e.g. `https://github.com/ShubiMaja/vs-queue-monitor/archive/v1.0.0.tar.gz`.
+
+**No terminal:** GitHub → **Code → Download ZIP** → extract the folder that contains `monitor.py` (often `vs-queue-monitor-main`) → `python3 monitor.py` or `python monitor.py`.
+
+### With Git
+
+```bash
+git clone https://github.com/ShubiMaja/vs-queue-monitor.git && cd vs-queue-monitor && python3 monitor.py
+```
+
+On Windows use `python` or `py` instead of `python3`. With SSH: `git@github.com:ShubiMaja/vs-queue-monitor.git`.
+
+### Maintainers: distribution without Git
+
+GitHub serves **source archives** for public repos; no separate host.
+
+- Keep **owner/repo**, **default branch**, and any **tag** URLs in this README accurate; update if the default branch is renamed.
+- **Public repo** is required for anonymous `curl`/browser downloads without tokens.
+- **Releases:** tag `vX.Y.Z`, publish a [Release](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository), tarball `https://github.com/ShubiMaja/vs-queue-monitor/archive/vX.Y.Z.tar.gz`. Optional: attach ZIP/installers or CI artifacts.
+- **PyPI** or **frozen binaries** (PyInstaller, Nuitka, …) are optional extras.
+
+**Default:** document **archive URLs** + **tagged Releases**; add PyPI or frozen builds only if we want them.
 
 ## Install Python and Tkinter
 
