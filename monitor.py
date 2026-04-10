@@ -41,6 +41,23 @@ except Exception:  # pragma: no cover
     winsound = None
 
 VERSION = "1.0.0"
+# Window icon: GIF as base64 so ``monitor.py`` can be shipped as a single file (no separate assets).
+_APP_ICON_GIF_B64 = (
+    "R0lGODdhQABAAIQAABEUGxUYIAsLEi3H1i/U5CWYpRItNSByfRMwOB9yfBdHUCB5hB5ocyq2wxpTXSmntBU4QSSG"
+    "kzLm9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAAAAAQABAAEAI/wADABhIsKDBgwgT"
+    "Kly4MIDAgQ8TChAAYKLFiQMtZrzIkSLDjw4XYtzIsaJHARAGEGhg4OTIgxE/yiw4kuKDAQMeVCxAQGUCjxVnFhTo"
+    "sKjRkABiEhSg4AGDiQZw4mzJU+UBoBBDIk16tKvXohIP9CRQQAACqQOojr26lOvXt3C1ZjSokeLFpRiBUiQat29X"
+    "oYC5uo2bNalhhA+9IjYqOHHgw0L12u24ke7kx49fdsS6c+zPoJxlMuYrGLLIqFIRCKhKgK1dhkcHa317UECCsWXP"
+    "pl69Vq/srUQb+wWrdwFus2hVs17gOzHh4VsZhob9G7r154av00Y8VClm7o8dD/+tvbm8eY3eG2aPHlwk3qDwsWqE"
+    "OP67QpeSYda2H9nyS5qssWUSfzPhVxlFCiiQUYC+EfhRg0uhNhVvVkEImHOD0RdSfhEmR2FrzYFVWGkatgeWUnox"
+    "MFYEAkiY1ocCBqXUbF+t91dYx7moXG9tRUfQiXD9hqNKZbmolk+hiciXdowhtJoEDQgkgAMEEOAARg1IUJZ+1V3n"
+    "1oOVCeUckzU6uFiXZLZn5o9ptukmdD9+yWZ638l1mGOk0WhnVqPRWZ9p9cVEZ2xqduenfREdyqVI5zVKWWAm0icR"
+    "eSS5ZJKBBimaGU015TVgfJet+WBenbY1X5iIAkoXqHfVFsEAT5H3JOp9km22FIOozroqp6eCxtpnver63qWXtgoj"
+    "h5lKaiaHTFWpwES4zrUmnZzVpBtOO1Y4rJiqYtYiWkeC2Bakd8YmJ010GXksaJBhuOS7ZU5al47rzhWpcIlm+KWf"
+    "NvXUkrrRskkivtpJW5FxRH67W8B7IfUXk6raliO49QpsmpLWoZuRWAnTy3B1aA43JFnISRVujIUF52Wf41bEMckA"
+    "exbibHymWRuVKjFnQAM4sSQAwlZyNuabItIFwQLPBsUAA6ApsAAESYYMcYHTKUT0jTJpBlKJRLfsnnRS2ywswV0b"
+    "/Kl8GsMn49WKNTkTe2GzLffcdJMZEAA7"
+)
 QUEUE_RE = re.compile(
     r"(?:"
     r"client\s+is\s+in\s+connect\s+queue\s+at\s+position"
@@ -787,6 +804,8 @@ class QueueMonitorApp(tk.Tk):
         self.title(f"VS Queue Monitor v{VERSION}")
         self.geometry("960x700")
         self.minsize(880, 580)
+        self._app_icon_image: Optional[tk.PhotoImage] = None
+        self._apply_window_icon()
 
         self.config: dict = load_config()
         self.source_path_var = tk.StringVar(
@@ -920,6 +939,15 @@ class QueueMonitorApp(tk.Tk):
 
         if auto_start:
             self.after(250, self.start_monitoring)
+
+    def _apply_window_icon(self) -> None:
+        """Load window icon from embedded GIF (no external files)."""
+        try:
+            self._app_icon_image = tk.PhotoImage(data=_APP_ICON_GIF_B64)
+        except tk.TclError:
+            self._app_icon_image = None
+            return
+        self.iconphoto(True, self._app_icon_image)
 
     def _configure_ttk_theme(self, style: ttk.Style) -> None:
         """Apply app-wide background and text colors (clam, Grafana-style dark)."""
