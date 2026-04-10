@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.18
+Version: 1.0.19
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.18"
+VERSION = "1.0.19"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1567,14 +1567,14 @@ class QueueMonitorApp(tk.Tk):
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
         self._btn_browse_logs = ttk.Button(path_actions, text="Browse…", command=self.browse_logs_folder)
-        self._btn_browse_logs.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse_logs.pack(side="left", padx=(0, 4))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
             text="\u2699  Settings",
             command=self.open_settings,
         )
-        self._settings_btn.pack(side="left", padx=(UI_INNER_PAD_Y_SM, 0))
+        self._settings_btn.pack(side="left", padx=(4, 0))
 
         # Classic tk.PanedWindow: flat sash + resize cursor. showhandle/GROOVE draws light-bordered Motif boxes on Windows.
         panes = tk.PanedWindow(
