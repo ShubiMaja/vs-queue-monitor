@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Backward-compatible entry: same as ``python monitor.py --tui``.
+Backward-compatible entry: same as ``python monitor-tui.py``.
 
-Prefer: ``python monitor.py`` (auto GUI or TUI) or ``python monitor.py --tui``.
+Prefer: ``python monitor-tui.py`` (or ``python monitor.py --tui``).
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from pathlib import Path
 
 def main() -> int:
     root = Path(__file__).resolve().parent
-    script = root / "monitor.py"
-    argv = [sys.executable, str(script), "--tui"]
-    argv.extend(a for a in sys.argv[1:] if a not in ("--tui", "--text"))
+    script = root / "monitor-tui.py"
+    argv = [sys.executable, str(script)]
+    argv.extend(sys.argv[1:])
     return int(subprocess.call(argv))
 
 
