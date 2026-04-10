@@ -20,6 +20,7 @@ except Exception:
     winsound = None
 from . import APP_DISPLAY_NAME, APP_TAGLINE, GITHUB_REPO_URL, VERSION
 from .core import *
+from .core import _alert_popup_emoji_font as alert_popup_emoji_font
 from .engine import QueueMonitorEngine
 from .hooks import TkMonitorHooks
 
@@ -1479,7 +1480,7 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             pass
         row = tk.Frame(popup, bg=UI_BG_CARD)
         row.pack(fill='x', pady=(0, 4))
-        tk.Label(row, text=ALERT_POPUP_EMOJI_THRESHOLD, font=_alert_popup_emoji_font(42), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
+        tk.Label(row, text=ALERT_POPUP_EMOJI_THRESHOLD, font=alert_popup_emoji_font(42), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
         txt = tk.Frame(row, bg=UI_BG_CARD)
         txt.pack(side='left', fill='x', expand=True)
         tk.Label(txt, text=f'Position {position}', font=('TkDefaultFont', 15, 'bold'), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(anchor='w', pady=(0, 8))
@@ -1532,7 +1533,7 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             pass
         row = tk.Frame(popup, bg=UI_BG_CARD)
         row.pack(fill='x', pady=(0, 4))
-        tk.Label(row, text=ALERT_POPUP_EMOJI_COMPLETION, font=_alert_popup_emoji_font(46), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
+        tk.Label(row, text=ALERT_POPUP_EMOJI_COMPLETION, font=alert_popup_emoji_font(46), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
         txt = tk.Frame(row, bg=UI_BG_CARD)
         txt.pack(side='left', fill='x', expand=True)
         tk.Label(txt, text='Not waiting in queue', font=('TkDefaultFont', 15, 'bold'), bg=UI_BG_CARD, fg=UI_ACCENT_STATUS).pack(anchor='w', pady=(0, 8))
