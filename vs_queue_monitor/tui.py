@@ -104,10 +104,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
 
         CSS = """
-    Screen { align: left middle; }
-    #metrics { height: auto; min-height: 12; }
-    #log { height: 1fr; border: solid $primary; }
-    #pathrow { height: auto; margin-top: 1; }
+    Screen { align: left top; }
+    #metrics { height: auto; min-height: 12; width: 1fr; }
+    #log { height: 1fr; border: solid $primary; width: 1fr; }
+    #pathrow { height: auto; margin-top: 1; width: 1fr; }
     """
 
         BINDINGS = [
