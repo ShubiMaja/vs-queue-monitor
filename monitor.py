@@ -140,16 +140,21 @@ QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
 DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
+POPUP_COMPLETION_TIMEOUT_MS = 14_000
 MAX_GRAPH_POINTS = 5000
 MAX_DRAW_POINTS = 1200
+# When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
+SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
-DEFAULT_ALERT_THRESHOLDS = "10, 5, 3, 2, 1"
+DEFAULT_ALERT_THRESHOLDS = "10, 5"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
 # do not treat that alone as a new queue run (which would clear thresholds and re-alert all).
 # Minimum time between popup/sound alerts to suppress duplicate fires from log noise.
 ALERT_MIN_INTERVAL_SEC = 12.0
+# Debounce for queue-front completion (sound and/or popup; independent of threshold alerts).
+COMPLETION_NOTIFY_MIN_INTERVAL_SEC = 2.0
 GRAPH_LOG_GAMMA = 1.15
 # UI refresh for remaining / weighted avg (ms). Faster than poll so values feel live.
 ESTIMATE_TICK_MS = 100
@@ -162,24 +167,19 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 
-# Same files pre-filled in Settings (Sound file) and tried first by play_default_system_alert_sound().
-_DEFAULT_ALERT_WIN_MEDIA_NAMES = (
-    "Windows Notify System Generic.wav",
-    "Windows Notify Calendar.wav",
-    "Windows Notify Email.wav",
-    "Windows Notify.wav",
-    "notify.wav",
-    "Ring01.wav",
-)
-_DEFAULT_ALERT_MAC_NAMES = ("Glass.aiff", "Ping.aiff", "Tink.aiff", "Pop.aiff", "Funk.aiff")
-_DEFAULT_ALERT_LINUX_PATHS = (
-    "/usr/share/sounds/freedesktop/stereo/complete.oga",
-    "/usr/share/sounds/freedesktop/stereo/dialog-information.oga",
-    "/usr/share/sounds/freedesktop/stereo/message.oga",
-    "/usr/share/sounds/oxygen/stereo/dialog-information.ogg",
-    "/usr/share/sounds/gnome/default/alerts/glass.ogg",
-    "/usr/share/sounds/sound-icons/glass-water-1.wav",
-)
+# One default clip per OS per kind (warning vs completion). Pre-filled in Settings; tried before registry/bell fallbacks.
+# Windows: %SystemRoot%\\Media or %WINDIR%\\Media, else C:\\Windows\\Media. macOS: MACOS_SYSTEM_SOUNDS_DIR.
+# Linux: XDG_DATA_DIRS + relative path, plus /usr/share and /usr/local/share (see _linux_sound_paths_from_relatives).
+DEFAULT_ALERT_WIN_MEDIA_NAME = "Windows Background.wav"
+DEFAULT_COMPLETION_WIN_MEDIA_NAME = "tada.wav"
+DEFAULT_ALERT_MAC_NAME = "Basso.aiff"
+DEFAULT_COMPLETION_MAC_NAME = "Hero.aiff"
+DEFAULT_ALERT_LINUX_RELATIVE = "sounds/freedesktop/stereo/dialog-warning.oga"
+DEFAULT_COMPLETION_LINUX_RELATIVE = "sounds/freedesktop/stereo/complete.oga"
+# macOS: no standard env for system UI sounds; Apple documents this directory.
+MACOS_SYSTEM_SOUNDS_DIR = Path("/System/Library/Sounds")
+# Windows: use env when set; last resort explicit path (see _windows_media_dir).
+_FALLBACK_WINDOWS_SYSTEM_ROOT = Path(r"C:\Windows")
 
 # UI palette: Grafana-inspired dark (canvas/panel tones, series-style accents, readable contrast).
 UI_BG_APP = "#111217"
@@ -208,6 +208,10 @@ UI_GRAPH_AXIS = "#4a5260"
 UI_GRAPH_TEXT = "#9fa7b3"
 UI_GRAPH_LINE = "#5794f2"
 UI_GRAPH_MARKER = "#6b9bd6"
+# Hover: vertical time cursor (drawn on top of the series).
+UI_GRAPH_HOVER_CURSOR = "#f0f4f8"
+# X-axis small marks between major time labels (minute-scale; step widens when too dense).
+UI_GRAPH_MINOR_TICK = "#3a4250"
 UI_GRAPH_EMPTY = "#6e7680"
 UI_TOOLTIP_BG = "#1f2329"
 UI_TOOLTIP_FG = "#d8d9da"
@@ -234,6 +238,14 @@ UI_GRAPH_LABELFRAME_PAD = (10, 8, 10, 10)
 UI_GRAPH_STACK_PAD = (0, UI_INNER_PAD_Y_SM, 0, UI_INNER_PAD_Y_SM)
 # Plot canvas inside graph_stack (tight left — Y-axis margin is pad_left inside redraw_graph).
 UI_GRAPH_DARK_INNER_PAD = (4, UI_INNER_PAD_Y_SM, 8, 10)
+# Plot area inside graph canvas (must match redraw_graph — same numbers for axis labels + Y-scale button).
+GRAPH_CANVAS_PAD_LEFT = 64
+GRAPH_CANVAS_PAD_RIGHT = 22
+GRAPH_CANVAS_PAD_TOP = 12
+GRAPH_CANVAS_PAD_BOTTOM = 32
+# Y-scale toggle: inset from top-right corner of plot rectangle (not canvas edge).
+GRAPH_Y_SCALE_BTN_INSET_X = 8
+GRAPH_Y_SCALE_BTN_INSET_Y = 8
 # Gap only — details frame supplies the rest (avoid double top spacing in Status).
 UI_STATUS_BODY_PAD_TOP = UI_INNER_PAD_Y_SM
 # KPI strip: one horizontal gutter; balanced vertical padding.
@@ -250,7 +262,7 @@ UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
-    """Comma-separated queue positions (default 10, 5, 3, 2, 1); each fires at most once per
+    """Comma-separated queue positions (default 10, 5); each fires at most once per
     downward crossing until a new queue run (log boundary lines and/or large upward jump; see poll + compute_alert).
     """
     out: list[int] = []
@@ -260,7 +272,7 @@ def parse_alert_thresholds(raw: str) -> list[int]:
             continue
         out.append(int(part))
     if not out:
-        raise ValueError("Add at least one alert threshold (e.g. 10, 5, 3, 2, 1).")
+        raise ValueError("Add at least one alert threshold (e.g. 10, 5).")
     for t in out:
         if t < 1:
             raise ValueError(f"Alert threshold {t} must be >= 1.")
@@ -273,21 +285,112 @@ def expand_path(raw: str) -> Path:
     return Path(expanded)
 
 
+def browse_initialdir_from_path(raw: str) -> str:
+    """Folder to open native pickers in: uses the path already in the field (file → its parent, dir → itself)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return str(Path.home())
+    try:
+        p = expand_path(raw)
+    except Exception:
+        return str(Path.home())
+    try:
+        if p.is_file():
+            return str(p.resolve().parent)
+        if p.is_dir():
+            return str(p.resolve())
+        parent = p.parent
+        if parent.is_dir():
+            return str(parent.resolve())
+    except Exception:
+        pass
+    return str(Path.home())
+
+
+def _windows_media_dir() -> Path:
+    """%SystemRoot%\\Media or %WINDIR%\\Media when set; else explicit C:\\Windows\\Media."""
+    for key in ("SystemRoot", "WINDIR"):
+        v = os.environ.get(key)
+        if v:
+            return Path(v) / "Media"
+    return _FALLBACK_WINDOWS_SYSTEM_ROOT / "Media"
+
+
+def _linux_xdg_data_dirs() -> list[Path]:
+    """XDG Base Directory: default for XDG_DATA_DIRS is /usr/local/share:/usr/share when unset."""
+    raw = os.environ.get("XDG_DATA_DIRS")
+    if raw:
+        return [Path(p.strip()) for p in raw.split(":") if p.strip()]
+    return [Path("/usr/local/share"), Path("/usr/share")]
+
+
+def _linux_sound_paths_from_relatives(relatives: tuple[str, ...]) -> list[Path]:
+    """Try each path under XDG_DATA_DIRS, then explicit /usr/share and /usr/local/share (deduped)."""
+    roots: list[Path] = []
+    seen_r: set[str] = set()
+    for b in list(_linux_xdg_data_dirs()) + [Path("/usr/share"), Path("/usr/local/share")]:
+        try:
+            key = str(b.resolve())
+        except Exception:
+            key = str(b)
+        if key not in seen_r:
+            seen_r.add(key)
+            roots.append(b)
+    out: list[Path] = []
+    seen_p: set[str] = set()
+    for rel in relatives:
+        for root in roots:
+            p = root / rel
+            try:
+                pk = str(p.resolve())
+            except Exception:
+                pk = str(p)
+            if pk not in seen_p:
+                seen_p.add(pk)
+                out.append(p)
+    return out
+
+
 def iter_default_alert_sound_paths() -> list[Path]:
-    """Ordered candidate paths for the OS default alert (same order as playback)."""
+    """Default warning sound: one path per OS (may expand to several candidates on Linux for XDG roots)."""
     if sys.platform.startswith("win"):
-        media = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Media"
-        return [media / n for n in _DEFAULT_ALERT_WIN_MEDIA_NAMES]
+        return [_windows_media_dir() / DEFAULT_ALERT_WIN_MEDIA_NAME]
     if sys.platform == "darwin":
-        return [Path("/System/Library/Sounds") / n for n in _DEFAULT_ALERT_MAC_NAMES]
+        return [MACOS_SYSTEM_SOUNDS_DIR / DEFAULT_ALERT_MAC_NAME]
     if sys.platform.startswith("linux"):
-        return [Path(p) for p in _DEFAULT_ALERT_LINUX_PATHS]
+        return _linux_sound_paths_from_relatives((DEFAULT_ALERT_LINUX_RELATIVE,))
     return []
+
+
+def iter_default_completion_sound_paths() -> list[Path]:
+    """Default completion sound: one path per OS."""
+    if sys.platform.startswith("win"):
+        return [_windows_media_dir() / DEFAULT_COMPLETION_WIN_MEDIA_NAME]
+    if sys.platform == "darwin":
+        return [MACOS_SYSTEM_SOUNDS_DIR / DEFAULT_COMPLETION_MAC_NAME]
+    if sys.platform.startswith("linux"):
+        return _linux_sound_paths_from_relatives((DEFAULT_COMPLETION_LINUX_RELATIVE,))
+    return []
+
+
+def try_play_first_existing_sound(paths: list[Path]) -> bool:
+    for p in paths:
+        if p.is_file() and play_alert_sound_file(p):
+            return True
+    return False
 
 
 def default_alert_sound_path_for_display() -> str:
     """First existing default alert file path for Settings, or empty string."""
     for p in iter_default_alert_sound_paths():
+        if p.is_file():
+            return str(p)
+    return ""
+
+
+def default_completion_sound_path_for_display() -> str:
+    """First existing default completion sound path for Settings, or empty string."""
+    for p in iter_default_completion_sound_paths():
         if p.is_file():
             return str(p)
     return ""
@@ -336,12 +439,35 @@ def play_alert_sound_file(path: Path) -> bool:
 
 def play_default_system_alert_sound() -> bool:
     """Play OS default alert: same files as Settings pre-fill, then Windows registry/MessageBeep fallback."""
-    for p in iter_default_alert_sound_paths():
-        if p.is_file() and play_alert_sound_file(p):
-            return True
+    if try_play_first_existing_sound(iter_default_alert_sound_paths()):
+        return True
 
     if winsound is not None and sys.platform.startswith("win"):
         for alias in ("SystemNotification", "SystemAsterisk", "SystemExclamation", "SystemDefault"):
+            try:
+                winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
+                return True
+            except Exception:
+                continue
+        try:
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            return True
+        except Exception:
+            try:
+                winsound.MessageBeep()
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def play_default_completion_system_sound() -> bool:
+    """Play OS default queue-completion tone; softer Windows fallbacks than threshold alert."""
+    if try_play_first_existing_sound(iter_default_completion_sound_paths()):
+        return True
+
+    if winsound is not None and sys.platform.startswith("win"):
+        for alias in ("SystemNotification", "SystemDefault", "SystemAsterisk"):
             try:
                 winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
                 return True
@@ -842,6 +968,18 @@ class QueueMonitorApp(tk.Tk):
         else:
             _sound_initial = default_alert_sound_path_for_display()
         self.alert_sound_path_var = tk.StringVar(value=_sound_initial)
+        self.completion_sound_enabled_var = tk.BooleanVar(
+            value=bool(self.config.get("completion_sound_enabled", True)),
+        )
+        _csp = self.config.get("completion_sound_path")
+        if isinstance(_csp, str) and _csp.strip():
+            _comp_initial = _csp.strip()
+        else:
+            _comp_initial = default_completion_sound_path_for_display()
+        self.completion_sound_path_var = tk.StringVar(value=_comp_initial)
+        self.completion_popup_enabled_var = tk.BooleanVar(
+            value=bool(self.config.get("completion_popup_enabled", True)),
+        )
         self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get("show_every_change", False)))
 
         self.running = False
@@ -852,12 +990,16 @@ class QueueMonitorApp(tk.Tk):
         self.last_position: Optional[int] = None
         self.last_alert_position: Optional[int] = None
         self.last_alert_epoch: float = 0.0
+        self._last_queue_completion_notify_epoch: float = 0.0
+        self._queue_completion_notified_this_run: bool = False
         self._alert_thresholds_fired: set[int] = set()
         self.active_popup: Optional[tk.Toplevel] = None
+        self.active_completion_popup: Optional[tk.Toplevel] = None
         self.graph_points: deque[tuple[float, int]] = deque(maxlen=MAX_GRAPH_POINTS)
         self.graph_canvas: Optional[tk.Canvas] = None
         self.current_point: Optional[tuple[float, int]] = None
         self.graph_points_drawn: list[tuple[float, int]] = []
+        self._graph_hover_point: Optional[tuple[float, int]] = None  # (epoch, pos) nearest sample for tooltip ring
         self.graph_tooltip: Optional[tk.Toplevel] = None
         self.status_frame: Optional[ttk.Frame] = None
         self._status_body_wrap: Optional[ttk.Frame] = None
@@ -1023,6 +1165,23 @@ class QueueMonitorApp(tk.Tk):
         )
         style.map(
             "TButton",
+            background=[("active", UI_BUTTON_BG_ACTIVE), ("pressed", UI_BUTTON_BG_ACTIVE)],
+            darkcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
+            lightcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
+        )
+        # Overlay on graph canvas: sized to longest label ("Y → linear"); extra vertical padding avoids clipped text.
+        style.configure(
+            "GraphYScale.TButton",
+            padding=(10, 6),
+            background=UI_BUTTON_BG,
+            foreground=UI_TEXT_PRIMARY,
+            bordercolor=_bd,
+            darkcolor=UI_BUTTON_BG,
+            lightcolor=UI_BUTTON_BG_ACTIVE,
+            focuscolor=UI_BUTTON_BG,
+        )
+        style.map(
+            "GraphYScale.TButton",
             background=[("active", UI_BUTTON_BG_ACTIVE), ("pressed", UI_BUTTON_BG_ACTIVE)],
             darkcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
             lightcolor=[("pressed", UI_BUTTON_BG_ACTIVE)],
@@ -1382,15 +1541,8 @@ class QueueMonitorApp(tk.Tk):
         self._graph_y_scale_btn = ttk.Button(
             self.graph_canvas,
             text="Y \u2192 log",
-            width=11,
+            style="GraphYScale.TButton",
             command=self._toggle_graph_y_scale,
-        )
-        self._graph_y_scale_btn.place(
-            relx=1.0,
-            rely=0.0,
-            anchor="ne",
-            x=-6,
-            y=6,
         )
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
@@ -1398,7 +1550,7 @@ class QueueMonitorApp(tk.Tk):
             self._graph_y_scale_btn,
             "Toggle Y axis: linear (even spacing) vs log (more detail when queue position is low).",
         )
-        self.graph_canvas.bind("<Configure>", lambda _evt: self.redraw_graph())
+        self.graph_canvas.bind("<Configure>", self._on_graph_canvas_configure)
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
 
@@ -1546,7 +1698,7 @@ class QueueMonitorApp(tk.Tk):
             pass
 
     def open_settings(self) -> None:
-        """Alerts, polling, and display options — kept out of the main layout (Material-style gear entry)."""
+        """Polling, Warnings Alerts, Completion Alerts, prediction — gear entry."""
         if self._settings_win is not None:
             try:
                 if self._settings_win.winfo_exists():
@@ -1565,48 +1717,101 @@ class QueueMonitorApp(tk.Tk):
             win.transient(self)
         except Exception:
             pass
-        win.minsize(380, 1)
+        win.minsize(440, 1)
 
         outer = ttk.Frame(win, padding=(16, 14), style="Card.TFrame")
         outer.pack(fill="x")
 
-        alerts_fr = ttk.LabelFrame(outer, text="Alerts & polling", padding=(10, 8))
-        alerts_fr.pack(fill="x", pady=(0, 8))
-        alerts_fr.columnconfigure(1, weight=1)
+        poll_fr = ttk.LabelFrame(outer, text="Polling", padding=(10, 8))
+        poll_fr.pack(fill="x", pady=(0, 8))
+        ttk.Label(poll_fr, text="Poll (s)").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(poll_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=1, sticky="w")
 
-        ttk.Label(alerts_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(alerts_fr, textvariable=self.alert_thresholds_var, width=36).grid(
+        warn_fr = ttk.LabelFrame(outer, text="Warnings Alerts", padding=(10, 8))
+        warn_fr.pack(fill="x", pady=(0, 8))
+        warn_fr.columnconfigure(1, weight=1)
+
+        ttk.Label(warn_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        ttk.Entry(warn_fr, textvariable=self.alert_thresholds_var, width=36).grid(
             row=0, column=1, sticky="ew", padx=(0, 12)
         )
-        ttk.Label(alerts_fr, text="Poll (s)").grid(row=0, column=2, sticky="w", padx=(0, 6))
-        ttk.Entry(alerts_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=3, sticky="w")
 
-        checks1 = ttk.Frame(alerts_fr, style="Card.TFrame")
-        checks1.grid(row=1, column=0, columnspan=4, sticky="w", pady=(10, 0))
-        ttk.Checkbutton(checks1, text="Alert popup", variable=self.popup_enabled_var).pack(side="left", padx=(0, 14))
-        ttk.Checkbutton(checks1, text="Alert sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
+        checks1 = ttk.Frame(warn_fr, style="Card.TFrame")
+        checks1.grid(row=1, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        _cb_warn_pop = ttk.Checkbutton(checks1, text="Warning popup", variable=self.popup_enabled_var)
+        _cb_warn_pop.pack(side="left", padx=(0, 14))
+        self._bind_static_tooltip(
+            _cb_warn_pop,
+            "Popup when your position crosses downward through the warning thresholds above. "
+            "Queue completion uses a separate popup (no threshold list).",
+        )
+        ttk.Checkbutton(checks1, text="Warning sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
         ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var).pack(
             side="left", padx=(0, 0)
         )
 
-        ttk.Label(alerts_fr, text="Sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
-        _sound_entry = ttk.Entry(alerts_fr, textvariable=self.alert_sound_path_var)
-        _sound_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 8), pady=(10, 0))
-        _sound_actions = ttk.Frame(alerts_fr, style="Card.TFrame")
-        _sound_actions.grid(row=2, column=3, sticky="e", pady=(10, 0))
+        ttk.Label(warn_fr, text="Warning sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _sound_entry = ttk.Entry(warn_fr, textvariable=self.alert_sound_path_var)
+        _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
+        _sound_actions = ttk.Frame(warn_fr, style="Card.TFrame")
+        _sound_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
         _sound_browse = ttk.Button(_sound_actions, text="Browse…", command=self.browse_alert_sound, width=8)
         _sound_browse.pack(side="left", padx=(0, 6))
         _sound_preview = ttk.Button(_sound_actions, text="Preview", command=self.preview_alert_sound, width=8)
         _sound_preview.pack(side="left")
         self._bind_static_tooltip(
             _sound_entry,
-            "Sound file for threshold alerts (alert sound must be on). Pre-filled with the OS default alert "
-            "file the app already uses for the built-in sound (editable).",
+            "Sound file for warning thresholds (warning sound must be on). Uses OS default alarm-style "
+            "media when empty or invalid.",
         )
-        self._bind_static_tooltip(_sound_browse, "Choose a .wav or other supported audio file for threshold alerts.")
+        self._bind_static_tooltip(_sound_browse, "Choose audio for warning / threshold alerts.")
         self._bind_static_tooltip(
             _sound_preview,
-            "Play the current sound path (or built-in default) once — ignores the Alert sound checkbox.",
+            "Play the warning sound once — ignores the Warning sound checkbox.",
+        )
+
+        comp_fr = ttk.LabelFrame(outer, text="Completion Alerts", padding=(10, 8))
+        comp_fr.pack(fill="x", pady=(0, 8))
+        comp_fr.columnconfigure(1, weight=1)
+        ttk.Label(
+            comp_fr,
+            text="Fires once when you reach the front (position ≤1). Not threshold-based — only on/off below "
+            "(and optional sound file).",
+            wraplength=440,
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+
+        checks2 = ttk.Frame(comp_fr, style="Card.TFrame")
+        checks2.grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 0))
+        _cb_comp_pop = ttk.Checkbutton(checks2, text="Completion popup", variable=self.completion_popup_enabled_var)
+        _cb_comp_pop.pack(side="left", padx=(0, 14))
+        self._bind_static_tooltip(
+            _cb_comp_pop,
+            "On/off only. Shows when you reach queue front (≤1). No comma-separated threshold list.",
+        )
+        _cb_comp_snd = ttk.Checkbutton(checks2, text="Completion sound", variable=self.completion_sound_enabled_var)
+        _cb_comp_snd.pack(side="left", padx=(0, 0))
+        self._bind_static_tooltip(
+            _cb_comp_snd,
+            "On/off only at queue front (≤1). Which clip plays is set by the completion sound file below.",
+        )
+
+        ttk.Label(comp_fr, text="Completion sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _comp_entry = ttk.Entry(comp_fr, textvariable=self.completion_sound_path_var)
+        _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
+        _comp_actions = ttk.Frame(comp_fr, style="Card.TFrame")
+        _comp_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
+        _comp_browse = ttk.Button(_comp_actions, text="Browse…", command=self.browse_completion_sound, width=8)
+        _comp_browse.pack(side="left", padx=(0, 6))
+        _comp_preview = ttk.Button(_comp_actions, text="Preview", command=self.preview_completion_sound, width=8)
+        _comp_preview.pack(side="left")
+        self._bind_static_tooltip(
+            _comp_entry,
+            "Which audio file to play at queue front when completion sound is on — not a position threshold.",
+        )
+        self._bind_static_tooltip(_comp_browse, "Choose the completion clip (trigger is always position ≤1).")
+        self._bind_static_tooltip(
+            _comp_preview,
+            "Play the completion sound once — ignores the Completion sound checkbox.",
         )
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
@@ -1690,6 +1895,9 @@ class QueueMonitorApp(tk.Tk):
             "popup_enabled": bool(self.popup_enabled_var.get()),
             "sound_enabled": bool(self.sound_enabled_var.get()),
             "alert_sound_path": self.alert_sound_path_var.get().strip(),
+            "completion_popup_enabled": bool(self.completion_popup_enabled_var.get()),
+            "completion_sound_enabled": bool(self.completion_sound_enabled_var.get()),
+            "completion_sound_path": self.completion_sound_path_var.get().strip(),
             "show_every_change": bool(self.show_every_change_var.get()),
             "window_geometry": self.geometry(),
             "version": VERSION,
@@ -1726,6 +1934,9 @@ class QueueMonitorApp(tk.Tk):
             self.popup_enabled_var,
             self.sound_enabled_var,
             self.alert_sound_path_var,
+            self.completion_popup_enabled_var,
+            self.completion_sound_enabled_var,
+            self.completion_sound_path_var,
             self.show_every_change_var,
         ):
             var.trace_add("write", self._schedule_config_persist)
@@ -1743,6 +1954,9 @@ class QueueMonitorApp(tk.Tk):
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
         self.alert_sound_path_var.set(default_alert_sound_path_for_display())
+        self.completion_popup_enabled_var.set(True)
+        self.completion_sound_enabled_var.set(True)
+        self.completion_sound_path_var.set(default_completion_sound_path_for_display())
         self.show_every_change_var.set(False)
 
         self.resolved_path_var.set("")
@@ -1757,6 +1971,8 @@ class QueueMonitorApp(tk.Tk):
             self._queue_progress.configure(value=0.0)
 
         self._position_one_reached_at = None
+        self._queue_completion_notified_this_run = False
+        self._last_queue_completion_notify_epoch = 0.0
         self._last_queue_run_session = -1
         self._last_queue_position_change_epoch = None
         self._last_queue_line_epoch = None
@@ -2036,12 +2252,20 @@ class QueueMonitorApp(tk.Tk):
             self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
     def browse_file(self) -> None:
-        selected = filedialog.askopenfilename(title="Select client log")
+        initialdir = browse_initialdir_from_path(self.source_path_var.get())
+        selected = filedialog.askopenfilename(
+            title="Select client log",
+            initialdir=initialdir,
+        )
         if selected:
             self.source_path_var.set(selected)
 
     def browse_folder(self) -> None:
-        selected = filedialog.askdirectory(title="Select folder to search")
+        initialdir = browse_initialdir_from_path(self.source_path_var.get())
+        selected = filedialog.askdirectory(
+            title="Select folder to search",
+            initialdir=initialdir,
+        )
         if selected:
             self.source_path_var.set(selected)
 
@@ -2052,9 +2276,11 @@ class QueueMonitorApp(tk.Tk):
                 parent = self
         except Exception:
             parent = self
+        initialdir = browse_initialdir_from_path(self.alert_sound_path_var.get())
         selected = filedialog.askopenfilename(
             parent=parent,
-            title="Select alert sound file",
+            title="Select warning sound file",
+            initialdir=initialdir,
             filetypes=[
                 ("Audio", "*.wav *.mp3 *.aiff *.aif *.flac *.ogg"),
                 ("WAV", "*.wav"),
@@ -2064,9 +2290,34 @@ class QueueMonitorApp(tk.Tk):
         if selected:
             self.alert_sound_path_var.set(selected)
 
+    def browse_completion_sound(self) -> None:
+        parent = self._settings_win
+        try:
+            if parent is None or not parent.winfo_exists():
+                parent = self
+        except Exception:
+            parent = self
+        initialdir = browse_initialdir_from_path(self.completion_sound_path_var.get())
+        selected = filedialog.askopenfilename(
+            parent=parent,
+            title="Select completion sound file",
+            initialdir=initialdir,
+            filetypes=[
+                ("Audio", "*.wav *.mp3 *.aiff *.aif *.flac *.ogg"),
+                ("WAV", "*.wav"),
+                ("All files", "*.*"),
+            ],
+        )
+        if selected:
+            self.completion_sound_path_var.set(selected)
+
     def preview_alert_sound(self) -> None:
-        """Play the configured alert sound once (for Settings); does not check Alert sound enabled."""
+        """Play the configured warning sound once (for Settings); ignores the Warning sound checkbox."""
         self.play_sound()
+
+    def preview_completion_sound(self) -> None:
+        """Play the configured completion sound once; ignores the Completion sound checkbox."""
+        self.play_completion_sound()
 
     def parse_int(self, raw: str, name: str, minimum: int = 0) -> int:
         try:
@@ -2116,6 +2367,7 @@ class QueueMonitorApp(tk.Tk):
                 raise ValueError(str(exc)) from exc
             self._alert_thresholds_fired.clear()
             self._position_one_reached_at = None
+            self._queue_completion_notified_this_run = False
             self._last_queue_run_session = -1
             self._last_queue_position_change_epoch = None
             self._queue_stale_latched = False
@@ -2263,19 +2515,24 @@ class QueueMonitorApp(tk.Tk):
         if path is None or not path.is_file():
             self.write_history("Cannot load new queue: log file missing.")
             return
-        data = compute_seed_graph_from_log(path)
-        if data is None:
-            self.write_history("Could not find queue data in the log for the new run.")
-            self._set_status_line("Watching log, queue line not found yet")
-            return
         self._queue_stale_latched = False
         self._queue_stale_logged_once = False
         self._position_one_reached_at = None
         self._mpp_floor_position = None
         self._mpp_floor_value = None
         self._alert_thresholds_fired.clear()
-        self._apply_seed_result(data)
-        self._set_status_line("Monitoring")
+        self._queue_completion_notified_this_run = False
+        ok = self._reseed_graph_for_new_run(path)
+        if ok:
+            self._set_status_line("Monitoring")
+        else:
+            self.write_history("Could not find queue data in the log for the new run.")
+            self._set_status_line("Watching log, queue line not found yet")
+            self.graph_points.clear()
+            self.current_point = None
+            self.last_position = None
+            self.position_var.set("—")
+            self.redraw_graph()
 
     def stop_monitoring(self) -> None:
         self._interrupted_mode = False
@@ -2323,6 +2580,29 @@ class QueueMonitorApp(tk.Tk):
     def tick_timer(self) -> None:
         self.update_time_estimates()
         self.timer_job_id = self.after(ESTIMATE_TICK_MS, self.tick_timer)
+
+    def _reseed_graph_for_new_run(self, log_file: Path) -> bool:
+        """Replace the graph for a new queue session: full segment from log, or one point from the tail."""
+        data = compute_seed_graph_from_log(log_file)
+        if data is not None:
+            self._apply_seed_result(data)
+            return True
+        text = read_log_file_tail_text(log_file, TAIL_BYTES)
+        if text is None:
+            return False
+        pos, sess = parse_tail_last_queue_reading(text)
+        if pos is None:
+            return False
+        self.graph_points.clear()
+        self.current_point = None
+        self.last_position = None
+        self._last_queue_run_session = sess
+        self.append_graph_point(pos)
+        self.update_time_estimates()
+        self.write_history(
+            "Graph reset to current queue position (full history unavailable from log scan)."
+        )
+        return True
 
     def _apply_seed_result(
         self,
@@ -2391,6 +2671,7 @@ class QueueMonitorApp(tk.Tk):
                     self.current_log_file = resolved
                     self.resolved_path_var.set(str(resolved))
                     self._last_queue_run_session = -1
+                    self._queue_completion_notified_this_run = False
                     self._last_queue_position_change_epoch = None
                     self._queue_stale_latched = False
                     self._queue_stale_logged_once = False
@@ -2475,6 +2756,7 @@ class QueueMonitorApp(tk.Tk):
 
                         if not self._interrupted_mode:
                             if position > 1:
+                                self._queue_completion_notified_this_run = False
                                 if prev_pos is None or position != prev_pos:
                                     self._last_queue_position_change_epoch = now
                                     self._queue_stale_logged_once = False
@@ -2504,12 +2786,15 @@ class QueueMonitorApp(tk.Tk):
                             ):
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
+                                self._queue_completion_notified_this_run = False
                                 self._last_queue_position_change_epoch = time.time()
                                 self._queue_stale_latched = False
                                 self._queue_stale_logged_once = False
                                 self._mpp_floor_position = None
                                 self._mpp_floor_value = None
                                 self.write_history("New queue run (from log).")
+                                if self.current_log_file is not None:
+                                    self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
                             self._set_status_line("Completed" if position <= 1 else "Monitoring")
                             self.position_var.set(str(position))
@@ -2530,6 +2815,7 @@ class QueueMonitorApp(tk.Tk):
                             should_alert, reason = self.compute_alert(prev_pos, position)
                             if should_alert:
                                 self.raise_alert(position, reason)
+                            self._maybe_notify_queue_completion(prev_pos, position)
                     elif not log_silent:
                         self._set_status_line("Watching log, queue line not found yet")
         except Exception as exc:
@@ -2680,7 +2966,7 @@ class QueueMonitorApp(tk.Tk):
         bt(self._btn_browse_folder, "Choose a folder; the app searches for client-main.log inside.")
         bt(
             self._settings_btn,
-            "Alerts (thresholds, popup, sound), poll interval, prediction window, and graph scale.",
+            "Polling; Warnings Alerts + Completion Alerts; prediction window; graph scale.",
         )
         bt(self._loading_spinner, "Loading: reading the log tail to seed the graph and position.")
         bt(self._graph_labelframe, "Queue position over time (step plot from parsed log lines).")
@@ -2726,7 +3012,11 @@ class QueueMonitorApp(tk.Tk):
             "Plot area: queue position vs time. Hover the line for timestamp and position; "
             "use the Y button for linear vs log vertical scale.",
         )
-        bt(self.graph_canvas, "Hover near the blue line for time and position at that point.")
+        bt(
+            self.graph_canvas,
+            "Move over the graph: a white vertical line snaps to the nearest sample in time; the ring matches the tooltip. "
+            "The bottom axis uses small marks each minute when zoomed in enough.",
+        )
         bt(
             self._status_tab_strip,
             "Click the arrow, title, or empty area on this bar to show or hide Status details.",
@@ -2738,7 +3028,7 @@ class QueueMonitorApp(tk.Tk):
         bt(self._status_tab_btn, "Expand or collapse Status (same as the title label or the rest of the bar).")
         bt(self._lbl_det_last_change, "Label: when the queue position last changed in the log.")
         bt(self._lbl_det_last_change_val, "Timestamp of the last queue position change.")
-        bt(self._lbl_det_alert, "Label: when a threshold alert last fired (popup/sound).")
+        bt(self._lbl_det_alert, "Label: when a threshold warning last fired (warning popup/sound).")
         bt(self._lbl_det_alert_val, "Last alert position and reason, or — if none this run.")
         bt(self._lbl_det_path, "Label: actual file path used after resolving $APPDATA and symlinks.")
         bt(self._lbl_det_path_val, "Full resolved path to the log file being read.")
@@ -3077,6 +3367,26 @@ class QueueMonitorApp(tk.Tk):
         self.graph_log_scale_var.set(not self.graph_log_scale_var.get())
         self.redraw_graph()
 
+    def _position_graph_y_scale_button(self, _evt: object | None = None) -> None:
+        """Place Y-scale control at top-right inside the plot area (not canvas corner — avoids top margin clip)."""
+        canvas = self.graph_canvas
+        btn = self._graph_y_scale_btn
+        if canvas is None or btn is None:
+            return
+        try:
+            w = int(canvas.winfo_width())
+        except tk.TclError:
+            return
+        if w <= 10:
+            return
+        x_right = w - GRAPH_CANVAS_PAD_RIGHT - GRAPH_Y_SCALE_BTN_INSET_X
+        y_top = GRAPH_CANVAS_PAD_TOP + GRAPH_Y_SCALE_BTN_INSET_Y
+        btn.place_configure(x=x_right, y=y_top, anchor="ne")
+
+    def _on_graph_canvas_configure(self, _evt: object) -> None:
+        self._position_graph_y_scale_button()
+        self.redraw_graph()
+
     def redraw_graph(self) -> None:
         canvas = self.graph_canvas
         if canvas is None:
@@ -3089,10 +3399,10 @@ class QueueMonitorApp(tk.Tk):
             return
 
         # Leave space for axis labels (especially X time labels) and the Y-scale overlay.
-        pad_left = 64
-        pad_right = 22
-        pad_top = 12
-        pad_bottom = 32
+        pad_left = GRAPH_CANVAS_PAD_LEFT
+        pad_right = GRAPH_CANVAS_PAD_RIGHT
+        pad_top = GRAPH_CANVAS_PAD_TOP
+        pad_bottom = GRAPH_CANVAS_PAD_BOTTOM
         plot_w = max(1, width - pad_left - pad_right)
         plot_h = max(1, height - pad_top - pad_bottom)
 
@@ -3107,18 +3417,21 @@ class QueueMonitorApp(tk.Tk):
             step = max(1, len(points) // MAX_DRAW_POINTS)
             points = points[::step]
         self.graph_points_drawn = points
-        if len(points) < 2:
-            if len(points) == 1:
-                _t, pos = points[0]
-                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"{pos}", fill=UI_GRAPH_TEXT)
-            else:
-                canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text="No data yet", fill=UI_GRAPH_EMPTY)
+        if len(points) == 0:
+            self._graph_hover_point = None
+            canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text="No data yet", fill=UI_GRAPH_EMPTY)
             return
 
-        t0 = points[0][0]
-        t1 = points[-1][0]
-        if t1 <= t0:
-            t1 = t0 + 1e-6
+        if len(points) == 1:
+            t_mid = float(points[0][0])
+            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
+            t0 = t_mid - half
+            t1 = t_mid + half
+        else:
+            t0 = float(points[0][0])
+            t1 = float(points[-1][0])
+            if t1 <= t0:
+                t1 = t0 + 1e-6
 
         vals = [p for _t, p in points]
         vmin = min(vals)
@@ -3244,6 +3557,31 @@ class QueueMonitorApp(tk.Tk):
             if 0 < idx < len(tick_times) - 1:
                 canvas.create_line(x, y0, x, y1, fill=UI_GRAPH_GRID)
 
+        # Minor X ticks: minute marks (short); coarser steps if the window is too narrow to separate them.
+        span_sec = t1 - t0
+        if span_sec > 1e-6:
+            px_per_min = plot_w / (span_sec / 60.0)
+            minor_step_sec = 60.0
+            if px_per_min < 3.0:
+                minor_step_sec = 300.0
+            if px_per_min < 0.5:
+                minor_step_sec = 900.0
+            m_start = math.ceil(t0 / minor_step_sec) * minor_step_sec
+            m = m_start
+            major_x_approx: list[float] = [x_of(float(tv)) for tv in tick_times]
+
+            def _near_major(xm: float) -> bool:
+                for xa in major_x_approx:
+                    if abs(xm - xa) <= 2.5:
+                        return True
+                return False
+
+            while m <= t1 + 1e-6:
+                xm = x_of(m)
+                if x0 <= xm <= x1 and not _near_major(xm):
+                    canvas.create_line(xm, y1, xm, y1 + 3, fill=UI_GRAPH_MINOR_TICK, width=1)
+                m += minor_step_sec
+
         canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
 
         # Step chart: hold position until the next log time, then jump. Raw points are only sampled at
@@ -3269,6 +3607,11 @@ class QueueMonitorApp(tk.Tk):
 
         if len(line) >= 4:
             canvas.create_line(*line, fill=UI_GRAPH_LINE, width=2, smooth=False)
+        elif len(points) == 1 and step_vertices:
+            _ts, _pv = step_vertices[0]
+            _lx = x_of(_ts)
+            _ly = y_of(_pv)
+            canvas.create_line(x0, _ly, _lx, _ly, fill=UI_GRAPH_LINE, width=2, smooth=False)
 
         marker = self.current_point or points[-1]
         last_t, last_v = marker
@@ -3277,10 +3620,26 @@ class QueueMonitorApp(tk.Tk):
         canvas.create_oval(lx - 4, ly - 4, lx + 4, ly + 4, outline="", fill=UI_GRAPH_MARKER)
         canvas.create_text(lx + 10, ly, anchor="w", text=str(last_v), fill=UI_GRAPH_TEXT)
 
+        hp = self._graph_hover_point
+        if hp is not None:
+            ht, hv = hp
+            hx = x_of(ht)
+            hy = y_of(hv)
+            canvas.create_line(hx, y0, hx, y1, fill=UI_GRAPH_HOVER_CURSOR, width=1)
+            canvas.create_oval(
+                hx - 5,
+                hy - 5,
+                hx + 5,
+                hy + 5,
+                outline=UI_GRAPH_LINE,
+                width=2,
+                fill=UI_GRAPH_PLOT,
+            )
+
     def on_graph_motion(self, evt: tk.Event) -> None:
         points = self.graph_points_drawn
         canvas = self.graph_canvas
-        if canvas is None or len(points) < 2:
+        if canvas is None or len(points) < 1:
             return
 
         width = int(canvas.winfo_width())
@@ -3288,17 +3647,20 @@ class QueueMonitorApp(tk.Tk):
         if width <= 10 or height <= 10:
             return
 
-        pad_x = 12
-        pad_y = 10
-        plot_w = max(1, width - 2 * pad_x)
-        plot_h = max(1, height - 2 * pad_y)
+        pad_left = GRAPH_CANVAS_PAD_LEFT
+        pad_right = GRAPH_CANVAS_PAD_RIGHT
+        plot_w = max(1, width - pad_left - pad_right)
 
-        x = max(pad_x, min(pad_x + plot_w, evt.x))
-        t0 = points[0][0]
-        t1 = points[-1][0]
-        if t1 <= t0:
-            return
-        target_t = t0 + (x - pad_x) / plot_w * (t1 - t0)
+        x = max(pad_left, min(pad_left + plot_w, evt.x))
+        t0 = float(points[0][0])
+        t1 = float(points[-1][0])
+        if len(points) == 1:
+            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
+            t0 = t0 - half
+            t1 = t1 + half
+        elif t1 <= t0:
+            t1 = t0 + 1e-6
+        target_t = t0 + (x - pad_left) / plot_w * (t1 - t0)
 
         # Find nearest point by time
         best = points[0]
@@ -3310,6 +3672,10 @@ class QueueMonitorApp(tk.Tk):
                 best_dt = dt
 
         t, pos = best
+        hover = (float(t), int(pos))
+        if self._graph_hover_point != hover:
+            self._graph_hover_point = hover
+            self.redraw_graph()
         ts = datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
         self.show_graph_tooltip(evt.x_root, evt.y_root, f"{ts}\npos {pos}")
 
@@ -3337,9 +3703,12 @@ class QueueMonitorApp(tk.Tk):
             except Exception:
                 pass
         self.graph_tooltip = None
+        if self._graph_hover_point is not None:
+            self._graph_hover_point = None
+            self.redraw_graph()
 
     def compute_alert(self, prev_pos: Optional[int], curr_pos: int) -> tuple[bool, str]:
-        """Alert once per CSV threshold when crossing downward (e.g. first time at ≤10, ≤5, …).
+        """Alert once per CSV threshold when crossing downward (e.g. first time at ≤10, then ≤5, …).
 
         Fired thresholds also reset when poll_once detects a new queue run from log boundary lines.
         Remaining resets: large upward jump (or marginal +10 from front — see code), not small bumps.
@@ -3391,6 +3760,7 @@ class QueueMonitorApp(tk.Tk):
             self.show_popup(position, reason)
 
     def play_sound(self) -> None:
+        """Threshold / warning alert sound."""
         raw = (self.alert_sound_path_var.get() or "").strip()
         if raw:
             p = expand_path(raw)
@@ -3403,7 +3773,50 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
+    def play_completion_sound(self) -> None:
+        """Queue front (position ≤1) completion sound."""
+        raw = (self.completion_sound_path_var.get() or "").strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_completion_system_sound():
+            return
+        try:
+            self.bell()
+        except Exception:
+            pass
+
+    def _maybe_notify_queue_completion(self, prev_pos: Optional[int], position: int) -> None:
+        """Once per approach to queue front (≤1): optional sound/popup only — no configurable completion threshold."""
+        if prev_pos is None or prev_pos <= 1:
+            return
+        if position > 1:
+            return
+        if self._queue_completion_notified_this_run:
+            return
+        now = time.time()
+        if (
+            self._last_queue_completion_notify_epoch > 0.0
+            and (now - self._last_queue_completion_notify_epoch) < COMPLETION_NOTIFY_MIN_INTERVAL_SEC
+        ):
+            return
+
+        want_sound = bool(self.completion_sound_enabled_var.get())
+        want_popup = bool(self.completion_popup_enabled_var.get())
+        if not want_sound and not want_popup:
+            return
+
+        self._queue_completion_notified_this_run = True
+        self._last_queue_completion_notify_epoch = now
+        self.write_history("Queue completion: reached front of queue (position ≤1).")
+        if want_sound:
+            self.play_completion_sound()
+        if want_popup:
+            self.show_completion_popup(position)
+
     def show_popup(self, position: int, reason: str) -> None:
+        """Threshold / warning popup (downward crossings)."""
         if self.active_popup is not None and self.active_popup.winfo_exists():
             try:
                 self.active_popup.destroy()
@@ -3412,7 +3825,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_popup = popup
-        popup.title("Threshold alert")
+        popup.title("Threshold warning")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -3445,6 +3858,58 @@ class QueueMonitorApp(tk.Tk):
 
         popup.after(POPUP_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
+    def show_completion_popup(self, position: int) -> None:
+        """Queue front — visually distinct from the threshold warning popup."""
+        if self.active_completion_popup is not None and self.active_completion_popup.winfo_exists():
+            try:
+                self.active_completion_popup.destroy()
+            except Exception:
+                pass
+
+        popup = tk.Toplevel(self)
+        self.active_completion_popup = popup
+        popup.title("Queue complete")
+        popup.attributes("-topmost", True)
+        popup.resizable(False, False)
+        popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
+
+        try:
+            popup.transient(self)
+        except Exception:
+            pass
+
+        tk.Label(
+            popup,
+            text="You're at the front of the queue",
+            font=("TkDefaultFont", 15, "bold"),
+            bg=UI_BG_CARD,
+            fg=UI_ACCENT_STATUS,
+        ).pack(anchor="w", pady=(0, 8))
+        tk.Label(
+            popup,
+            text=(
+                f"Position {position}: you can connect when the game finishes assigning you.\n\n"
+                "Queue completion is fixed at the front (≤1) — not a configurable threshold. "
+                "Warning alerts use your comma-separated threshold list separately."
+            ),
+            justify="left",
+            wraplength=380,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(0, 12))
+        ttk.Button(popup, text="Dismiss", command=popup.destroy).pack(anchor="e")
+
+        popup.update_idletasks()
+        width = popup.winfo_width()
+        height = popup.winfo_height()
+        screen_w = popup.winfo_screenwidth()
+        screen_h = popup.winfo_screenheight()
+        x = max(40, screen_w - width - 50)
+        y = max(40, screen_h - height - 140)
+        popup.geometry(f"+{x}+{y}")
+
+        popup.after(POPUP_COMPLETION_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
+
     def on_close(self) -> None:
         if self._settings_win is not None:
             try:
@@ -3456,6 +3921,18 @@ class QueueMonitorApp(tk.Tk):
             except Exception:
                 pass
             self._settings_win = None
+        if self.active_popup is not None:
+            try:
+                self.active_popup.destroy()
+            except Exception:
+                pass
+            self.active_popup = None
+        if self.active_completion_popup is not None:
+            try:
+                self.active_completion_popup.destroy()
+            except Exception:
+                pass
+            self.active_completion_popup = None
         self.persist_config()
         self.stop_monitoring()
         self.stop_timer()

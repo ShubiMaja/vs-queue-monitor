@@ -1,6 +1,6 @@
 # VS Queue Monitor
 
-Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **alerts** when you cross configurable thresholds (popup + optional sound on Windows). Config and sources use the short id **`vs-queue-monitor`**.
+Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **warning** alerts at **configurable thresholds**, plus optional **queue completion** notices at the front (on/off only — not threshold-based). Config and sources use the short id **`vs-queue-monitor`**.
 
 ## Disclaimer (read this)
 
@@ -206,11 +206,13 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 
 ### Alerts
 
-- **Comma-separated thresholds** (default `10, 5, 3, 2, 1`): an alert can fire when your position **crosses downward** through each threshold.
-- **Once per threshold per queue run** until the run resets (log boundary / new session / segmentation rules).
-- **Minimum interval** between popup/sound alerts to reduce duplicate fires from noisy logs.
-- **Popup** (optional): small always-on-top window with dismiss; auto-closes after a timeout.
-- **Sound** (optional): default uses the **system notification sound** (Windows registry aliases / `MessageBeep`, macOS **Glass**-style sounds in `/System/Library/Sounds`, Linux **freedesktop** / common theme files via `paplay` when available). If that fails, a single terminal **bell**. You can set a custom **Sound file** in Settings instead.
+- **Warning thresholds** — comma-separated positions (default `10, 5`): **warning** popup/sound can fire when you **cross downward** through each value. **Once per value per queue run** until the run resets (log boundary / new session / segmentation rules).
+- **Completion** — **not** threshold-based: it always applies when you **reach the queue front** (position ≤1). You only choose **on/off** for completion **popup** and/or **sound** (plus optional completion **sound file**). There is no comma-separated completion threshold list.
+- **Minimum interval** between **warning** popup/sound alerts to reduce duplicate fires from noisy logs.
+- **Warning popup** (optional): always-on-top window for **threshold crossings**; auto-closes after a timeout.
+- **Completion popup** (optional): distinct window at queue front (≤1); **enable/disable only** — same trigger every time.
+- **Warning sound** (optional): plays on **warning** thresholds; built-in default is one file per OS (e.g. `Windows Background.wav`, `Basso.aiff`, `dialog-warning.oga`), resolved like other system media paths, then registry/`MessageBeep`/bell. Custom path in Settings.
+- **Completion sound** (optional): **on/off** at queue front (≤1); one default per OS (e.g. `tada.wav`, `Hero.aiff`, `complete.oga`). Custom path in Settings.
 
 ### ETA, rate, and progress
 
@@ -235,9 +237,9 @@ The status string reflects tail-of-log classification, for example:
 
 ### Settings (gear)
 
-- **Thresholds** (comma-separated positions).
-- **Poll (s)** — seconds between log reads.
-- **Alert popup** / **Alert sound** / optional **Sound file** path (**Browse…**, **Preview**) / **Log every position change**.
+- **Polling** — **Poll (s)** between log reads.
+- **Warnings Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file** / **Log every position change**.
+- **Completion Alerts** — **on/off only** at queue front (≤1, no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
 - **Window (points)** — rolling **prediction window** size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
@@ -274,15 +276,18 @@ Typical keys:
 | Key | Purpose |
 |-----|---------|
 | `source_path` | Log location string |
-| `alert_thresholds` | Comma-separated thresholds (default `10, 5, 3, 2, 1`) |
+| `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5`); not used for completion |
 | `poll_sec` | Poll interval in seconds |
 | `avg_window_points` | Prediction window size (points) |
 | `show_log` | History pane expanded (content visible) |
 | `show_status` | Status pane expanded (content visible) |
 | `graph_log_scale` | Graph Y axis: log vs linear |
-| `popup_enabled` | Threshold alert popup |
-| `sound_enabled` | Threshold alert sound |
-| `alert_sound_path` | Alert sound file path (defaults to the same OS file the app uses for built-in playback) |
+| `popup_enabled` | Warning (threshold) popup |
+| `completion_popup_enabled` | Queue completion (front) popup |
+| `sound_enabled` | Warning (threshold) sound enabled |
+| `alert_sound_path` | Warning sound file path |
+| `completion_sound_enabled` | Queue completion (position ≤1) sound enabled |
+| `completion_sound_path` | Completion sound file path |
 | `show_every_change` | Log every queue position line vs only changes |
 | `window_geometry` | Last main window size/position |
 | `version` | App version string written at save time |
