@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.14
+Version: 1.0.15
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.14"
+VERSION = "1.0.15"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -212,7 +212,9 @@ UI_ACCENT_STATUS = "#73bf69"
 UI_ACCENT_ELAPSED = "#b877d9"
 UI_ACCENT_REMAINING = "#ff9830"
 UI_ACCENT_RATE = "#96d9f8"
+UI_ACCENT_WARNINGS = "#f0b429"
 UI_ACCENT_PROGRESS = "#8be9fd"
+KPI_VALUE_FONT = ("TkDefaultFont", 18, "bold")
 UI_DANGER = "#f2495c"
 UI_ENTRY_FIELD = "#0d0f12"
 UI_SEPARATOR = "#2e3742"
@@ -1608,18 +1610,18 @@ class QueueMonitorApp(tk.Tk):
         graph_frame.rowconfigure(0, weight=0)
         graph_frame.rowconfigure(1, weight=1)
 
-        # POSITION / STATUS / RATE | spacer | ELAPSED / EST. REMAINING / PROGRESS — row 0 = all keys, row 1 = values.
+        # POSITION / STATUS / RATE / WARNINGS | spacer | ELAPSED / EST. REMAINING / PROGRESS — row 0 = keys, row 1 = values.
         summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 0))
-        for _c in range(7):
+        for _c in range(8):
             summary.columnconfigure(_c, weight=0)
-        summary.columnconfigure(3, weight=1)
+        summary.columnconfigure(4, weight=1)
 
         _spx = UI_SUMMARY_INNER_PAD_X
         _spy = UI_SUMMARY_INNER_PAD_Y_TOP
         _hdr_py = (_spy, 4)
         _val_py = (0, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
-        _kpi_font_val = ("TkDefaultFont", 18, "bold")
+        _kpi_font_val = KPI_VALUE_FONT
         if sys.platform.startswith("win"):
             _kpi_emoji_font: tuple[str, int, str] = ("Segoe UI Emoji", 14, "normal")
         elif sys.platform == "darwin":
@@ -1654,8 +1656,17 @@ class QueueMonitorApp(tk.Tk):
             anchor="w",
         )
         self._lbl_kpi_rate.grid(row=0, column=2, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_hdr_py)
+        self._lbl_kpi_warnings = tk.Label(
+            summary,
+            text="WARNINGS",
+            bg=UI_SUMMARY_BG,
+            fg=UI_ACCENT_WARNINGS,
+            font=("TkDefaultFont", 9, "bold"),
+            anchor="w",
+        )
+        self._lbl_kpi_warnings.grid(row=0, column=3, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_hdr_py)
         _summary_mid_spacer = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        _summary_mid_spacer.grid(row=0, column=3, rowspan=2, sticky="nsew")
+        _summary_mid_spacer.grid(row=0, column=4, rowspan=2, sticky="nsew")
         self._lbl_elapsed_header = tk.Label(
             summary,
             text="ELAPSED",
@@ -1664,7 +1675,7 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_elapsed_header.grid(row=0, column=4, sticky="w", padx=(UI_INNER_PAD_Y_MD, 4), pady=_hdr_py)
+        self._lbl_elapsed_header.grid(row=0, column=5, sticky="w", padx=(UI_INNER_PAD_Y_MD, 4), pady=_hdr_py)
         self._lbl_remaining_header = tk.Label(
             summary,
             text="EST. REMAINING",
@@ -1673,7 +1684,7 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_remaining_header.grid(row=0, column=5, sticky="w", padx=(UI_INNER_PAD_Y_MD, 0), pady=_hdr_py)
+        self._lbl_remaining_header.grid(row=0, column=6, sticky="w", padx=(UI_INNER_PAD_Y_MD, 0), pady=_hdr_py)
         self._lbl_progress_header = tk.Label(
             summary,
             text="PROGRESS",
@@ -1682,7 +1693,7 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_progress_header.grid(row=0, column=6, sticky="w", padx=(UI_INNER_PAD_Y_MD, _spx), pady=_hdr_py)
+        self._lbl_progress_header.grid(row=0, column=7, sticky="w", padx=(UI_INNER_PAD_Y_MD, _spx), pady=_hdr_py)
 
         _pos_cell = tk.Frame(summary, bg=UI_SUMMARY_BG)
         _pos_cell.grid(row=1, column=0, sticky="w", padx=(_spx, UI_INNER_PAD_Y_SM), pady=_val_py)
@@ -1723,6 +1734,9 @@ class QueueMonitorApp(tk.Tk):
         )
         self._queue_rate_value_label.grid(row=1, column=2, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_val_py)
 
+        self._warnings_kpi_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
+        self._warnings_kpi_frame.grid(row=1, column=3, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_val_py)
+
         self._elapsed_value_label = tk.Label(
             summary,
             textvariable=self.elapsed_var,
@@ -1731,7 +1745,7 @@ class QueueMonitorApp(tk.Tk):
             font=_kpi_font_val,
             anchor="e",
         )
-        self._elapsed_value_label.grid(row=1, column=4, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 4), pady=_val_py)
+        self._elapsed_value_label.grid(row=1, column=5, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 4), pady=_val_py)
         self._remaining_value_label = tk.Label(
             summary,
             textvariable=self.predicted_remaining_var,
@@ -1740,9 +1754,9 @@ class QueueMonitorApp(tk.Tk):
             font=_kpi_font_val,
             anchor="e",
         )
-        self._remaining_value_label.grid(row=1, column=5, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=_val_py)
+        self._remaining_value_label.grid(row=1, column=6, sticky="ew", padx=(UI_INNER_PAD_Y_MD, 0), pady=_val_py)
         _prog_cell = tk.Frame(summary, bg=UI_SUMMARY_BG)
-        _prog_cell.grid(row=1, column=6, sticky="e", padx=(UI_INNER_PAD_Y_MD, _spx), pady=_val_py)
+        _prog_cell.grid(row=1, column=7, sticky="e", padx=(UI_INNER_PAD_Y_MD, _spx), pady=_val_py)
         self._queue_progress = ttk.Progressbar(
             _prog_cell,
             style="Thin.TProgressbar",
@@ -1929,6 +1943,7 @@ class QueueMonitorApp(tk.Tk):
         self.update_start_stop_button()
         # First real layout pass: sash positions and pane heights can be wrong until the window maps.
         self.after_idle(self._sync_collapsible_panes_after_map)
+        self.after_idle(self._refresh_warnings_kpi)
 
     def _sync_collapsible_panes_after_map(self) -> None:
         try:
@@ -2093,6 +2108,7 @@ class QueueMonitorApp(tk.Tk):
             self._on_show_log_write()
             self._on_show_status_write()
             self.redraw_graph()
+            self._refresh_warnings_kpi()
 
         _btn_close = ttk.Button(bottom, text="Close", command=close_settings)
         _btn_close.pack(side="right")
@@ -2253,6 +2269,7 @@ class QueueMonitorApp(tk.Tk):
 
         self._on_show_log_write()
         self._on_show_status_write()
+        self._refresh_warnings_kpi()
 
     def _update_history_tab_button_text(self) -> None:
         btn = self._history_tab_btn
@@ -2658,6 +2675,61 @@ class QueueMonitorApp(tk.Tk):
         if self._position_emoji_label is not None:
             self._position_emoji_label.configure(text=("\U0001f389" if pos == 1 else ""))
 
+    def _refresh_warnings_kpi(self) -> None:
+        """Configured CSV thresholds; each value mutes after it fires until the next queue run."""
+        fr = getattr(self, "_warnings_kpi_frame", None)
+        if fr is None:
+            return
+        try:
+            if not fr.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        for w in fr.winfo_children():
+            w.destroy()
+        try:
+            thresholds = parse_alert_thresholds(self.alert_thresholds_var.get())
+        except ValueError:
+            tk.Label(
+                fr,
+                text="—",
+                bg=UI_SUMMARY_BG,
+                fg=UI_TEXT_MUTED,
+                font=KPI_VALUE_FONT,
+                anchor="w",
+            ).pack(side="left")
+            return
+        if not thresholds:
+            tk.Label(
+                fr,
+                text="—",
+                bg=UI_SUMMARY_BG,
+                fg=UI_TEXT_MUTED,
+                font=KPI_VALUE_FONT,
+                anchor="w",
+            ).pack(side="left")
+            return
+        fired = self._alert_thresholds_fired
+        for i, t in enumerate(thresholds):
+            if i > 0:
+                tk.Label(
+                    fr,
+                    text="\u00b7",
+                    bg=UI_SUMMARY_BG,
+                    fg=UI_TEXT_MUTED,
+                    font=KPI_VALUE_FONT,
+                    anchor="w",
+                ).pack(side="left", padx=(3, 3))
+            fg = UI_TEXT_MUTED if t in fired else UI_SUMMARY_VALUE
+            tk.Label(
+                fr,
+                text=str(t),
+                bg=UI_SUMMARY_BG,
+                fg=fg,
+                font=KPI_VALUE_FONT,
+                anchor="w",
+            ).pack(side="left")
+
     def _apply_browsed_log_path(self, raw: str) -> None:
         """Set log source from a browsed path; normalize files vs folders for resolve_log_file."""
         raw = (raw or "").strip()
@@ -3002,6 +3074,10 @@ class QueueMonitorApp(tk.Tk):
             self.after_cancel(self.job_id)
             self.job_id = None
         self.update_start_stop_button()
+        try:
+            self._refresh_warnings_kpi()
+        except Exception:
+            pass
 
     def start_timer(self) -> None:
         if self.timer_job_id is not None:
@@ -3266,6 +3342,10 @@ class QueueMonitorApp(tk.Tk):
             self.write_history(f"Error: {exc}")
             self.write_history(traceback.format_exc().splitlines()[-1])
         finally:
+            try:
+                self._refresh_warnings_kpi()
+            except Exception:
+                pass
             if self.running:
                 self.job_id = self.after(int(self.poll_sec * 1000), self.poll_once)
 
@@ -3444,6 +3524,11 @@ class QueueMonitorApp(tk.Tk):
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
         bt(self._queue_rate_value_label, "Rough minutes to move one spot in line.")
+        bt(self._lbl_kpi_warnings, "Warning thresholds from Settings; muted = already alerted this queue run.")
+        bt(
+            self._warnings_kpi_frame,
+            "Values from Settings. Muted after each threshold has fired once until the next queue run.",
+        )
         bt(self._elapsed_value_label, "Time in queue this run.")
         bt(self._remaining_value_label, "Estimated wait left (hidden at the front).")
         bt(self._graph_stack_frame, "Drag edges to resize panels. Y: chart scale.")
