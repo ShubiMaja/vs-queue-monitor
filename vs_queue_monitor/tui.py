@@ -376,16 +376,17 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
     """
 
         BINDINGS = [
-            Binding("q", "quit", "Quit"),
-            Binding("space", "toggle_monitor", "Play/Stop"),
-            Binding("o", "open_settings", "Settings"),
-            Binding("r", "refresh_view", "Refresh"),
-            Binding("h", "toggle_history", "History"),
-            Binding("l", "toggle_history", "Logs"),
-            Binding("g", "toggle_graph", "Graph"),
-            Binding("m", "toggle_metrics", "Metrics"),
-            Binding("p", "toggle_path", "Path"),
-            Binding("i", "toggle_info", "Info"),
+            # Priority bindings so keys work even when Input has focus.
+            Binding("q", "quit", "Quit", priority=True),
+            Binding("space", "toggle_monitor", "Play/Stop", priority=True),
+            Binding("o", "open_settings", "Settings", priority=True),
+            Binding("r", "refresh_view", "Refresh", priority=True),
+            Binding("h", "toggle_history", "History", priority=True),
+            Binding("l", "toggle_history", "Logs", priority=True),
+            Binding("g", "toggle_graph", "Graph", priority=True),
+            Binding("m", "toggle_metrics", "Metrics", priority=True),
+            Binding("p", "toggle_path", "Path", priority=True),
+            Binding("i", "toggle_info", "Info", priority=True),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -574,7 +575,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             hooks.attach_engine(eng)
             self._engine = eng
 
-            self.query_one("#path_input", Input).value = eng.source_path_var.get()
+            path_in = self.query_one("#path_input", Input)
+            path_in.value = eng.source_path_var.get()
+            # Don't trap global keybinds in the input by default.
+            try:
+                self.set_focus(None)
+            except Exception:
+                pass
             self.set_interval(0.2, self._refresh_metrics)
             if self._auto_start:
                 self.call_later(eng.start_monitoring)
