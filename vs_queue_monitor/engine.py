@@ -30,6 +30,17 @@ if TYPE_CHECKING:
     pass
 
 
+if __name__ == "__main__":
+    raise SystemExit(
+        "Do not run vs_queue_monitor/engine.py directly (it uses package-relative imports).\n"
+        "Run one of these from the repo root instead:\n"
+        "  - python monitor.py\n"
+        "  - python -m vs_queue_monitor\n"
+        "  - python monitor.py --gui   (force Tk)\n"
+        "  - python monitor.py --tui   (force terminal UI)\n"
+    )
+
+
 class QueueMonitorEngine:
 
     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
