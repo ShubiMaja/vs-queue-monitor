@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.9
+Version: 1.0.10
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.9"
+VERSION = "1.0.10"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -267,7 +267,7 @@ UI_GRAPH_STACK_PAD = (0, UI_INNER_PAD_Y_SM, 0, UI_INNER_PAD_Y_SM)
 # Plot canvas inside graph_stack (tight left — Y-axis margin is pad_left inside redraw_graph).
 UI_GRAPH_DARK_INNER_PAD = (4, UI_INNER_PAD_Y_SM, 8, 10)
 # Plot area inside graph canvas (must match redraw_graph — same numbers for axis labels + Y-scale button).
-GRAPH_CANVAS_PAD_LEFT = 64
+GRAPH_CANVAS_PAD_LEFT = 46
 GRAPH_CANVAS_PAD_RIGHT = 22
 GRAPH_CANVAS_PAD_TOP = 12
 GRAPH_CANVAS_PAD_BOTTOM = 32
