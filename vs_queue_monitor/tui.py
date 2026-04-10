@@ -369,10 +369,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
     Screen { align: left top; }
     #topbar_panel { height: auto; width: 100%; border: solid $primary; }
     #topbar { height: auto; width: 100%; padding: 0 1; }
-    #play_btn { width: 5; margin-right: 1; }
-    #run_indicator { width: 11; color: $text-muted; margin-right: 2; }
-    #path_lbl { margin-right: 1; }
+    #play_btn { width: auto; margin-right: 1; }
+    #run_indicator { width: auto; color: $text-muted; margin-right: 2; }
+    #path_lbl { margin-right: 1; color: $text-muted; }
     #path_input { width: 1fr; }
+    #browse_btn { width: auto; margin-left: 1; }
+    #settings_btn { width: auto; margin-left: 1; }
     #metrics { height: auto; width: 100%; }
     #status_graph_panel { height: 1fr; width: 100%; border: solid $primary; }
     #status_graph_title { height: auto; padding: 0 1; color: $text-muted; }
@@ -414,12 +416,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         def compose(self) -> ComposeResult:
             with Vertical(id="topbar_panel"):
                 with Horizontal(id="topbar"):
-                    yield Button("Play", id="play_btn", variant="success")
-                    yield Static("○ Idle", id="run_indicator")
+                    # Compact single-line chips (Buttons are tall and force wrapping).
+                    yield Static("[bold white on #2e3742] Play [/]", id="play_btn")
+                    yield Static("[#9fa7b3]○ Idle[/]", id="run_indicator")
                     yield Static("Logs folder:", id="path_lbl")
                     yield Input(placeholder="Path", id="path_input")
-                    yield Button("Browse", id="browse_btn", variant="default")
-                    yield Button("Settings", id="settings_btn", variant="primary")
+                    yield Static("[bold white on #2e3742] Browse [/]", id="browse_btn")
+                    yield Static("[bold white on #5794f2] Settings [/]", id="settings_btn")
 
             with Vertical(id="status_graph_panel"):
                 yield Static("Status / graph", id="status_graph_title")
@@ -443,20 +446,6 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             except Exception:
                 pass
 
-        def on_button_pressed(self, event: Button.Pressed) -> None:
-            bid = getattr(event.button, "id", None)
-            if bid == "play_btn":
-                self.action_toggle_monitor()
-            elif bid == "settings_btn":
-                self.action_open_settings()
-            elif bid == "browse_btn":
-                # No GUI folder picker in headless TUI; focus the input instead.
-                try:
-                    self.query_one("#path_input", Input).focus()
-                except Exception:
-                    pass
-                self._write_log("Browse: paste a folder path into the Logs folder field and press Enter.")
-
         def on_static_clicked(self, event: object) -> None:
             # Clickable collapsible headers (GUI-like chevrons).
             try:
@@ -468,7 +457,17 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 wid_id = getattr(wid, "id", None)
             except Exception:
                 return
-            if wid_id == "history_header":
+            if wid_id == "play_btn":
+                self.action_toggle_monitor()
+            elif wid_id == "settings_btn":
+                self.action_open_settings()
+            elif wid_id == "browse_btn":
+                try:
+                    self.query_one("#path_input", Input).focus()
+                except Exception:
+                    pass
+                self._write_log("Browse: paste a folder path into the Logs folder field and press Enter.")
+            elif wid_id == "history_header":
                 self.action_toggle_history()
             elif wid_id == "info_header":
                 self.action_toggle_info()
@@ -713,8 +712,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 st_low = st.lower()
                 st_style = "green" if "monitoring" in st_low else UI_SUMMARY_VALUE
                 try:
-                    self.query_one("#run_indicator", Static).update("● Monitoring" if eng.running else "○ Idle")
-                    self.query_one("#play_btn", Button).label = "Stop" if eng.running else "Play"
+                    self.query_one("#run_indicator", Static).update(
+                        "[#9fa7b3]● Monitoring[/]" if eng.running else "[#9fa7b3]○ Idle[/]",
+                    )
+                    self.query_one("#play_btn", Static).update(
+                        "[bold white on #cf222e] Stop [/]" if eng.running else "[bold white on #2e3742] Play [/]",
+                    )
                 except Exception:
                     pass
                 metrics_text = (
