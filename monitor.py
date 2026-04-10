@@ -569,6 +569,13 @@ def resolve_log_file(raw: str) -> Optional[Path]:
 
     file_matches = [m for m in matches if m.is_file()]
     if not file_matches:
+        # Last resort: any *.log under the folder (newest wins). Names like server.log do not match *client*.log.
+        try:
+            file_matches = [p for p in path.rglob("*.log") if p.is_file()]
+        except OSError:
+            file_matches = []
+
+    if not file_matches:
         return None
 
     file_matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
@@ -2259,6 +2266,7 @@ class QueueMonitorApp(tk.Tk):
         )
         if selected:
             self.source_path_var.set(selected)
+            self.after(0, self._try_start_after_browse)
 
     def browse_folder(self) -> None:
         initialdir = browse_initialdir_from_path(self.source_path_var.get())
@@ -2268,6 +2276,15 @@ class QueueMonitorApp(tk.Tk):
         )
         if selected:
             self.source_path_var.set(selected)
+            self.after(0, self._try_start_after_browse)
+
+    def _try_start_after_browse(self) -> None:
+        """Begin monitoring with the path chosen via Browse file or Browse folder (restarts if already running)."""
+        if self._starting:
+            return
+        if self.running:
+            self.stop_monitoring()
+        self.start_monitoring()
 
     def browse_alert_sound(self) -> None:
         parent = self._settings_win
@@ -2359,7 +2376,10 @@ class QueueMonitorApp(tk.Tk):
         try:
             resolved = resolve_log_file(self.source_path_var.get())
             if not resolved:
-                raise ValueError("Could not find client-main.log from that file or directory.")
+                raise ValueError(
+                    "Could not find a log file. Check the path, use Browse file to pick the file directly, "
+                    "or Browse folder and choose a directory that contains a .log file."
+                )
 
             try:
                 parse_alert_thresholds(self.alert_thresholds_var.get())
@@ -2962,8 +2982,11 @@ class QueueMonitorApp(tk.Tk):
             self._path_entry,
             "Editable log location path; Browse file / Browse folder picks a file or directory.",
         )
-        bt(self._btn_browse_file, "Choose client-main.log (or another log file) directly.")
-        bt(self._btn_browse_folder, "Choose a folder; the app searches for client-main.log inside.")
+        bt(self._btn_browse_file, "Choose a log file, then monitoring starts (restarts if already running).")
+        bt(
+            self._btn_browse_folder,
+            "Choose a folder; the app picks the newest matching log (client-main.log, *client*.log, or any *.log), then starts.",
+        )
         bt(
             self._settings_btn,
             "Polling; Warnings Alerts + Completion Alerts; prediction window; graph scale.",
