@@ -158,6 +158,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if self._auto_start:
                 self.call_later(eng.start_monitoring)
 
+        def on_resize(self) -> None:
+            # Force an immediate redraw on terminal resize (GUI-like behavior).
+            try:
+                self._refresh_metrics()
+            except Exception:
+                pass
+
         def _refresh_metrics(self) -> None:
             eng = self._engine
             if eng is None:
@@ -167,7 +174,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 # Leave a small margin to avoid wrap jitter.
                 term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
                 try:
-                    metrics_w = int(self.query_one("#metrics", Static).size.width)
+                    metrics = self.query_one("#metrics", Static)
+                    # Prefer content region (excludes padding/borders) when available.
+                    if hasattr(metrics, "content_region"):
+                        metrics_w = int(metrics.content_region.size.width)  # type: ignore[attr-defined]
+                    else:
+                        metrics_w = int(metrics.size.width)
                 except Exception:
                     metrics_w = term_w
                 # Account for box borders (left+right / top+bottom).
