@@ -30,7 +30,7 @@ import traceback
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -1249,28 +1249,12 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
-        # TEntry: clam draws 3D corners from light/dark; focus ring adds bright “dots” on Windows.
-        # Flat relief + one border hue + focuscolor matching the field removes the highlight artifacts.
-        _entry_border = UI_SEPARATOR
+        # Text fields use tk.Entry (see _make_dark_entry): clam TEntry still draws a bright corner pixel on Windows.
         style.configure(
             "TEntry",
             fieldbackground=UI_ENTRY_FIELD,
             foreground=UI_TEXT_PRIMARY,
-            bordercolor=_entry_border,
-            darkcolor=_entry_border,
-            lightcolor=_entry_border,
-            focuscolor=UI_ENTRY_FIELD,
             insertcolor=UI_TEXT_PRIMARY,
-            borderwidth=1,
-            relief="flat",
-        )
-        style.map(
-            "TEntry",
-            fieldbackground=[("disabled", "#1a1f26")],
-            focuscolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
-            bordercolor=[("focus", _entry_border), ("!focus", _entry_border)],
-            lightcolor=[("focus", _entry_border), ("!focus", _entry_border)],
-            darkcolor=[("focus", _entry_border), ("!focus", _entry_border)],
         )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
@@ -1310,6 +1294,23 @@ class QueueMonitorApp(tk.Tk):
             background=[("active", UI_BUTTON_BG), ("pressed", UI_BUTTON_BG_ACTIVE)],
             darkcolor=[("active", _bd)],
             lightcolor=[("active", _bd)],
+        )
+
+    @staticmethod
+    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> tk.Entry:
+        """Plain Entry with no focus highlight — avoids clam/ttk corner artifacts on Windows."""
+        return tk.Entry(
+            parent,
+            bg=UI_ENTRY_FIELD,
+            fg=UI_TEXT_PRIMARY,
+            insertbackground=UI_TEXT_PRIMARY,
+            selectbackground=UI_BUTTON_BG_ACTIVE,
+            selectforeground=UI_TEXT_PRIMARY,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            font=("TkDefaultFont", 10),
+            **kwargs,
         )
 
     def _build_ui(self) -> None:
@@ -1353,7 +1354,7 @@ class QueueMonitorApp(tk.Tk):
         path_left.columnconfigure(1, weight=1)
         self._lbl_log_path = ttk.Label(path_left, text="Log location")
         self._lbl_log_path.grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
-        self._path_entry = ttk.Entry(path_left, textvariable=self.source_path_var)
+        self._path_entry = self._make_dark_entry(path_left, textvariable=self.source_path_var)
         self._path_entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
@@ -1745,7 +1746,7 @@ class QueueMonitorApp(tk.Tk):
         poll_fr.pack(fill="x", pady=(0, 8))
         _poll_lbl = ttk.Label(poll_fr, text="Poll (s)")
         _poll_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
-        _poll_entry = ttk.Entry(poll_fr, width=6, textvariable=self.poll_sec_var)
+        _poll_entry = self._make_dark_entry(poll_fr, width=6, textvariable=self.poll_sec_var)
         _poll_entry.grid(row=0, column=1, sticky="w")
         self._bind_static_tooltip(_poll_lbl, "Seconds between reading the log file.")
         self._bind_static_tooltip(_poll_entry, "Seconds between reading the log file.")
@@ -1756,7 +1757,7 @@ class QueueMonitorApp(tk.Tk):
 
         _thr_lbl = ttk.Label(warn_fr, text="Thresholds (comma-separated)")
         _thr_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
-        _thr_entry = ttk.Entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
+        _thr_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
         _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
         self._bind_static_tooltip(
             _thr_lbl,
@@ -1779,7 +1780,7 @@ class QueueMonitorApp(tk.Tk):
         _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
         _lbl_warn_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
         self._bind_static_tooltip(_lbl_warn_sound, "Custom warning sound path; OS default if empty.")
-        _sound_entry = ttk.Entry(warn_fr, textvariable=self.alert_sound_path_var)
+        _sound_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _sound_actions = ttk.Frame(warn_fr, style="Card.TFrame")
         _sound_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
@@ -1818,7 +1819,7 @@ class QueueMonitorApp(tk.Tk):
         _lbl_comp_sound = ttk.Label(comp_fr, text="Completion sound file")
         _lbl_comp_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
         self._bind_static_tooltip(_lbl_comp_sound, "Custom completion sound path; OS default if empty.")
-        _comp_entry = ttk.Entry(comp_fr, textvariable=self.completion_sound_path_var)
+        _comp_entry = self._make_dark_entry(comp_fr, textvariable=self.completion_sound_path_var)
         _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _comp_actions = ttk.Frame(comp_fr, style="Card.TFrame")
         _comp_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
@@ -1849,7 +1850,7 @@ class QueueMonitorApp(tk.Tk):
 
         _win_lbl = ttk.Label(display_fr, text="Window (points)")
         _win_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
-        _win_entry = ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var)
+        _win_entry = self._make_dark_entry(display_fr, width=8, textvariable=self.avg_window_var)
         _win_entry.grid(row=0, column=1, sticky="w")
         _avg_tip = "How many recent queue samples feed ETA / min-per-position (larger = smoother)."
         self._bind_static_tooltip(_win_lbl, _avg_tip)
