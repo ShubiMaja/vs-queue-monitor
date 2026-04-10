@@ -66,7 +66,7 @@ python3 monitor.py --gui
 
 **UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
 
-Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **h** toggles History (collapsed by default so the graph gets the space), **o** shows the settings hint in the log, **q** quits. Legacy: `python monitor-tui.py` is equivalent to `python monitor.py --tui` (and `main-tui.py` is kept only for backward compatibility).
+Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **h** toggles History (collapsed by default so the graph gets the space), **g** toggles Graph, **m** toggles Metrics, **p** toggles the Path row, **o** shows the settings hint in the log, **q** quits. Legacy: `python monitor-tui.py` is equivalent to `python monitor.py --tui` (and `main-tui.py` is kept only for backward compatibility).
 
 The **graphical** window needs [Python 3.10+ with Tkinter](#install-python-and-tkinter). The **terminal UI** only needs Python 3.10+ and Textual from `requirements.txt` (no Tk).
 
