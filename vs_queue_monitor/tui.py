@@ -26,8 +26,15 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         return 1
 
     def _sparkline(points: list[tuple[float, int]], *, width: int = 56, log_scale: bool = True) -> str:
-        if len(points) < 2:
+        if len(points) < 1:
             return "—"
+        if len(points) == 1:
+            # Common right after start/seed; still show a visible “graph”.
+            try:
+                p0 = int(points[0][1])
+            except Exception:
+                p0 = 0
+            return f"█ (pos {p0})"
 
         # Match the GUI: treat samples as a step function (hold value until next sample time).
         # We don't have pixel widths here; we approximate by duplicating changes.
