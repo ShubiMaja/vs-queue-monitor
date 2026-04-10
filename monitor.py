@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.29
+Version: 1.0.30
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.29"
+VERSION = "1.0.30"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -248,9 +248,6 @@ UI_ACCENT_RATE = "#96d9f8"
 UI_ACCENT_WARNINGS = "#f0b429"
 UI_ACCENT_PROGRESS = "#8be9fd"
 KPI_VALUE_FONT = ("TkDefaultFont", 18, "bold")
-# KPI Rate column: two lines (Last N + All); smaller than other KPI values.
-KPI_RATE_FONT = ("TkDefaultFont", 8, "normal")
-KPI_RATE_HEADER_FONT = ("TkDefaultFont", 8, "bold")
 UI_DANGER = "#f2495c"
 UI_ENTRY_FIELD = "#0d0f12"
 UI_SEPARATOR = "#2e3742"
@@ -1130,7 +1127,7 @@ class QueueMonitorApp(tk.Tk):
         self.avg_window_var = tk.StringVar(
             value=str(self.config.get("avg_window_points", DEFAULT_PREDICTION_WINDOW_POINTS)),
         )
-        self.queue_rate_var = tk.StringVar(value=self._format_kpi_rate_block(None, None))
+        self.queue_rate_var = tk.StringVar(value=self._format_kpi_rate_last_line(None))
         self.global_rate_var = tk.StringVar(value="—")
         self.show_log_var = tk.BooleanVar(value=bool(self.config.get("show_log", True)))
         self.show_status_var = tk.BooleanVar(value=bool(self.config.get("show_status", True)))
@@ -1807,10 +1804,10 @@ class QueueMonitorApp(tk.Tk):
             text="RATE",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_RATE,
-            font=KPI_RATE_HEADER_FONT,
+            font=("TkDefaultFont", 9, "bold"),
             anchor="w",
         )
-        self._lbl_kpi_rate.grid(row=0, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_hdr_py)
+        self._lbl_kpi_rate.grid(row=0, column=2, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_hdr_py)
         self._lbl_kpi_warnings = tk.Label(
             summary,
             text="WARNINGS",
@@ -1884,11 +1881,10 @@ class QueueMonitorApp(tk.Tk):
             textvariable=self.queue_rate_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
-            font=KPI_RATE_FONT,
-            anchor="nw",
-            justify="left",
+            font=_kpi_font_val,
+            anchor="w",
         )
-        self._queue_rate_value_label.grid(row=1, column=2, sticky="nw", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_val_py)
+        self._queue_rate_value_label.grid(row=1, column=2, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_val_py)
 
         self._warnings_kpi_frame = tk.Frame(summary, bg=UI_SUMMARY_BG)
         self._warnings_kpi_frame.grid(row=1, column=3, sticky="w", padx=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM), pady=_val_py)
@@ -2404,7 +2400,7 @@ class QueueMonitorApp(tk.Tk):
         self._set_position_display(None)
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
-        self.queue_rate_var.set(self._format_kpi_rate_block(None, None))
+        self.queue_rate_var.set(self._format_kpi_rate_last_line(None))
         self.global_rate_var.set("—")
         self.last_change_var.set("—")
         self.last_alert_var.set("—")
@@ -3709,12 +3705,10 @@ class QueueMonitorApp(tk.Tk):
             n = DEFAULT_PREDICTION_WINDOW_POINTS
         return max(2, min(10_000, n))
 
-    def _format_kpi_rate_block(self, mpp: Optional[float], g_mpp: Optional[float]) -> str:
-        """KPI strip: short window (Last N) plus full-graph average (All)."""
+    def _format_kpi_rate_last_line(self, mpp: Optional[float]) -> str:
+        """KPI strip: windowed minutes/pos with prediction window size (full-graph avg stays in Info)."""
         n = self._prediction_window_points_int()
-        last_s = self._format_queue_rate(mpp)
-        all_s = self._format_queue_rate(g_mpp)
-        return f"Last {n}: {last_s}\nAll: {all_s}"
+        return f"Last {n}: {self._format_queue_rate(mpp)}"
 
     def _schedule_resize_refresh(self, evt: Optional[tk.Event] = None) -> None:
         if evt is not None and getattr(evt, "widget", None) is not self:
@@ -3848,11 +3842,11 @@ class QueueMonitorApp(tk.Tk):
         bt(self._graph_frame, "Queue position over time.")
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
-        bt(self._lbl_kpi_rate, "Last N uses your Settings prediction window size; All is the full-graph average.")
+        bt(self._lbl_kpi_rate, "Last N: minutes per position using your Settings prediction window size.")
         bt(
             self._queue_rate_value_label,
-            "Last N: minutes per position from the prediction window (Settings). "
-            "All: average over every forward step in the graph. At position 0, fixed from the graph — no drift.",
+            "Rough minutes to move one spot (window model). Full-graph average is under Info → Global Rate. "
+            "At position 0 (completed), fixed from the graph — no drift.",
         )
         bt(
             self._lbl_kpi_warnings,
@@ -3877,10 +3871,7 @@ class QueueMonitorApp(tk.Tk):
             self._lbl_det_global_rate,
             "Average minutes per position over every queue advance in the graph (full session).",
         )
-        bt(
-            self._lbl_det_global_rate_val,
-            "Same value as KPI “All” — mean over all downward steps in the graph.",
-        )
+        bt(self._lbl_det_global_rate_val, "Mean over all downward steps in the graph; KPI Rate uses the prediction window.")
         bt(self._lbl_det_last_change_val, "When your position last changed.")
         bt(self._lbl_det_alert_val, "Last threshold alert.")
         bt(self._lbl_det_path_val, "Log file in use.")
@@ -4137,11 +4128,11 @@ class QueueMonitorApp(tk.Tk):
         return sum(mpps) / len(mpps)
 
     def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
-        """KPI Rate (Last N + All) and Info Global Rate. Returns capped mpp for ETA fallback."""
+        """KPI Rate (Last N only) and Info Global Rate (full graph). Returns capped mpp for ETA fallback."""
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
         g_mpp = self._global_avg_minutes_per_position()
-        self.queue_rate_var.set(self._format_kpi_rate_block(mpp, g_mpp))
+        self.queue_rate_var.set(self._format_kpi_rate_last_line(mpp))
         self.global_rate_var.set(self._format_queue_rate(g_mpp))
         return mpp
 
