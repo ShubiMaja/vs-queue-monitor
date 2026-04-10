@@ -1249,23 +1249,28 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
-        # Flat field + border — clam’s default TEntry focus ring draws bright corner “dots” on Windows.
+        # TEntry: clam draws 3D corners from light/dark; focus ring adds bright “dots” on Windows.
+        # Flat relief + one border hue + focuscolor matching the field removes the highlight artifacts.
+        _entry_border = UI_SEPARATOR
         style.configure(
             "TEntry",
             fieldbackground=UI_ENTRY_FIELD,
             foreground=UI_TEXT_PRIMARY,
-            bordercolor=UI_ENTRY_FIELD,
-            darkcolor=UI_ENTRY_FIELD,
-            lightcolor=UI_ENTRY_FIELD,
+            bordercolor=_entry_border,
+            darkcolor=_entry_border,
+            lightcolor=_entry_border,
+            focuscolor=UI_ENTRY_FIELD,
             insertcolor=UI_TEXT_PRIMARY,
-            borderwidth=0,
+            borderwidth=1,
+            relief="flat",
         )
         style.map(
             "TEntry",
+            fieldbackground=[("disabled", "#1a1f26")],
             focuscolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
-            bordercolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
-            lightcolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
-            darkcolor=[("focus", UI_ENTRY_FIELD), ("!focus", UI_ENTRY_FIELD)],
+            bordercolor=[("focus", _entry_border), ("!focus", _entry_border)],
+            lightcolor=[("focus", _entry_border), ("!focus", _entry_border)],
+            darkcolor=[("focus", _entry_border), ("!focus", _entry_border)],
         )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
