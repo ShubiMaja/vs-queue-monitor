@@ -240,7 +240,7 @@ The status string reflects tail-of-log classification, for example:
 - **Polling** — **Poll (s)** between log reads.
 - **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
 - **Completion Alerts** — **on/off only** at queue front (≤1, no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
-- **History** — **Show History panel** (expanded log vs header-only) and **Log every position change** (verbose vs milestones-only lines).
+- **History** — **Log every position change** (verbose vs milestones-only lines). Show or hide the panel from the main window **History** bar (still saved in config).
 - **Prediction** — **Window (points)**: rolling window size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
@@ -280,7 +280,7 @@ Typical keys:
 | `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5`); not used for completion |
 | `poll_sec` | Poll interval in seconds |
 | `avg_window_points` | Prediction window size (points) |
-| `show_log` | History pane expanded (content visible) |
+| `show_log` | History pane expanded (content visible); toggled from the main window, not Settings |
 | `show_status` | Status pane expanded (content visible) |
 | `graph_log_scale` | Graph Y axis: log vs linear |
 | `popup_enabled` | Warning (threshold) popup |

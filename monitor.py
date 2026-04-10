@@ -1833,17 +1833,14 @@ class QueueMonitorApp(tk.Tk):
 
         history_fr = ttk.LabelFrame(outer, text="History", padding=(10, 8))
         history_fr.pack(fill="x", pady=(0, 8))
-        checks_hist = ttk.Frame(history_fr, style="Card.TFrame")
-        checks_hist.pack(anchor="w")
-        _cb_show_hist = ttk.Checkbutton(checks_hist, text="Show History panel", variable=self.show_log_var)
-        _cb_show_hist.pack(side="left", padx=(0, 14))
-        self._bind_static_tooltip(
-            _cb_show_hist,
-            "Bottom session log: expanded vs header-only (same as the History bar).",
+        _cb_log_every = ttk.Checkbutton(
+            history_fr, text="Log every position change", variable=self.show_every_change_var
         )
-        _cb_log_every = ttk.Checkbutton(checks_hist, text="Log every position change", variable=self.show_every_change_var)
-        _cb_log_every.pack(side="left", padx=(0, 0))
-        self._bind_static_tooltip(_cb_log_every, "Log each queue line; off = only crosses and milestones.")
+        _cb_log_every.pack(anchor="w")
+        self._bind_static_tooltip(
+            _cb_log_every,
+            "Log each queue line; off = only crosses and milestones. Expand/collapse the panel from the main History bar.",
+        )
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
