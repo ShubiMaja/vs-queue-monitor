@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import sys
 from bisect import bisect_right
+from datetime import datetime
 from typing import Optional
 
 from . import APP_DISPLAY_NAME, VERSION
@@ -32,6 +33,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         width: int = 80,
         height_lines: int = 3,
         log_scale: bool = True,
+        show_labels: bool = True,
     ) -> str:
         """Multi-line graph using stacked Unicode braille (2×4 dots per cell per line)."""
         # Braille cells are 2 columns wide. We'll plot one dot per column.
@@ -59,6 +61,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         if lo == hi:
             # Flat line: show a baseline of low dots across.
             return "\n".join(["⠤" * cols for _ in range(lines_n)])
+
+        # Optional labels (like GUI axis hints). Reserve some width for them.
+        label_w = 0
+        if show_labels:
+            label_w = max(len(str(hi)), len(str(lo))) + 1  # trailing space
+            cols = max(10, cols - label_w)
+            x_cols = cols * 2
 
         def frac_for(v: int) -> float:
             """Return a 0..1 value where 1 maps to the *top* (worst/highest queue position).
@@ -152,11 +161,34 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             set_level(le)
 
         out_lines: list[str] = []
-        for line_cells in cells_by_line:
+        for line_idx, line_cells in enumerate(cells_by_line):
             out = []
             for mask in line_cells:
                 out.append(chr(0x2800 + mask) if mask else " ")
-            out_lines.append(("".join(out).rstrip() or "—"))
+            body = ("".join(out).rstrip() or "—")
+            if show_labels and label_w > 0:
+                if line_idx == 0:
+                    prefix = f"{hi:>{label_w-1}} "
+                elif line_idx == lines_n - 1:
+                    prefix = f"{lo:>{label_w-1}} "
+                else:
+                    prefix = " " * label_w
+                out_lines.append(prefix + body)
+            else:
+                out_lines.append(body)
+
+        if show_labels:
+            try:
+                left = datetime.fromtimestamp(t0).strftime("%H:%M:%S")
+                right = datetime.fromtimestamp(t1).strftime("%H:%M:%S")
+                total_w = (label_w + cols) if label_w > 0 else cols
+                if total_w < 20:
+                    total_w = 20
+                mid_spaces = max(1, total_w - len(left) - len(right))
+                out_lines.append(left + (" " * mid_spaces) + right)
+            except Exception:
+                pass
+
         return "\n".join(out_lines)
 
     class VSQueueTui(App[None]):
@@ -284,6 +316,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     width=graph_w,
                     height_lines=height_lines,
                     log_scale=bool(eng.graph_log_scale_var.get()),
+                    show_labels=True,
                 )
                 self.query_one("#graph", Static).update(graph)
             except Exception as exc:
