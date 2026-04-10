@@ -65,7 +65,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             # A single flat run: show a solid bottom bar.
             w = max(10, int(width))
             dot = "·"
-            return "\n".join([" " * w for _ in range(max(3, int(height)) - 1)] + [dot * w])
+            inner_h = max(3, int(height))
+            inner = [" " * w for _ in range(inner_h - 1)] + [dot * w]
+            return "\n".join(["┌" + ("─" * w) + "┐", *("│" + row + "│" for row in inner), "└" + ("─" * w) + "┘"])
 
         def frac_for(v: int) -> float:
             vv = max(lo, min(hi, int(v)))
@@ -98,7 +100,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             row = max(0, min(h - 1, row))
             canvas[h - 1 - row][x] = dot
 
-        return "\n".join("".join(r) for r in canvas)
+        inner_lines = ["".join(r) for r in canvas]
+        # Add borders so Textual doesn't trim trailing spaces; makes “full width” visible.
+        top = "┌" + ("─" * w) + "┐"
+        bot = "└" + ("─" * w) + "┘"
+        boxed = [top, *("│" + row + "│" for row in inner_lines), bot]
+        return "\n".join(boxed)
 
     class VSQueueTui(App[None]):
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
@@ -163,7 +170,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     metrics_w = int(self.query_one("#metrics", Static).size.width)
                 except Exception:
                     metrics_w = term_w
-                graph_w = max(30, metrics_w - 2)
+                # Account for box borders (left+right / top+bottom).
+                graph_w = max(30, metrics_w - 4)
                 graph_h = 10
 
                 pos = eng.position_var.get()
