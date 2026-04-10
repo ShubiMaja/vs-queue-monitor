@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.24
+Version: 1.0.26
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.25"
+VERSION = "1.0.26"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -970,6 +970,40 @@ def segment_queue_points(points: list[tuple[float, int, int]]) -> list[tuple[flo
     return flat[start_idx:]
 
 
+def first_position_at_or_before_front_epoch(segment: list[tuple[float, int]]) -> Optional[float]:
+    """Earliest time in the segment where the log shows position ≤1 (at front or past-queue)."""
+    for t, p in segment:
+        if p <= 1:
+            return t
+    return None
+
+
+def first_reconnecting_epoch_for_session(data: str, session_id: int) -> Optional[float]:
+    """Earliest log timestamp for a reconnect-in-progress line in the given queue run session.
+
+    Session counting matches ``walk_queue_position_events`` (increment on ``is_queue_run_boundary_line``).
+    """
+    if session_id < 0:
+        return None
+    session = 0
+    for line in data.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if is_queue_run_boundary_line(line):
+            session += 1
+            if session == session_id and is_reconnecting_line(s):
+                t = parse_log_timestamp_epoch(line)
+                if t is not None:
+                    return t
+            continue
+        if session == session_id and is_reconnecting_line(s):
+            t = parse_log_timestamp_epoch(line)
+            if t is not None:
+                return t
+    return None
+
+
 def compute_seed_graph_from_log(
     log_file: Path,
 ) -> Optional[
@@ -982,12 +1016,16 @@ def compute_seed_graph_from_log(
             int,
             int,
             Optional[int],
+            Optional[float],
+            Optional[float],
         ]
     ]:
     """Read and parse the log off the UI thread. Returns None if no queue segment was found.
 
-    Second-to-last int: queue_run_session_id. Last: authoritative queue position from the same tail
-    parse as ``parse_tail_last_queue_reading`` (must match UI — segment last point alone can drift).
+    Second-to-last int: queue_run_session_id. Second int from end: authoritative queue position from
+    the same tail parse as ``parse_tail_last_queue_reading`` (must match UI — segment last point
+    alone can drift). Last two floats: first time position ≤1 in the segment, and first
+    (re)connect line time for that session (both from log lines when present).
     """
     tail_bytes = SEED_LOG_TAIL_BYTES
     points3: list[tuple[float, int, int]] = []
@@ -1022,6 +1060,10 @@ def compute_seed_graph_from_log(
     )
 
     segment_points = segment_tuples[-MAX_GRAPH_POINTS:]
+    first_le_one_epoch = first_position_at_or_before_front_epoch(segment_tuples)
+    connect_phase_started_epoch = (
+        first_reconnecting_epoch_for_session(text, queue_run_session_id) if text else None
+    )
     return (
         segment_points,
         len(segment_positions),
@@ -1031,6 +1073,8 @@ def compute_seed_graph_from_log(
         max(segment_positions),
         queue_run_session_id,
         authoritative_pos,
+        first_le_one_epoch,
+        connect_phase_started_epoch,
     )
 
 
@@ -1142,8 +1186,10 @@ class QueueMonitorApp(tk.Tk):
         self._queue_progress: Optional[ttk.Progressbar] = None
         self._status_value_label: Optional[tk.Label] = None
         self._position_emoji_label: Optional[tk.Label] = None
-        # Wall time when we first observed position ≤1 this run; used to freeze "queue total" elapsed.
+        # Log time when position first reached ≤1 this run (from seed or tail); freezes elapsed at front.
         self._position_one_reached_at: Optional[float] = None
+        # Log time of first (re)connect-in-progress line for the current queue session; elapsed baseline.
+        self._connect_phase_started_epoch: Optional[float] = None
         # Progress bar value captured when crossing into position ≤1; stay below 100% until log shows left queue.
         self._progress_at_front_entry: Optional[float] = None
         # Tail scan: line after last queue line matches POST_QUEUE_PROGRESS_LINE_RES (past queue wait).
@@ -2348,6 +2394,7 @@ class QueueMonitorApp(tk.Tk):
             self._queue_progress.configure(value=0.0)
 
         self._position_one_reached_at = None
+        self._connect_phase_started_epoch = None
         self._progress_at_front_entry = None
         self._left_connect_queue_detected = False
         self._queue_completion_notified_this_run = False
@@ -2988,6 +3035,7 @@ class QueueMonitorApp(tk.Tk):
 
         self._alert_thresholds_fired.clear()
         self._position_one_reached_at = None
+        self._connect_phase_started_epoch = None
         self._progress_at_front_entry = None
         self._left_connect_queue_detected = False
         self._queue_completion_notified_this_run = False
@@ -3039,6 +3087,8 @@ class QueueMonitorApp(tk.Tk):
                 int,
                 int,
                 Optional[int],
+                Optional[float],
+                Optional[float],
             ]
         ],
         error: Optional[Exception],
@@ -3181,6 +3231,7 @@ class QueueMonitorApp(tk.Tk):
         self._queue_stale_latched = False
         self._queue_stale_logged_once = False
         self._position_one_reached_at = None
+        self._connect_phase_started_epoch = None
         self._progress_at_front_entry = None
         self._left_connect_queue_detected = False
         self._mpp_floor_position = None
@@ -3272,7 +3323,10 @@ class QueueMonitorApp(tk.Tk):
         self.current_point = None
         self.last_position = None
         self._last_queue_run_session = sess
-        self.append_graph_point(pos)
+        line_t = parse_tail_last_queue_line_epoch(text)
+        if pos is not None and pos <= 1:
+            self._position_one_reached_at = line_t or time.time()
+        self.append_graph_point(pos, line_t)
         self.update_time_estimates()
         self.write_history(
             "Graph reset to current queue position (full history unavailable from log scan)."
@@ -3291,6 +3345,8 @@ class QueueMonitorApp(tk.Tk):
                 int,
                 int,
                 Optional[int],
+                Optional[float],
+                Optional[float],
             ]
         ],
     ) -> None:
@@ -3305,8 +3361,15 @@ class QueueMonitorApp(tk.Tk):
             seg_max,
             queue_run_session_id,
             authoritative_pos,
+            first_le_one_epoch,
+            connect_phase_started_epoch,
         ) = data
         self._last_queue_run_session = queue_run_session_id
+        self._connect_phase_started_epoch = connect_phase_started_epoch
+        if authoritative_pos is not None and authoritative_pos <= 1 and first_le_one_epoch is not None:
+            self._position_one_reached_at = first_le_one_epoch
+        elif authoritative_pos is not None and authoritative_pos > 1:
+            self._position_one_reached_at = None
         self.graph_points.clear()
         for item in segment_points:
             self.graph_points.append(item)
@@ -3346,6 +3409,8 @@ class QueueMonitorApp(tk.Tk):
                     self.current_log_file = resolved
                     self.resolved_path_var.set(str(resolved))
                     self._last_queue_run_session = -1
+                    self._position_one_reached_at = None
+                    self._connect_phase_started_epoch = None
                     self._progress_at_front_entry = None
                     self._left_connect_queue_detected = False
                     self._queue_completion_notified_this_run = False
@@ -3393,6 +3458,8 @@ class QueueMonitorApp(tk.Tk):
                         self._last_queue_line_epoch = None
                         self._progress_at_front_entry = None
                         self._left_connect_queue_detected = False
+                        self._position_one_reached_at = None
+                        self._connect_phase_started_epoch = None
                         self._set_position_display(None)
                         self.last_position = None
                     elif (kind in ("reconnecting", "grace") or log_silent) and not (
@@ -3405,6 +3472,8 @@ class QueueMonitorApp(tk.Tk):
                         self._last_queue_line_epoch = None
                         self._progress_at_front_entry = None
                         self._left_connect_queue_detected = False
+                        self._position_one_reached_at = None
+                        self._connect_phase_started_epoch = None
                         if log_silent or kind == "grace":
                             self._set_status_line("Reconnecting…")
                         else:
@@ -3496,6 +3565,7 @@ class QueueMonitorApp(tk.Tk):
                             ):
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
+                                self._connect_phase_started_epoch = None
                                 self._progress_at_front_entry = None
                                 self._left_connect_queue_detected = False
                                 self._queue_completion_notified_this_run = False
@@ -3515,7 +3585,9 @@ class QueueMonitorApp(tk.Tk):
                             else:
                                 self._set_status_line("Monitoring")
                             self._set_position_display(position)
-                            self.append_graph_point(position)
+                            if position is not None and position <= 1 and self._position_one_reached_at is None:
+                                self._position_one_reached_at = last_queue_line_epoch or now
+                            self.append_graph_point(position, last_queue_line_epoch)
                             self.update_time_estimates()
 
                             if position != prev_pos:
@@ -3548,11 +3620,11 @@ class QueueMonitorApp(tk.Tk):
             if self.running:
                 self.job_id = self.after(int(self.poll_sec * 1000), self.poll_once)
 
-    def append_graph_point(self, position: int) -> None:
-        now = time.time()
+    def append_graph_point(self, position: int, line_epoch: Optional[float] = None) -> None:
+        t = time.time() if line_epoch is None else line_epoch
         if self.current_point is not None and self.current_point[1] == position:
             return
-        self.current_point = (now, position)
+        self.current_point = (t, position)
         self.last_position = position
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
@@ -3736,7 +3808,11 @@ class QueueMonitorApp(tk.Tk):
             self._warnings_kpi_frame,
             "Same: a value grays out once your queue position is ≤ that threshold, or after that alert fired.",
         )
-        bt(self._elapsed_value_label, "Time in queue this run.")
+        bt(
+            self._elapsed_value_label,
+            "Time in queue this run: from the first connect-phase log line in this session when found, "
+            "else from the first queue position line; at the front, frozen using log times (not when you opened the app).",
+        )
         bt(self._remaining_value_label, "Estimated wait left (hidden at the front).")
         bt(self._graph_stack_frame, "Drag edges to resize panels. Y: chart scale.")
         bt(self.graph_canvas, "Move the mouse for time and position.")
@@ -4011,7 +4087,9 @@ class QueueMonitorApp(tk.Tk):
         return pos
 
     def _queue_elapsed_start_epoch(self) -> Optional[float]:
-        """Start of the current queue segment for elapsed: first graph point time, else monitor start."""
+        """Start of the current queue segment for elapsed: first connect line in log, else first graph point."""
+        if self._connect_phase_started_epoch is not None:
+            return self._connect_phase_started_epoch
         if self.graph_points:
             return self.graph_points[0][0]
         return self.monitor_start_epoch
@@ -4043,12 +4121,8 @@ class QueueMonitorApp(tk.Tk):
                 self._queue_progress["value"] = 0.0
             return
 
-        if self.running and pos is not None:
-            if pos <= 1:
-                if self._position_one_reached_at is None:
-                    self._position_one_reached_at = time.time()
-            else:
-                self._position_one_reached_at = None
+        if self.running and pos is not None and pos > 1:
+            self._position_one_reached_at = None
 
         start_t = self._queue_elapsed_start_epoch()
         elapsed_sec: Optional[float] = None

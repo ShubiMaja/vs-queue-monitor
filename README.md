@@ -182,6 +182,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 - **Play / Stop** toggles tailing the log on an interval (**poll**, configurable in Settings).
 - On start, the app can **seed the graph** from a larger tail of the log (with a loading indicator) so you see recent queue history immediately.
+- **Elapsed** time is anchored to the log: it uses the first **connecting / connection attempt** line in the current queue session when that line appears in the scanned log, otherwise the first **queue position** line in the graph. Reaching the **front** (position ≤1) freezes elapsed using **log line timestamps**, not the moment you opened the monitor.
 - **Timer (~10 Hz)** refreshes elapsed time, remaining ETA, and rate between log polls so values feel live.
 
 ### Graph pane (top)
