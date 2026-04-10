@@ -68,18 +68,31 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             return "⠤" * cols
 
         def frac_for(v: int) -> float:
+            """Return a 0..1 value where 1 maps to the *top* (worst/highest queue position).
+
+            Matches the GUI y-mapping:
+            - linear: gui_frac = (hi - v)/(hi - lo) then invert to make hi -> 1
+            - log:    gui_frac = (log(hi+1) - log(v+1)) / (...) then gamma, then invert
+            """
             vv = max(lo, min(hi, int(v)))
+            denom = float(hi - lo)
+            if denom <= 0.0:
+                return 0.0
             if not log_scale:
-                return (float(vv) - float(lo)) / (float(hi) - float(lo))
+                gui_frac = (float(hi) - float(vv)) / denom  # 0 at hi, 1 at lo
+                gui_frac = max(0.0, min(1.0, gui_frac))
+                return 1.0 - gui_frac
+
             lvmin = math.log(float(lo) + 1.0)
             lvmax = math.log(float(hi) + 1.0)
             lv = math.log(float(vv) + 1.0)
             if lvmax <= lvmin:
-                frac = 0.0
+                gui_frac = 0.0
             else:
-                frac = (lv - lvmin) / (lvmax - lvmin)
-            frac = max(0.0, min(1.0, frac))
-            return frac**GRAPH_LOG_GAMMA
+                gui_frac = (lvmax - lv) / (lvmax - lvmin)  # 0 at hi, 1 at lo
+            gui_frac = max(0.0, min(1.0, gui_frac))
+            gui_frac = gui_frac**GRAPH_LOG_GAMMA
+            return 1.0 - gui_frac
 
         # Build braille cells.
         # Braille dot mapping for 2×4:
