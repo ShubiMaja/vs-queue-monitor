@@ -105,9 +105,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
-    #metrics { height: auto; min-height: 12; width: 1fr; }
-    #log { height: 1fr; border: solid $primary; width: 1fr; }
-    #pathrow { height: auto; margin-top: 1; width: 1fr; }
+    #metrics { height: auto; min-height: 12; width: 100%; }
+    #log { height: 1fr; border: solid $primary; width: 100%; }
+    #pathrow { height: auto; margin-top: 1; width: 100%; }
     """
 
         BINDINGS = [
@@ -156,10 +156,14 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if eng is None:
                 return
             try:
-                # Stretch graph to full available width (htop-style).
-                # Leave a small margin so wrapped lines don't jitter.
+                # Stretch graph to the actual widget width (not just terminal width).
+                # Leave a small margin to avoid wrap jitter.
                 term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
-                graph_w = max(30, term_w - 2)
+                try:
+                    metrics_w = int(self.query_one("#metrics", Static).size.width)
+                except Exception:
+                    metrics_w = term_w
+                graph_w = max(30, metrics_w - 2)
                 graph_h = 10
 
                 pos = eng.position_var.get()
