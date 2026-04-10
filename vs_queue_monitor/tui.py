@@ -25,14 +25,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         )
         return 1
 
-    def _queue_ascii_graph(
+    def _queue_braille_line(
         points: list[tuple[float, int]],
         *,
-        width: int = 60,
-        height: int = 10,
+        width: int = 80,
         log_scale: bool = True,
     ) -> str:
-        """Htop-style mini chart (filled bars, multi-line)."""
+        """Single-line graph using Unicode braille (2×4 dots per cell)."""
         if len(points) < 1:
             return "—"
 
@@ -53,26 +52,24 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         if not step_vals:
             return "—"
 
+        # Braille cells are 2 columns wide. We'll plot one dot per column.
+        cols = max(10, int(width))
+        x_cols = cols * 2
+
         # Resample to fixed width from the end (most recent).
-        if len(step_vals) <= width:
+        if len(step_vals) <= x_cols:
             ys = step_vals
         else:
-            start = len(step_vals) - width
-            ys = step_vals[start:]
+            ys = step_vals[-x_cols:]
 
         lo, hi = min(ys), max(ys)
         if lo == hi:
-            # A single flat run: show a solid bottom bar.
-            w = max(10, int(width))
-            dot = "·"
-            inner_h = max(3, int(height))
-            inner = [" " * w for _ in range(inner_h - 1)] + [dot * w]
-            return "\n".join(["┌" + ("─" * w) + "┐", *("│" + row + "│" for row in inner), "└" + ("─" * w) + "┘"])
+            # Flat line: show a baseline of low dots across.
+            return "⠤" * cols
 
         def frac_for(v: int) -> float:
             vv = max(lo, min(hi, int(v)))
             if not log_scale:
-                # 0 at lo (best), 1 at hi (worst)
                 return (float(vv) - float(lo)) / (float(hi) - float(lo))
             lvmin = math.log(float(lo) + 1.0)
             lvmax = math.log(float(hi) + 1.0)
@@ -80,32 +77,36 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if lvmax <= lvmin:
                 frac = 0.0
             else:
-                # 0 at lo (best), 1 at hi (worst)
                 frac = (lv - lvmin) / (lvmax - lvmin)
             frac = max(0.0, min(1.0, frac))
             return frac**GRAPH_LOG_GAMMA
 
-        # Canvas: dot plot (one dot per column), htop-style history.
-        h = max(3, int(height))
-        w = max(10, int(width))
-        canvas: list[list[str]] = [[" " for _ in range(w)] for _ in range(h)]
-        dot = "·"
+        # Build braille cells.
+        # Braille dot mapping for 2×4:
+        # left column:  1,2,3,7  (top→bottom)
+        # right column: 4,5,6,8  (top→bottom)
+        DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))
+        cells = [0 for _ in range(cols)]
 
-        n = min(w, len(ys))
-        offset = len(ys) - n
-        for x in range(n):
-            v = ys[offset + x]
-            frac = frac_for(v)
-            row = int(round(frac * float(h - 1)))
-            row = max(0, min(h - 1, row))
-            canvas[h - 1 - row][x] = dot
+        # Pad left with first value so we always draw full width.
+        if len(ys) < x_cols:
+            ys = [ys[0]] * (x_cols - len(ys)) + ys
 
-        inner_lines = ["".join(r) for r in canvas]
-        # Add borders so Textual doesn't trim trailing spaces; makes “full width” visible.
-        top = "┌" + ("─" * w) + "┐"
-        bot = "└" + ("─" * w) + "┘"
-        boxed = [top, *("│" + row + "│" for row in inner_lines), bot]
-        return "\n".join(boxed)
+        for x in range(x_cols):
+            v = ys[x]
+            frac = frac_for(v)  # 0..1 (low..high)
+            # Map to 4 vertical levels. Higher queue position => higher dot.
+            level = int(round(frac * 3.0))
+            level = max(0, min(3, level))
+            row = 3 - level  # 0 top .. 3 bottom
+            cell_idx = x // 2
+            col_idx = x % 2
+            cells[cell_idx] |= DOTS[col_idx][row]
+
+        out = []
+        for mask in cells:
+            out.append(chr(0x2800 + mask) if mask else " ")
+        return "".join(out).rstrip() or "—"
 
     class VSQueueTui(App[None]):
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
@@ -171,7 +172,6 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 return
             try:
                 # Stretch graph to the actual widget width (not just terminal width).
-                # Leave a small margin to avoid wrap jitter.
                 term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
                 try:
                     metrics = self.query_one("#metrics", Static)
@@ -182,9 +182,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                         metrics_w = int(metrics.size.width)
                 except Exception:
                     metrics_w = term_w
-                # Account for box borders (left+right / top+bottom).
-                graph_w = max(30, metrics_w - 4)
-                graph_h = 10
+                # Leave a little room for the label; braille line itself is full width.
+                graph_w = max(30, metrics_w - 2)
 
                 pos = eng.position_var.get()
                 st = eng.status_var.get()
@@ -196,10 +195,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 n_roll = eng._rolling_window_points_int()
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
-                graph = _queue_ascii_graph(
+                graph = _queue_braille_line(
                     pts,
                     width=graph_w,
-                    height=graph_h,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
@@ -209,7 +207,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
                     f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
                     f"Log: {path}\n"
-                    f"Queue graph:\n{graph}\n"
+                    f"Queue graph: {graph}\n"
                 )
                 self.query_one("#metrics", Static).update(text)
             except Exception as exc:
