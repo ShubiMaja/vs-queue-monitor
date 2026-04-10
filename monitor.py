@@ -2844,15 +2844,36 @@ class QueueMonitorApp(tk.Tk):
         try:
             p = expand_path(raw)
         except Exception:
-            self.source_path_var.set(raw)
-            self.after(0, self._try_start_after_browse)
+            messagebox.showerror(
+                "Invalid path",
+                "Could not resolve that path.",
+                parent=self,
+            )
             return
+
         if p.is_dir():
-            self.source_path_var.set(str(p))
+            folder = p
         elif p.is_file():
-            self.source_path_var.set(str(p.parent))
+            folder = p.parent
         else:
-            self.source_path_var.set(raw)
+            messagebox.showerror(
+                "Folder not found",
+                "That path does not exist or is not a folder.",
+                parent=self,
+            )
+            return
+
+        resolved = resolve_log_file(str(folder))
+        if resolved is None:
+            messagebox.showerror(
+                "No client log found",
+                "No Vintage Story client log (e.g. client-main.log) was found under that folder.\n\n"
+                "Choose your Vintage Story data directory (often …\\VintagestoryData) or the Logs folder inside it.",
+                parent=self,
+            )
+            return
+
+        self.source_path_var.set(str(folder))
         self.after(0, self._try_start_after_browse)
 
     def browse_logs_folder(self) -> None:
