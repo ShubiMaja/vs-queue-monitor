@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.23
+Version: 1.0.24
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.23"
+VERSION = "1.0.24"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -4517,7 +4517,7 @@ class QueueMonitorApp(tk.Tk):
         ).pack(anchor="w", pady=(0, 8))
         tk.Label(
             txt,
-            text=f"Position {position}. Connect when the game assigns you.",
+            text=f"Position {position}. Get ready to connect!",
             justify="left",
             wraplength=360,
             bg=UI_BG_CARD,

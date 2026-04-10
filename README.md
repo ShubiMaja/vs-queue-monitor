@@ -208,7 +208,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 - **Completion** — **not** threshold-based: it always applies when you **reach the queue front** (position ≤1). You only choose **on/off** for completion **popup** and/or **sound** (plus optional completion **sound file**). There is no comma-separated completion threshold list.
 - **Minimum interval** between **warning** popup/sound alerts to reduce duplicate fires from noisy logs.
 - **Warning popup** (optional): always-on-top window for **threshold crossings**; auto-closes after a timeout.
-- **Completion popup** (optional): distinct window at queue front (≤1); **enable/disable only** — same trigger every time.
+- **Completion popup** (optional): distinct window at queue front (≤1) with **Get ready to connect!** copy; **enable/disable only** — same trigger every time.
 - **Warning sound** (optional): plays on **warning** thresholds; built-in default is one file per OS (e.g. `Windows Background.wav`, `Basso.aiff`, `dialog-warning.oga`), resolved like other system media paths, then registry/`MessageBeep`/bell. Custom path in Settings.
 - **Completion sound** (optional): **on/off** at queue front (≤1); one default per OS (e.g. `tada.wav`, `Hero.aiff`, `complete.oga`). Custom path in Settings.
 
