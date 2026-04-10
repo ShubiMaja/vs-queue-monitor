@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover
     winsound = None
 
 VERSION = "1.0.0"
-# Window icon: GIF as base64 so ``monitor.py`` can be shipped as a single file (no separate assets).
+# Window icon: embedded GIF so ``monitor.py`` ships as one file. Repo copy: ``assets/app_icon.gif`` (same bytes).
 _APP_ICON_GIF_B64 = (
     "R0lGODdhQABAAIQAABEUGxUYIAsLEi3H1i/U5CWYpRItNSByfRMwOB9yfBdHUCB5hB5ocyq2wxpTXSmntBU4QSSG"
     "kzLm9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAAAAAQABAAEAI/wADABhIsKDBgwgT"
