@@ -16,23 +16,24 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 
 - **Python 3.10+** (any recent 3.x with Tkinter)
 - **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
-
-No third-party pip dependencies for the **desktop GUI** (`monitor.py`).
-
-### Terminal UI (optional)
-
-Same queue logic as the GUI via a **hidden Tk** instance and a **Textual** front-end (`main-tui.py`).
-
-```bash
-pip install -r requirements-tui.txt
-python main-tui.py
-```
-
-Use `--path` / `--no-start` like the GUI. **Space** toggles monitoring, **o** opens Settings (Tk window), **q** quits. Requires Tkinter (same as the GUI).
+- **Textual** (pip) — for the **terminal UI** path (`pip install -r requirements.txt`). The **desktop GUI** uses Tk only; Textual is not loaded when you run the GUI.
 
 ## Quick start
 
-You need [Python 3.10+ with Tkinter](#install-python-and-tkinter). No `pip` install step.
+Two steps (once to install deps, then run any time):
+
+```bash
+pip install -r requirements.txt
+python3 monitor.py
+```
+
+On Windows use `python` or `py` instead of `python3` if needed.
+
+**UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
+
+Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **o** opens Settings (Tk window), **q** quits. Legacy: `python main-tui.py` is equivalent to `python monitor.py --tui`.
+
+You need [Python 3.10+ with Tkinter](#install-python-and-tkinter).
 
 ### Without Git
 
@@ -45,7 +46,7 @@ cd "$HOME/Downloads" && curl -L https://github.com/ShubiMaja/vs-queue-monitor/ar
 ```
 
 ```bash
-cd "$HOME/Downloads/vs-queue-monitor-main" && python3 monitor.py
+cd "$HOME/Downloads/vs-queue-monitor-main" && pip install -r requirements.txt && python3 monitor.py
 ```
 
 **Windows PowerShell** (Windows 10+, built-in `tar`)
@@ -55,17 +56,17 @@ Set-Location $env:USERPROFILE\Downloads; Invoke-WebRequest -Uri "https://github.
 ```
 
 ```powershell
-Set-Location $env:USERPROFILE\Downloads\vs-queue-monitor-main; python monitor.py
+Set-Location $env:USERPROFILE\Downloads\vs-queue-monitor-main; pip install -r requirements.txt; python monitor.py
 ```
 
 On Windows, use `py` instead of `python` if needed. For a **tagged release**, use that tag in the archive URL, e.g. `https://github.com/ShubiMaja/vs-queue-monitor/archive/v1.0.0.tar.gz`.
 
-**No terminal:** GitHub → **Code → Download ZIP** → extract the folder that contains `monitor.py` (often `vs-queue-monitor-main`) → `python3 monitor.py` or `python monitor.py`.
+**No terminal:** GitHub → **Code → Download ZIP** → extract the folder that contains `monitor.py` (often `vs-queue-monitor-main`) → open a terminal in that folder → `pip install -r requirements.txt` then `python3 monitor.py` or `python monitor.py`.
 
 ### With Git
 
 ```bash
-git clone https://github.com/ShubiMaja/vs-queue-monitor.git && cd vs-queue-monitor && python3 monitor.py
+git clone https://github.com/ShubiMaja/vs-queue-monitor.git && cd vs-queue-monitor && pip install -r requirements.txt && python3 monitor.py
 ```
 
 On Windows use `python` or `py` instead of `python3`. With SSH: `git@github.com:ShubiMaja/vs-queue-monitor.git`.
@@ -90,6 +91,7 @@ GitHub serves **source archives** for public repos; no separate host.
 3. Open **Command Prompt** or **PowerShell**, go to the folder that contains `monitor.py`, and run:
 
    ```powershell
+   pip install -r requirements.txt
    python monitor.py
    ```
 
@@ -103,6 +105,7 @@ GitHub serves **source archives** for public repos; no separate host.
 
    ```bash
    cd /path/to/vs-queue-monitor
+   pip install -r requirements.txt
    python3 monitor.py
    ```
 
@@ -119,6 +122,7 @@ GitHub serves **source archives** for public repos; no separate host.
 
    ```bash
    cd /path/to/vs-queue-monitor
+   pip install -r requirements.txt
    python3 monitor.py
    ```
 
@@ -127,6 +131,7 @@ GitHub serves **source archives** for public repos; no separate host.
 ```bash
 sudo dnf install python3 python3-tkinter
 cd /path/to/vs-queue-monitor
+pip install -r requirements.txt
 python3 monitor.py
 ```
 
@@ -138,8 +143,8 @@ From the directory that contains `monitor.py`:
 
 | Platform   | Typical command   |
 |-----------|-------------------|
-| Windows   | `python monitor.py` or `py monitor.py` |
-| macOS/Linux | `python3 monitor.py` |
+| Windows   | `pip install -r requirements.txt` then `python monitor.py` or `py monitor.py` |
+| macOS/Linux | `pip install -r requirements.txt` then `python3 monitor.py` |
 
 By default the app **starts monitoring** when it opens (if the **Logs folder** path exists). If no client log file is there yet, status stays **Waiting for log file** until it appears. To open the UI **without** auto-start:
 
