@@ -200,7 +200,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 ### History pane (collapsible)
 
 - Click **History** to show or hide the scrollable session log.
-- Logs path changes, queue updates (optional **every position change**), alerts, seed messages, errors, and warnings.
+- Logs path changes, optional **queue position lines** (only when **Log every position change** is on), alerts, seed messages, errors, and warnings.
 
 ### Alerts
 
@@ -239,7 +239,7 @@ The status string reflects tail-of-log classification, for example:
 - **Polling** — **Poll (s)** between log reads.
 - **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
 - **Completion Alerts** — **on/off only** when the log shows past-queue-wait lines (no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
-- **History** — **Log every position change** (verbose vs milestones-only lines). Show or hide the panel from the main window **History** bar (still saved in config).
+- **History** — **Log every position change**: when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are). Show or hide the panel from the main window **History** bar (still saved in config).
 - **Prediction** — **Window (points)**: rolling window size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
@@ -288,7 +288,7 @@ Typical keys:
 | `alert_sound_path` | Warning sound file path |
 | `completion_sound_enabled` | Queue completion (post-queue log signal) sound enabled |
 | `completion_sound_path` | Completion sound file path |
-| `show_every_change` | Log every queue position line vs only changes |
+| `show_every_change` | When true, log each queue position change to History; when false, skip routine position lines |
 | `window_geometry` | Last main window size/position |
 | `version` | App version string written at save time |
 

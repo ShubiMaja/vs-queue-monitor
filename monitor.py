@@ -2162,7 +2162,11 @@ class QueueMonitorApp(tk.Tk):
             history_fr, text="Log every position change", variable=self.show_every_change_var
         )
         _cb_log_every.pack(anchor="w")
-        self._bind_static_tooltip(_cb_log_every, "Log every line from the client, or only important changes.")
+        self._bind_static_tooltip(
+            _cb_log_every,
+            "When on, append a History line each time your queue position changes. When off, skip those "
+            "(alerts, completion, errors, and monitoring start still log).",
+        )
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
@@ -3462,10 +3466,11 @@ class QueueMonitorApp(tk.Tk):
                                 self._mpp_floor_value = self._minutes_per_position_from_window()
                                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                                 self.last_change_var.set(timestamp)
-                                if self.show_every_change_var.get() or prev_pos is None:
-                                    self.write_history(f"Queue position: {position}")
-                                else:
-                                    self.write_history(f"Queue changed: {prev_pos} → {position}")
+                                if self.show_every_change_var.get():
+                                    if prev_pos is None:
+                                        self.write_history(f"Queue position: {position}")
+                                    else:
+                                        self.write_history(f"Queue changed: {prev_pos} → {position}")
 
                             should_alert, reason = self.compute_alert(prev_pos, position)
                             if should_alert:
