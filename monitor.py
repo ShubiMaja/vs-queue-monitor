@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.10
+Version: 1.0.11
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.10"
+VERSION = "1.0.11"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1060,6 +1060,7 @@ class QueueMonitorApp(tk.Tk):
         self._graph_y_scale_btn: Optional[ttk.Button] = None
         self._history_tab_btn: Optional[ttk.Button] = None
         self._fit_history_collapsed_job: Optional[str] = None
+        self._pane_drag_threshold_job: Optional[str] = None
         # When the queue stalls longer than the median rate suggests, reduce this
         # (prediction was optimistic; effective speed for ETA and display).
         self._pred_speed_scale: float = 1.0
@@ -1598,7 +1599,7 @@ class QueueMonitorApp(tk.Tk):
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
         panes.bind("<Configure>", self._schedule_pane_fits, add=True)
-        panes.bind("<ButtonRelease-1>", self._on_panes_sash_released, add=True)
+        panes.bind("<B1-Motion>", self._schedule_pane_drag_thresholds, add=True)
 
         self._graph_labelframe = ttk.LabelFrame(
             panes,
@@ -2253,10 +2254,20 @@ class QueueMonitorApp(tk.Tk):
         """Window/pane resize: refit collapsed History and Status so empty bands don’t linger."""
         self._schedule_fit_history_collapsed(_event)
         self._schedule_fit_status_collapsed(_event)
+        self._schedule_pane_drag_thresholds()
 
-    def _on_panes_sash_released(self, _event: object = None) -> None:
-        """After sash drag, apply open/close thresholds (collapsed ↔ expanded)."""
-        self.after_idle(self._apply_pane_drag_thresholds)
+    def _schedule_pane_drag_thresholds(self, _event: object = None) -> None:
+        """Debounced: apply sash open/close thresholds during drag (Configure + B1-Motion), not only on release."""
+        if self._pane_drag_threshold_job is not None:
+            try:
+                self.after_cancel(self._pane_drag_threshold_job)
+            except Exception:
+                pass
+        self._pane_drag_threshold_job = self.after_idle(self._run_pane_drag_thresholds)
+
+    def _run_pane_drag_thresholds(self) -> None:
+        self._pane_drag_threshold_job = None
+        self._apply_pane_drag_thresholds()
 
     def _apply_pane_drag_thresholds(self) -> None:
         """Stretch past header + margin opens a collapsed pane; squeeze past max height collapses expanded."""
