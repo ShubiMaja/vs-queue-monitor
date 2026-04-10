@@ -110,6 +110,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         from textual.containers import Horizontal, Vertical
         from textual.screen import ModalScreen
         from textual.widgets import Button, Input, RichLog, Static
+        try:
+            from textual.widgets import Rule  # type: ignore
+        except Exception:  # pragma: no cover
+            Rule = None  # type: ignore[misc,assignment]
     except ImportError:
         print(
             "Terminal UI requires Textual. Install: pip install -r requirements.txt",
@@ -363,14 +367,16 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
-    #top_path_panel { height: auto; width: 100%; border: solid $primary; }
-    #top_path_title { height: auto; padding: 0 1; color: $text-muted; }
-    #pathrow { height: auto; width: 100%; }
-    #top_metrics_panel { height: auto; width: 100%; border: solid $primary; }
-    #top_metrics_title { height: auto; padding: 0 1; color: $text-muted; }
+    #topbar_panel { height: auto; width: 100%; border: solid $primary; }
+    #topbar { height: auto; width: 100%; padding: 0 1; }
+    #play_btn { width: 7; }
+    #run_indicator { width: 11; color: $text-muted; }
+    #path_input { width: 1fr; }
     #metrics { height: auto; min-height: 7; width: 100%; }
-    #graph_panel { height: 1fr; width: 100%; border: solid $primary; }
-    #graph_title { height: auto; padding: 0 1; color: $text-muted; }
+    #status_graph_panel { height: 1fr; width: 100%; border: solid $primary; }
+    #status_graph_title { height: auto; padding: 0 1; color: $text-muted; }
+    #status_graph_body { height: 1fr; width: 100%; padding: 0 1; }
+    #status_divider { height: auto; color: $text-muted; }
     #graph { height: 1fr; width: 100%; padding: 0 1; }
     #panel_header { height: auto; padding: 0 1; color: $text-muted; background: $panel; }
     #info_panel { height: auto; width: 100%; border: solid $primary; }
@@ -405,18 +411,24 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._info_collapsed: bool = False
 
         def compose(self) -> ComposeResult:
-            with Vertical(id="top_path_panel"):
-                yield Static("Logs folder", id="top_path_title")
-                with Horizontal(id="pathrow"):
-                    yield Static("Logs folder: ", id="path_lbl")
-                    yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
+            with Vertical(id="topbar_panel"):
+                with Horizontal(id="topbar"):
+                    yield Button("Play", id="play_btn", variant="success")
+                    yield Static("○ Idle", id="run_indicator")
+                    yield Static("Logs folder:", id="path_lbl")
+                    yield Input(placeholder="Path", id="path_input")
+                    yield Button("Browse", id="browse_btn", variant="default")
+                    yield Button("Settings", id="settings_btn", variant="primary")
 
-            with Vertical(id="top_metrics_panel"):
-                yield Static("Status", id="top_metrics_title")
-                yield Static("", id="metrics")
-            with Vertical(id="graph_panel"):
-                yield Static("Queue graph", id="graph_title")
-                yield Static("", id="graph")
+            with Vertical(id="status_graph_panel"):
+                yield Static("Status / graph", id="status_graph_title")
+                with Vertical(id="status_graph_body"):
+                    yield Static("", id="metrics")
+                    if Rule is not None:
+                        yield Rule(line_style="heavy")
+                    else:
+                        yield Static("─" * 80, id="status_divider")
+                    yield Static("", id="graph")
             with Vertical(id="info_panel"):
                 yield Static("▼ Info  (i)", id="info_header")
                 yield Static("", id="info_body")
@@ -429,6 +441,20 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 self.query_one("#log", RichLog).write_line(message)
             except Exception:
                 pass
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            bid = getattr(event.button, "id", None)
+            if bid == "play_btn":
+                self.action_toggle_monitor()
+            elif bid == "settings_btn":
+                self.action_open_settings()
+            elif bid == "browse_btn":
+                # No GUI folder picker in headless TUI; focus the input instead.
+                try:
+                    self.query_one("#path_input", Input).focus()
+                except Exception:
+                    pass
+                self._write_log("Browse: paste a folder path into the Logs folder field and press Enter.")
 
         def on_static_clicked(self, event: object) -> None:
             # Clickable collapsible headers (GUI-like chevrons).
@@ -630,7 +656,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             except Exception:
                 pass
             try:
-                self.query_one("#pathrow", Horizontal).display = not self._path_hidden
+                self.query_one("#topbar_panel", Vertical).display = not self._path_hidden
             except Exception:
                 pass
             self._apply_info_collapsed()
@@ -685,6 +711,11 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 warn = _tui_warnings_kpi_markup(eng)
                 st_low = st.lower()
                 st_style = "green" if "monitoring" in st_low else UI_SUMMARY_VALUE
+                try:
+                    self.query_one("#run_indicator", Static).update("● Monitoring" if eng.running else "○ Idle")
+                    self.query_one("#play_btn", Button).label = "Stop" if eng.running else "Play"
+                except Exception:
+                    pass
                 metrics_text = (
                     f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
                     f"[{UI_ACCENT_POSITION}]POSITION[/] [bold]{pos}[/]    "
