@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.27
+Version: 1.0.28
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.27"
+VERSION = "1.0.28"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -872,6 +872,20 @@ def tail_has_post_queue_after_last_queue_line(data: str) -> bool:
         if is_post_queue_progress_line(line):
             return True
     return False
+
+
+def completion_would_fire_for_tail(tail_text: str) -> bool:
+    """True when the tail matches ``_maybe_notify_queue_completion`` (mapped position 0 + post-queue).
+
+    Mirrors ``poll_once``: last queue reading ≤1 and a post-queue line after it ⇒ UI position 0.
+    Used so we do not play completion popups/sounds on load for an already-finished queue.
+    """
+    if not tail_has_post_queue_after_last_queue_line(tail_text):
+        return False
+    raw, _ = parse_tail_last_queue_reading(tail_text)
+    if raw is None:
+        return False
+    return raw <= 1
 
 
 def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
@@ -3153,6 +3167,7 @@ class QueueMonitorApp(tk.Tk):
         self._show_start_loading(False)
 
         self._apply_seed_result(seed_data)
+        self._suppress_completion_notify_if_tail_already_completed(resolved)
 
         self.start_timer()
 
@@ -3161,6 +3176,18 @@ class QueueMonitorApp(tk.Tk):
             self.job_id = None
 
         self.poll_once()
+
+    def _suppress_completion_notify_if_tail_already_completed(self, log_file: Path) -> None:
+        """If the tail already shows a completed queue wait, skip the next completion popup/sound."""
+        try:
+            if not log_file.is_file():
+                return
+        except OSError:
+            return
+        t = read_log_file_tail_text(log_file, TAIL_BYTES)
+        if t is None or not completion_would_fire_for_tail(t):
+            return
+        self._queue_completion_notified_this_run = True
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -3312,6 +3339,7 @@ class QueueMonitorApp(tk.Tk):
         data = compute_seed_graph_from_log(log_file)
         if data is not None:
             self._apply_seed_result(data)
+            self._suppress_completion_notify_if_tail_already_completed(log_file)
             return True
         text = read_log_file_tail_text(log_file, TAIL_BYTES)
         if text is None:
@@ -3331,6 +3359,7 @@ class QueueMonitorApp(tk.Tk):
         self.write_history(
             "Graph reset to current queue position (full history unavailable from log scan)."
         )
+        self._suppress_completion_notify_if_tail_already_completed(log_file)
         return True
 
     def _apply_seed_result(
@@ -3396,6 +3425,7 @@ class QueueMonitorApp(tk.Tk):
 
     def seed_graph_from_log(self, log_file: Path) -> None:
         self._apply_seed_result(compute_seed_graph_from_log(log_file))
+        self._suppress_completion_notify_if_tail_already_completed(log_file)
 
     def poll_once(self) -> None:
         if not self.running:
