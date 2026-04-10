@@ -20,6 +20,7 @@ from .core import (
     UI_ACCENT_WARNINGS,
     UI_GRAPH_AXIS,
     UI_GRAPH_GRID,
+    UI_GRAPH_HOVER_CURSOR,
     UI_GRAPH_LINE,
     UI_GRAPH_TEXT,
     UI_SUMMARY_VALUE,
@@ -128,6 +129,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         height_lines: int = 3,
         log_scale: bool = True,
         show_labels: bool = True,
+        cursor_time: Optional[float] = None,
         line_color: str = UI_GRAPH_LINE,
         grid_color: str = UI_GRAPH_GRID,
         label_color: str = UI_GRAPH_TEXT,
@@ -292,25 +294,46 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 if want_h or want_v:
                     grid_by_line[line_idx][i] |= GRID_DOT_MASK
 
+        # Cursor (GUI hover analogue): vertical line at selected time.
+        cursor_col: Optional[int] = None
+        if cursor_time is not None:
+            try:
+                xf = (float(cursor_time) - t0) / float(t1 - t0)
+                xf = max(0.0, min(1.0, xf))
+                cursor_col = int(round(xf * float(max(1, cols - 1))))
+                cursor_col = max(0, min(cols - 1, cursor_col))
+            except Exception:
+                cursor_col = None
+
         grid_tag_open = f"[{grid_color}]"
         grid_tag_close = f"[/{grid_color}]"
         line_tag_open = f"[{line_color}]"
         line_tag_close = f"[/{line_color}]"
         label_tag_open = f"[{label_color}]"
         label_tag_close = f"[/{label_color}]"
+        cursor_tag_open = f"[{UI_GRAPH_HOVER_CURSOR}]"
+        cursor_tag_close = f"[/{UI_GRAPH_HOVER_CURSOR}]"
 
         out_lines: list[str] = []
         for line_idx, line_cells in enumerate(cells_by_line):
             out: list[str] = []
             for i, mask in enumerate(line_cells):
+                is_cursor = cursor_col is not None and i == cursor_col
                 if mask:
-                    out.append(f"{line_tag_open}{chr(0x2800 + mask)}{line_tag_close}")
-                    continue
-                gmask = grid_by_line[line_idx][i]
-                if gmask:
-                    out.append(f"{grid_tag_open}{chr(0x2800 + gmask)}{grid_tag_close}")
+                    ch = f"{line_tag_open}{chr(0x2800 + mask)}{line_tag_close}"
                 else:
-                    out.append(" ")
+                    gmask = grid_by_line[line_idx][i]
+                    if gmask:
+                        ch = f"{grid_tag_open}{chr(0x2800 + gmask)}{grid_tag_close}"
+                    else:
+                        ch = " "
+                if is_cursor:
+                    # Highlight the column; if empty, draw a small dot so the line is visible.
+                    if ch == " ":
+                        ch = f"{cursor_tag_open}⠂{cursor_tag_close}"
+                    else:
+                        ch = f"{cursor_tag_open}{ch}{cursor_tag_close}"
+                out.append(ch)
 
             body = "".join(out) or "—"
             if show_labels and label_w > 0:
@@ -400,6 +423,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("m", "toggle_metrics", "Metrics", priority=True),
             Binding("p", "toggle_path", "Path", priority=True),
             Binding("i", "toggle_info", "Info", priority=True),
+            Binding("left", "cursor_left", "Cursor left", priority=True),
+            Binding("right", "cursor_right", "Cursor right", priority=True),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -412,6 +437,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._metrics_hidden: bool = False
             self._path_hidden: bool = False
             self._info_collapsed: bool = False
+            self._cursor_idx: Optional[int] = None
 
         def compose(self) -> ComposeResult:
             with Vertical(id="topbar_panel"):
@@ -730,6 +756,14 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"[{UI_ACCENT_REMAINING}]EST. REMAINING[/] {rem}    "
                     f"[{UI_ACCENT_PROGRESS}]PROGRESS[/] {prog:.0f}%"
                 )
+                # Cursor info (GUI hover analogue).
+                if pts:
+                    idx = self._cursor_idx
+                    if idx is not None:
+                        idx = max(0, min(len(pts) - 1, int(idx)))
+                        ct, cv = pts[idx]
+                        cts = datetime.fromtimestamp(float(ct)).strftime("%H:%M:%S")
+                        metrics_text += f"\n[{UI_GRAPH_HOVER_CURSOR}]Cursor[/]: {cts}  pos {int(cv)}"
                 self.query_one("#metrics", Static).update(metrics_text)
 
                 info_text = (
@@ -763,6 +797,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     height_lines=height_lines,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                     show_labels=True,
+                    cursor_time=(pts[self._cursor_idx][0] if (pts and self._cursor_idx is not None) else None),
                 )
                 self.query_one("#graph", Static).update(graph)
             except Exception as exc:
@@ -800,6 +835,32 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             eng = self._engine
             if eng is not None:
                 self.push_screen(self._SettingsScreen(eng))
+
+        def action_cursor_left(self) -> None:
+            eng = self._engine
+            if eng is None:
+                return
+            pts = list(eng.graph_points)
+            if not pts:
+                return
+            if self._cursor_idx is None:
+                self._cursor_idx = len(pts) - 1
+            else:
+                self._cursor_idx = max(0, int(self._cursor_idx) - 1)
+            self._refresh_metrics()
+
+        def action_cursor_right(self) -> None:
+            eng = self._engine
+            if eng is None:
+                return
+            pts = list(eng.graph_points)
+            if not pts:
+                return
+            if self._cursor_idx is None:
+                self._cursor_idx = len(pts) - 1
+            else:
+                self._cursor_idx = min(len(pts) - 1, int(self._cursor_idx) + 1)
+            self._refresh_metrics()
 
         def action_refresh_view(self) -> None:
             self._refresh_metrics()
