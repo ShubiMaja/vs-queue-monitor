@@ -138,23 +138,22 @@ python3 monitor.py --no-start
 
 ### Pointing at the log
 
-You can pass a **file** or a **folder** to search for `client-main.log`:
+Pass a **folder** (Vintage Story data directory, or a folder that contains the client log). The app resolves the correct log **filename** inside that tree (e.g. `client-main.log`) — you do not pick a `.log` file in the UI.
 
 **Windows (Command Prompt / PowerShell)**
 
 ```powershell
-python monitor.py --path "%APPDATA%\VintagestoryData\client-main.log"
-python monitor.py --path "C:\path\to\VintagestoryData"
+python monitor.py --path "%APPDATA%\VintagestoryData"
 ```
 
 **macOS / Linux (bash)**
 
 ```bash
-python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData/client-main.log"
-python3 monitor.py --path "$HOME/.config/VintagestoryData/client-main.log"
+python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData"
+python3 monitor.py --path "$HOME/.config/VintagestoryData"
 ```
 
-Exact Vintage Story data locations depend on your install; use the **Log location** field in the app if unsure.
+Exact Vintage Story data locations depend on your install; use **Browse…** on **Logs folder** in the app if unsure. A saved path that still points at a **file** from older versions is treated as that file’s **parent folder** when resolving.
 
 ## Log file
 
@@ -163,7 +162,7 @@ The game writes queue lines similar to:
 - `Client is in connect queue at position: N`
 - `Your position in the queue is: N`
 
-The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...`). On macOS or Linux, browse to your Vintage Story data folder or paste the full path to `client-main.log`. If you pass a **directory**, the app searches for `client-main.log` (and a few fallbacks) under common layouts.
+The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). On macOS or Linux, browse or paste your Vintage Story **data** folder. The app searches for `client-main.log` (and a few fallbacks) under common layouts.
 
 ## Features
 
@@ -173,12 +172,11 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 - **Status** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
 - Dark, **tooltip-heavy** UI (hover for control explanations).
 
-### Log location and resolution
+### Logs folder and resolution
 
-- **Log location** field plus **Browse file** / **Browse folder** to pick a path. Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
-- **Direct file:** any readable path to a log file is used as-is.
-- **Folder:** resolves to `client-main.log` in common locations (`Logs/`, `logs/`), then falls back to searching for matching log filenames by modification time.
-- **Resolved path** is shown in the Status section when monitoring.
+- **Logs folder** field plus **Browse…** (folder picker only). Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
+- The app always **searches** under that folder for `client-main.log` in common locations (`Logs/`, `logs/`, etc.), then broader filename patterns, then newest `*.log` as a last resort — so the correct client log name is used and you cannot accidentally select the wrong file in a picker.
+- **Resolved path** (the actual log file opened) is shown in the Status section when monitoring.
 
 ### Monitoring
 
@@ -188,7 +186,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 
 ### Queue graph pane
 
-- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
+- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
 - **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
@@ -254,7 +252,7 @@ The status string reflects tail-of-log classification, for example:
 
 | Argument | Meaning |
 |----------|---------|
-| `--path PATH` | Initial log file or folder (same rules as **Log location**). |
+| `--path PATH` | Initial **Logs folder** path (directory; same rules as the main window field). |
 | `--no-start` | Open the UI **without** auto-starting monitoring. |
 
 ### Tooltips
@@ -276,7 +274,7 @@ Typical keys:
 
 | Key | Purpose |
 |-----|---------|
-| `source_path` | Log location string |
+| `source_path` | Logs folder path string |
 | `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5`); not used for completion |
 | `poll_sec` | Poll interval in seconds |
 | `avg_window_points` | Prediction window size (points) |
@@ -298,6 +296,8 @@ Typical keys:
 ```bash
 python -m py_compile monitor.py
 ```
+
+**AI / Cursor:** This repo’s `.cursor/rules/git-commit.mdc` expects **README updates in the same commit** whenever a change affects user-facing behavior, CLI, configuration, or docs — before committing.
 
 ## License / game
 
