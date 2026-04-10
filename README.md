@@ -31,6 +31,8 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 | `tools/` | `build_engine.py` regenerates `engine.py` from `_engine_raw.py`; `strip_gui.py` is an optional AST helper for refactors |
 | `_engine_raw.py` | Input for `tools/build_engine.py` — keep in sync if you use the generator |
 | `docs/GUI-TUI-PARITY.md` | Design reference: Tk GUI behavior vs Textual TUI target (layout, graph, alerts, settings) |
+| `docs/UI-UX-PARITY.md` | Product UI/UX parity spec (includes mockups) |
+| `docs/TUI-LIMITATIONS.md` | Forced differences due to terminal/SSH limitations |
 
 **Cursor / VS Code:** In this workspace, `.vscode/launch.json` runs `monitor.py` with `--gui` and `VS_QUEUE_MONITOR_UI=gui`, and `.vscode/settings.json` sets the same for the **integrated terminal** so the GUI is the default when you use **Run and Debug** (pick **VS Queue Monitor: Run GUI**) or run `python monitor.py` in the editor terminal. On a headless machine where you want the TUI instead, use `python monitor.py --tui` or clear `VS_QUEUE_MONITOR_UI` in that shell.
 
