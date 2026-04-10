@@ -224,9 +224,23 @@ class HeadlessMonitorHooks:
 
     def show_error(self, title: str, message: str) -> None:
         self.append_history(f"{title}: {message}")
+        app = self.textual_app
+        if app is not None and hasattr(app, "notify"):
+            try:
+                app.notify(f"{title}: {message}", severity="error")
+            except Exception:
+                pass
 
     def ask_yes_no(self, title: str, message: str) -> bool:
+        # Headless TUI: auto-accept, but show a toast so it doesn't feel “silent”.
+        app = self.textual_app
+        if app is not None and hasattr(app, "notify"):
+            try:
+                app.notify(title or "Confirm", severity="warning")
+            except Exception:
+                pass
         if "New queue detected" in (title or ""):
+            self.append_history("[tui] New queue detected — auto-loading new run (graph + thresholds reset).")
             return True
         return True
 
@@ -249,9 +263,21 @@ class HeadlessMonitorHooks:
 
     def show_threshold_popup(self, position: int, eta_display: str) -> None:
         self.append_history(f"[alert] Position {position} — est. left: {eta_display}")
+        app = self.textual_app
+        if app is not None and hasattr(app, "notify"):
+            try:
+                app.notify(f"Queue alert: position {position} (est. left {eta_display})", severity="warning")
+            except Exception:
+                pass
 
     def show_completion_popup(self) -> None:
         self.append_history("[completion] Past queue wait — connecting (position 0).")
+        app = self.textual_app
+        if app is not None and hasattr(app, "notify"):
+            try:
+                app.notify("Past queue wait (position 0) — connecting", severity="information")
+            except Exception:
+                pass
 
     def destroy_active_popups(self) -> None:
         pass

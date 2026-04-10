@@ -39,7 +39,10 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         # Braille cells are 2 columns wide. We'll plot one dot per column.
         cols = max(10, int(width))
         x_cols = cols * 2
-        lines_n = max(1, int(height_lines))
+        # When labels are enabled we append 2 extra lines (ticks + time labels).
+        # Reserve space so those lines are visible within the widget.
+        label_extra_lines = 2 if show_labels else 0
+        lines_n = max(1, int(height_lines) - label_extra_lines)
         y_levels = lines_n * 4
         if len(points) < 1:
             return "\n".join(["—"] * lines_n)
