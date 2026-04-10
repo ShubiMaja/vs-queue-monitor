@@ -175,7 +175,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 ### Logs folder and resolution
 
 - **Logs folder** field plus **Browse…** (folder picker only). A browsed folder is **accepted only** if a client log can be **resolved** under it (same rules as below); otherwise the picker shows an error and the path is unchanged. Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
-- The app always **searches** under that folder for `client-main.log` in common locations (`Logs/`, `logs/`, etc.), then broader filename patterns, then newest `*.log` as a last resort — so the correct client log name is used and you cannot accidentally select the wrong file in a picker.
+- The app always **searches** under that folder for `client-main.log` / `client.log` in common locations (`Logs/`, `logs/`, etc.), then filenames matching `*client-main*.log` or `*client*.log`. It does **not** pick unrelated `*.log` files (so a random folder with other logs is rejected).
 - **Resolved path** (the actual log file opened) appears in the **Info** section when monitoring (along with timing and rate details below).
 
 ### Monitoring

@@ -603,10 +603,9 @@ def save_config(data: dict) -> None:
 
 
 def resolve_log_file(raw: str) -> Optional[Path]:
-    """Resolve the client log file from a **folder** path (or legacy saved file path → parent folder).
+    """Resolve the Vintage Story **client** log from a **folder** path (or legacy saved file path → parent).
 
-    The app always searches for the correct filename (e.g. client-main.log) under that tree — users
-    should not pick a specific .log file in the UI.
+    Searches fixed paths and *client*.log-style names only — does not accept arbitrary *.log files.
     """
     path = expand_path(raw)
 
@@ -638,13 +637,6 @@ def resolve_log_file(raw: str) -> Optional[Path]:
             pass
 
     file_matches = [m for m in matches if m.is_file()]
-    if not file_matches:
-        # Last resort: any *.log under the folder (newest wins). Names like server.log do not match *client*.log.
-        try:
-            file_matches = [p for p in path.rglob("*.log") if p.is_file()]
-        except OSError:
-            file_matches = []
-
     if not file_matches:
         return None
 
