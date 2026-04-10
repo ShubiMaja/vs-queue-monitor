@@ -391,7 +391,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         CSS = """
     Screen { align: left top; }
     #topbar_panel { height: auto; width: 100%; border: solid $primary; }
-    #topbar { height: auto; width: 100%; padding: 0 1; }
+    #app_title { height: 1; padding: 0 1; }
+    #topbar { height: 1; width: 100%; padding: 0 1; }
     #play_btn { width: auto; margin-right: 1; }
     #run_indicator { width: auto; color: $text-muted; margin-right: 2; }
     #path_lbl { margin-right: 1; color: $text-muted; }
@@ -441,9 +442,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         def compose(self) -> ComposeResult:
             with Vertical(id="topbar_panel"):
+                yield Static(
+                    f"[bold]{APP_DISPLAY_NAME}[/] [dim]v{VERSION}[/]",
+                    id="app_title",
+                )
                 with Horizontal(id="topbar"):
                     # Compact single-line chips (Buttons are tall and force wrapping).
-                    yield Static("[bold white on #2e3742] Play [/]", id="play_btn")
+                    yield Static("[bold white on #2e3742] ▶ Start [/]", id="play_btn")
                     yield Static("[#9fa7b3]○ Idle[/]", id="run_indicator")
                     yield Static("Logs folder:", id="path_lbl")
                     yield Input(placeholder="Path", id="path_input")
@@ -742,12 +747,13 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                         "[#9fa7b3]● Monitoring[/]" if eng.running else "[#9fa7b3]○ Idle[/]",
                     )
                     self.query_one("#play_btn", Static).update(
-                        "[bold white on #cf222e] Stop [/]" if eng.running else "[bold white on #2e3742] Play [/]",
+                        "[bold white on #cf222e] ■ Stop [/]"
+                        if eng.running
+                        else "[bold white on #2e3742] ▶ Start [/]",
                     )
                 except Exception:
                     pass
                 metrics_text = (
-                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n"
                     f"[{UI_ACCENT_POSITION}]POSITION[/] [bold]{pos}[/]    "
                     f"[{UI_ACCENT_STATUS}]STATUS[/] [{st_style}]{st}[/]    "
                     f"[{UI_ACCENT_RATE}]{hdr}[/] [bold]{rate}[/]\n"
