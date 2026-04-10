@@ -156,6 +156,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if eng is None:
                 return
             try:
+                # Stretch graph to full available width (htop-style).
+                # Leave a small margin so wrapped lines don't jitter.
+                term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
+                graph_w = max(30, term_w - 2)
+                graph_h = 10
+
                 pos = eng.position_var.get()
                 st = eng.status_var.get()
                 rate = eng.queue_rate_var.get()
@@ -168,8 +174,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 pts = list(eng.graph_points)
                 graph = _queue_ascii_graph(
                     pts,
-                    width=60,
-                    height=10,
+                    width=graph_w,
+                    height=graph_h,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
