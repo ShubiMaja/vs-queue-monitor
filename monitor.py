@@ -245,7 +245,7 @@ UI_STOP_BTN_ACTIVE = "#f85149"
 UI_SECTION_PAD = 12
 # Text / controls inset inside a pane’s client area (after LabelFrame padding). One rhythm for the whole UI.
 UI_INNER_PAD_X = 10
-# tk.Entry has no built-in inner padding; _make_dark_entry wraps the field in a frame with this inset.
+# ttk.Entry style App.TEntry: padding on all sides inside the field (classic tk.Entry has none).
 UI_ENTRY_INNER_PAD = 3
 UI_INNER_PAD_Y_SM = 8
 UI_INNER_PAD_Y_MD = 10
@@ -1458,12 +1458,33 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
-        # Text fields use tk.Entry (see _make_dark_entry): clam TEntry still draws a bright corner pixel on Windows.
+        # Dark text fields: ttk.Entry with explicit padding (tk.Entry cannot inset text reliably on Windows).
+        _ep = UI_ENTRY_FIELD
         style.configure(
-            "TEntry",
-            fieldbackground=UI_ENTRY_FIELD,
+            "App.TEntry",
+            parent="TEntry",
+            fieldbackground=_ep,
             foreground=UI_TEXT_PRIMARY,
             insertcolor=UI_TEXT_PRIMARY,
+            selectbackground=UI_BUTTON_BG_ACTIVE,
+            selectforeground=UI_TEXT_PRIMARY,
+            borderwidth=0,
+            relief="flat",
+            bordercolor=_ep,
+            darkcolor=_ep,
+            lightcolor=_ep,
+            padding=(
+                UI_ENTRY_INNER_PAD,
+                UI_ENTRY_INNER_PAD,
+                UI_ENTRY_INNER_PAD,
+                UI_ENTRY_INNER_PAD,
+            ),
+        )
+        style.map(
+            "App.TEntry",
+            bordercolor=[("focus", _ep), ("!focus", _ep), ("active", _ep)],
+            darkcolor=[("focus", _ep), ("!focus", _ep)],
+            lightcolor=[("focus", _ep), ("!focus", _ep)],
         )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
@@ -1506,25 +1527,14 @@ class QueueMonitorApp(tk.Tk):
         )
 
     @staticmethod
-    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> tk.Frame:
-        """Plain Entry (no ttk corner artifacts on Windows) with at least UI_ENTRY_INNER_PAD text inset."""
-        pad = UI_ENTRY_INNER_PAD
-        wrap = tk.Frame(parent, bg=UI_ENTRY_FIELD, bd=0, highlightthickness=0)
-        entry = tk.Entry(
-            wrap,
-            bg=UI_ENTRY_FIELD,
-            fg=UI_TEXT_PRIMARY,
-            insertbackground=UI_TEXT_PRIMARY,
-            selectbackground=UI_BUTTON_BG_ACTIVE,
-            selectforeground=UI_TEXT_PRIMARY,
-            relief="flat",
-            borderwidth=0,
-            highlightthickness=0,
+    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> ttk.Entry:
+        """Themed Entry with App.TEntry inner padding on every side (see _configure_ttk_theme)."""
+        return ttk.Entry(
+            parent,
+            style="App.TEntry",
             font=("TkDefaultFont", 10),
             **kwargs,
         )
-        entry.pack(fill=tk.BOTH, expand=True, padx=pad, pady=pad)
-        return wrap
 
     def _build_ui(self) -> None:
         try:
