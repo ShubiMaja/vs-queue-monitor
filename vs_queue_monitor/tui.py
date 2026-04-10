@@ -215,7 +215,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._initial_path = initial_path
             self._auto_start = auto_start
             self._engine: Optional[QueueMonitorEngine] = None
-            self._history_collapsed: bool = False
+            self._history_collapsed: bool = True
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
