@@ -188,7 +188,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 
 ### Queue graph pane
 
-- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Elapsed**, **Remaining** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
+- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state), **Rate** (minutes per position), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
 - **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
@@ -216,7 +216,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData/...
 
 ### ETA, rate, and progress
 
-- **Remaining** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points).
+- **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points).
 - **Minutes per position** is shown as **Rate**; can be **capped** using dwell logic so optimistic rates do not jump until you have waited long enough at the current position.
 - **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; **100%** at queue front (position ≤ 1); empty when interrupted or ETA unknown.
 - **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.

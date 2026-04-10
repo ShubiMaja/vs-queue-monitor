@@ -1401,7 +1401,7 @@ class QueueMonitorApp(tk.Tk):
         graph_frame.rowconfigure(0, weight=0)
         graph_frame.rowconfigure(1, weight=1)
 
-        # POSITION / STATUS / RATE | spacer | ELAPSED / REMAINING / PROGRESS — row 0 = all keys, row 1 = values.
+        # POSITION / STATUS / RATE | spacer | ELAPSED / EST. REMAINING / PROGRESS — row 0 = all keys, row 1 = values.
         summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
         summary.grid(row=0, column=0, sticky="ew", pady=(0, 0))
         for _c in range(7):
@@ -1454,7 +1454,7 @@ class QueueMonitorApp(tk.Tk):
         self._lbl_elapsed_header.grid(row=0, column=4, sticky="w", padx=(UI_INNER_PAD_Y_MD, 4), pady=_hdr_py)
         self._lbl_remaining_header = tk.Label(
             summary,
-            text="REMAINING",
+            text="EST. REMAINING",
             bg=UI_SUMMARY_BG,
             fg=UI_ACCENT_REMAINING,
             font=("TkDefaultFont", 9, "bold"),
@@ -3011,7 +3011,7 @@ class QueueMonitorApp(tk.Tk):
         bt(self._queue_rate_value_label, "Avg. minutes to move one spot (recent window; lower = faster).")
         bt(self._lbl_elapsed_header, "Caption: time in queue this run.")
         bt(self._elapsed_value_label, "Elapsed this session.")
-        bt(self._lbl_remaining_header, "Caption: ETA to front.")
+        bt(self._lbl_remaining_header, "Caption: estimated time remaining.")
         bt(self._remaining_value_label, "Estimated time left (hidden at front or if unknown).")
         bt(self._lbl_progress_header, "Caption: progress bar.")
         bt(self._graph_stack_frame, "Position vs time. Hover for values; Y toggles axis scale.")
