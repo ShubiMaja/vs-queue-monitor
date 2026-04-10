@@ -27,10 +27,11 @@ import sys
 import threading
 import time
 import traceback
+import webbrowser
 from collections import deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -41,6 +42,12 @@ except Exception:  # pragma: no cover
     winsound = None
 
 VERSION = "1.0.0"
+APP_DISPLAY_NAME = "VS Queue Monitor"
+APP_TAGLINE = "Vintage Story client log queue monitor"
+GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
+# Optional: set in frozen/CI builds when .git is unavailable (short hash is enough).
+_ENV_GIT_COMMIT = "VSQM_GIT_COMMIT"
+
 # Window icon: embedded GIF so ``monitor.py`` ships as one file. Repo copy: ``assets/app_icon.gif`` (same bytes).
 _APP_ICON_GIF_B64 = (
     "R0lGODdhQABAAIQAABEUGxUYIAsLEi3H1i/U5CWYpRItNSByfRMwOB9yfBdHUCB5hB5ocyq2wxpTXSmntBU4QSSG"
@@ -199,6 +206,7 @@ UI_BG_APP = "#111217"
 UI_BG_CARD = "#181b1f"
 UI_TEXT_PRIMARY = "#d8d9da"
 UI_TEXT_MUTED = "#8e9ba3"
+UI_LINK = "#58a6ff"
 UI_SUMMARY_BG = "#0d0f14"
 UI_SUMMARY_VALUE = "#f0f4f8"
 UI_ACCENT_POSITION = "#5794f2"
@@ -237,6 +245,8 @@ UI_STOP_BTN_ACTIVE = "#f85149"
 UI_SECTION_PAD = 12
 # Text / controls inset inside a pane’s client area (after LabelFrame padding). One rhythm for the whole UI.
 UI_INNER_PAD_X = 10
+# tk.Entry has no built-in inner padding; _make_dark_entry wraps the field in a frame with this inset.
+UI_ENTRY_INNER_PAD = 3
 UI_INNER_PAD_Y_SM = 8
 UI_INNER_PAD_Y_MD = 10
 # tk.PanedWindow vertical dividers (must match _fit_history_pane_collapsed math). Flat strip — no showhandle (avoids harsh 3D boxes on Windows).
@@ -271,6 +281,8 @@ UI_HISTORY_FRAME_PAD_COLLAPSED = (10, 4, 10, 0)
 UI_HISTORY_PANE_MIN_EXPANDED = 220
 # Collapsible Status strip (same padding rhythm as History).
 UI_STATUS_PANE_MIN_EXPANDED = 140
+# PanedWindow minsize when a pane is collapsed: must cover tab row (chevron + title), not 1px.
+UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK = 44
 UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 
 
@@ -318,6 +330,28 @@ def browse_initialdir_from_path(raw: str) -> str:
     except Exception:
         pass
     return str(Path.home())
+
+
+def resolve_git_commit_short() -> str:
+    """Short git SHA for About: ``VSQM_GIT_COMMIT`` env, else ``git rev-parse`` next to ``monitor.py``."""
+    raw = (os.environ.get(_ENV_GIT_COMMIT) or "").strip()
+    if raw:
+        return raw.split()[0][:40]
+    try:
+        root = Path(__file__).resolve().parent
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if r.returncode == 0 and r.stdout:
+            return r.stdout.strip()[:40]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return "unknown"
 
 
 def _windows_media_dir() -> Path:
@@ -1032,6 +1066,7 @@ class QueueMonitorApp(tk.Tk):
         self.panes: Optional[tk.PanedWindow] = None
         self.start_stop_button: Optional[ttk.Button] = None
         self._settings_win: Optional[tk.Toplevel] = None
+        self._about_win: Optional[tk.Toplevel] = None
         self._graph_y_scale_btn: Optional[ttk.Button] = None
         self._history_tab_btn: Optional[ttk.Button] = None
         self._fit_history_collapsed_job: Optional[str] = None
@@ -1110,6 +1145,180 @@ class QueueMonitorApp(tk.Tk):
             self._app_icon_image = None
             return
         self.iconphoto(True, self._app_icon_image)
+
+    def _about_parent_toplevel(self) -> tk.Misc:
+        """Prefer Settings as parent when open so About stacks above it."""
+        try:
+            w = self._settings_win
+            if w is not None and w.winfo_exists():
+                return w
+        except Exception:
+            pass
+        return self
+
+    def show_about(self) -> None:
+        """Modal About: app name, version, git commit, GitHub link, window-icon blurb."""
+        if self._about_win is not None:
+            try:
+                if self._about_win.winfo_exists():
+                    self._about_win.lift()
+                    self._about_win.focus_force()
+                    return
+            except Exception:
+                pass
+            self._about_win = None
+
+        parent = self._about_parent_toplevel()
+        about = tk.Toplevel(parent)
+        self._about_win = about
+        about.title(f"About {APP_DISPLAY_NAME}")
+        about.configure(bg=UI_BG_CARD)
+        try:
+            about.transient(parent)
+        except Exception:
+            pass
+        about.resizable(False, False)
+        if self._app_icon_image is not None:
+            try:
+                about.iconphoto(True, self._app_icon_image)
+            except tk.TclError:
+                pass
+
+        outer = tk.Frame(about, bg=UI_BG_CARD, padx=22, pady=20)
+        outer.pack(fill="both", expand=True)
+
+        header = tk.Frame(outer, bg=UI_BG_CARD)
+        header.pack(fill="x", anchor="w")
+
+        if self._app_icon_image is not None:
+            icon_lbl = tk.Label(header, image=self._app_icon_image, bg=UI_BG_CARD)
+            icon_lbl.pack(side="left", padx=(0, 14))
+
+        text_col = tk.Frame(header, bg=UI_BG_CARD)
+        text_col.pack(side="left", fill="y")
+
+        tk.Label(
+            text_col,
+            text=APP_DISPLAY_NAME,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+            font=("Segoe UI", 14, "bold") if sys.platform.startswith("win") else ("TkDefaultFont", 14, "bold"),
+            anchor="w",
+        ).pack(anchor="w")
+        tk.Label(
+            text_col,
+            text=APP_TAGLINE,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            font=("Segoe UI", 10) if sys.platform.startswith("win") else ("TkDefaultFont", 10),
+            anchor="w",
+        ).pack(anchor="w", pady=(2, 0))
+
+        commit = resolve_git_commit_short()
+        tk.Label(
+            outer,
+            text=f"Version {VERSION}   ·   Build {commit}",
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            font=("Consolas", 10) if sys.platform.startswith("win") else ("TkFixedFont", 10),
+            anchor="w",
+            justify="left",
+        ).pack(anchor="w", pady=(14, 0))
+
+        tk.Label(
+            outer,
+            text=(
+                "Window icon is embedded in this app (GIF; no external files). "
+                "The repo keeps a matching copy under assets/app_icon.gif."
+            ),
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            wraplength=400,
+            justify="left",
+            anchor="w",
+        ).pack(anchor="w", pady=(10, 0))
+
+        link_wrap = tk.Frame(outer, bg=UI_BG_CARD)
+        link_wrap.pack(anchor="w", pady=(12, 0))
+        tk.Label(link_wrap, text="Source: ", bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY, anchor="w").pack(side="left")
+        link_lbl = tk.Label(
+            link_wrap,
+            text=GITHUB_REPO_URL.replace("https://", ""),
+            bg=UI_BG_CARD,
+            fg=UI_LINK,
+            cursor="hand2",
+            font=("Segoe UI", 10, "underline") if sys.platform.startswith("win") else ("TkDefaultFont", 10, "underline"),
+        )
+        link_lbl.pack(side="left")
+
+        def open_repo(_evt: object = None) -> None:
+            try:
+                webbrowser.open(GITHUB_REPO_URL)
+            except Exception:
+                pass
+
+        link_lbl.bind("<Button-1>", open_repo)
+        tk.Label(
+            outer,
+            text="Not affiliated with Vintage Story or its developers.",
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_MUTED,
+            wraplength=400,
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 9) if sys.platform.startswith("win") else ("TkDefaultFont", 9),
+        ).pack(anchor="w", pady=(12, 0))
+
+        btn_row = ttk.Frame(outer, style="Card.TFrame")
+        btn_row.pack(fill="x", pady=(18, 0))
+
+        def close_about() -> None:
+            self._about_win = None
+            try:
+                about.grab_release()
+            except Exception:
+                pass
+            try:
+                about.destroy()
+            except Exception:
+                pass
+            try:
+                sw = self._settings_win
+                if sw is not None and sw.winfo_exists() and parent is sw:
+                    sw.grab_set()
+            except Exception:
+                pass
+
+        ttk.Button(btn_row, text="OK", width=10, command=close_about).pack(side="right")
+
+        about.protocol("WM_DELETE_WINDOW", close_about)
+        about.bind("<Escape>", lambda _e: close_about())
+        about.bind("<Return>", lambda _e: close_about())
+
+        try:
+            about.grab_set()
+        except Exception:
+            pass
+
+        about.update_idletasks()
+        try:
+            parent.update_idletasks()
+            w = int(about.winfo_reqwidth())
+            h = int(about.winfo_reqheight())
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            pw = parent.winfo_width()
+            ph = parent.winfo_height()
+            x = px + max(0, (pw - w) // 2)
+            y = py + max(0, (ph - h) // 2)
+            about.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+        try:
+            about.focus_force()
+        except Exception:
+            pass
 
     def _configure_ttk_theme(self, style: ttk.Style) -> None:
         """Apply app-wide background and text colors (clam, Grafana-style dark)."""
@@ -1297,10 +1506,12 @@ class QueueMonitorApp(tk.Tk):
         )
 
     @staticmethod
-    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> tk.Entry:
-        """Plain Entry with no focus highlight — avoids clam/ttk corner artifacts on Windows."""
-        return tk.Entry(
-            parent,
+    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> tk.Frame:
+        """Plain Entry (no ttk corner artifacts on Windows) with at least UI_ENTRY_INNER_PAD text inset."""
+        pad = UI_ENTRY_INNER_PAD
+        wrap = tk.Frame(parent, bg=UI_ENTRY_FIELD, bd=0, highlightthickness=0)
+        entry = tk.Entry(
+            wrap,
             bg=UI_ENTRY_FIELD,
             fg=UI_TEXT_PRIMARY,
             insertbackground=UI_TEXT_PRIMARY,
@@ -1312,6 +1523,8 @@ class QueueMonitorApp(tk.Tk):
             font=("TkDefaultFont", 10),
             **kwargs,
         )
+        entry.pack(fill=tk.BOTH, expand=True, padx=pad, pady=pad)
+        return wrap
 
     def _build_ui(self) -> None:
         try:
@@ -1324,6 +1537,12 @@ class QueueMonitorApp(tk.Tk):
 
         outer = ttk.Frame(self, padding=(12, 12), style="App.TFrame")
         outer.pack(fill="both", expand=True)
+
+        menubar = tk.Menu(self)
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label=f"About {APP_DISPLAY_NAME}", command=self.show_about)
+        menubar.add_cascade(label="Help", menu=help_menu)
+        self.config(menu=menubar)
 
         # Top: play/stop + one line: label, path entry, browse, settings (no separator — avoids bright rule on Windows).
         top = ttk.Frame(
@@ -1359,10 +1578,8 @@ class QueueMonitorApp(tk.Tk):
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
-        self._btn_browse_file = ttk.Button(path_actions, text="Browse file", command=self.browse_file)
-        self._btn_browse_file.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
-        self._btn_browse_folder = ttk.Button(path_actions, text="Browse folder", command=self.browse_folder)
-        self._btn_browse_folder.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse = ttk.Button(path_actions, text="Browse…", command=self.browse_log_source)
+        self._btn_browse.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
@@ -1533,9 +1750,8 @@ class QueueMonitorApp(tk.Tk):
             length=96,
         )
         self._queue_progress.pack(anchor="e", pady=(0, 0))
-        _prog_tip = "How much of the estimated total wait is done (full at the front)."
-        self._bind_static_tooltip(self._lbl_progress_header, _prog_tip)
-        self._bind_static_tooltip(self._queue_progress, _prog_tip)
+        self._bind_static_tooltip(self._lbl_progress_header, self._progress_tooltip_text)
+        self._bind_static_tooltip(self._queue_progress, self._progress_tooltip_text)
 
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         self._graph_stack_frame = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
@@ -1862,6 +2078,12 @@ class QueueMonitorApp(tk.Tk):
         _btn_reset = ttk.Button(bottom, text="Reset defaults", command=self.reset_defaults)
         _btn_reset.pack(side="left")
         self._bind_static_tooltip(_btn_reset, "Restore default paths, thresholds, poll, and toggles.")
+        _btn_about = ttk.Button(bottom, text="About…", command=self.show_about)
+        _btn_about.pack(side="left", padx=(10, 0))
+        self._bind_static_tooltip(
+            _btn_about,
+            "Version, git build, GitHub source, and how the window icon is shipped.",
+        )
 
         def close_settings() -> None:
             try:
@@ -2061,6 +2283,48 @@ class QueueMonitorApp(tk.Tk):
         self._schedule_fit_history_collapsed(_event)
         self._schedule_fit_status_collapsed(_event)
 
+    def _collapsed_status_pane_minsize(self) -> int:
+        """Minimum PanedWindow height for Status when details are hidden (clickable header only)."""
+        if self.status_frame is None:
+            return UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+        try:
+            self.update_idletasks()
+            self.status_frame.update_idletasks()
+            h = int(self.status_frame.winfo_reqheight())
+            return max(UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK, h)
+        except (tk.TclError, ValueError, TypeError):
+            return UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+
+    def _collapsed_history_pane_minsize(self) -> int:
+        """Minimum PanedWindow height for History when log body is hidden (clickable header only)."""
+        if self.history_frame is None:
+            return UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+        try:
+            self.update_idletasks()
+            self.history_frame.update_idletasks()
+            h = int(self.history_frame.winfo_reqheight())
+            return max(UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK, h)
+        except (tk.TclError, ValueError, TypeError):
+            return UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+
+    def _status_pane_min_for_layout(self) -> int:
+        """Reserved height for Status pane when positioning sashes (expanded min or header-only)."""
+        if self.status_frame is None:
+            return UI_STATUS_PANE_MIN_EXPANDED
+        try:
+            self.update_idletasks()
+            self.status_frame.update_idletasks()
+            h = int(self.status_frame.winfo_reqheight())
+            if self.show_status_var.get():
+                return max(UI_STATUS_PANE_MIN_EXPANDED, h)
+            return max(UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK, h)
+        except (tk.TclError, ValueError, TypeError):
+            return (
+                UI_STATUS_PANE_MIN_EXPANDED
+                if self.show_status_var.get()
+                else UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+            )
+
     def _wire_collapsible_header(
         self,
         strip: tk.Misc,
@@ -2137,7 +2401,8 @@ class QueueMonitorApp(tk.Tk):
                 sep.grid_remove()
             sf.rowconfigure(2, weight=0)
             try:
-                panes.paneconfigure(sf, minsize=1, stretch="never")
+                self.update_idletasks()
+                panes.paneconfigure(sf, minsize=self._collapsed_status_pane_minsize(), stretch="never")
             except Exception:
                 pass
             self._schedule_fit_status_collapsed()
@@ -2179,7 +2444,7 @@ class QueueMonitorApp(tk.Tk):
             pw = self.panes
             sf = self.status_frame
             sf.update_idletasks()
-            need = max(24, int(sf.winfo_reqheight()))
+            need = self._collapsed_status_pane_minsize()
             try:
                 pw.paneconfigure(sf, height=need)
             except (tk.TclError, ValueError):
@@ -2194,7 +2459,12 @@ class QueueMonitorApp(tk.Tk):
             target0 = sp1 - need - sash_w - 2 * sashpad
             graph_min = 120
             target0 = max(target0, graph_min)
-            target0 = min(target0, sp1 - 24)
+            hist_min = (
+                UI_HISTORY_PANE_MIN_EXPANDED
+                if self.show_log_var.get()
+                else self._collapsed_history_pane_minsize()
+            )
+            target0 = min(target0, sp1 - hist_min - sash_w - 2 * sashpad)
             pw.sashpos(0, target0)
         except (tk.TclError, ValueError, AttributeError, TypeError):
             pass
@@ -2229,7 +2499,8 @@ class QueueMonitorApp(tk.Tk):
                 sep.grid_remove()
             history.rowconfigure(2, weight=0)
             try:
-                panes.paneconfigure(history, minsize=1, stretch="never")
+                self.update_idletasks()
+                panes.paneconfigure(history, minsize=self._collapsed_history_pane_minsize(), stretch="never")
             except Exception:
                 pass
             self._schedule_fit_history_collapsed()
@@ -2260,7 +2531,7 @@ class QueueMonitorApp(tk.Tk):
             pw = self.panes
             hf = self.history_frame
             hf.update_idletasks()
-            need = max(24, int(hf.winfo_reqheight()))
+            need = self._collapsed_history_pane_minsize()
 
             try:
                 pw.paneconfigure(hf, height=need)
@@ -2270,7 +2541,7 @@ class QueueMonitorApp(tk.Tk):
             ph = max(1, pw.winfo_height())
             sash_w = UI_PANE_SASH_WIDTH
             sashpad = UI_PANE_SASH_PAD
-            status_min = 200
+            status_min = self._status_pane_min_for_layout()
             target = ph - need - sash_w - 2 * sashpad - 1
             s0 = int(float(pw.sashpos(0)))
             lo = s0 + sash_w + 2 * sashpad + status_min
@@ -2292,28 +2563,48 @@ class QueueMonitorApp(tk.Tk):
         if self._status_value_label is not None:
             self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
-    def browse_file(self) -> None:
+    def _apply_browsed_log_path(self, raw: str) -> None:
+        """Set log source from a browsed path; normalize files vs folders for resolve_log_file."""
+        raw = (raw or "").strip()
+        if not raw:
+            return
+        try:
+            p = expand_path(raw)
+        except Exception:
+            self.source_path_var.set(raw)
+            self.after(0, self._try_start_after_browse)
+            return
+        if p.is_file() or p.is_dir():
+            self.source_path_var.set(str(p))
+        else:
+            self.source_path_var.set(raw)
+        self.after(0, self._try_start_after_browse)
+
+    def browse_log_source(self) -> None:
+        """Pick a log file, or cancel and choose a folder (newest matching .log is resolved from folders)."""
         initialdir = browse_initialdir_from_path(self.source_path_var.get())
         selected = filedialog.askopenfilename(
+            parent=self,
             title="Select client log",
             initialdir=initialdir,
+            filetypes=[
+                ("Log files", "*.log"),
+                ("All files", "*.*"),
+            ],
         )
         if selected:
-            self.source_path_var.set(selected)
-            self.after(0, self._try_start_after_browse)
-
-    def browse_folder(self) -> None:
-        initialdir = browse_initialdir_from_path(self.source_path_var.get())
+            self._apply_browsed_log_path(selected)
+            return
         selected = filedialog.askdirectory(
+            parent=self,
             title="Select folder to search",
             initialdir=initialdir,
         )
         if selected:
-            self.source_path_var.set(selected)
-            self.after(0, self._try_start_after_browse)
+            self._apply_browsed_log_path(selected)
 
     def _try_start_after_browse(self) -> None:
-        """Begin monitoring with the path chosen via Browse file or Browse folder (restarts if already running)."""
+        """Begin monitoring with the path chosen via Browse… (restarts if already running)."""
         if self._starting:
             return
         if self.running:
@@ -2411,8 +2702,8 @@ class QueueMonitorApp(tk.Tk):
             resolved = resolve_log_file(self.source_path_var.get())
             if not resolved:
                 raise ValueError(
-                    "Could not find a log file. Check the path, use Browse file to pick the file directly, "
-                    "or Browse folder and choose a directory that contains a .log file."
+                    "Could not find a log file. Check the path, use Browse… to pick a log file or a folder "
+                    "that contains a .log file."
                 )
 
             try:
@@ -2941,7 +3232,41 @@ class QueueMonitorApp(tk.Tk):
         self._configure_resize_job = None
         self.update_time_estimates()
 
-    def _bind_static_tooltip(self, widget: tk.Misc, text: str) -> None:
+    def _progress_tooltip_text(self) -> str:
+        """KPI progress strip: same model as the thin bar; includes live % when hovering."""
+        p = 0.0
+        if self._queue_progress is not None:
+            try:
+                p = float(self._queue_progress["value"])
+            except (tk.TclError, TypeError, ValueError):
+                pass
+        return (
+            "How much of the estimated total wait is done (full at the front). "
+            f"Currently {p:.0f}%."
+        )
+
+    def _clamp_tooltip_in_host(
+        self, host: tk.Misc, tip: tk.Toplevel, x_left: int, y_top: int, margin: int = 6
+    ) -> tuple[int, int]:
+        """Keep overrideredirect tooltip top-left inside the host toplevel (main or Settings)."""
+        try:
+            host.update_idletasks()
+            tip.update_idletasks()
+            tw = int(tip.winfo_reqwidth())
+            th = int(tip.winfo_reqheight())
+            rx = int(host.winfo_rootx())
+            ry = int(host.winfo_rooty())
+            rw = int(host.winfo_width())
+            rh = int(host.winfo_height())
+            if rw < 40 or rh < 40:
+                return x_left, y_top
+            x_left = max(rx + margin, min(x_left, rx + rw - tw - margin))
+            y_top = max(ry + margin, min(y_top, ry + rh - th - margin))
+        except (tk.TclError, ValueError):
+            pass
+        return x_left, y_top
+
+    def _bind_static_tooltip(self, widget: tk.Misc, text: Union[str, Callable[[], str]]) -> None:
         state: dict[str, Optional[object]] = {"win": None, "job": None}
 
         def hide(_evt: object = None) -> None:
@@ -2971,9 +3296,14 @@ class QueueMonitorApp(tk.Tk):
                         return
                 except Exception:
                     return
+                resolved = text() if callable(text) else text
                 x = int(widget.winfo_rootx() + widget.winfo_width() // 2)
                 y = int(widget.winfo_rooty() + widget.winfo_height() + 6)
-                tip = tk.Toplevel(self)
+                try:
+                    host = widget.winfo_toplevel()
+                except tk.TclError:
+                    host = self
+                tip = tk.Toplevel(host)
                 tip.wm_overrideredirect(True)
                 try:
                     tip.attributes("-topmost", True)
@@ -2981,7 +3311,7 @@ class QueueMonitorApp(tk.Tk):
                     pass
                 tk.Label(
                     tip,
-                    text=text,
+                    text=resolved,
                     justify="left",
                     background=UI_TOOLTIP_BG,
                     foreground=UI_TOOLTIP_FG,
@@ -2992,7 +3322,10 @@ class QueueMonitorApp(tk.Tk):
                 state["win"] = tip
                 tip.update_idletasks()
                 tw = tip.winfo_reqwidth()
-                tip.geometry(f"+{x - tw // 2}+{y}")
+                x_left = int(x - tw // 2)
+                y_top = int(y)
+                x_left, y_top = self._clamp_tooltip_in_host(host, tip, x_left, y_top)
+                tip.geometry(f"+{x_left}+{y_top}")
 
             state["job"] = self.after(420, show)
 
@@ -3005,8 +3338,11 @@ class QueueMonitorApp(tk.Tk):
         bt(self.start_stop_button, "Start or stop monitoring. Space or Ctrl+M when not typing in a field.")
         bt(self._lbl_log_path, "Log file or folder ($APPDATA, etc. supported).")
         bt(self._path_entry, "Path to the log or folder.")
-        bt(self._btn_browse_file, "Pick a log file and start (restarts if already running).")
-        bt(self._btn_browse_folder, "Pick a folder; newest matching .log is used, then start.")
+        bt(
+            self._btn_browse,
+            "Choose a log file to monitor, or cancel that dialog to choose a folder "
+            "(newest matching .log is used). Restarts if already running.",
+        )
         bt(self._settings_btn, "Poll, alerts, sounds, history, prediction window.")
         bt(self._loading_spinner, "Loading log…")
         bt(self._graph_labelframe, "Queue position over time.")
@@ -3020,7 +3356,6 @@ class QueueMonitorApp(tk.Tk):
         bt(self._elapsed_value_label, "Elapsed this session.")
         bt(self._lbl_remaining_header, "Caption: estimated time remaining.")
         bt(self._remaining_value_label, "Estimated time left (hidden at front or if unknown).")
-        bt(self._lbl_progress_header, "Caption: progress bar.")
         bt(self._graph_stack_frame, "Position vs time. Hover for values; Y toggles axis scale.")
         bt(self.graph_canvas, "Hover: vertical line and ring snap to the nearest sample; tooltip shows time and position.")
         bt(self._status_tab_strip, "Click to show or hide Status.")
@@ -3709,7 +4044,12 @@ class QueueMonitorApp(tk.Tk):
             if isinstance(label, tk.Label):
                 label.configure(text=text)
 
-        self.graph_tooltip.geometry(f"+{x_root + 12}+{y_root + 12}")
+        tip = self.graph_tooltip
+        tip.update_idletasks()
+        x = int(x_root + 12)
+        y = int(y_root + 12)
+        x, y = self._clamp_tooltip_in_host(self, tip, x, y)
+        tip.geometry(f"+{x}+{y}")
 
     def hide_graph_tooltip(self) -> None:
         if self.graph_tooltip is not None and self.graph_tooltip.winfo_exists():
@@ -3966,6 +4306,16 @@ class QueueMonitorApp(tk.Tk):
         popup.after(POPUP_COMPLETION_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
     def on_close(self) -> None:
+        if self._about_win is not None:
+            try:
+                self._about_win.grab_release()
+            except Exception:
+                pass
+            try:
+                self._about_win.destroy()
+            except Exception:
+                pass
+            self._about_win = None
         if self._settings_win is not None:
             try:
                 self._settings_win.grab_release()
