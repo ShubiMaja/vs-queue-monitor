@@ -2,6 +2,8 @@
 
 Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **warning** alerts at **configurable thresholds**, plus optional **queue completion** notices when the log suggests you are **past the connect queue** (connecting / loading — on/off only — not threshold-based). Config and sources use the short id **`vs-queue-monitor`**.
 
+<img width="1916" height="1072" alt="image" src="https://github.com/user-attachments/assets/648649c3-264c-4880-9e80-7a46efc4d746" />
+
 ## Disclaimer (read this)
 
 **No warranty — use at your own risk.** **Not affiliated with Vintage Story** or its developers. You must validate paths, alerts, ETAs, and time-sensitive decisions yourself.
