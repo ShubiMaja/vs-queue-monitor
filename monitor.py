@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.4
+Version: 1.0.5
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -245,7 +245,7 @@ UI_STOP_BTN_ACTIVE = "#f85149"
 UI_SECTION_PAD = 12
 # Text / controls inset inside a pane’s client area (after LabelFrame padding). One rhythm for the whole UI.
 UI_INNER_PAD_X = 10
-# ttk.Entry style App.TEntry: padding on all sides inside the field (classic tk.Entry has none).
+# tk.Entry inside a bordered Frame; inset text from the frame edge.
 UI_ENTRY_INNER_PAD = 3
 UI_INNER_PAD_Y_SM = 8
 UI_INNER_PAD_Y_MD = 10
@@ -1429,36 +1429,6 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
-        # Dark text fields: ttk.Entry with padding + flat colored border (avoids mismatched corner pixels vs field bg).
-        _ep = UI_ENTRY_FIELD
-        _eb = UI_ENTRY_BORDER
-        _eb_f = UI_GRAPH_AXIS
-        style.configure(
-            "App.TEntry",
-            parent="TEntry",
-            fieldbackground=_ep,
-            foreground=UI_TEXT_PRIMARY,
-            insertcolor=UI_TEXT_PRIMARY,
-            selectbackground=UI_BUTTON_BG_ACTIVE,
-            selectforeground=UI_TEXT_PRIMARY,
-            borderwidth=1,
-            relief="flat",
-            bordercolor=_eb,
-            darkcolor=_eb,
-            lightcolor=_eb,
-            padding=(
-                UI_ENTRY_INNER_PAD,
-                UI_ENTRY_INNER_PAD,
-                UI_ENTRY_INNER_PAD,
-                UI_ENTRY_INNER_PAD,
-            ),
-        )
-        style.map(
-            "App.TEntry",
-            bordercolor=[("focus", _eb_f), ("!focus", _eb)],
-            darkcolor=[("focus", _eb_f), ("!focus", _eb)],
-            lightcolor=[("focus", _eb_f), ("!focus", _eb)],
-        )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
             "Horizontal.TProgressbar",
@@ -1500,14 +1470,48 @@ class QueueMonitorApp(tk.Tk):
         )
 
     @staticmethod
-    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> ttk.Entry:
-        """Themed Entry with App.TEntry inner padding on every side (see _configure_ttk_theme)."""
-        return ttk.Entry(
+    def _make_dark_entry(parent: tk.Misc, **kwargs: Any) -> tk.Frame:
+        """Flat tk.Entry inside a Frame-drawn border (ttk/clam TEntry draws bad corner pixels on Windows).
+
+        Border color is our highlight ring (no theme “dots”). Rounded corners are not supported by stock Tk.
+        """
+        pad = UI_ENTRY_INNER_PAD
+        wrap = tk.Frame(
             parent,
-            style="App.TEntry",
+            bg=UI_ENTRY_FIELD,
+            bd=0,
+            highlightthickness=1,
+            highlightbackground=UI_ENTRY_BORDER,
+            highlightcolor=UI_ENTRY_BORDER,
+        )
+        entry = tk.Entry(
+            wrap,
+            bg=UI_ENTRY_FIELD,
+            fg=UI_TEXT_PRIMARY,
+            insertbackground=UI_TEXT_PRIMARY,
+            selectbackground=UI_BUTTON_BG_ACTIVE,
+            selectforeground=UI_TEXT_PRIMARY,
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
             font=("TkDefaultFont", 10),
             **kwargs,
         )
+        wrap.grid_rowconfigure(0, weight=1)
+        wrap.grid_columnconfigure(0, weight=1)
+        entry.grid(row=0, column=0, sticky="nsew", padx=pad, pady=pad)
+
+        def _border_focus(_in: bool) -> None:
+            c = UI_GRAPH_AXIS if _in else UI_ENTRY_BORDER
+            try:
+                wrap.configure(highlightbackground=c, highlightcolor=c)
+            except tk.TclError:
+                pass
+
+        entry.bind("<FocusIn>", lambda _e: _border_focus(True), add=True)
+        entry.bind("<FocusOut>", lambda _e: _border_focus(False), add=True)
+
+        return wrap
 
     def _build_ui(self) -> None:
         try:
