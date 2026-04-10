@@ -44,6 +44,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         log_scale: bool = True,
         show_labels: bool = True,
         grid_every_chars: int = 10,
+        hgrid_every_lines: int = 2,
         line_color: str = UI_GRAPH_LINE,
         grid_color: str = UI_GRAPH_GRID,
         label_color: str = UI_GRAPH_TEXT,
@@ -118,6 +119,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         # right column: 4,5,6,8  (top→bottom)
         DOTS = ((0x01, 0x02, 0x04, 0x40), (0x08, 0x10, 0x20, 0x80))
         cells_by_line: list[list[int]] = [[0 for _ in range(cols)] for _ in range(lines_n)]
+        grid_by_line: list[list[int]] = [[0 for _ in range(cols)] for _ in range(lines_n)]
 
         # Per-column time bins. To avoid “missing” rapid step changes when the terminal is narrow,
         # we draw a small envelope in each bin: min/max + end-of-bin value.
@@ -176,8 +178,19 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             # Ensure end-of-bin is visible (may be inside range; harmless).
             set_level(le)
 
+        # Add subtle grid lines (both vertical and horizontal) into empty cells.
         grid_every = max(0, int(grid_every_chars))
-        grid_dot = "⠂"
+        h_every = max(0, int(hgrid_every_lines))
+        # Use a single-dot braille mask for grid.
+        # Pick a dot that looks like a small point (left column, second dot).
+        GRID_DOT_MASK = 0x02
+        for line_idx in range(lines_n):
+            want_h = h_every > 0 and (line_idx % h_every == 0)
+            for i in range(cols):
+                want_v = grid_every > 0 and (i % grid_every == 0 or i == cols - 1)
+                if want_h or want_v:
+                    grid_by_line[line_idx][i] |= GRID_DOT_MASK
+
         grid_tag_open = f"[{grid_color}]"
         grid_tag_close = f"[/{grid_color}]"
         line_tag_open = f"[{line_color}]"
@@ -192,10 +205,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 if mask:
                     out.append(f"{line_tag_open}{chr(0x2800 + mask)}{line_tag_close}")
                     continue
-                is_grid_col = grid_every > 0 and (i % grid_every == 0)
-                is_right_edge = i == (len(line_cells) - 1)
-                if is_grid_col or is_right_edge:
-                    out.append(f"{grid_tag_open}{grid_dot}{grid_tag_close}")
+                gmask = grid_by_line[line_idx][i]
+                if gmask:
+                    out.append(f"{grid_tag_open}{chr(0x2800 + gmask)}{grid_tag_close}")
                 else:
                     out.append(" ")
 
