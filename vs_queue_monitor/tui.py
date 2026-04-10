@@ -251,15 +251,20 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     gw = self.query_one("#graph", Static)
                     if hasattr(gw, "content_region"):
                         graph_w = int(gw.content_region.size.width)  # type: ignore[attr-defined]
+                        graph_h = int(gw.content_region.size.height)  # type: ignore[attr-defined]
                     else:
                         graph_w = int(gw.size.width)
+                        graph_h = int(gw.size.height)
                 except Exception:
                     graph_w = term_w
+                    graph_h = 6
                 graph_w = max(30, graph_w - 2)
+                # Fill the middle pane vertically; keep at least 3 lines so it's readable.
+                height_lines = max(3, graph_h)
                 graph = _queue_braille_graph(
                     pts,
                     width=graph_w,
-                    height_lines=6,
+                    height_lines=height_lines,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
                 self.query_one("#graph", Static).update(graph)
