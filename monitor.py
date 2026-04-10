@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.31
+Version: 1.0.32
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.31"
+VERSION = "1.0.32"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -3706,9 +3706,9 @@ class QueueMonitorApp(tk.Tk):
         return max(2, min(10_000, n))
 
     def _format_kpi_rate_last_line(self, mpp: Optional[float]) -> str:
-        """KPI strip: windowed minutes/pos as ``t<N>:`` (t + window size; full-graph avg stays in Info)."""
+        """KPI strip: rolling-window minutes/pos (N = Settings prediction window; full-graph avg stays in Info)."""
         n = self._prediction_window_points_int()
-        return f"t{n}: {self._format_queue_rate(mpp)}"
+        return f"Rolling {n}: {self._format_queue_rate(mpp)}"
 
     def _schedule_resize_refresh(self, evt: Optional[tk.Event] = None) -> None:
         if evt is not None and getattr(evt, "widget", None) is not self:
@@ -3842,7 +3842,10 @@ class QueueMonitorApp(tk.Tk):
         bt(self._graph_frame, "Queue position over time.")
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
-        bt(self._lbl_kpi_rate, "tN = minutes per position using N points from Settings (prediction window).")
+        bt(
+            self._lbl_kpi_rate,
+            "Rolling N: average minutes per position over the last N queue steps (N = Prediction window in Settings).",
+        )
         bt(
             self._queue_rate_value_label,
             "Rough minutes to move one spot (window model). Full-graph average is under Info → Global Rate. "
@@ -4128,7 +4131,7 @@ class QueueMonitorApp(tk.Tk):
         return sum(mpps) / len(mpps)
 
     def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
-        """KPI Rate (tN window label) and Info Global Rate (full graph). Returns capped mpp for ETA fallback."""
+        """KPI Rate (rolling window) and Info Global Rate (full graph). Returns capped mpp for ETA fallback."""
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
         g_mpp = self._global_avg_minutes_per_position()
