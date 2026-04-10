@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.7
+Version: 1.0.8
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -252,6 +252,11 @@ UI_INNER_PAD_Y_MD = 10
 # tk.PanedWindow vertical dividers (must match _fit_history_pane_collapsed math). Flat strip — no showhandle (avoids harsh 3D boxes on Windows).
 UI_PANE_SASH_WIDTH = 6
 UI_PANE_SASH_PAD = 3
+# PanedWindow sash: auto-open collapsed panes when stretched past header + margin; auto-collapse
+# expanded panes when squeezed to at/below these heights (expanded minsize must stay ≤ threshold).
+PANE_DRAG_OPEN_EXTRA_PX = 28
+UI_STATUS_DRAG_AUTO_COLLAPSE_MAX_H = 118
+UI_HISTORY_DRAG_AUTO_COLLAPSE_MAX_H = 158
 # Main paned LabelFrames (Queue graph, Status): labelmargins (L,T,R,B); padding is the client area (clam).
 UI_PANE_LABELFRAME_LABEL_MARGINS = (10, 8, 10, 6)
 UI_PANE_LABELFRAME_PAD = (10, 10, 10, 10)
@@ -278,9 +283,9 @@ UI_SUMMARY_INNER_PAD_Y_BOTTOM = UI_INNER_PAD_Y_MD
 # History: align with pane LabelFrame L/R; even vertical padding.
 UI_HISTORY_FRAME_PAD_EXPANDED = (10, UI_INNER_PAD_Y_MD, 10, UI_INNER_PAD_Y_MD)
 UI_HISTORY_FRAME_PAD_COLLAPSED = (10, 4, 10, 0)
-UI_HISTORY_PANE_MIN_EXPANDED = 220
+UI_HISTORY_PANE_MIN_EXPANDED = 140
 # Collapsible Status strip (same padding rhythm as History).
-UI_STATUS_PANE_MIN_EXPANDED = 140
+UI_STATUS_PANE_MIN_EXPANDED = 100
 # PanedWindow minsize when a pane is collapsed: must cover tab row (chevron + title), not 1px.
 UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK = 44
 UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
@@ -1600,6 +1605,7 @@ class QueueMonitorApp(tk.Tk):
         self.panes = panes
         panes.pack(fill="both", expand=True, pady=(UI_INNER_PAD_Y_SM, UI_INNER_PAD_Y_SM))
         panes.bind("<Configure>", self._schedule_pane_fits, add=True)
+        panes.bind("<ButtonRelease-1>", self._on_panes_sash_released, add=True)
 
         self._graph_labelframe = ttk.LabelFrame(
             panes,
@@ -2255,6 +2261,59 @@ class QueueMonitorApp(tk.Tk):
         self._schedule_fit_history_collapsed(_event)
         self._schedule_fit_status_collapsed(_event)
 
+    def _on_panes_sash_released(self, _event: object = None) -> None:
+        """After sash drag, apply open/close thresholds (collapsed ↔ expanded)."""
+        self.after_idle(self._apply_pane_drag_thresholds)
+
+    def _apply_pane_drag_thresholds(self) -> None:
+        """Stretch past header + margin opens a collapsed pane; squeeze past max height collapses expanded."""
+        if self.panes is None:
+            return
+        try:
+            self.update_idletasks()
+        except tk.TclError:
+            return
+        sf = self.status_frame
+        hf = self.history_frame
+        if sf is not None:
+            try:
+                h = int(sf.winfo_height())
+            except (tk.TclError, ValueError):
+                h = 0
+            if self.show_status_var.get():
+                if h <= UI_STATUS_DRAG_AUTO_COLLAPSE_MAX_H:
+                    self.show_status_var.set(False)
+            else:
+                try:
+                    need = self._collapsed_status_pane_minsize()
+                except Exception:
+                    need = UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+                open_min = max(
+                    need + PANE_DRAG_OPEN_EXTRA_PX,
+                    UI_STATUS_PANE_MIN_EXPANDED + 24,
+                )
+                if h >= open_min:
+                    self.show_status_var.set(True)
+        if hf is not None:
+            try:
+                h = int(hf.winfo_height())
+            except (tk.TclError, ValueError):
+                h = 0
+            if self.show_log_var.get():
+                if h <= UI_HISTORY_DRAG_AUTO_COLLAPSE_MAX_H:
+                    self.show_log_var.set(False)
+            else:
+                try:
+                    need = self._collapsed_history_pane_minsize()
+                except Exception:
+                    need = UI_COLLAPSED_PANE_HEADER_MIN_FALLBACK
+                open_min = max(
+                    need + PANE_DRAG_OPEN_EXTRA_PX,
+                    UI_HISTORY_PANE_MIN_EXPANDED + 24,
+                )
+                if h >= open_min:
+                    self.show_log_var.set(True)
+
     def _collapsed_status_pane_minsize(self) -> int:
         """Minimum PanedWindow height for Status when details are hidden (clickable header only)."""
         if self.status_frame is None:
@@ -2419,6 +2478,17 @@ class QueueMonitorApp(tk.Tk):
             sf = self.status_frame
             sf.update_idletasks()
             need = self._collapsed_status_pane_minsize()
+            try:
+                ah = int(sf.winfo_height())
+                open_min = max(
+                    need + PANE_DRAG_OPEN_EXTRA_PX,
+                    UI_STATUS_PANE_MIN_EXPANDED + 24,
+                )
+                if ah >= open_min:
+                    self.show_status_var.set(True)
+                    return
+            except (tk.TclError, ValueError):
+                pass
             # Fixed height when collapsed (header row only); need is refreshed on resize via _schedule_pane_fits.
             try:
                 pw.paneconfigure(sf, minsize=need, stretch="never")
@@ -2510,6 +2580,17 @@ class QueueMonitorApp(tk.Tk):
             hf = self.history_frame
             hf.update_idletasks()
             need = self._collapsed_history_pane_minsize()
+            try:
+                ah = int(hf.winfo_height())
+                open_min = max(
+                    need + PANE_DRAG_OPEN_EXTRA_PX,
+                    UI_HISTORY_PANE_MIN_EXPANDED + 24,
+                )
+                if ah >= open_min:
+                    self.show_log_var.set(True)
+                    return
+            except (tk.TclError, ValueError):
+                pass
 
             try:
                 pw.paneconfigure(hf, minsize=need, stretch="never")
