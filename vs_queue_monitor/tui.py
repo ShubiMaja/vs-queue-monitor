@@ -83,7 +83,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             frac = max(0.0, min(1.0, frac))
             return frac**GRAPH_LOG_GAMMA
 
-        # Canvas: filled columns, htop-style (higher value => taller bar)
+        # Canvas: dot plot (one dot per column), htop-style history.
         h = max(3, int(height))
         w = max(10, int(width))
         canvas: list[list[str]] = [[" " for _ in range(w)] for _ in range(h)]
@@ -94,11 +94,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         for x in range(n):
             v = ys[offset + x]
             frac = frac_for(v)
-            bar_h = int(round(frac * float(h)))
-            bar_h = max(0, min(h, bar_h))
-            for yy in range(h - 1, h - bar_h - 1, -1):
-                if 0 <= yy < h:
-                    canvas[yy][x] = dot
+            row = int(round(frac * float(h - 1)))
+            row = max(0, min(h - 1, row))
+            canvas[h - 1 - row][x] = dot
 
         return "\n".join("".join(r) for r in canvas)
 
