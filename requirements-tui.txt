@@ -1,0 +1,2 @@
+# Optional: terminal UI (main-tui.py)
+textual>=0.47
