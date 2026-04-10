@@ -369,8 +369,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
     Screen { align: left top; }
     #topbar_panel { height: auto; width: 100%; border: solid $primary; }
     #topbar { height: auto; width: 100%; padding: 0 1; }
-    #play_btn { width: 7; }
-    #run_indicator { width: 11; color: $text-muted; }
+    #play_btn { width: 5; margin-right: 1; }
+    #run_indicator { width: 11; color: $text-muted; margin-right: 2; }
+    #path_lbl { margin-right: 1; }
     #path_input { width: 1fr; }
     #metrics { height: auto; width: 100%; }
     #status_graph_panel { height: 1fr; width: 100%; border: solid $primary; }
