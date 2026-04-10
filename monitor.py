@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.13
+Version: 1.0.14
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.13"
+VERSION = "1.0.14"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -151,7 +151,7 @@ ALERT_POPUP_EMOJI_THRESHOLD = "\u26a0\ufe0f"  # ⚠️
 ALERT_POPUP_EMOJI_COMPLETION = "\U0001f389"  # 🎉
 
 
-def _alert_popup_emoji_font(size: int = 48) -> tuple[str, int, str]:
+def _alert_popup_emoji_font(size: int = 42) -> tuple[str, int, str]:
     if sys.platform.startswith("win"):
         return ("Segoe UI Emoji", size, "normal")
     if sys.platform == "darwin":
@@ -335,13 +335,6 @@ def browse_initialdir_from_path(raw: str) -> str:
     except Exception:
         pass
     return str(Path.home())
-
-
-def format_position_display(pos: int) -> str:
-    """KPI position label: show tada at the front of the queue (position 1)."""
-    if pos == 1:
-        return "1 \U0001f389"
-    return str(pos)
 
 
 def _windows_media_dir() -> Path:
@@ -1071,6 +1064,7 @@ class QueueMonitorApp(tk.Tk):
         self._settings_btn: Optional[ttk.Button] = None
         self._queue_progress: Optional[ttk.Progressbar] = None
         self._status_value_label: Optional[tk.Label] = None
+        self._position_emoji_label: Optional[tk.Label] = None
         # Wall time when we first observed position ≤1 this run; used to freeze "queue total" elapsed.
         self._position_one_reached_at: Optional[float] = None
         self._persist_config_job: Optional[str] = None
@@ -1626,6 +1620,12 @@ class QueueMonitorApp(tk.Tk):
         _hdr_py = (_spy, 4)
         _val_py = (0, UI_SUMMARY_INNER_PAD_Y_BOTTOM)
         _kpi_font_val = ("TkDefaultFont", 18, "bold")
+        if sys.platform.startswith("win"):
+            _kpi_emoji_font: tuple[str, int, str] = ("Segoe UI Emoji", 14, "normal")
+        elif sys.platform == "darwin":
+            _kpi_emoji_font = ("Apple Color Emoji", 14, "normal")
+        else:
+            _kpi_emoji_font = ("TkDefaultFont", 14, "normal")
 
         self._lbl_kpi_position = tk.Label(
             summary,
@@ -1684,15 +1684,26 @@ class QueueMonitorApp(tk.Tk):
         )
         self._lbl_progress_header.grid(row=0, column=6, sticky="w", padx=(UI_INNER_PAD_Y_MD, _spx), pady=_hdr_py)
 
+        _pos_cell = tk.Frame(summary, bg=UI_SUMMARY_BG)
+        _pos_cell.grid(row=1, column=0, sticky="w", padx=(_spx, UI_INNER_PAD_Y_SM), pady=_val_py)
         self._position_value_label = tk.Label(
-            summary,
+            _pos_cell,
             textvariable=self.position_var,
             bg=UI_SUMMARY_BG,
             fg=UI_SUMMARY_VALUE,
             font=_kpi_font_val,
             anchor="w",
         )
-        self._position_value_label.grid(row=1, column=0, sticky="w", padx=(_spx, UI_INNER_PAD_Y_SM), pady=_val_py)
+        self._position_value_label.pack(side="left")
+        self._position_emoji_label = tk.Label(
+            _pos_cell,
+            text="",
+            bg=UI_SUMMARY_BG,
+            fg=UI_SUMMARY_VALUE,
+            font=_kpi_emoji_font,
+            anchor="w",
+        )
+        self._position_emoji_label.pack(side="left", padx=(3, 0))
         self._status_value_label = tk.Label(
             summary,
             textvariable=self.status_var,
@@ -2207,7 +2218,7 @@ class QueueMonitorApp(tk.Tk):
 
         self.resolved_path_var.set("")
         self._set_status_line("Idle")
-        self.position_var.set("—")
+        self._set_position_display(None)
         self.elapsed_var.set("—")
         self.predicted_remaining_var.set("—")
         self.queue_rate_var.set("—")
@@ -2638,6 +2649,15 @@ class QueueMonitorApp(tk.Tk):
         if self._status_value_label is not None:
             self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
+    def _set_position_display(self, pos: Optional[int]) -> None:
+        """KPI digits at full size; front-of-queue celebration emoji slightly smaller."""
+        if pos is None:
+            self.position_var.set("—")
+        else:
+            self.position_var.set(str(pos))
+        if self._position_emoji_label is not None:
+            self._position_emoji_label.configure(text=("\U0001f389" if pos == 1 else ""))
+
     def _apply_browsed_log_path(self, raw: str) -> None:
         """Set log source from a browsed path; normalize files vs folders for resolve_log_file."""
         raw = (raw or "").strip()
@@ -2954,7 +2974,7 @@ class QueueMonitorApp(tk.Tk):
             self.graph_points.clear()
             self.current_point = None
             self.last_position = None
-            self.position_var.set("—")
+            self._set_position_display(None)
             self.redraw_graph()
 
     def stop_monitoring(self) -> None:
@@ -3067,7 +3087,7 @@ class QueueMonitorApp(tk.Tk):
         if self.current_point is not None:
             _t, pos = self.current_point
             self.last_position = pos
-            self.position_var.set(format_position_display(pos))
+            self._set_position_display(pos)
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self.redraw_graph()
@@ -3134,7 +3154,7 @@ class QueueMonitorApp(tk.Tk):
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
                         self._last_queue_line_epoch = None
-                        self.position_var.set("—")
+                        self._set_position_display(None)
                         self.last_position = None
                     elif (kind in ("reconnecting", "grace") or log_silent) and not (
                         position is not None and position <= 1
@@ -3148,7 +3168,7 @@ class QueueMonitorApp(tk.Tk):
                             self._set_status_line("Reconnecting…")
                         else:
                             self._set_status_line("Connecting…")
-                        self.position_var.set("—")
+                        self._set_position_display(None)
                         self.last_position = None
                     elif position is not None and (not log_silent or position <= 1):
                         prev_pos = self.last_position
@@ -3220,7 +3240,7 @@ class QueueMonitorApp(tk.Tk):
                                     self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
                             self._set_status_line("Completed" if position <= 1 else "Monitoring")
-                            self.position_var.set(format_position_display(position))
+                            self._set_position_display(position)
                             self.append_graph_point(position)
                             self.update_time_estimates()
 
@@ -4265,7 +4285,7 @@ class QueueMonitorApp(tk.Tk):
         tk.Label(
             row,
             text=ALERT_POPUP_EMOJI_THRESHOLD,
-            font=_alert_popup_emoji_font(52),
+            font=_alert_popup_emoji_font(42),
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
         ).pack(side="left", anchor="nw", padx=(0, 12))
@@ -4325,7 +4345,7 @@ class QueueMonitorApp(tk.Tk):
         tk.Label(
             row,
             text=ALERT_POPUP_EMOJI_COMPLETION,
-            font=_alert_popup_emoji_font(56),
+            font=_alert_popup_emoji_font(46),
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
         ).pack(side="left", anchor="nw", padx=(0, 12))
