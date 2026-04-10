@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.2
+Version: 1.0.3
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -218,6 +218,8 @@ UI_ACCENT_PROGRESS = "#8be9fd"
 UI_DANGER = "#f2495c"
 UI_ENTRY_FIELD = "#0d0f12"
 UI_SEPARATOR = "#2e3742"
+# ttk Entry stroke (clam); focus uses UI_GRAPH_AXIS — single-color edges avoid bright corner pixels.
+UI_ENTRY_BORDER = UI_SEPARATOR
 UI_PROGRESS_TROUGH = "#2e3742"
 UI_BUTTON_BG = "#2e3742"
 UI_BUTTON_BG_ACTIVE = "#384556"
@@ -1465,8 +1467,10 @@ class QueueMonitorApp(tk.Tk):
             darkcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
             lightcolor=[("pressed", UI_STOP_BTN_ACTIVE)],
         )
-        # Dark text fields: ttk.Entry with explicit padding (tk.Entry cannot inset text reliably on Windows).
+        # Dark text fields: ttk.Entry with padding + flat colored border (avoids mismatched corner pixels vs field bg).
         _ep = UI_ENTRY_FIELD
+        _eb = UI_ENTRY_BORDER
+        _eb_f = UI_GRAPH_AXIS
         style.configure(
             "App.TEntry",
             parent="TEntry",
@@ -1475,11 +1479,11 @@ class QueueMonitorApp(tk.Tk):
             insertcolor=UI_TEXT_PRIMARY,
             selectbackground=UI_BUTTON_BG_ACTIVE,
             selectforeground=UI_TEXT_PRIMARY,
-            borderwidth=0,
+            borderwidth=1,
             relief="flat",
-            bordercolor=_ep,
-            darkcolor=_ep,
-            lightcolor=_ep,
+            bordercolor=_eb,
+            darkcolor=_eb,
+            lightcolor=_eb,
             padding=(
                 UI_ENTRY_INNER_PAD,
                 UI_ENTRY_INNER_PAD,
@@ -1489,9 +1493,9 @@ class QueueMonitorApp(tk.Tk):
         )
         style.map(
             "App.TEntry",
-            bordercolor=[("focus", _ep), ("!focus", _ep), ("active", _ep)],
-            darkcolor=[("focus", _ep), ("!focus", _ep)],
-            lightcolor=[("focus", _ep), ("!focus", _ep)],
+            bordercolor=[("focus", _eb_f), ("!focus", _eb)],
+            darkcolor=[("focus", _eb_f), ("!focus", _eb)],
+            lightcolor=[("focus", _eb_f), ("!focus", _eb)],
         )
         style.configure("TSeparator", background=UI_SEPARATOR)
         style.configure(
