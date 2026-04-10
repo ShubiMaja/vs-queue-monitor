@@ -1163,6 +1163,8 @@ class QueueMonitorApp(tk.Tk):
         self._interrupt_baseline_session: int = -1
         self._dismissed_new_queue_session: Optional[int] = None
         self._interrupted_elapsed_sec: Optional[float] = None
+        # Snapshot of queue_rate_var / global_rate_var when interrupt begins (weighted rate uses wall time and would drift).
+        self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
 
         self._build_ui()
         self._bind_keyboard_shortcuts()
@@ -2353,6 +2355,7 @@ class QueueMonitorApp(tk.Tk):
         self._mpp_floor_position = None
         self._mpp_floor_value = None
         self._interrupted_elapsed_sec = None
+        self._frozen_rates_at_interrupt = None
         self._interrupted_mode = False
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
@@ -3042,6 +3045,7 @@ class QueueMonitorApp(tk.Tk):
         self.running = True
         self.monitor_start_epoch = time.time()
         self._interrupted_elapsed_sec = None
+        self._frozen_rates_at_interrupt = None
         self._interrupted_mode = False
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
@@ -3089,6 +3093,10 @@ class QueueMonitorApp(tk.Tk):
         self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
         self._interrupt_baseline_session = self._last_queue_run_session
         self._dismissed_new_queue_session = None
+        self._frozen_rates_at_interrupt = (
+            self.queue_rate_var.get(),
+            self.global_rate_var.get(),
+        )
         self._set_status_line("Interrupted", danger=True)
         msg = "Queue interrupted; still watching the log. A new queue run can be loaded when detected."
         if detail:
@@ -3116,6 +3124,7 @@ class QueueMonitorApp(tk.Tk):
         """Leave interrupted state and seed the graph from the current log (new queue run)."""
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
+        self._frozen_rates_at_interrupt = None
         self._dismissed_new_queue_session = None
         self._interrupt_baseline_session = -1
         path = self.current_log_file
@@ -3146,6 +3155,7 @@ class QueueMonitorApp(tk.Tk):
     def stop_monitoring(self) -> None:
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
+        self._frozen_rates_at_interrupt = None
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
         self.running = False
@@ -3299,6 +3309,7 @@ class QueueMonitorApp(tk.Tk):
                     self._last_log_growth_epoch = None
                     self._interrupted_mode = False
                     self._interrupted_elapsed_sec = None
+                    self._frozen_rates_at_interrupt = None
                     self._interrupt_baseline_session = -1
                     self._dismissed_new_queue_session = None
                     self.write_history(f"Now watching: {resolved}")
@@ -3976,7 +3987,11 @@ class QueueMonitorApp(tk.Tk):
             elapsed_sec = self._interrupted_elapsed_sec
             self.elapsed_var.set(self.format_duration(elapsed_sec))
             self.predicted_remaining_var.set("—")
-            self._refresh_queue_and_global_rate(pos)
+            if self._frozen_rates_at_interrupt is not None:
+                self.queue_rate_var.set(self._frozen_rates_at_interrupt[0])
+                self.global_rate_var.set(self._frozen_rates_at_interrupt[1])
+            else:
+                self._refresh_queue_and_global_rate(pos)
             if self._queue_progress is not None:
                 self._queue_progress["value"] = 0.0
             return
