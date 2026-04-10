@@ -25,19 +25,18 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         )
         return 1
 
-    def _sparkline(points: list[tuple[float, int]], *, width: int = 56, log_scale: bool = True) -> str:
+    def _queue_ascii_graph(
+        points: list[tuple[float, int]],
+        *,
+        width: int = 60,
+        height: int = 10,
+        log_scale: bool = True,
+    ) -> str:
+        """A tiny terminal chart (multi-line), closer to the GUI than a sparkline."""
         if len(points) < 1:
             return "—"
-        if len(points) == 1:
-            # Common right after start/seed; still show a visible “graph”.
-            try:
-                p0 = int(points[0][1])
-            except Exception:
-                p0 = 0
-            return f"█ (pos {p0})"
 
-        # Match the GUI: treat samples as a step function (hold value until next sample time).
-        # We don't have pixel widths here; we approximate by duplicating changes.
+        # Step function (GUI draws steps).
         step_vals: list[int] = []
         prev: Optional[int] = None
         for _t, p in points:
@@ -51,34 +50,59 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             step_vals.append(v)
             prev = v
 
-        ys = step_vals[-width:] if len(step_vals) > width else step_vals
-        lo, hi = min(ys), max(ys)
-        blocks = "▁▂▃▄▅▆▇█"
-        if hi == lo:
-            return "█" * len(ys)
+        if not step_vals:
+            return "—"
 
-        # Match GUI y-mapping:
-        # - linear: proportional across [lo..hi]
-        # - log: apply log(·+1) and gamma so low values have more resolution
+        # Resample to fixed width from the end (most recent).
+        if len(step_vals) <= width:
+            ys = step_vals
+        else:
+            start = len(step_vals) - width
+            ys = step_vals[start:]
+
+        lo, hi = min(ys), max(ys)
+        if lo == hi:
+            return f"[{hi}] " + ("█" * min(width, max(1, len(ys))))
+
         def frac_for(v: int) -> float:
             vv = max(lo, min(hi, int(v)))
             if not log_scale:
-                return (float(vv) - float(lo)) / (float(hi) - float(lo))
+                return (float(hi) - float(vv)) / (float(hi) - float(lo))  # 0 at hi, 1 at lo
             lvmin = math.log(float(lo) + 1.0)
             lvmax = math.log(float(hi) + 1.0)
             lv = math.log(float(vv) + 1.0)
             if lvmax <= lvmin:
                 frac = 0.0
             else:
-                frac = (lv - lvmin) / (lvmax - lvmin)
+                frac = (lvmax - lv) / (lvmax - lvmin)  # 0 at hi, 1 at lo
             frac = max(0.0, min(1.0, frac))
             return frac**GRAPH_LOG_GAMMA
 
-        out: list[str] = []
-        for y in ys:
-            frac = frac_for(int(y))
-            out.append(blocks[min(7, max(0, int(frac * 8.0)))])
-        return "".join(out)
+        # Canvas: top row = worst (hi), bottom row = best (lo)
+        h = max(3, int(height))
+        w = max(10, int(width))
+        canvas: list[list[str]] = [[" " for _ in range(w)] for _ in range(h)]
+
+        last_row: Optional[int] = None
+        for x in range(min(w, len(ys))):
+            v = ys[-min(w, len(ys)) + x]
+            row = int(round(frac_for(v) * float(h - 1)))
+            row = max(0, min(h - 1, row))
+            canvas[row][x] = "█"
+            if last_row is not None and row != last_row:
+                r0, r1 = sorted((row, last_row))
+                for rr in range(r0 + 1, r1):
+                    if canvas[rr][x] == " ":
+                        canvas[rr][x] = "│"
+            last_row = row
+
+        lines = ["".join(r) for r in canvas]
+        # Add scale labels (left side) on first/last row.
+        lines[0] = f"{hi:>4} " + lines[0]
+        lines[-1] = f"{lo:>4} " + lines[-1]
+        for i in range(1, len(lines) - 1):
+            lines[i] = "     " + lines[i]
+        return "\n".join(lines)
 
     class VSQueueTui(App[None]):
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
@@ -146,7 +170,12 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 n_roll = eng._rolling_window_points_int()
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
-                spark = _sparkline(pts, width=56, log_scale=bool(eng.graph_log_scale_var.get()))
+                graph = _queue_ascii_graph(
+                    pts,
+                    width=60,
+                    height=10,
+                    log_scale=bool(eng.graph_log_scale_var.get()),
+                )
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
                 text = (
                     f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
@@ -154,7 +183,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
                     f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
                     f"Log: {path}\n"
-                    f"Queue shape: {spark}\n"
+                    f"Queue graph:\n{graph}\n"
                 )
                 self.query_one("#metrics", Static).update(text)
             except Exception as exc:
