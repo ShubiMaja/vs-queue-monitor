@@ -6,7 +6,6 @@ Same as: ``python monitor.py --tui``.
 """
 
 from __future__ import annotations
-
 import os
 import subprocess
 import sys
