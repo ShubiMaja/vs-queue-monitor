@@ -1,11 +1,23 @@
 ---
-description: VS Queue Monitor — log semantics, UI behavior, and docs (lessons from ongoing development)
+description: VS Queue Monitor — log semantics, UI behavior, single-file/assets, and docs (lessons from ongoing development)
 alwaysApply: true
 ---
 
 # VS Queue Monitor — agent guidance
 
 Apply when editing `monitor.py`, `README.md`, or related files in this project. Complements **git-commit** (version bump, README before commit, py_compile).
+
+## Single-file delivery and window icon
+
+- **Primary artifact:** Users often ship **only** `monitor.py`. Do not add **runtime** dependencies on files next to the script (e.g. loading `assets/` at startup) unless the feature is optional and clearly degraded when missing.
+- **Embedded icon:** The window icon is a **GIF** in **`_APP_ICON_GIF_B64`**, loaded with `tk.PhotoImage(data=...)` and `iconphoto(True, ...)`. Keep a strong reference on the app instance (e.g. `self._app_icon_image`) so Tcl does not GC the image. Catch `tk.TclError` if the display cannot use it. **Do not** call `_apply_window_icon` (or similar) without defining it.
+- **Repo copy:** `assets/app_icon.gif` is the **same bytes** as the embed, for editing, PyInstaller, or regeneration. **`assets/README.txt`** describes how to re-embed after changing the GIF. After replacing the icon, update **`_APP_ICON_GIF_B64`** in the same change set; do not leave the file and the constant out of sync.
+- **Keep it proportionate:** Prefer the embedded GIF + optional `assets/` mirror over Pillow generators, large PNG tooling, or extra scripts in the repo for a simple icon. Base64 in source is acceptable here as an explicit single-file tradeoff.
+- **Git:** Commit only intentional files (e.g. `assets/app_icon.gif`, not stray experimental `.ico`/`.png` unless they are part of the agreed workflow).
+
+## Shell (Windows)
+
+- In PowerShell, chain commands with **`;`**, not `&&` (older Windows PowerShell does not treat `&&` as a command separator).
 
 ## Queue position and “done” state
 
