@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.1
+Version: 1.0.2
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -2404,8 +2404,9 @@ class QueueMonitorApp(tk.Tk):
             sf.rowconfigure(2, weight=0)
             try:
                 self.update_idletasks()
-                panes.paneconfigure(sf, height="")
-                panes.paneconfigure(sf, minsize=self._collapsed_status_pane_minsize(), stretch="never")
+                need = self._collapsed_status_pane_minsize()
+                panes.paneconfigure(sf, minsize=need, stretch="never")
+                panes.paneconfigure(sf, height=need)
             except Exception:
                 pass
             self._schedule_fit_status_collapsed()
@@ -2448,11 +2449,10 @@ class QueueMonitorApp(tk.Tk):
             sf = self.status_frame
             sf.update_idletasks()
             need = self._collapsed_status_pane_minsize()
-            # Do not set a numeric height here — that locks the pane. Clear any expanded height lock
-            # and use minsize + stretch=never so the row tracks font/DPI (see update_status_visibility).
+            # Fixed height when collapsed (header row only); need is refreshed on resize via _schedule_pane_fits.
             try:
-                pw.paneconfigure(sf, height="")
                 pw.paneconfigure(sf, minsize=need, stretch="never")
+                pw.paneconfigure(sf, height=need)
             except (tk.TclError, ValueError):
                 pass
             ph = max(1, pw.winfo_height())
@@ -2506,8 +2506,9 @@ class QueueMonitorApp(tk.Tk):
             history.rowconfigure(2, weight=0)
             try:
                 self.update_idletasks()
-                panes.paneconfigure(history, height="")
-                panes.paneconfigure(history, minsize=self._collapsed_history_pane_minsize(), stretch="never")
+                need = self._collapsed_history_pane_minsize()
+                panes.paneconfigure(history, minsize=need, stretch="never")
+                panes.paneconfigure(history, height=need)
             except Exception:
                 pass
             self._schedule_fit_history_collapsed()
@@ -2541,8 +2542,8 @@ class QueueMonitorApp(tk.Tk):
             need = self._collapsed_history_pane_minsize()
 
             try:
-                pw.paneconfigure(hf, height="")
                 pw.paneconfigure(hf, minsize=need, stretch="never")
+                pw.paneconfigure(hf, height=need)
             except (tk.TclError, ValueError):
                 pass
 
