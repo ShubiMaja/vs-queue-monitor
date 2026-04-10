@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.5
+Version: 1.0.6
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -4082,7 +4082,7 @@ class QueueMonitorApp(tk.Tk):
         if self.sound_enabled_var.get():
             self.play_sound()
         if self.popup_enabled_var.get():
-            self.show_popup(position, reason, eta_display)
+            self.show_popup(position, eta_display)
 
     def play_sound(self) -> None:
         """Threshold / warning alert sound."""
@@ -4140,8 +4140,8 @@ class QueueMonitorApp(tk.Tk):
         if want_popup:
             self.show_completion_popup(position)
 
-    def show_popup(self, position: int, reason: str, eta_display: str) -> None:
-        """Threshold / warning popup (downward crossings). eta_display: formatted est. remaining or —."""
+    def show_popup(self, position: int, eta_display: str) -> None:
+        """Warning threshold popup: position + ETA only (details stay in the session log)."""
         if self.active_popup is not None and self.active_popup.winfo_exists():
             try:
                 self.active_popup.destroy()
@@ -4150,7 +4150,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_popup = popup
-        popup.title(f"{ALERT_POPUP_EMOJI_THRESHOLD} Threshold warning")
+        popup.title(f"{ALERT_POPUP_EMOJI_THRESHOLD} Queue alert")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -4173,22 +4173,14 @@ class QueueMonitorApp(tk.Tk):
         txt.pack(side="left", fill="x", expand=True)
         tk.Label(
             txt,
-            text=f"Queue position is now {position}",
+            text=f"Position {position}",
             font=("TkDefaultFont", 15, "bold"),
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
-        ).pack(anchor="w", pady=(0, 6))
+        ).pack(anchor="w", pady=(0, 8))
         tk.Label(
             txt,
-            text=f"Reason: {reason}",
-            justify="left",
-            wraplength=360,
-            bg=UI_BG_CARD,
-            fg=UI_TEXT_PRIMARY,
-        ).pack(anchor="w", pady=(0, 6))
-        tk.Label(
-            txt,
-            text=f"Est. remaining: {eta_display}",
+            text=f"Est. left: {eta_display}",
             justify="left",
             wraplength=360,
             bg=UI_BG_CARD,
@@ -4218,7 +4210,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_completion_popup = popup
-        popup.title(f"{ALERT_POPUP_EMOJI_COMPLETION} Queue complete")
+        popup.title(f"{ALERT_POPUP_EMOJI_COMPLETION} Front of queue")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -4241,20 +4233,16 @@ class QueueMonitorApp(tk.Tk):
         txt.pack(side="left", fill="x", expand=True)
         tk.Label(
             txt,
-            text="You're at the front of the queue",
+            text="Front of the queue",
             font=("TkDefaultFont", 15, "bold"),
             bg=UI_BG_CARD,
             fg=UI_ACCENT_STATUS,
         ).pack(anchor="w", pady=(0, 8))
         tk.Label(
             txt,
-            text=(
-                f"Position {position}: you can connect when the game finishes assigning you.\n\n"
-                "Queue completion is fixed at the front (≤1) — not a configurable threshold. "
-                "Warning alerts use your comma-separated threshold list separately."
-            ),
+            text=f"Position {position}. Connect when the game assigns you.",
             justify="left",
-            wraplength=380,
+            wraplength=360,
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
         ).pack(anchor="w", pady=(0, 12))
