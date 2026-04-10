@@ -208,6 +208,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("o", "open_settings", "Settings"),
             Binding("r", "refresh_view", "Refresh"),
             Binding("h", "toggle_history", "History"),
+            Binding("l", "toggle_history", "Logs"),
             Binding("g", "toggle_graph", "Graph"),
             Binding("m", "toggle_metrics", "Metrics"),
             Binding("p", "toggle_path", "Path"),
