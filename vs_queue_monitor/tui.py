@@ -324,13 +324,17 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         if show_labels:
             try:
-                total_w = (label_w + cols) if label_w > 0 else cols
+                # Tick/label lines must align with vertical grid lines.
+                # Plot area starts after the y-label gutter (`label_w` digits + trailing space).
+                plot_left = (label_w + 1) if label_w > 0 else 0
+                total_w = plot_left + cols
                 if total_w < 20:
                     total_w = 20
                 tick_line = [" "] * total_w
                 for tv in tick_times:
-                    xpos = int(round((tv - t0) / span_t * float(total_w - 1)))
-                    xpos = max(0, min(total_w - 1, xpos))
+                    x_plot = int(round((tv - t0) / span_t * float(max(1, cols - 1))))
+                    x_plot = max(0, min(cols - 1, x_plot))
+                    xpos = max(0, min(total_w - 1, plot_left + x_plot))
                     tick_line[xpos] = "|"
                 out_lines.append(f"[{UI_GRAPH_AXIS}]" + "".join(tick_line).rstrip() + f"[/{UI_GRAPH_AXIS}]")
 
@@ -338,10 +342,11 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 last_x_f: Optional[float] = None
                 label_line = [" "] * total_w
                 for t in tick_times:
-                    x_f = (t - t0) / span_t * float(total_w - 1)
+                    x_f = (t - t0) / span_t * float(max(1, cols - 1))
                     if last_x_f is None or abs(x_f - last_x_f) >= min_label_dx:
                         txt = datetime.fromtimestamp(t).strftime(fmt)
-                        start = int(round(x_f)) - len(txt) // 2
+                        center = plot_left + int(round(x_f))
+                        start = center - len(txt) // 2
                         start = max(0, min(total_w - len(txt), start))
                         for i, ch in enumerate(txt):
                             if 0 <= start + i < total_w:
