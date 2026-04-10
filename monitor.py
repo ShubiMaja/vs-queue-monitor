@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.26
+Version: 1.0.27
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.26"
+VERSION = "1.0.27"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -3799,7 +3799,10 @@ class QueueMonitorApp(tk.Tk):
         bt(self._graph_frame, "Queue position over time.")
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
-        bt(self._queue_rate_value_label, "Rough minutes to move one spot in line.")
+        bt(
+            self._queue_rate_value_label,
+            "Rough minutes to move one spot in line. At position 0 (completed), fixed from the graph — no drift.",
+        )
         bt(
             self._lbl_kpi_warnings,
             "Warning thresholds from Settings; muted when your position is at or below that number (or already alerted).",
@@ -3945,7 +3948,11 @@ class QueueMonitorApp(tk.Tk):
         return speed, len(rates), trail
 
     def compute_weighted_speed(self) -> tuple[Optional[float], int, list[int]]:
-        """Recency-weighted mean of segment rates; shifts as wall time passes so the value is live."""
+        """Recency-weighted mean of segment rates; shifts as wall time passes while still in queue.
+
+        At **position 0** (queue finished in the log), weights use the last sample time so the
+        value does not drift after completion.
+        """
         points = list(self.graph_points)
         if len(points) < 2:
             return None, 0, [p for _t, p in points]
@@ -3959,6 +3966,8 @@ class QueueMonitorApp(tk.Tk):
         recent = points[-(window_points + 1) :]
         trail = [p for _t, p in recent]
         now = time.time()
+        if self._current_queue_position() == 0 and len(recent) >= 2:
+            now = float(recent[-1][0])
         w_sum = 0.0
         r_sum = 0.0
         n_seg = 0
@@ -3997,9 +4006,10 @@ class QueueMonitorApp(tk.Tk):
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
         """Net positions per second over the prediction window.
 
-        While monitoring, time uses wall clock from the window's first point to *now*, so
-        dwell at the current queue position (including position 1 before connect) is not
-        dropped from the average. Stopped mode uses only log timestamps (snapshot).
+        While monitoring **and still in queue** (position not 0), time uses wall clock from the
+        window's first point to *now*, so dwell at the current queue position (including
+        position 1 before connect) is not dropped from the average. **Position 0** (completed)
+        and stopped mode use only log timestamps between window endpoints so the rate stays fixed.
         """
         recent = self._window_recent_points()
         if len(recent) < 2:
@@ -4009,7 +4019,8 @@ class QueueMonitorApp(tk.Tk):
         drop = p0 - p1
         if drop <= 0:
             return None
-        if self.running:
+        pos = self._current_queue_position()
+        if self.running and pos != 0:
             dt = time.time() - t0
         else:
             dt = t1 - t0

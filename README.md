@@ -216,7 +216,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 ### ETA, rate, and progress
 
 - **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points). At **position 1** (at the front) it still shows an ETA by treating **one** remaining step to connecting; it is only an estimate — the log may repeat **1** for a long time.
-- **Minutes per position** is shown as **Rate**; can be **capped** using dwell logic so optimistic rates do not jump until you have waited long enough at the current position.
+- **Minutes per position** is shown as **Rate**; can be **capped** using dwell logic so optimistic rates do not jump until you have waited long enough at the current position. At **position 0** (queue finished), **Rate** and **Global Rate** stay fixed — they are derived from log timestamps only, not a clock that keeps running after you finish.
 - **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; caps below **100%** while at **position 1** (at front) until the log shows past-queue-wait activity; **100%** once **position 0** is shown; empty when interrupted or ETA unknown.
 - **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.
 
