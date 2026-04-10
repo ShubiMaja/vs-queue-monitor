@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.15
+Version: 1.0.16
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.15"
+VERSION = "1.0.16"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -142,7 +142,7 @@ QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\breturned\s+to\s+(?:the\s+)?main\s+menu\b"),
     re.compile(r"(?i)\b(?:server|client)\s+shut\s+down\b"),
 )
-DEFAULT_PATH = "$APPDATA/VintagestoryData/client-main.log"
+DEFAULT_PATH = "$APPDATA/VintagestoryData"
 TAIL_BYTES = 128 * 1024
 POPUP_TIMEOUT_MS = 12_000
 POPUP_COMPLETION_TIMEOUT_MS = 14_000
@@ -570,10 +570,15 @@ def save_config(data: dict) -> None:
 
 
 def resolve_log_file(raw: str) -> Optional[Path]:
+    """Resolve the client log file from a **folder** path (or legacy saved file path → parent folder).
+
+    The app always searches for the correct filename (e.g. client-main.log) under that tree — users
+    should not pick a specific .log file in the UI.
+    """
     path = expand_path(raw)
 
     if path.is_file():
-        return path
+        path = path.parent
 
     if not path.exists() or not path.is_dir():
         return None
@@ -1554,17 +1559,15 @@ class QueueMonitorApp(tk.Tk):
         path_left = ttk.Frame(path_row, style="Card.TFrame")
         path_left.grid(row=0, column=0, sticky="ew")
         path_left.columnconfigure(1, weight=1)
-        self._lbl_log_path = ttk.Label(path_left, text="Log location")
+        self._lbl_log_path = ttk.Label(path_left, text="Logs folder")
         self._lbl_log_path.grid(row=0, column=0, sticky="w", padx=(0, UI_INNER_PAD_Y_SM))
         self._path_entry = self._make_dark_entry(path_left, textvariable=self.source_path_var)
         self._path_entry.grid(row=0, column=1, sticky="ew", padx=(0, UI_INNER_PAD_Y_SM))
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
-        self._btn_browse_file = ttk.Button(path_actions, text="File…", command=self.browse_log_file)
-        self._btn_browse_file.pack(side="left", padx=(0, 4))
-        self._btn_browse_folder = ttk.Button(path_actions, text="Folder…", command=self.browse_log_folder)
-        self._btn_browse_folder.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse_logs = ttk.Button(path_actions, text="Browse…", command=self.browse_logs_folder)
+        self._btn_browse_logs.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
@@ -2731,7 +2734,7 @@ class QueueMonitorApp(tk.Tk):
             ).pack(side="left")
 
     def _apply_browsed_log_path(self, raw: str) -> None:
-        """Set log source from a browsed path; normalize files vs folders for resolve_log_file."""
+        """Set log source from a browsed folder path (resolve_log_file picks the log file inside)."""
         raw = (raw or "").strip()
         if not raw:
             return
@@ -2741,33 +2744,20 @@ class QueueMonitorApp(tk.Tk):
             self.source_path_var.set(raw)
             self.after(0, self._try_start_after_browse)
             return
-        if p.is_file() or p.is_dir():
+        if p.is_dir():
             self.source_path_var.set(str(p))
+        elif p.is_file():
+            self.source_path_var.set(str(p.parent))
         else:
             self.source_path_var.set(raw)
         self.after(0, self._try_start_after_browse)
 
-    def browse_log_file(self) -> None:
-        """Pick a log file directly."""
-        initialdir = browse_initialdir_from_path(self.source_path_var.get())
-        selected = filedialog.askopenfilename(
-            parent=self,
-            title="Select client log",
-            initialdir=initialdir,
-            filetypes=[
-                ("Log files", "*.log"),
-                ("All files", "*.*"),
-            ],
-        )
-        if selected:
-            self._apply_browsed_log_path(selected)
-
-    def browse_log_folder(self) -> None:
-        """Pick a folder; resolve_log_file finds client-main.log or another matching .log."""
+    def browse_logs_folder(self) -> None:
+        """Pick the Vintage Story data or Logs folder; the app resolves client-main.log (etc.) inside."""
         initialdir = browse_initialdir_from_path(self.source_path_var.get())
         selected = filedialog.askdirectory(
             parent=self,
-            title="Select folder to search for client log",
+            title="Select Logs folder (Vintage Story data directory)",
             initialdir=initialdir,
         )
         if selected:
@@ -2872,8 +2862,8 @@ class QueueMonitorApp(tk.Tk):
             resolved = resolve_log_file(self.source_path_var.get())
             if not resolved:
                 raise ValueError(
-                    "Could not find a log file. Check the path, or use File… / Folder… to pick a log file "
-                    "or a folder that contains a matching .log."
+                    "Could not find a client log under that folder. Set Logs folder to your Vintage Story "
+                    "data directory (or the Logs folder inside it), or use Browse…."
                 )
 
             try:
@@ -3511,12 +3501,11 @@ class QueueMonitorApp(tk.Tk):
         """Hover help for the main window (uses the same delayed toplevel as _bind_static_tooltip)."""
         bt = self._bind_static_tooltip
         bt(self.start_stop_button, "Start or stop monitoring.")
-        bt(self._lbl_log_path, "Client log file or folder.")
-        bt(self._path_entry, "File or folder path.")
-        bt(self._btn_browse_file, "Choose a client log file (.log).")
+        bt(self._lbl_log_path, "Folder that contains the client log (app picks client-main.log, etc.).")
+        bt(self._path_entry, "Path to VintagestoryData, Logs, or another folder that contains the client .log.")
         bt(
-            self._btn_browse_folder,
-            "Choose a folder (e.g. VintagestoryData); the app picks the right .log inside.",
+            self._btn_browse_logs,
+            "Choose the folder; the app finds the correct log file name inside — do not pick a .log file.",
         )
         bt(self._settings_btn, "Settings")
         bt(self._loading_spinner, "Loading…")
@@ -4505,7 +4494,12 @@ class QueueMonitorApp(tk.Tk):
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="VS Queue Monitor — Vintage Story queue monitor GUI")
-    parser.add_argument("--path", dest="path", default="", help="Initial file or directory path")
+    parser.add_argument(
+        "--path",
+        dest="path",
+        default="",
+        help="Initial Logs folder path (directory containing or under the client log; not a .log file path)",
+    )
     parser.add_argument(
         "--no-start",
         action="store_true",
