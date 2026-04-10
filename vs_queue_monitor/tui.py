@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import sys
+from bisect import bisect_right
 from typing import Optional
 
 from . import APP_DISPLAY_NAME, VERSION
@@ -35,32 +36,31 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         if len(points) < 1:
             return "—"
 
-        # Step function (GUI draws steps).
-        step_vals: list[int] = []
-        prev: Optional[int] = None
-        for _t, p in points:
-            v = int(p)
-            if prev is None:
-                step_vals.append(v)
-                prev = v
-                continue
-            if v != prev:
-                step_vals.append(prev)
-            step_vals.append(v)
-            prev = v
-
-        if not step_vals:
-            return "—"
-
         # Braille cells are 2 columns wide. We'll plot one dot per column.
         cols = max(10, int(width))
         x_cols = cols * 2
 
-        # Resample to fixed width from the end (most recent).
-        if len(step_vals) <= x_cols:
-            ys = step_vals
-        else:
-            ys = step_vals[-x_cols:]
+        # Time-based resampling (matches GUI x-axis semantics).
+        # points are (epoch_seconds, position) in chronological order.
+        times = [float(t) for t, _p in points]
+        vals = [int(p) for _t, p in points]
+        if not times:
+            return "—"
+        t0 = times[0]
+        t1 = times[-1]
+        if t1 <= t0:
+            # Degenerate: no span; fall back to constant.
+            return "⠤" * cols
+
+        # For each x, find the last sample at or before target time (step function).
+        ys: list[int] = []
+        for i in range(x_cols):
+            frac_x = i / float(max(1, x_cols - 1))
+            tt = t0 + frac_x * (t1 - t0)
+            idx = bisect_right(times, tt) - 1
+            if idx < 0:
+                idx = 0
+            ys.append(vals[idx])
 
         lo, hi = min(ys), max(ys)
         if lo == hi:
