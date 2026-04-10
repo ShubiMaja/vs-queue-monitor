@@ -9,7 +9,15 @@ from datetime import datetime
 from typing import Optional
 
 from . import APP_DISPLAY_NAME, VERSION
-from .core import DEFAULT_PATH, GRAPH_LOG_GAMMA, save_config
+from .core import (
+    DEFAULT_PATH,
+    GRAPH_LOG_GAMMA,
+    UI_GRAPH_AXIS,
+    UI_GRAPH_GRID,
+    UI_GRAPH_LINE,
+    UI_GRAPH_TEXT,
+    save_config,
+)
 from .engine import QueueMonitorEngine
 from .hooks import HeadlessMonitorHooks
 
@@ -35,6 +43,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         log_scale: bool = True,
         show_labels: bool = True,
         grid_every_chars: int = 10,
+        line_color: str = UI_GRAPH_LINE,
+        grid_color: str = UI_GRAPH_GRID,
+        label_color: str = UI_GRAPH_TEXT,
     ) -> str:
         """Multi-line graph using stacked Unicode braille (2×4 dots per cell per line)."""
         # Braille cells are 2 columns wide. We'll plot one dot per column.
@@ -166,15 +177,19 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         grid_every = max(0, int(grid_every_chars))
         grid_dot = "⠂"
-        grid_tag_open = "[grey30]"
-        grid_tag_close = "[/grey30]"
+        grid_tag_open = f"[{grid_color}]"
+        grid_tag_close = f"[/{grid_color}]"
+        line_tag_open = f"[{line_color}]"
+        line_tag_close = f"[/{line_color}]"
+        label_tag_open = f"[{label_color}]"
+        label_tag_close = f"[/{label_color}]"
 
         out_lines: list[str] = []
         for line_idx, line_cells in enumerate(cells_by_line):
             out: list[str] = []
             for i, mask in enumerate(line_cells):
                 if mask:
-                    out.append(chr(0x2800 + mask))
+                    out.append(f"{line_tag_open}{chr(0x2800 + mask)}{line_tag_close}")
                     continue
                 is_grid_col = grid_every > 0 and (i % grid_every == 0)
                 is_right_edge = i == (len(line_cells) - 1)
@@ -192,7 +207,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     # Map line index to value (top=hi, bottom=lo).
                     frac_y = line_idx / float(lines_n - 1)
                     y_label = int(round(float(hi) - frac_y * float(hi - lo)))
-                prefix = f"{y_label:>{label_w-1}} "
+                prefix = f"{label_tag_open}{y_label:>{label_w-1}}{label_tag_close} "
                 out_lines.append(prefix + body)
             else:
                 out_lines.append(body)
@@ -212,7 +227,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 for frac in (0.0, 0.5, 1.0):
                     x = int(round(frac * float(total_w - 1)))
                     tick_line[x] = "|"
-                out_lines.append("".join(tick_line).rstrip())
+                out_lines.append(f"[{UI_GRAPH_AXIS}]" + "".join(tick_line).rstrip() + f"[/{UI_GRAPH_AXIS}]")
 
                 # Label line (left / mid / right).
                 label_line = [" "] * total_w
@@ -224,7 +239,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 _place(left, 0)
                 _place(mid, total_w // 2 - len(mid) // 2)
                 _place(right, total_w - len(right))
-                out_lines.append("".join(label_line).rstrip())
+                out_lines.append(f"{label_tag_open}" + "".join(label_line).rstrip() + f"{label_tag_close}")
             except Exception:
                 pass
 
