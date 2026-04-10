@@ -33,6 +33,8 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 
 **Cursor / VS Code:** In this workspace, `.vscode/launch.json` runs `monitor.py` with `--gui` and `VS_QUEUE_MONITOR_UI=gui`, and `.vscode/settings.json` sets the same for the **integrated terminal** so the GUI is the default when you use **Run and Debug** (pick **VS Queue Monitor: Run GUI**) or run `python monitor.py` in the editor terminal. On a headless machine where you want the TUI instead, use `python monitor.py --tui` or clear `VS_QUEUE_MONITOR_UI` in that shell.
 
+**Note:** `vs_queue_monitor/engine.py` is a package module and is not meant to be executed directly. Use `monitor.py` / `python -m vs_queue_monitor`.
+
 The terminal UI drives the **same** `QueueMonitorEngine` as the GUI (Textual + headless hooks). No Tk or `DISPLAY` is required for `--tui`, so it works over **SSH** when Textual can render in your terminal. The **o** shortcut logs a note that full settings are in the GUI or config file (no Tk window in headless mode).
 
 ## Quick start
