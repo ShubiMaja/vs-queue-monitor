@@ -165,8 +165,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
-    #metrics { height: auto; min-height: 18; width: 100%; }
-    #log { height: 1fr; border: solid $primary; width: 100%; }
+    #metrics { height: auto; min-height: 7; width: 100%; }
+    #graph { height: 1fr; width: 100%; }
+    #log { height: 10; width: 100%; }
     #pathrow { height: auto; margin-top: 1; width: 100%; }
     """
 
@@ -186,6 +187,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
             yield Static("", id="metrics")
+            yield Static("", id="graph")
             yield RichLog(id="log", highlight=True, markup=True)
             with Horizontal(id="pathrow"):
                 yield Static("Logs folder: ", id="path_lbl")
@@ -223,20 +225,6 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if eng is None:
                 return
             try:
-                # Stretch graph to the actual widget width (not just terminal width).
-                term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
-                try:
-                    metrics = self.query_one("#metrics", Static)
-                    # Prefer content region (excludes padding/borders) when available.
-                    if hasattr(metrics, "content_region"):
-                        metrics_w = int(metrics.content_region.size.width)  # type: ignore[attr-defined]
-                    else:
-                        metrics_w = int(metrics.size.width)
-                except Exception:
-                    metrics_w = term_w
-                # Leave a little room for the label; braille line itself is full width.
-                graph_w = max(30, metrics_w - 2)
-
                 pos = eng.position_var.get()
                 st = eng.status_var.get()
                 rate = eng.queue_rate_var.get()
@@ -247,22 +235,34 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 n_roll = eng._rolling_window_points_int()
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
+                prog = float(getattr(eng, "_queue_progress_value", 0.0))
+                metrics_text = (
+                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
+                    f"Position: [cyan]{pos}[/]    Status: [green]{st}[/]\n"
+                    f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
+                    f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
+                    f"Log: {path}\n"
+                )
+                self.query_one("#metrics", Static).update(metrics_text)
+
+                # Graph fills the middle section; resize-aware.
+                term_w = int(getattr(self, "size").width) if hasattr(self, "size") else 80
+                try:
+                    gw = self.query_one("#graph", Static)
+                    if hasattr(gw, "content_region"):
+                        graph_w = int(gw.content_region.size.width)  # type: ignore[attr-defined]
+                    else:
+                        graph_w = int(gw.size.width)
+                except Exception:
+                    graph_w = term_w
+                graph_w = max(30, graph_w - 2)
                 graph = _queue_braille_graph(
                     pts,
                     width=graph_w,
                     height_lines=6,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
-                prog = float(getattr(eng, "_queue_progress_value", 0.0))
-                text = (
-                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
-                    f"Position: [cyan]{pos}[/]    Status: [green]{st}[/]\n"
-                    f"{hdr}: [yellow]{rate}[/]    Global: [yellow]{glo}[/]\n"
-                    f"Elapsed: {elapsed}    Est. remaining: {rem}    Progress: {prog:.0f}%\n"
-                    f"Log: {path}\n"
-                    f"Queue graph:\n{graph}\n"
-                )
-                self.query_one("#metrics", Static).update(text)
+                self.query_one("#graph", Static).update(graph)
             except Exception as exc:
                 self.query_one("#metrics", Static).update(f"[red]Display error: {exc}[/]")
 
