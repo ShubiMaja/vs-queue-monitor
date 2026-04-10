@@ -332,6 +332,13 @@ def browse_initialdir_from_path(raw: str) -> str:
     return str(Path.home())
 
 
+def format_position_display(pos: int) -> str:
+    """KPI position label: show tada at the front of the queue (position 1)."""
+    if pos == 1:
+        return "1 \U0001f389"
+    return str(pos)
+
+
 def resolve_git_commit_short() -> str:
     """Short git SHA for About: ``VSQM_GIT_COMMIT`` env, else ``git rev-parse`` next to ``monitor.py``."""
     raw = (os.environ.get(_ENV_GIT_COMMIT) or "").strip()
@@ -3005,7 +3012,7 @@ class QueueMonitorApp(tk.Tk):
         if self.current_point is not None:
             _t, pos = self.current_point
             self.last_position = pos
-            self.position_var.set(str(pos))
+            self.position_var.set(format_position_display(pos))
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self.redraw_graph()
@@ -3158,7 +3165,7 @@ class QueueMonitorApp(tk.Tk):
                                     self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
                             self._set_status_line("Completed" if position <= 1 else "Monitoring")
-                            self.position_var.set(str(position))
+                            self.position_var.set(format_position_display(position))
                             self.append_graph_point(position)
                             self.update_time_estimates()
 
