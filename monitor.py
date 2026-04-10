@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.11
+Version: 1.0.12
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.11"
+VERSION = "1.0.12"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1960,17 +1960,20 @@ class QueueMonitorApp(tk.Tk):
 
         warn_fr = ttk.LabelFrame(outer, text="Warning Alerts", padding=(10, 8))
         warn_fr.pack(fill="x", pady=(0, 8))
-        warn_fr.columnconfigure(1, weight=1)
+        warn_fr.columnconfigure(0, weight=1)
 
-        _thr_lbl = ttk.Label(warn_fr, text="Thresholds (comma-separated)")
+        thr_row = ttk.Frame(warn_fr, style="Card.TFrame")
+        thr_row.grid(row=0, column=0, sticky="ew")
+        thr_row.columnconfigure(1, weight=1)
+        _thr_lbl = ttk.Label(thr_row, text="Thresholds (comma-separated)")
         _thr_lbl.grid(row=0, column=0, sticky="e", padx=(0, 8))
-        _thr_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
+        _thr_entry = self._make_dark_entry(thr_row, textvariable=self.alert_thresholds_var, width=36)
         _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
         self._bind_static_tooltip(_thr_lbl, "Alert when your position drops past each number (e.g. 10, 5).")
         self._bind_static_tooltip(_thr_entry, "Alert when your position drops past each number (e.g. 10, 5).")
 
         checks1 = ttk.Frame(warn_fr, style="Card.TFrame")
-        checks1.grid(row=1, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        checks1.grid(row=1, column=0, sticky="w", pady=(10, 0))
         _cb_warn_pop = ttk.Checkbutton(checks1, text="Warning popup", variable=self.popup_enabled_var)
         _cb_warn_pop.pack(side="left", padx=(0, 14))
         self._bind_static_tooltip(_cb_warn_pop, "Popup when a threshold is crossed.")
@@ -1978,13 +1981,16 @@ class QueueMonitorApp(tk.Tk):
         _cb_warn_snd.pack(side="left", padx=(0, 14))
         self._bind_static_tooltip(_cb_warn_snd, "Sound when a threshold is crossed.")
 
-        _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
-        _lbl_warn_sound.grid(row=2, column=0, sticky="e", padx=(0, 8), pady=(10, 0))
+        sound_row = ttk.Frame(warn_fr, style="Card.TFrame")
+        sound_row.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        sound_row.columnconfigure(1, weight=1)
+        _lbl_warn_sound = ttk.Label(sound_row, text="Warning sound file")
+        _lbl_warn_sound.grid(row=0, column=0, sticky="w", padx=(0, 8))
         self._bind_static_tooltip(_lbl_warn_sound, "Optional file; default sound if empty.")
-        _sound_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_sound_path_var)
-        _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
-        _sound_actions = ttk.Frame(warn_fr, style="Card.TFrame")
-        _sound_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
+        _sound_entry = self._make_dark_entry(sound_row, textvariable=self.alert_sound_path_var)
+        _sound_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+        _sound_actions = ttk.Frame(sound_row, style="Card.TFrame")
+        _sound_actions.grid(row=0, column=2, sticky="e")
         _sound_browse = ttk.Button(_sound_actions, text="Browse…", command=self.browse_alert_sound, width=8)
         _sound_browse.pack(side="left", padx=(0, 6))
         _sound_preview = ttk.Button(_sound_actions, text="Preview", command=self.preview_alert_sound, width=8)
@@ -1995,18 +2001,18 @@ class QueueMonitorApp(tk.Tk):
 
         comp_fr = ttk.LabelFrame(outer, text="Completion Alerts", padding=(10, 8))
         comp_fr.pack(fill="x", pady=(0, 8))
-        comp_fr.columnconfigure(1, weight=1)
+        comp_fr.columnconfigure(0, weight=1)
         _comp_intro = ttk.Label(
             comp_fr,
             text="Fires once when you reach the front (position ≤1). Not threshold-based — only on/off below "
             "(and optional sound file).",
             wraplength=440,
         )
-        _comp_intro.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        _comp_intro.grid(row=0, column=0, sticky="w", pady=(0, 8))
         self._bind_static_tooltip(_comp_intro, "When you reach the front of the line.")
 
         checks2 = ttk.Frame(comp_fr, style="Card.TFrame")
-        checks2.grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 0))
+        checks2.grid(row=1, column=0, sticky="w", pady=(0, 0))
         _cb_comp_pop = ttk.Checkbutton(checks2, text="Completion popup", variable=self.completion_popup_enabled_var)
         _cb_comp_pop.pack(side="left", padx=(0, 14))
         self._bind_static_tooltip(_cb_comp_pop, "Popup when you reach the front.")
@@ -2014,13 +2020,16 @@ class QueueMonitorApp(tk.Tk):
         _cb_comp_snd.pack(side="left", padx=(0, 0))
         self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front.")
 
-        _lbl_comp_sound = ttk.Label(comp_fr, text="Completion sound file")
-        _lbl_comp_sound.grid(row=2, column=0, sticky="e", padx=(0, 8), pady=(10, 0))
+        comp_sound_row = ttk.Frame(comp_fr, style="Card.TFrame")
+        comp_sound_row.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        comp_sound_row.columnconfigure(1, weight=1)
+        _lbl_comp_sound = ttk.Label(comp_sound_row, text="Completion sound file")
+        _lbl_comp_sound.grid(row=0, column=0, sticky="w", padx=(0, 8))
         self._bind_static_tooltip(_lbl_comp_sound, "Optional file; default sound if empty.")
-        _comp_entry = self._make_dark_entry(comp_fr, textvariable=self.completion_sound_path_var)
-        _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
-        _comp_actions = ttk.Frame(comp_fr, style="Card.TFrame")
-        _comp_actions.grid(row=2, column=2, sticky="e", pady=(10, 0))
+        _comp_entry = self._make_dark_entry(comp_sound_row, textvariable=self.completion_sound_path_var)
+        _comp_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+        _comp_actions = ttk.Frame(comp_sound_row, style="Card.TFrame")
+        _comp_actions.grid(row=0, column=2, sticky="e")
         _comp_browse = ttk.Button(_comp_actions, text="Browse…", command=self.browse_completion_sound, width=8)
         _comp_browse.pack(side="left", padx=(0, 6))
         _comp_preview = ttk.Button(_comp_actions, text="Preview", command=self.preview_completion_sound, width=8)
