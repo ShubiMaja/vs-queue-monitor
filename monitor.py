@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.24"
+VERSION = "1.0.25"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -130,6 +130,23 @@ RECONNECTING_LINE_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\bopening\s+connection\b"),
     re.compile(r"(?i)\btrying\s+to\s+connect\b"),
 )
+# Lines after the *last* "connect queue position" line in the tail that show we are **not** still
+# waiting in the connect queue — e.g. connecting, loading mods, download, world load (not only
+# fully "connected"). Patterns must not rely on queue_position_match — those are handled by scan
+# order. The same phrase can appear before queue lines on a cold connect (README), so we only
+# count matches in lines strictly after the final queue line in the buffer.
+POST_QUEUE_PROGRESS_LINE_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(?i)loading\s+and\s+pre-starting\s+client\s*-?\s*side\s+mods"),
+    re.compile(r"(?i)\bpre-starting\s+client\s*-?\s*side\s+mods\b"),
+    re.compile(r"(?i)\bloading\s+client\s*-?\s*side\s+mods\b"),
+    re.compile(r"(?i)connected\s+to\s+server.*download"),
+    re.compile(r"(?i)\bdownloading\s+(?:data|assets|world|chunks|map|mod)\b"),
+    re.compile(r"(?i)\b(?:world|game)\s+loaded\b"),
+    re.compile(r"(?i)\bentering\s+(?:the\s+)?(?:world|game)\b"),
+    re.compile(r"(?i)\bjoined\s+(?:the\s+)?(?:world|game|server)\b"),
+    re.compile(r"(?i)\b(?:ok|okay),?\s+spawn"),
+    re.compile(r"(?i)\bspawn(?:ed|ing)?\s+(?:at|in|near)\b"),
+)
 QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\breconnect(?:ing|ed)?\b"),
     re.compile(r"(?i)\b(?:connection|connect)\s+(?:to\s+(?:the\s+)?)?(?:server\s+)?(?:lost|closed|failed|aborted|reset|refused|timed\s*out)\b"),
@@ -180,7 +197,7 @@ MAX_DRAW_POINTS = 1200
 # When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
 SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
-DEFAULT_ALERT_THRESHOLDS = "10, 5"
+DEFAULT_ALERT_THRESHOLDS = "10, 5, 1"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
@@ -310,7 +327,7 @@ UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 
 
 def parse_alert_thresholds(raw: str) -> list[int]:
-    """Comma-separated queue positions (default 10, 5); each fires at most once per
+    """Comma-separated queue positions (default 10, 5, 1); each fires at most once per
     downward crossing until a new queue run (log boundary lines and/or large upward jump; see poll + compute_alert).
     """
     out: list[int] = []
@@ -320,7 +337,7 @@ def parse_alert_thresholds(raw: str) -> list[int]:
             continue
         out.append(int(part))
     if not out:
-        raise ValueError("Add at least one alert threshold (e.g. 10, 5).")
+        raise ValueError("Add at least one alert threshold (e.g. 10, 5, 1).")
     for t in out:
         if t < 1:
             raise ValueError(f"Alert threshold {t} must be >= 1.")
@@ -824,6 +841,32 @@ def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     return last_t
 
 
+def is_post_queue_progress_line(s: str) -> bool:
+    """Non-queue log line that suggests we are past queue wait (connecting/loading — see module comment)."""
+    s = s.strip()
+    if not s or queue_position_match(s):
+        return False
+    for r in POST_QUEUE_PROGRESS_LINE_RES:
+        if r.search(s):
+            return True
+    return False
+
+
+def tail_has_post_queue_after_last_queue_line(data: str) -> bool:
+    """True if a past-queue-wait pattern appears on any line strictly after the last queue line in *data*."""
+    lines = data.splitlines()
+    last_q = -1
+    for i, line in enumerate(lines):
+        if queue_position_match(line):
+            last_q = i
+    if last_q < 0:
+        return False
+    for line in lines[last_q + 1 :]:
+        if is_post_queue_progress_line(line):
+            return True
+    return False
+
+
 def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
     # Vintage Story logs are typically UTF-8, but some environments can produce UTF-16.
     # Heuristic: if the buffer has many NUL bytes, try UTF-16.
@@ -1094,6 +1137,10 @@ class QueueMonitorApp(tk.Tk):
         self._position_emoji_label: Optional[tk.Label] = None
         # Wall time when we first observed position ≤1 this run; used to freeze "queue total" elapsed.
         self._position_one_reached_at: Optional[float] = None
+        # Progress bar value captured when crossing into position ≤1; stay below 100% until log shows left queue.
+        self._progress_at_front_entry: Optional[float] = None
+        # Tail scan: line after last queue line matches POST_QUEUE_PROGRESS_LINE_RES (past queue wait).
+        self._left_connect_queue_detected: bool = False
         self._persist_config_job: Optional[str] = None
         self._configure_resize_job: Optional[str] = None
         # Log-derived queue run id (see QUEUE_RUN_BOUNDARY_RES); resets threshold state when it increases.
@@ -2037,8 +2084,8 @@ class QueueMonitorApp(tk.Tk):
         _thr_lbl.grid(row=0, column=0, sticky="e", padx=(0, 8))
         _thr_entry = self._make_dark_entry(thr_row, textvariable=self.alert_thresholds_var, width=36)
         _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
-        self._bind_static_tooltip(_thr_lbl, "Alert when your position drops past each number (e.g. 10, 5).")
-        self._bind_static_tooltip(_thr_entry, "Alert when your position drops past each number (e.g. 10, 5).")
+        self._bind_static_tooltip(_thr_lbl, "Alert when your position drops past each number (e.g. 10, 5, 1).")
+        self._bind_static_tooltip(_thr_entry, "Alert when your position drops past each number (e.g. 10, 5, 1).")
 
         checks1 = ttk.Frame(warn_fr, style="Card.TFrame")
         checks1.grid(row=1, column=0, sticky="w", pady=(10, 0))
@@ -2072,21 +2119,24 @@ class QueueMonitorApp(tk.Tk):
         comp_fr.columnconfigure(0, weight=1)
         _comp_intro = ttk.Label(
             comp_fr,
-            text="Fires once when you reach the front (position ≤1). Not threshold-based — only on/off below "
-            "(and optional sound file).",
+            text="Fires once when the log shows you are past queue wait (e.g. loading mods, download — lines after "
+            "the last position line). Not threshold-based — only on/off below (and optional sound file).",
             wraplength=440,
         )
         _comp_intro.grid(row=0, column=0, sticky="w", pady=(0, 8))
-        self._bind_static_tooltip(_comp_intro, "When you reach the front of the line.")
+        self._bind_static_tooltip(
+            _comp_intro,
+            "Uses patterns on lines after your last queue position line so position 1 alone does not trigger.",
+        )
 
         checks2 = ttk.Frame(comp_fr, style="Card.TFrame")
         checks2.grid(row=1, column=0, sticky="w", pady=(0, 0))
         _cb_comp_pop = ttk.Checkbutton(checks2, text="Completion popup", variable=self.completion_popup_enabled_var)
         _cb_comp_pop.pack(side="left", padx=(0, 14))
-        self._bind_static_tooltip(_cb_comp_pop, "Popup when you reach the front.")
+        self._bind_static_tooltip(_cb_comp_pop, "Popup when the log shows past-queue-wait activity after the queue.")
         _cb_comp_snd = ttk.Checkbutton(checks2, text="Completion sound", variable=self.completion_sound_enabled_var)
         _cb_comp_snd.pack(side="left", padx=(0, 0))
-        self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front.")
+        self._bind_static_tooltip(_cb_comp_snd, "Sound when the log shows past-queue-wait activity after the queue.")
 
         comp_sound_row = ttk.Frame(comp_fr, style="Card.TFrame")
         comp_sound_row.grid(row=2, column=0, sticky="ew", pady=(10, 0))
@@ -2285,6 +2335,8 @@ class QueueMonitorApp(tk.Tk):
             self._queue_progress.configure(value=0.0)
 
         self._position_one_reached_at = None
+        self._progress_at_front_entry = None
+        self._left_connect_queue_detected = False
         self._queue_completion_notified_this_run = False
         self._last_queue_completion_notify_epoch = 0.0
         self._last_queue_run_session = -1
@@ -2708,13 +2760,13 @@ class QueueMonitorApp(tk.Tk):
             self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
     def _set_position_display(self, pos: Optional[int]) -> None:
-        """KPI digits at full size; front-of-queue celebration emoji slightly smaller."""
+        """KPI digits at full size; celebration emoji at position 0 (past queue wait in log)."""
         if pos is None:
             self.position_var.set("—")
         else:
             self.position_var.set(str(pos))
         if self._position_emoji_label is not None:
-            self._position_emoji_label.configure(text=("\U0001f389" if pos == 1 else ""))
+            self._position_emoji_label.configure(text=("\U0001f389" if pos == 0 else ""))
 
     def _refresh_warnings_kpi(self) -> None:
         """Configured CSV thresholds; mute each value once position ≤ that threshold (or alert already fired)."""
@@ -2916,6 +2968,8 @@ class QueueMonitorApp(tk.Tk):
                 raise ValueError(str(exc)) from exc
             self._alert_thresholds_fired.clear()
             self._position_one_reached_at = None
+            self._progress_at_front_entry = None
+            self._left_connect_queue_detected = False
             self._queue_completion_notified_this_run = False
             self._last_queue_run_session = -1
             self._last_queue_position_change_epoch = None
@@ -3003,12 +3057,12 @@ class QueueMonitorApp(tk.Tk):
 
         self.poll_once()
 
-    def _last_queue_position_is_connected(self) -> bool:
-        """True when the last read position is ≤1 (connected in client-main.log semantics)."""
+    def _last_queue_position_is_at_front(self) -> bool:
+        """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
         pos = self.last_position
         if pos is None and self.current_point is not None:
             pos = self.current_point[1]
-        return pos is not None and pos <= 1
+        return pos == 1
 
     def _bump_log_activity_if_changed(self, path: Path) -> None:
         """Update last activity time when the log file grows or its mtime changes."""
@@ -3067,6 +3121,8 @@ class QueueMonitorApp(tk.Tk):
         self._queue_stale_latched = False
         self._queue_stale_logged_once = False
         self._position_one_reached_at = None
+        self._progress_at_front_entry = None
+        self._left_connect_queue_detected = False
         self._mpp_floor_position = None
         self._mpp_floor_value = None
         self._alert_thresholds_fired.clear()
@@ -3098,9 +3154,14 @@ class QueueMonitorApp(tk.Tk):
         self._last_log_growth_epoch = None
         self._mpp_floor_position = None
         self._mpp_floor_value = None
-        if self._last_queue_position_is_connected():
+        if self._left_connect_queue_detected:
             self._set_status_line("Completed")
             self.write_history("Monitoring stopped (completed).")
+        elif self._last_queue_position_is_at_front():
+            self._set_status_line("Stopped")
+            self.write_history(
+                "Monitoring stopped (still at queue front; past-queue lines not seen in log tail yet)."
+            )
         else:
             self._set_status_line("Stopped")
             self.write_history("Monitoring stopped.")
@@ -3224,6 +3285,8 @@ class QueueMonitorApp(tk.Tk):
                     self.current_log_file = resolved
                     self.resolved_path_var.set(str(resolved))
                     self._last_queue_run_session = -1
+                    self._progress_at_front_entry = None
+                    self._left_connect_queue_detected = False
                     self._queue_completion_notified_this_run = False
                     self._last_queue_position_change_epoch = None
                     self._queue_stale_latched = False
@@ -3250,6 +3313,8 @@ class QueueMonitorApp(tk.Tk):
                     if last_queue_line_epoch is not None:
                         self._last_queue_line_epoch = last_queue_line_epoch
 
+                    left = tail_has_post_queue_after_last_queue_line(text)
+
                     now = time.time()
                     log_silent = (
                         self._last_log_growth_epoch is not None
@@ -3264,16 +3329,20 @@ class QueueMonitorApp(tk.Tk):
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
                         self._last_queue_line_epoch = None
+                        self._progress_at_front_entry = None
+                        self._left_connect_queue_detected = False
                         self._set_position_display(None)
                         self.last_position = None
                     elif (kind in ("reconnecting", "grace") or log_silent) and not (
                         position is not None and position <= 1
                     ):
-                        # At queue front (≤1), tail lines often still look "connecting"; keep Completed/Monitoring.
+                        # At queue front (≤1), tail lines often still look "connecting"; keep At front/Completed.
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
                         self._last_queue_line_epoch = None
+                        self._progress_at_front_entry = None
+                        self._left_connect_queue_detected = False
                         if log_silent or kind == "grace":
                             self._set_status_line("Reconnecting…")
                         else:
@@ -3299,6 +3368,32 @@ class QueueMonitorApp(tk.Tk):
                             # not real position — the queue normally moves down. New runs are handled
                             # via queue_sess above; small bumps (+1..9) can happen when others join.
                             position = prev_pos
+
+                        # Past queue wait: log shows connecting/loading/etc. after the last queue line — position 0.
+                        if position is not None and position <= 1 and left:
+                            position = 0
+
+                        if position is not None and position > 1:
+                            self._left_connect_queue_detected = False
+                            self._progress_at_front_entry = None
+                        elif position == 0:
+                            self._left_connect_queue_detected = True
+                        elif position is not None and position <= 1:
+                            self._left_connect_queue_detected = False
+
+                        if (
+                            prev_pos is not None
+                            and prev_pos > 1
+                            and position is not None
+                            and position <= 1
+                        ):
+                            if self._queue_progress is not None:
+                                try:
+                                    self._progress_at_front_entry = float(self._queue_progress["value"])
+                                except (tk.TclError, ValueError, TypeError):
+                                    self._progress_at_front_entry = 95.0
+                            else:
+                                self._progress_at_front_entry = 95.0
 
                         if self._queue_stale_latched:
                             if self._last_queue_line_epoch is not None and now - self._last_queue_line_epoch <= stale_limit:
@@ -3339,6 +3434,8 @@ class QueueMonitorApp(tk.Tk):
                             ):
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
+                                self._progress_at_front_entry = None
+                                self._left_connect_queue_detected = False
                                 self._queue_completion_notified_this_run = False
                                 self._last_queue_position_change_epoch = time.time()
                                 self._queue_stale_latched = False
@@ -3349,7 +3446,12 @@ class QueueMonitorApp(tk.Tk):
                                 if self.current_log_file is not None:
                                     self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
-                            self._set_status_line("Completed" if position <= 1 else "Monitoring")
+                            if position == 0:
+                                self._set_status_line("Completed")
+                            elif position is not None and position <= 1:
+                                self._set_status_line("At front")
+                            else:
+                                self._set_status_line("Monitoring")
                             self._set_position_display(position)
                             self.append_graph_point(position)
                             self.update_time_estimates()
@@ -3368,7 +3470,7 @@ class QueueMonitorApp(tk.Tk):
                             should_alert, reason = self.compute_alert(prev_pos, position)
                             if should_alert:
                                 self.raise_alert(position, reason)
-                            self._maybe_notify_queue_completion(prev_pos, position)
+                            self._maybe_notify_queue_completion(position, text)
                     elif not log_silent:
                         self._set_status_line("Watching log, queue line not found yet")
         except Exception as exc:
@@ -3614,11 +3716,15 @@ class QueueMonitorApp(tk.Tk):
         current_pos = self.last_position
         if current_pos is None and self.current_point is not None:
             current_pos = self.current_point[1]
-        # Position 1 in client-main.log means connected, not "next in queue"; no queue ETA.
-        if current_pos is None or current_pos <= 1:
+        # Position 0 = past queue wait in UI; no ETA. Position 1 = still in queue at the front:
+        # treat as one remaining "step" to connecting so EST. REMAINING stays meaningful.
+        if current_pos is None or current_pos == 0:
             return None
 
-        remaining_positions = max(0, current_pos - 1)
+        if current_pos == 1:
+            remaining_positions = 1
+        else:
+            remaining_positions = max(0, current_pos - 1)
 
         v_emp = self.compute_empirical_pos_per_sec()
         if v_emp is not None and v_emp > 0:
@@ -3630,6 +3736,8 @@ class QueueMonitorApp(tk.Tk):
             else:
                 speed, _n, _trail = self.compute_moving_average_speed()
                 if speed is None or speed <= 0:
+                    if current_pos == 1:
+                        return float(QUEUE_UPDATE_INTERVAL_SEC)
                     return None
 
         expected_sec_per_pos = 1.0 / speed
@@ -3637,7 +3745,7 @@ class QueueMonitorApp(tk.Tk):
 
         # Live countdown even when the log repeats the same position, but clamp so we
         # never display 0:00 while still in queue.
-        if self.running and self.current_point is not None and current_pos > 1:
+        if self.running and self.current_point is not None and current_pos >= 1:
             dt = time.time() - self.current_point[0]
             # Between expected 30s game updates we still want a smooth countdown. Only
             # after we exceed the expected update interval do we treat it as stale.
@@ -3905,8 +4013,11 @@ class QueueMonitorApp(tk.Tk):
         # Remaining must use estimate_seconds_remaining() while monitoring so wall time (base − dt)
         # ticks between log lines. A plain (pos−1)*mpp*60 snapshot freezes until the next poll.
         seconds_remaining = self.estimate_seconds_remaining()
-        if seconds_remaining is None and pos is not None and pos > 1 and mpp is not None and mpp > 0:
-            seconds_remaining = max(0.0, float(pos - 1) * mpp * 60.0)
+        if seconds_remaining is None and pos is not None and mpp is not None and mpp > 0:
+            if pos > 1:
+                seconds_remaining = max(0.0, float(pos - 1) * mpp * 60.0)
+            elif pos == 1:
+                seconds_remaining = max(0.0, float(mpp) * 60.0)
 
         if seconds_remaining is None:
             self.predicted_remaining_var.set("—")
@@ -3915,7 +4026,13 @@ class QueueMonitorApp(tk.Tk):
 
         if self._queue_progress is not None:
             if pos is not None and pos <= 1:
-                self._queue_progress["value"] = 100.0
+                if self._left_connect_queue_detected:
+                    self._queue_progress["value"] = 100.0
+                else:
+                    base = self._progress_at_front_entry
+                    if base is None:
+                        base = 90.0
+                    self._queue_progress["value"] = min(99.0, base)
             elif elapsed_sec is not None and seconds_remaining is not None:
                 total = elapsed_sec + max(0.0, float(seconds_remaining))
                 if total > 1e-6:
@@ -4376,7 +4493,7 @@ class QueueMonitorApp(tk.Tk):
             pass
 
     def play_completion_sound(self) -> None:
-        """Queue front (position ≤1) completion sound."""
+        """Completion sound when the log shows past queue wait (see POST_QUEUE_PROGRESS_LINE_RES)."""
         raw = (self.completion_sound_path_var.get() or "").strip()
         if raw:
             p = expand_path(raw)
@@ -4389,11 +4506,11 @@ class QueueMonitorApp(tk.Tk):
         except Exception:
             pass
 
-    def _maybe_notify_queue_completion(self, prev_pos: Optional[int], position: int) -> None:
-        """Once per approach to queue front (≤1): optional sound/popup only — no configurable completion threshold."""
-        if prev_pos is None or prev_pos <= 1:
+    def _maybe_notify_queue_completion(self, position: int, tail_text: str) -> None:
+        """Optional sound/popup when we map to position 0 (past queue wait — see POST_QUEUE_PROGRESS_LINE_RES)."""
+        if position != 0:
             return
-        if position > 1:
+        if not tail_has_post_queue_after_last_queue_line(tail_text):
             return
         if self._queue_completion_notified_this_run:
             return
@@ -4411,11 +4528,11 @@ class QueueMonitorApp(tk.Tk):
 
         self._queue_completion_notified_this_run = True
         self._last_queue_completion_notify_epoch = now
-        self.write_history("Queue completion: reached front of queue (position ≤1).")
+        self.write_history("Queue completion: past queue wait — connecting (position 0).")
         if want_sound:
             self.play_completion_sound()
         if want_popup:
-            self.show_completion_popup(position)
+            self.show_completion_popup()
 
     def show_popup(self, position: int, eta_display: str) -> None:
         """Warning threshold popup: position + ETA only (details stay in the session log)."""
@@ -4477,8 +4594,8 @@ class QueueMonitorApp(tk.Tk):
 
         popup.after(POPUP_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
-    def show_completion_popup(self, position: int) -> None:
-        """Queue front — visually distinct from the threshold warning popup."""
+    def show_completion_popup(self) -> None:
+        """Past queue wait (position 0) — visually distinct from the threshold warning popup."""
         if self.active_completion_popup is not None and self.active_completion_popup.winfo_exists():
             try:
                 self.active_completion_popup.destroy()
@@ -4487,7 +4604,7 @@ class QueueMonitorApp(tk.Tk):
 
         popup = tk.Toplevel(self)
         self.active_completion_popup = popup
-        popup.title(f"{ALERT_POPUP_EMOJI_COMPLETION} Front of queue")
+        popup.title(f"{ALERT_POPUP_EMOJI_COMPLETION} Past queue")
         popup.attributes("-topmost", True)
         popup.resizable(False, False)
         popup.configure(padx=18, pady=18, bg=UI_BG_CARD)
@@ -4510,14 +4627,14 @@ class QueueMonitorApp(tk.Tk):
         txt.pack(side="left", fill="x", expand=True)
         tk.Label(
             txt,
-            text="Front of the queue",
+            text="Not waiting in queue",
             font=("TkDefaultFont", 15, "bold"),
             bg=UI_BG_CARD,
             fg=UI_ACCENT_STATUS,
         ).pack(anchor="w", pady=(0, 8))
         tk.Label(
             txt,
-            text=f"Position {position}. Get ready to connect!",
+            text="Position 0 — connecting (e.g. loading mods). Get ready to join!",
             justify="left",
             wraplength=360,
             bg=UI_BG_CARD,

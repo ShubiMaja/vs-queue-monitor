@@ -1,6 +1,6 @@
 # VS Queue Monitor
 
-Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **warning** alerts at **configurable thresholds**, plus optional **queue completion** notices at the front (on/off only — not threshold-based). Config and sources use the short id **`vs-queue-monitor`**.
+Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **warning** alerts at **configurable thresholds**, plus optional **queue completion** notices when the log suggests you are **past the connect queue** (connecting / loading — on/off only — not threshold-based). Config and sources use the short id **`vs-queue-monitor`**.
 
 ## Disclaimer (read this)
 
@@ -186,8 +186,8 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Graph pane (top)
 
-- **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state — not the Info panel name), **Rate** (minutes per position from the prediction window / dwell model), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
-- **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
+- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (minutes per position from the prediction window / dwell model), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
+- **Chart:** step plot of queue position vs time (**0** = past queue wait); hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
 
@@ -204,19 +204,19 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Alerts
 
-- **Warning thresholds** — comma-separated positions (default `10, 5`): **warning** popup/sound can fire when you **cross downward** through each value. **Once per value per queue run** until the run resets (log boundary / new session / segmentation rules).
-- **Completion** — **not** threshold-based: it always applies when you **reach the queue front** (position ≤1). You only choose **on/off** for completion **popup** and/or **sound** (plus optional completion **sound file**). There is no comma-separated completion threshold list.
+- **Warning thresholds** — comma-separated positions (default `10, 5, 1`): **warning** popup/sound can fire when you **cross downward** through each value. **Once per value per queue run** until the run resets (log boundary / new session / segmentation rules).
+- **Completion** — **not** threshold-based: it fires when a **post-queue** line appears **after** the last **connect queue position** line in the log tail (e.g. *Loading and pre-starting client side mods*, download — **not** only full “connected”; and not when you first hit position `1`, which can still mean a long wait). You only choose **on/off** for completion **popup** and/or **sound** (plus optional completion **sound file**). There is no comma-separated completion threshold list. If your client build does not log matching lines, completion may not fire.
 - **Minimum interval** between **warning** popup/sound alerts to reduce duplicate fires from noisy logs.
 - **Warning popup** (optional): always-on-top window for **threshold crossings**; auto-closes after a timeout.
-- **Completion popup** (optional): distinct window at queue front (≤1) with **Get ready to connect!** copy; **enable/disable only** — same trigger every time.
+- **Completion popup** (optional): distinct window when the log shows connect phase after the queue, with **Get ready to connect!** copy; **enable/disable only** — same trigger every time.
 - **Warning sound** (optional): plays on **warning** thresholds; built-in default is one file per OS (e.g. `Windows Background.wav`, `Basso.aiff`, `dialog-warning.oga`), resolved like other system media paths, then registry/`MessageBeep`/bell. Custom path in Settings.
-- **Completion sound** (optional): **on/off** at queue front (≤1); one default per OS (e.g. `tada.wav`, `Hero.aiff`, `complete.oga`). Custom path in Settings.
+- **Completion sound** (optional): **on/off** for the same post-queue trigger; one default per OS (e.g. `tada.wav`, `Hero.aiff`, `complete.oga`). Custom path in Settings.
 
 ### ETA, rate, and progress
 
-- **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points).
+- **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points). At **position 1** (at the front) it still shows an ETA by treating **one** remaining step to connecting; it is only an estimate — the log may repeat **1** for a long time.
 - **Minutes per position** is shown as **Rate**; can be **capped** using dwell logic so optimistic rates do not jump until you have waited long enough at the current position.
-- **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; **100%** at queue front (position ≤ 1); empty when interrupted or ETA unknown.
+- **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; caps below **100%** while at **position 1** (at front) until the log shows past-queue-wait activity; **100%** once **position 0** is shown; empty when interrupted or ETA unknown.
 - **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.
 
 ### Connection and status line
@@ -224,10 +224,11 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 The status string reflects tail-of-log classification, for example:
 
 - **Monitoring** — queue line present, in queue (`position > 1`).
-- **Completed** — reached front (position ≤ 1); not overwritten by noisy “connecting” lines after that.
+- **At front** — log still shows **position 1** and the tail does not yet show a post-queue line after it (you may still wait a long time).
+- **Completed** — **position 0**: a post-queue line appeared after the last queue line (connecting / loading — not only fully connected); KPI shows **0**.
 - **Interrupted** — definitive disconnect / stale queue; **elapsed time freezes** but the log **keeps** being read.
 - **Reconnecting…** / **Connecting…** / **Waiting for log file** / **Error** as appropriate.
-- **Log silence:** no file growth for a long interval can show reconnect-style status (with guards so **Completed** is not clobbered when you are already at the front).
+- **Log silence:** no file growth for a long interval can show reconnect-style status (with guards so **At front** (1) / **Completed** (0) is not clobbered when appropriate).
 
 ### New queue after interrupt
 
@@ -237,7 +238,7 @@ The status string reflects tail-of-log classification, for example:
 
 - **Polling** — **Poll (s)** between log reads.
 - **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
-- **Completion Alerts** — **on/off only** at queue front (≤1, no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
+- **Completion Alerts** — **on/off only** when the log shows past-queue-wait lines (no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
 - **History** — **Log every position change** (verbose vs milestones-only lines). Show or hide the panel from the main window **History** bar (still saved in config).
 - **Prediction** — **Window (points)**: rolling window size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
@@ -275,17 +276,17 @@ Typical keys:
 | Key | Purpose |
 |-----|---------|
 | `source_path` | Logs folder path string |
-| `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5`); not used for completion |
+| `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5, 1`); not used for completion |
 | `poll_sec` | Poll interval in seconds |
 | `avg_window_points` | Prediction window size (points) |
 | `show_log` | History pane expanded (content visible); toggled from the main window, not Settings |
 | `show_status` | Info pane expanded (content visible); key name unchanged for compatibility |
 | `graph_log_scale` | Graph Y axis: log vs linear |
 | `popup_enabled` | Warning (threshold) popup |
-| `completion_popup_enabled` | Queue completion (front) popup |
+| `completion_popup_enabled` | Queue completion (post-queue log signal) popup |
 | `sound_enabled` | Warning (threshold) sound enabled |
 | `alert_sound_path` | Warning sound file path |
-| `completion_sound_enabled` | Queue completion (position ≤1) sound enabled |
+| `completion_sound_enabled` | Queue completion (post-queue log signal) sound enabled |
 | `completion_sound_path` | Completion sound file path |
 | `show_every_change` | Log every queue position line vs only changes |
 | `window_geometry` | Last main window size/position |
