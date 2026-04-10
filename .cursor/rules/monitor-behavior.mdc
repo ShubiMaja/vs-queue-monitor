@@ -1,0 +1,47 @@
+---
+description: VS Queue Monitor — log semantics, UI behavior, and docs (lessons from ongoing development)
+alwaysApply: true
+---
+
+# VS Queue Monitor — agent guidance
+
+Apply when editing `monitor.py`, `README.md`, or related files in this project. Complements **git-commit** (version bump, README before commit, py_compile).
+
+## Queue position and “done” state
+
+- **Position `0`** means the log shows **past connect-queue wait** (post-queue patterns on lines **after** the last queue-position line), not merely “position ≤ 1”. Map raw ≤1 + post-queue signal → `0` for KPI/graph.
+- **Completion** (sound/popup), **Completed** status, **100% progress**, and celebration emoji should align with **past-queue detection** / position `0`, not only hitting position `1` (long waits at `1` are normal).
+- **`POST_QUEUE_PROGRESS_LINE_RES`**: include **connecting / loading** lines (e.g. mod pre-start), not only “fully connected.” Same phrase can appear **before** queue lines on cold connect — only count matches **strictly after** the final queue line in the tail (`tail_has_post_queue_after_last_queue_line`).
+
+## Log resolution and paths
+
+- **`resolve_log_file`**: Prefer **strict** client-log discovery — **do not** fall back to arbitrary `*.log` files; that makes wrong folders look valid.
+- **`expand_logs_folder_path`**: **Browse** and **Start** require an **existing** directory; a **client log file is optional** at first. If none resolves, start in **Waiting for log file** and keep polling until `resolve_log_file` succeeds.
+- Do not require `resolve_log_file` to succeed before accepting a browsed folder (users may point at data dir before VS creates `client-main.log`).
+
+## Settings must match code
+
+- **“Log every position change”**: When **off**, **omit** routine queue lines from History entirely — not just a different message. When **on**, log each transition.
+- Default **`show_every_change`** is **false**.
+
+## Interrupted mode
+
+- While **Interrupted**, **freeze** KPI **Rate** / **Global Rate** display (e.g. snapshot strings at interrupt). Recency-weighted speed uses **wall time** and would otherwise drift every tick.
+
+## Status strings (user-facing clarity)
+
+- **Waiting for log file**: No resolved client log path yet (or unreadable).
+- **Warning: no queue detected** (`danger=True`): Log file exists/readable but tail has **no** connect-queue position line — not the same as “no file.”
+- Distinguish **At front** (still in queue at `1`) vs **Completed** (position `0` / past-queue).
+
+## ETA
+
+- At **position `1`**, still show **EST. REMAINING** using a **one-step** model (and fallback when speed unknown), not `—`.
+
+## Defaults
+
+- Default **warning thresholds**: `10, 5, 1` (`DEFAULT_ALERT_THRESHOLDS`).
+
+## README
+
+- When behavior, paths, settings, or status text changes in ways users rely on, **update README in the same change set** (see **git-commit** rule).
