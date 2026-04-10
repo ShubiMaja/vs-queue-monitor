@@ -1473,6 +1473,10 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             popup.transient(self)
         except Exception:
             pass
+        try:
+            popup.focus_force()
+        except Exception:
+            pass
         row = tk.Frame(popup, bg=UI_BG_CARD)
         row.pack(fill='x', pady=(0, 4))
         tk.Label(row, text=ALERT_POPUP_EMOJI_THRESHOLD, font=_alert_popup_emoji_font(42), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
@@ -1480,7 +1484,21 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         txt.pack(side='left', fill='x', expand=True)
         tk.Label(txt, text=f'Position {position}', font=('TkDefaultFont', 15, 'bold'), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(anchor='w', pady=(0, 8))
         tk.Label(txt, text=f'Est. left: {eta_display}', justify='left', wraplength=360, bg=UI_BG_CARD, fg=UI_ACCENT_REMAINING, font=('TkDefaultFont', 11, 'bold')).pack(anchor='w', pady=(0, 12))
-        ttk.Button(popup, text='Dismiss', command=popup.destroy).pack(anchor='e')
+        tk.Button(
+            popup,
+            text='Dismiss',
+            command=popup.destroy,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+            activebackground=UI_BG_CARD,
+            activeforeground=UI_TEXT_PRIMARY,
+            highlightthickness=1,
+            highlightbackground=UI_GRAPH_AXIS,
+            relief='flat',
+            padx=12,
+            pady=6,
+        ).pack(anchor='e')
+        popup.bind('<Escape>', lambda _e: popup.winfo_exists() and popup.destroy())
         popup.update_idletasks()
         width = popup.winfo_width()
         height = popup.winfo_height()
@@ -1508,6 +1526,10 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             popup.transient(self)
         except Exception:
             pass
+        try:
+            popup.focus_force()
+        except Exception:
+            pass
         row = tk.Frame(popup, bg=UI_BG_CARD)
         row.pack(fill='x', pady=(0, 4))
         tk.Label(row, text=ALERT_POPUP_EMOJI_COMPLETION, font=_alert_popup_emoji_font(46), bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(side='left', anchor='nw', padx=(0, 12))
@@ -1515,7 +1537,21 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         txt.pack(side='left', fill='x', expand=True)
         tk.Label(txt, text='Not waiting in queue', font=('TkDefaultFont', 15, 'bold'), bg=UI_BG_CARD, fg=UI_ACCENT_STATUS).pack(anchor='w', pady=(0, 8))
         tk.Label(txt, text='Position 0 — connecting (e.g. loading mods). Get ready to join!', justify='left', wraplength=360, bg=UI_BG_CARD, fg=UI_TEXT_PRIMARY).pack(anchor='w', pady=(0, 12))
-        ttk.Button(popup, text='Dismiss', command=popup.destroy).pack(anchor='e')
+        tk.Button(
+            popup,
+            text='Dismiss',
+            command=popup.destroy,
+            bg=UI_BG_CARD,
+            fg=UI_TEXT_PRIMARY,
+            activebackground=UI_BG_CARD,
+            activeforeground=UI_TEXT_PRIMARY,
+            highlightthickness=1,
+            highlightbackground=UI_GRAPH_AXIS,
+            relief='flat',
+            padx=12,
+            pady=6,
+        ).pack(anchor='e')
+        popup.bind('<Escape>', lambda _e: popup.winfo_exists() and popup.destroy())
         popup.update_idletasks()
         width = popup.winfo_width()
         height = popup.winfo_height()
