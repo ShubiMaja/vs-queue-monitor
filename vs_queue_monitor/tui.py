@@ -165,7 +165,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
-    #metrics { height: auto; min-height: 12; width: 100%; }
+    #metrics { height: auto; min-height: 18; width: 100%; }
     #log { height: 1fr; border: solid $primary; width: 100%; }
     #pathrow { height: auto; margin-top: 1; width: 100%; }
     """
@@ -250,7 +250,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 graph = _queue_braille_graph(
                     pts,
                     width=graph_w,
-                    height_lines=3,
+                    height_lines=6,
                     log_scale=bool(eng.graph_log_scale_var.get()),
                 )
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
