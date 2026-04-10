@@ -32,7 +32,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         height: int = 10,
         log_scale: bool = True,
     ) -> str:
-        """A tiny terminal chart (multi-line), closer to the GUI than a sparkline."""
+        """Htop-style mini chart (filled bars, multi-line)."""
         if len(points) < 1:
             return "—"
 
@@ -62,47 +62,45 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         lo, hi = min(ys), max(ys)
         if lo == hi:
-            return f"[{hi}] " + ("█" * min(width, max(1, len(ys))))
+            # A single flat run: show a solid bottom bar.
+            w = max(10, int(width))
+            dot = "·"
+            return "\n".join([" " * w for _ in range(max(3, int(height)) - 1)] + [dot * w])
 
         def frac_for(v: int) -> float:
             vv = max(lo, min(hi, int(v)))
             if not log_scale:
-                return (float(hi) - float(vv)) / (float(hi) - float(lo))  # 0 at hi, 1 at lo
+                # 0 at lo (best), 1 at hi (worst)
+                return (float(vv) - float(lo)) / (float(hi) - float(lo))
             lvmin = math.log(float(lo) + 1.0)
             lvmax = math.log(float(hi) + 1.0)
             lv = math.log(float(vv) + 1.0)
             if lvmax <= lvmin:
                 frac = 0.0
             else:
-                frac = (lvmax - lv) / (lvmax - lvmin)  # 0 at hi, 1 at lo
+                # 0 at lo (best), 1 at hi (worst)
+                frac = (lv - lvmin) / (lvmax - lvmin)
             frac = max(0.0, min(1.0, frac))
             return frac**GRAPH_LOG_GAMMA
 
-        # Canvas: top row = worst (hi), bottom row = best (lo)
+        # Canvas: filled columns, htop-style (higher value => taller bar)
         h = max(3, int(height))
         w = max(10, int(width))
         canvas: list[list[str]] = [[" " for _ in range(w)] for _ in range(h)]
+        dot = "·"
 
-        last_row: Optional[int] = None
-        for x in range(min(w, len(ys))):
-            v = ys[-min(w, len(ys)) + x]
-            row = int(round(frac_for(v) * float(h - 1)))
-            row = max(0, min(h - 1, row))
-            canvas[row][x] = "█"
-            if last_row is not None and row != last_row:
-                r0, r1 = sorted((row, last_row))
-                for rr in range(r0 + 1, r1):
-                    if canvas[rr][x] == " ":
-                        canvas[rr][x] = "│"
-            last_row = row
+        n = min(w, len(ys))
+        offset = len(ys) - n
+        for x in range(n):
+            v = ys[offset + x]
+            frac = frac_for(v)
+            bar_h = int(round(frac * float(h)))
+            bar_h = max(0, min(h, bar_h))
+            for yy in range(h - 1, h - bar_h - 1, -1):
+                if 0 <= yy < h:
+                    canvas[yy][x] = dot
 
-        lines = ["".join(r) for r in canvas]
-        # Add scale labels (left side) on first/last row.
-        lines[0] = f"{hi:>4} " + lines[0]
-        lines[-1] = f"{lo:>4} " + lines[-1]
-        for i in range(1, len(lines) - 1):
-            lines[i] = "     " + lines[i]
-        return "\n".join(lines)
+        return "\n".join("".join(r) for r in canvas)
 
     class VSQueueTui(App[None]):
         """Textual front-end; drives :class:`QueueMonitorEngine` without Tk."""
