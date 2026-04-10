@@ -1756,7 +1756,7 @@ class QueueMonitorApp(tk.Tk):
         warn_fr.columnconfigure(1, weight=1)
 
         _thr_lbl = ttk.Label(warn_fr, text="Thresholds (comma-separated)")
-        _thr_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        _thr_lbl.grid(row=0, column=0, sticky="e", padx=(0, 8))
         _thr_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
         _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
         self._bind_static_tooltip(
@@ -1778,7 +1778,7 @@ class QueueMonitorApp(tk.Tk):
         self._bind_static_tooltip(_cb_warn_snd, "Sound when crossing a warning threshold.")
 
         _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
-        _lbl_warn_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _lbl_warn_sound.grid(row=2, column=0, sticky="ne", padx=(0, 8), pady=(10, 0))
         self._bind_static_tooltip(_lbl_warn_sound, "Custom warning sound path; OS default if empty.")
         _sound_entry = self._make_dark_entry(warn_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
@@ -1817,7 +1817,7 @@ class QueueMonitorApp(tk.Tk):
         self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front (≤1).")
 
         _lbl_comp_sound = ttk.Label(comp_fr, text="Completion sound file")
-        _lbl_comp_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _lbl_comp_sound.grid(row=2, column=0, sticky="ne", padx=(0, 8), pady=(10, 0))
         self._bind_static_tooltip(_lbl_comp_sound, "Custom completion sound path; OS default if empty.")
         _comp_entry = self._make_dark_entry(comp_fr, textvariable=self.completion_sound_path_var)
         _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
