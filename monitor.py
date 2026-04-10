@@ -1569,7 +1569,11 @@ class QueueMonitorApp(tk.Tk):
         )
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
-        self._bind_static_tooltip(self._graph_y_scale_btn, "Y axis: linear or log.")
+        self._bind_static_tooltip(
+            self._graph_y_scale_btn,
+            "Linear: equal spacing per queue position (easy to compare big jumps). "
+            "Log: low positions get more vertical room so small moves near the front are easier to read; high positions are compressed.",
+        )
         self.graph_canvas.bind("<Configure>", self._on_graph_canvas_configure)
         self.graph_canvas.bind("<Motion>", self.on_graph_motion)
         self.graph_canvas.bind("<Leave>", lambda _evt: self.hide_graph_tooltip())
