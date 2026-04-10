@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.22
+Version: 1.0.23
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.22"
+VERSION = "1.0.23"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1373,6 +1373,16 @@ class QueueMonitorApp(tk.Tk):
             labelmargins=UI_PANE_LABELFRAME_LABEL_MARGINS,
         )
         style.configure("Pane.TLabelframe.Label", background=_card, foreground=UI_TEXT_MUTED)
+        # Top graph pane: same card border as Pane.TLabelframe, without a title strip.
+        style.configure(
+            "GraphPane.TFrame",
+            background=_card,
+            bordercolor=_bd,
+            darkcolor=_bd,
+            lightcolor=_bd,
+            relief="flat",
+            borderwidth=1,
+        )
         style.configure(
             "TCheckbutton",
             background=_card,
@@ -1626,13 +1636,12 @@ class QueueMonitorApp(tk.Tk):
         panes.bind("<Configure>", self._schedule_pane_fits, add=True)
         panes.bind("<B1-Motion>", self._schedule_pane_drag_thresholds, add=True)
 
-        self._graph_labelframe = ttk.LabelFrame(
+        self._graph_frame = ttk.Frame(
             panes,
-            text="Queue graph",
-            style="Pane.TLabelframe",
+            style="GraphPane.TFrame",
             padding=UI_GRAPH_LABELFRAME_PAD,
         )
-        graph_frame = self._graph_labelframe
+        graph_frame = self._graph_frame
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=0)
         graph_frame.rowconfigure(1, weight=1)
@@ -3550,7 +3559,7 @@ class QueueMonitorApp(tk.Tk):
         )
         bt(self._settings_btn, "Settings")
         bt(self._loading_spinner, "Loading…")
-        bt(self._graph_labelframe, "Queue position over time.")
+        bt(self._graph_frame, "Queue position over time.")
         bt(self._position_value_label, "Smaller number = closer to the front.")
         bt(self._status_value_label, "What the app is doing.")
         bt(self._queue_rate_value_label, "Rough minutes to move one spot in line.")

@@ -168,7 +168,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Window layout
 
-- Three vertical **panes** — **Queue graph** (top), **Info** (middle), **History** (bottom) — separated by **draggable sashes**.
+- Three vertical **panes** — **Graph** (top), **Info** (middle), **History** (bottom) — separated by **draggable sashes**.
 - **Info** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
 - Dark, **tooltip-heavy** UI (hover for control explanations).
 
@@ -184,7 +184,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 - On start, the app can **seed the graph** from a larger tail of the log (with a loading indicator) so you see recent queue history immediately.
 - **Timer (~10 Hz)** refreshes elapsed time, remaining ETA, and rate between log polls so values feel live.
 
-### Queue graph pane
+### Graph pane (top)
 
 - **KPI strip (one header row, one value row):** **Position**, **Status** (connection/monitoring state — not the Info panel name), **Rate** (minutes per position from the prediction window / dwell model), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; full at queue front).
 - **Chart:** step plot of queue position vs time; hover near the line for timestamp and position.
