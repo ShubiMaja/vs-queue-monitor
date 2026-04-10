@@ -372,7 +372,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
     #play_btn { width: 7; }
     #run_indicator { width: 11; color: $text-muted; }
     #path_input { width: 1fr; }
-    #metrics { height: auto; min-height: 7; width: 100%; }
+    #metrics { height: auto; width: 100%; }
     #status_graph_panel { height: 1fr; width: 100%; border: solid $primary; }
     #status_graph_title { height: auto; padding: 0 1; color: $text-muted; }
     #status_graph_body { height: 1fr; width: 100%; padding: 0 1; }
@@ -717,14 +717,14 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 except Exception:
                     pass
                 metrics_text = (
-                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
+                    f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n"
                     f"[{UI_ACCENT_POSITION}]POSITION[/] [bold]{pos}[/]    "
                     f"[{UI_ACCENT_STATUS}]STATUS[/] [{st_style}]{st}[/]    "
                     f"[{UI_ACCENT_RATE}]{hdr}[/] [bold]{rate}[/]\n"
                     f"[{UI_ACCENT_WARNINGS}]WARNINGS[/] {warn}\n"
                     f"[{UI_ACCENT_ELAPSED}]ELAPSED[/] {elapsed}    "
                     f"[{UI_ACCENT_REMAINING}]EST. REMAINING[/] {rem}    "
-                    f"[{UI_ACCENT_PROGRESS}]PROGRESS[/] {prog:.0f}%\n"
+                    f"[{UI_ACCENT_PROGRESS}]PROGRESS[/] {prog:.0f}%"
                 )
                 self.query_one("#metrics", Static).update(metrics_text)
 
