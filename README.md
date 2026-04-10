@@ -17,7 +17,18 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 - **Python 3.10+** (any recent 3.x with Tkinter)
 - **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
 
-No third-party pip dependencies.
+No third-party pip dependencies for the **desktop GUI** (`monitor.py`).
+
+### Terminal UI (optional)
+
+Same queue logic as the GUI via a **hidden Tk** instance and a **Textual** front-end (`main-tui.py`).
+
+```bash
+pip install -r requirements-tui.txt
+python main-tui.py
+```
+
+Use `--path` / `--no-start` like the GUI. **Space** toggles monitoring, **o** opens Settings (Tk window), **q** quits. Requires Tkinter (same as the GUI).
 
 ## Quick start
 
