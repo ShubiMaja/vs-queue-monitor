@@ -208,6 +208,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("o", "open_settings", "Settings"),
             Binding("r", "refresh_view", "Refresh"),
             Binding("h", "toggle_history", "History"),
+            Binding("g", "toggle_graph", "Graph"),
+            Binding("m", "toggle_metrics", "Metrics"),
+            Binding("p", "toggle_path", "Path"),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -216,6 +219,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._auto_start = auto_start
             self._engine: Optional[QueueMonitorEngine] = None
             self._history_collapsed: bool = True
+            self._graph_hidden: bool = False
+            self._metrics_hidden: bool = False
+            self._path_hidden: bool = False
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
@@ -246,12 +252,27 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             if self._auto_start:
                 self.call_later(eng.start_monitoring)
             self._apply_history_collapsed()
+            self._apply_panel_visibility()
 
         def _apply_history_collapsed(self) -> None:
             # When collapsed, hide the log panel so the graph expands into that space.
             try:
                 log = self.query_one("#log", RichLog)
                 log.display = not self._history_collapsed
+            except Exception:
+                pass
+
+        def _apply_panel_visibility(self) -> None:
+            try:
+                self.query_one("#graph", Static).display = not self._graph_hidden
+            except Exception:
+                pass
+            try:
+                self.query_one("#metrics", Static).display = not self._metrics_hidden
+            except Exception:
+                pass
+            try:
+                self.query_one("#pathrow", Horizontal).display = not self._path_hidden
             except Exception:
                 pass
 
@@ -262,6 +283,18 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 self._refresh_metrics()
             except Exception:
                 pass
+
+        def action_toggle_graph(self) -> None:
+            self._graph_hidden = not self._graph_hidden
+            self._apply_panel_visibility()
+
+        def action_toggle_metrics(self) -> None:
+            self._metrics_hidden = not self._metrics_hidden
+            self._apply_panel_visibility()
+
+        def action_toggle_path(self) -> None:
+            self._path_hidden = not self._path_hidden
+            self._apply_panel_visibility()
 
         def on_resize(self) -> None:
             # Force an immediate redraw on terminal resize (GUI-like behavior).
