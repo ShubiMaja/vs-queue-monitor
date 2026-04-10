@@ -3522,7 +3522,8 @@ class QueueMonitorApp(tk.Tk):
             2 * 60 * 60,
             6 * 60 * 60,
         ]
-        target_ticks = 8
+        # Fewer major divisions than raw "≤8 intervals" so tick marks do not pack tighter than labels.
+        target_ticks = 6
         interval = candidates[-1]
         for c in candidates:
             if span / c <= target_ticks:
@@ -3545,8 +3546,17 @@ class QueueMonitorApp(tk.Tk):
         if tick_times[-1] < t1 - interval * 0.4:
             tick_times.append(t1)
 
+        # Drop times that map to the same pixel column (stacked labels when span is tiny).
+        _dedup: list[float] = []
+        for tv in sorted(tick_times):
+            xv = x_of(tv)
+            if not _dedup or abs(xv - x_of(_dedup[-1])) > 2.0:
+                _dedup.append(tv)
+        tick_times = _dedup
+
+        # "HH:MM:SS" needs more horizontal room than min_label_dx alone; cap count by plot width.
+        min_label_dx = max(76.0, min(130.0, plot_w / 7.5))
         last_x_label: Optional[float] = None
-        min_label_dx = 58
         for idx, t in enumerate(tick_times):
             x = x_of(t)
             label = datetime.fromtimestamp(t).strftime(fmt)
@@ -3557,29 +3567,40 @@ class QueueMonitorApp(tk.Tk):
             if 0 < idx < len(tick_times) - 1:
                 canvas.create_line(x, y0, x, y1, fill=UI_GRAPH_GRID)
 
-        # Minor X ticks: minute marks (short); coarser steps if the window is too narrow to separate them.
+        # Minor X ticks: minute-scale marks on the axis only; spacing adapts so ticks do not pile up.
         span_sec = t1 - t0
         if span_sec > 1e-6:
-            px_per_min = plot_w / (span_sec / 60.0)
+            major_xs = [x_of(float(tv)) for tv in tick_times]
+            minor_candidates = (60, 120, 300, 600, 900, 1800, 3600, 7200)
             minor_step_sec = 60.0
-            if px_per_min < 3.0:
-                minor_step_sec = 300.0
-            if px_per_min < 0.5:
-                minor_step_sec = 900.0
-            m_start = math.ceil(t0 / minor_step_sec) * minor_step_sec
-            m = m_start
-            major_x_approx: list[float] = [x_of(float(tv)) for tv in tick_times]
+            for step in minor_candidates:
+                minor_step_sec = float(step)
+                n_divs = span_sec / minor_step_sec
+                if n_divs < 1.5:
+                    continue
+                px_per_div = plot_w / n_divs
+                if px_per_div >= 5.0:
+                    break
+            else:
+                minor_step_sec = max(60.0, span_sec / max(1.0, plot_w / 5.0))
 
-            def _near_major(xm: float) -> bool:
-                for xa in major_x_approx:
-                    if abs(xm - xa) <= 2.5:
+            major_clear_px = 6.0
+
+            def _too_close_to_major(xm: float) -> bool:
+                for xa in major_xs:
+                    if abs(xm - xa) <= major_clear_px:
                         return True
                 return False
 
+            m_start = math.ceil(t0 / minor_step_sec) * minor_step_sec
+            m = m_start
+            last_minor_x: Optional[float] = None
             while m <= t1 + 1e-6:
                 xm = x_of(m)
-                if x0 <= xm <= x1 and not _near_major(xm):
-                    canvas.create_line(xm, y1, xm, y1 + 3, fill=UI_GRAPH_MINOR_TICK, width=1)
+                if x0 <= xm <= x1 and not _too_close_to_major(xm):
+                    if last_minor_x is None or abs(xm - last_minor_x) >= 4.0:
+                        canvas.create_line(xm, y1, xm, y1 + 3, fill=UI_GRAPH_MINOR_TICK, width=1)
+                        last_minor_x = xm
                 m += minor_step_sec
 
         canvas.create_text(x0 + 6, y0 + 6, anchor="nw", text=f"min {vmin}  max {vmax}", fill=text_color)
