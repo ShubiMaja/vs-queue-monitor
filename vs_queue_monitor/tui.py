@@ -363,7 +363,11 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         CSS = """
     Screen { align: left top; }
+    #top_path_panel { height: auto; width: 100%; border: solid $primary; }
+    #top_path_title { height: auto; padding: 0 1; color: $text-muted; }
     #pathrow { height: auto; width: 100%; }
+    #top_metrics_panel { height: auto; width: 100%; border: solid $primary; }
+    #top_metrics_title { height: auto; padding: 0 1; color: $text-muted; }
     #metrics { height: auto; min-height: 7; width: 100%; }
     #graph_panel { height: 1fr; width: 100%; border: solid $primary; }
     #graph_title { height: auto; padding: 0 1; color: $text-muted; }
@@ -401,11 +405,15 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._info_collapsed: bool = False
 
         def compose(self) -> ComposeResult:
-            with Horizontal(id="pathrow"):
-                yield Static("Logs folder: ", id="path_lbl")
-                yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
+            with Vertical(id="top_path_panel"):
+                yield Static("Logs folder", id="top_path_title")
+                with Horizontal(id="pathrow"):
+                    yield Static("Logs folder: ", id="path_lbl")
+                    yield Input(placeholder="Path (same as GUI folder picker)", id="path_input")
 
-            yield Static("", id="metrics")
+            with Vertical(id="top_metrics_panel"):
+                yield Static("Status", id="top_metrics_title")
+                yield Static("", id="metrics")
             with Vertical(id="graph_panel"):
                 yield Static("Queue graph", id="graph_title")
                 yield Static("", id="graph")
