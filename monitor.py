@@ -1699,7 +1699,7 @@ class QueueMonitorApp(tk.Tk):
             pass
 
     def open_settings(self) -> None:
-        """Polling, Warnings Alerts, Completion Alerts, prediction — gear entry."""
+        """Polling, Warning Alerts, Completion Alerts, prediction — gear entry."""
         if self._settings_win is not None:
             try:
                 if self._settings_win.winfo_exists():
@@ -1728,7 +1728,7 @@ class QueueMonitorApp(tk.Tk):
         ttk.Label(poll_fr, text="Poll (s)").grid(row=0, column=0, sticky="w", padx=(0, 8))
         ttk.Entry(poll_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=1, sticky="w")
 
-        warn_fr = ttk.LabelFrame(outer, text="Warnings Alerts", padding=(10, 8))
+        warn_fr = ttk.LabelFrame(outer, text="Warning Alerts", padding=(10, 8))
         warn_fr.pack(fill="x", pady=(0, 8))
         warn_fr.columnconfigure(1, weight=1)
 
