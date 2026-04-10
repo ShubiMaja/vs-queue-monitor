@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.12
+Version: 1.0.13
 
 Cross-platform Tkinter app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
@@ -41,7 +41,7 @@ try:
 except Exception:  # pragma: no cover
     winsound = None
 
-VERSION = "1.0.12"
+VERSION = "1.0.13"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"
@@ -1531,7 +1531,7 @@ class QueueMonitorApp(tk.Tk):
         outer = ttk.Frame(self, padding=(12, 12), style="App.TFrame")
         outer.pack(fill="both", expand=True)
 
-        # Top: play/stop + one line: label, path entry, browse, settings (no separator — avoids bright rule on Windows).
+        # Top: play/stop + one line: label, path entry, file/folder browse, settings (no separator — avoids bright rule on Windows).
         top = ttk.Frame(
             outer,
             style="Card.TFrame",
@@ -1565,8 +1565,10 @@ class QueueMonitorApp(tk.Tk):
 
         path_actions = ttk.Frame(path_row, style="Card.TFrame")
         path_actions.grid(row=0, column=1, sticky="e")
-        self._btn_browse = ttk.Button(path_actions, text="Browse…", command=self.browse_log_source)
-        self._btn_browse.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
+        self._btn_browse_file = ttk.Button(path_actions, text="File…", command=self.browse_log_file)
+        self._btn_browse_file.pack(side="left", padx=(0, 4))
+        self._btn_browse_folder = ttk.Button(path_actions, text="Folder…", command=self.browse_log_folder)
+        self._btn_browse_folder.pack(side="left", padx=(0, UI_INNER_PAD_Y_SM))
         self._loading_spinner = ttk.Progressbar(path_actions, mode="indeterminate", length=120)
         self._settings_btn = ttk.Button(
             path_actions,
@@ -2653,8 +2655,8 @@ class QueueMonitorApp(tk.Tk):
             self.source_path_var.set(raw)
         self.after(0, self._try_start_after_browse)
 
-    def browse_log_source(self) -> None:
-        """Pick a log file, or cancel and choose a folder (newest matching .log is resolved from folders)."""
+    def browse_log_file(self) -> None:
+        """Pick a log file directly."""
         initialdir = browse_initialdir_from_path(self.source_path_var.get())
         selected = filedialog.askopenfilename(
             parent=self,
@@ -2667,10 +2669,13 @@ class QueueMonitorApp(tk.Tk):
         )
         if selected:
             self._apply_browsed_log_path(selected)
-            return
+
+    def browse_log_folder(self) -> None:
+        """Pick a folder; resolve_log_file finds client-main.log or another matching .log."""
+        initialdir = browse_initialdir_from_path(self.source_path_var.get())
         selected = filedialog.askdirectory(
             parent=self,
-            title="Select folder to search",
+            title="Select folder to search for client log",
             initialdir=initialdir,
         )
         if selected:
@@ -2775,8 +2780,8 @@ class QueueMonitorApp(tk.Tk):
             resolved = resolve_log_file(self.source_path_var.get())
             if not resolved:
                 raise ValueError(
-                    "Could not find a log file. Check the path, use Browse… to pick a log file or a folder "
-                    "that contains a .log file."
+                    "Could not find a log file. Check the path, or use File… / Folder… to pick a log file "
+                    "or a folder that contains a matching .log."
                 )
 
             try:
@@ -3408,9 +3413,10 @@ class QueueMonitorApp(tk.Tk):
         bt(self.start_stop_button, "Start or stop monitoring.")
         bt(self._lbl_log_path, "Client log file or folder.")
         bt(self._path_entry, "File or folder path.")
+        bt(self._btn_browse_file, "Choose a client log file (.log).")
         bt(
-            self._btn_browse,
-            "Pick a log file, or cancel to pick a folder (newest .log is used).",
+            self._btn_browse_folder,
+            "Choose a folder (e.g. VintagestoryData); the app picks the right .log inside.",
         )
         bt(self._settings_btn, "Settings")
         bt(self._loading_spinner, "Loading…")
