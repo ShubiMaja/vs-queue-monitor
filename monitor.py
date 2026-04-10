@@ -1712,7 +1712,7 @@ class QueueMonitorApp(tk.Tk):
             pass
 
     def open_settings(self) -> None:
-        """Polling, Warning Alerts, Completion Alerts, prediction — gear entry."""
+        """Polling, Warning Alerts, Completion Alerts, History, prediction — gear entry."""
         if self._settings_win is not None:
             try:
                 if self._settings_win.winfo_exists():
@@ -1770,9 +1770,6 @@ class QueueMonitorApp(tk.Tk):
         _cb_warn_snd = ttk.Checkbutton(checks1, text="Warning sound", variable=self.sound_enabled_var)
         _cb_warn_snd.pack(side="left", padx=(0, 14))
         self._bind_static_tooltip(_cb_warn_snd, "Sound when crossing a warning threshold.")
-        _cb_log_every = ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var)
-        _cb_log_every.pack(side="left", padx=(0, 0))
-        self._bind_static_tooltip(_cb_log_every, "History: log every queue line; off = only crosses and milestones.")
 
         _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
         _lbl_warn_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
@@ -1827,6 +1824,20 @@ class QueueMonitorApp(tk.Tk):
         self._bind_static_tooltip(_comp_entry, "Completion sound file.")
         self._bind_static_tooltip(_comp_browse, "Pick a completion sound file.")
         self._bind_static_tooltip(_comp_preview, "Preview completion sound (ignores checkbox).")
+
+        history_fr = ttk.LabelFrame(outer, text="History", padding=(10, 8))
+        history_fr.pack(fill="x", pady=(0, 8))
+        checks_hist = ttk.Frame(history_fr, style="Card.TFrame")
+        checks_hist.pack(anchor="w")
+        _cb_show_hist = ttk.Checkbutton(checks_hist, text="Show History panel", variable=self.show_log_var)
+        _cb_show_hist.pack(side="left", padx=(0, 14))
+        self._bind_static_tooltip(
+            _cb_show_hist,
+            "Bottom session log: expanded vs header-only (same as the History bar).",
+        )
+        _cb_log_every = ttk.Checkbutton(checks_hist, text="Log every position change", variable=self.show_every_change_var)
+        _cb_log_every.pack(side="left", padx=(0, 0))
+        self._bind_static_tooltip(_cb_log_every, "Log each queue line; off = only crosses and milestones.")
 
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
@@ -2989,7 +3000,7 @@ class QueueMonitorApp(tk.Tk):
         bt(self._path_entry, "Path to the log or folder.")
         bt(self._btn_browse_file, "Pick a log file and start (restarts if already running).")
         bt(self._btn_browse_folder, "Pick a folder; newest matching .log is used, then start.")
-        bt(self._settings_btn, "Poll interval, alerts, sounds, prediction window.")
+        bt(self._settings_btn, "Poll, alerts, sounds, history, prediction window.")
         bt(self._loading_spinner, "Loading log…")
         bt(self._graph_labelframe, "Queue position over time.")
         bt(self._lbl_kpi_position, "Caption: queue position.")

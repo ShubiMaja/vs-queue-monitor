@@ -238,9 +238,10 @@ The status string reflects tail-of-log classification, for example:
 ### Settings (gear)
 
 - **Polling** — **Poll (s)** between log reads.
-- **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file** / **Log every position change**.
+- **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
 - **Completion Alerts** — **on/off only** at queue front (≤1, no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
-- **Window (points)** — rolling **prediction window** size for weighted rate / ETA.
+- **History** — **Show History panel** (expanded log vs header-only) and **Log every position change** (verbose vs milestones-only lines).
+- **Prediction** — **Window (points)**: rolling window size for weighted rate / ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
 
