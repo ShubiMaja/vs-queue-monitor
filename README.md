@@ -18,6 +18,18 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 - **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
 - **Textual** (pip) — for the **terminal UI** path (`pip install -r requirements.txt`). The **desktop GUI** uses Tk only; Textual is not loaded when you run the GUI.
 
+### Project layout
+
+| Path | Role |
+|------|------|
+| `vs_queue_monitor/core.py` | Parsing, config, log I/O — **no UI** |
+| `vs_queue_monitor/gui.py` | Tk desktop UI (`QueueMonitorApp`) |
+| `vs_queue_monitor/cli.py` | CLI (`--gui` / `--tui`) and startup |
+| `vs_queue_monitor/tui.py` | Textual terminal UI |
+| `monitor.py` | Thin entrypoint; same as `python -m vs_queue_monitor` |
+
+The terminal UI uses the **same** `QueueMonitorApp` queue logic as the GUI (a withdrawn Tk root updated on a timer) so behavior stays identical without maintaining two parsers. Settings from the TUI still open the **Tk** settings window (**o**).
+
 ## Quick start
 
 Two steps (once to install deps, then run any time):
@@ -27,7 +39,7 @@ pip install -r requirements.txt
 python3 monitor.py
 ```
 
-On Windows use `python` or `py` instead of `python3` if needed.
+Equivalent: `python3 -m vs_queue_monitor`. On Windows use `python` or `py` instead of `python3` if needed.
 
 **UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
 
@@ -314,7 +326,7 @@ Typical keys:
 ## Development
 
 ```bash
-python -m py_compile monitor.py
+python -m compileall monitor.py vs_queue_monitor
 ```
 
 **AI / Cursor:** This repo’s `.cursor/rules/git-commit.mdc` expects **README updates in the same commit** whenever a change affects user-facing behavior, CLI, configuration, or docs — before committing.
