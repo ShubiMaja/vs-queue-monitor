@@ -1738,16 +1738,28 @@ class QueueMonitorApp(tk.Tk):
 
         poll_fr = ttk.LabelFrame(outer, text="Polling", padding=(10, 8))
         poll_fr.pack(fill="x", pady=(0, 8))
-        ttk.Label(poll_fr, text="Poll (s)").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(poll_fr, width=6, textvariable=self.poll_sec_var).grid(row=0, column=1, sticky="w")
+        _poll_lbl = ttk.Label(poll_fr, text="Poll (s)")
+        _poll_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        _poll_entry = ttk.Entry(poll_fr, width=6, textvariable=self.poll_sec_var)
+        _poll_entry.grid(row=0, column=1, sticky="w")
+        self._bind_static_tooltip(_poll_lbl, "Seconds between reading the log file.")
+        self._bind_static_tooltip(_poll_entry, "Seconds between reading the log file.")
 
         warn_fr = ttk.LabelFrame(outer, text="Warning Alerts", padding=(10, 8))
         warn_fr.pack(fill="x", pady=(0, 8))
         warn_fr.columnconfigure(1, weight=1)
 
-        ttk.Label(warn_fr, text="Thresholds (comma-separated)").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(warn_fr, textvariable=self.alert_thresholds_var, width=36).grid(
-            row=0, column=1, sticky="ew", padx=(0, 12)
+        _thr_lbl = ttk.Label(warn_fr, text="Thresholds (comma-separated)")
+        _thr_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        _thr_entry = ttk.Entry(warn_fr, textvariable=self.alert_thresholds_var, width=36)
+        _thr_entry.grid(row=0, column=1, sticky="ew", padx=(0, 12))
+        self._bind_static_tooltip(
+            _thr_lbl,
+            "Queue positions; alert once each when crossing downward (e.g. 10, 5).",
+        )
+        self._bind_static_tooltip(
+            _thr_entry,
+            "Queue positions; alert once each when crossing downward (e.g. 10, 5).",
         )
 
         checks1 = ttk.Frame(warn_fr, style="Card.TFrame")
@@ -1755,12 +1767,16 @@ class QueueMonitorApp(tk.Tk):
         _cb_warn_pop = ttk.Checkbutton(checks1, text="Warning popup", variable=self.popup_enabled_var)
         _cb_warn_pop.pack(side="left", padx=(0, 14))
         self._bind_static_tooltip(_cb_warn_pop, "Popup when crossing a warning threshold downward.")
-        ttk.Checkbutton(checks1, text="Warning sound", variable=self.sound_enabled_var).pack(side="left", padx=(0, 14))
-        ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var).pack(
-            side="left", padx=(0, 0)
-        )
+        _cb_warn_snd = ttk.Checkbutton(checks1, text="Warning sound", variable=self.sound_enabled_var)
+        _cb_warn_snd.pack(side="left", padx=(0, 14))
+        self._bind_static_tooltip(_cb_warn_snd, "Sound when crossing a warning threshold.")
+        _cb_log_every = ttk.Checkbutton(checks1, text="Log every position change", variable=self.show_every_change_var)
+        _cb_log_every.pack(side="left", padx=(0, 0))
+        self._bind_static_tooltip(_cb_log_every, "History: log every queue line; off = only crosses and milestones.")
 
-        ttk.Label(warn_fr, text="Warning sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _lbl_warn_sound = ttk.Label(warn_fr, text="Warning sound file")
+        _lbl_warn_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        self._bind_static_tooltip(_lbl_warn_sound, "Custom warning sound path; OS default if empty.")
         _sound_entry = ttk.Entry(warn_fr, textvariable=self.alert_sound_path_var)
         _sound_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _sound_actions = ttk.Frame(warn_fr, style="Card.TFrame")
@@ -1776,12 +1792,17 @@ class QueueMonitorApp(tk.Tk):
         comp_fr = ttk.LabelFrame(outer, text="Completion Alerts", padding=(10, 8))
         comp_fr.pack(fill="x", pady=(0, 8))
         comp_fr.columnconfigure(1, weight=1)
-        ttk.Label(
+        _comp_intro = ttk.Label(
             comp_fr,
             text="Fires once when you reach the front (position ≤1). Not threshold-based — only on/off below "
             "(and optional sound file).",
             wraplength=440,
-        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        )
+        _comp_intro.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        self._bind_static_tooltip(
+            _comp_intro,
+            "Separate from warning thresholds: one shot at the front (≤1), popup/sound toggles only.",
+        )
 
         checks2 = ttk.Frame(comp_fr, style="Card.TFrame")
         checks2.grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 0))
@@ -1792,7 +1813,9 @@ class QueueMonitorApp(tk.Tk):
         _cb_comp_snd.pack(side="left", padx=(0, 0))
         self._bind_static_tooltip(_cb_comp_snd, "Sound when you reach the front (≤1).")
 
-        ttk.Label(comp_fr, text="Completion sound file").grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        _lbl_comp_sound = ttk.Label(comp_fr, text="Completion sound file")
+        _lbl_comp_sound.grid(row=2, column=0, sticky="nw", padx=(0, 8), pady=(10, 0))
+        self._bind_static_tooltip(_lbl_comp_sound, "Custom completion sound path; OS default if empty.")
         _comp_entry = ttk.Entry(comp_fr, textvariable=self.completion_sound_path_var)
         _comp_entry.grid(row=2, column=1, columnspan=1, sticky="ew", padx=(0, 8), pady=(10, 0))
         _comp_actions = ttk.Frame(comp_fr, style="Card.TFrame")
@@ -1808,12 +1831,19 @@ class QueueMonitorApp(tk.Tk):
         display_fr = ttk.LabelFrame(outer, text="Prediction", padding=(10, 8))
         display_fr.pack(fill="x", pady=(0, 10))
 
-        ttk.Label(display_fr, text="Window (points)").grid(row=0, column=0, sticky="w", padx=(0, 8))
-        ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var).grid(row=0, column=1, sticky="w")
+        _win_lbl = ttk.Label(display_fr, text="Window (points)")
+        _win_lbl.grid(row=0, column=0, sticky="w", padx=(0, 8))
+        _win_entry = ttk.Entry(display_fr, width=8, textvariable=self.avg_window_var)
+        _win_entry.grid(row=0, column=1, sticky="w")
+        _avg_tip = "How many recent queue samples feed ETA / min-per-position (larger = smoother)."
+        self._bind_static_tooltip(_win_lbl, _avg_tip)
+        self._bind_static_tooltip(_win_entry, _avg_tip)
 
         bottom = ttk.Frame(outer, style="Card.TFrame")
         bottom.pack(fill="x", pady=(8, 0))
-        ttk.Button(bottom, text="Reset defaults", command=self.reset_defaults).pack(side="left")
+        _btn_reset = ttk.Button(bottom, text="Reset defaults", command=self.reset_defaults)
+        _btn_reset.pack(side="left")
+        self._bind_static_tooltip(_btn_reset, "Restore default paths, thresholds, poll, and toggles.")
 
         def close_settings() -> None:
             try:
@@ -1830,7 +1860,9 @@ class QueueMonitorApp(tk.Tk):
             self._on_show_status_write()
             self.redraw_graph()
 
-        ttk.Button(bottom, text="Close", command=close_settings).pack(side="right")
+        _btn_close = ttk.Button(bottom, text="Close", command=close_settings)
+        _btn_close.pack(side="right")
+        self._bind_static_tooltip(_btn_close, "Save settings and close.")
         win.protocol("WM_DELETE_WINDOW", close_settings)
         win.bind("<Escape>", lambda _e: close_settings())
 
