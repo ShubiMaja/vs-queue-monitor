@@ -3766,12 +3766,16 @@ class QueueMonitorApp(tk.Tk):
         self.last_alert_position = position
         self.last_alert_epoch = now
         self.last_alert_var.set(time.strftime("%Y-%m-%d %H:%M:%S"))
-        self.write_history(f"Threshold alert: position {position} ({reason})")
+
+        sec_rem = self.estimate_seconds_remaining()
+        eta_display = self.format_duration_remaining(sec_rem) if sec_rem is not None else "—"
+        hist_extra = f"; est. remaining {eta_display}" if sec_rem is not None else ""
+        self.write_history(f"Threshold alert: position {position} ({reason}){hist_extra}")
 
         if self.sound_enabled_var.get():
             self.play_sound()
         if self.popup_enabled_var.get():
-            self.show_popup(position, reason)
+            self.show_popup(position, reason, eta_display)
 
     def play_sound(self) -> None:
         """Threshold / warning alert sound."""
@@ -3829,8 +3833,8 @@ class QueueMonitorApp(tk.Tk):
         if want_popup:
             self.show_completion_popup(position)
 
-    def show_popup(self, position: int, reason: str) -> None:
-        """Threshold / warning popup (downward crossings)."""
+    def show_popup(self, position: int, reason: str, eta_display: str) -> None:
+        """Threshold / warning popup (downward crossings). eta_display: formatted est. remaining or —."""
         if self.active_popup is not None and self.active_popup.winfo_exists():
             try:
                 self.active_popup.destroy()
@@ -3874,6 +3878,15 @@ class QueueMonitorApp(tk.Tk):
             wraplength=360,
             bg=UI_BG_CARD,
             fg=UI_TEXT_PRIMARY,
+        ).pack(anchor="w", pady=(0, 6))
+        tk.Label(
+            txt,
+            text=f"Est. remaining: {eta_display}",
+            justify="left",
+            wraplength=360,
+            bg=UI_BG_CARD,
+            fg=UI_ACCENT_REMAINING,
+            font=("TkDefaultFont", 11, "bold"),
         ).pack(anchor="w", pady=(0, 12))
         ttk.Button(popup, text="Dismiss", command=popup.destroy).pack(anchor="e")
 
