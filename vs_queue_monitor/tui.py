@@ -27,7 +27,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         from textual.app import App, ComposeResult
         from textual.binding import Binding
         from textual.containers import Horizontal, Vertical
-        from textual.widgets import Footer, Header, Input, RichLog, Static
+        from textual.screen import ModalScreen
+        from textual.widgets import Button, Footer, Header, Input, RichLog, Static
     except ImportError:
         print(
             "Terminal UI requires Textual. Install: pip install -r requirements.txt",
@@ -298,6 +299,57 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             except Exception:
                 pass
 
+        class _SettingsScreen(ModalScreen[None]):
+            DEFAULT_CSS = """
+            _SettingsScreen {
+              align: center middle;
+            }
+            _SettingsScreen > #dlg {
+              width: 90%;
+              max-width: 100;
+              border: solid $primary;
+              padding: 1 2;
+              background: $panel;
+            }
+            _SettingsScreen > #dlg_title {
+              width: 90%;
+              max-width: 100;
+              padding: 0 2;
+              color: $text-muted;
+            }
+            """
+
+            def __init__(self, engine: QueueMonitorEngine) -> None:
+                super().__init__()
+                self._engine = engine
+
+            def compose(self) -> ComposeResult:
+                from .core import get_config_path
+
+                cfg_path = str(get_config_path())
+                snap = self._engine.get_config_snapshot()
+                lines = [
+                    "Settings (TUI)",
+                    "",
+                    "This terminal UI doesn't have the full GUI settings window yet.",
+                    "You can still edit the config file directly or run the GUI.",
+                    "",
+                    f"Config file: {cfg_path}",
+                    "",
+                    "Quick actions:",
+                    f"- Logs folder: {snap.get('source_path', '')}",
+                    f"- Thresholds: {snap.get('alert_thresholds', '')}",
+                    f"- Poll sec: {snap.get('poll_sec', '')}",
+                    "",
+                    "Keys: h/l = History, g = Graph, m = Metrics, p = Path row, q = Quit",
+                ]
+                yield Static("\n".join(lines), id="dlg")
+                yield Button("Close", id="close", variant="primary")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "close":
+                    self.app.pop_screen()
+
         def on_mount(self) -> None:
             hooks = HeadlessMonitorHooks(None)
             hooks.textual_app = self
@@ -445,7 +497,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         def action_open_settings(self) -> None:
             eng = self._engine
             if eng is not None:
-                eng._hooks.open_settings_ui()
+                self.push_screen(self._SettingsScreen(eng))
 
         def action_refresh_view(self) -> None:
             self._refresh_metrics()
