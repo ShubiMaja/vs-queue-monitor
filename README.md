@@ -187,7 +187,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Graph pane (top)
 
-- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (**Last N** — minutes per position from the prediction **window** in Settings, e.g. `Last 10: 6.20 min/pos`), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
+- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (**tN** — minutes per position from the prediction **window** in Settings; **N** is the window size, e.g. `t10: 6.20 min/pos`), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
 - **Chart:** step plot of queue position vs time (**0** = past queue wait); hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
@@ -216,7 +216,7 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 ### ETA, rate, and progress
 
 - **EST. REMAINING** uses position and a **speed model**: empirical throughput from recent log updates when possible, otherwise a **recency-weighted** estimate from the prediction **window** (points). At **position 1** (at the front) it still shows an ETA by treating **one** remaining step to connecting; it is only an estimate — the log may repeat **1** for a long time.
-- **Minutes per position** is labeled **Last N** under KPI **Rate** (window / dwell model; N = **Prediction window** in Settings); the full-graph average stays under **Info → Global Rate**. Dwell caps apply to the windowed KPI line. At **position 0** (queue finished), **Rate** and **Global Rate** stay fixed — derived from log timestamps only, not a clock that keeps running after you finish.
+- **Minutes per position** is labeled **tN** under KPI **Rate** (window / dwell model; **N** = **Prediction window** in Settings); the full-graph average stays under **Info → Global Rate**. Dwell caps apply to the windowed KPI line. At **position 0** (queue finished), **Rate** and **Global Rate** stay fixed — derived from log timestamps only, not a clock that keeps running after you finish.
 - **Progress** bar uses elapsed ÷ (elapsed + estimated remaining) when both are known; caps below **100%** while at **position 1** (at front) until the log shows past-queue-wait activity; **100%** once **position 0** is shown; empty when interrupted or ETA unknown.
 - **Stale queue detection:** if no new queue lines arrive for too long relative to the expected update cadence, the run can be treated as **Interrupted**.
 
