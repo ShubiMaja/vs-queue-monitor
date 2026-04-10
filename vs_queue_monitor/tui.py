@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from typing import Optional
 
 from . import APP_DISPLAY_NAME, VERSION
-from .core import DEFAULT_PATH, save_config
+from .core import DEFAULT_PATH, GRAPH_LOG_GAMMA, save_config
 from .engine import QueueMonitorEngine
 from .hooks import HeadlessMonitorHooks
 
@@ -24,19 +25,51 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         )
         return 1
 
-    def _sparkline(points: list[tuple[float, int]], width: int = 56) -> str:
+    def _sparkline(points: list[tuple[float, int]], *, width: int = 56, log_scale: bool = True) -> str:
         if len(points) < 2:
             return "—"
-        ys = [p for _t, p in points]
-        if len(ys) > width:
-            ys = ys[-width:]
+
+        # Match the GUI: treat samples as a step function (hold value until next sample time).
+        # We don't have pixel widths here; we approximate by duplicating changes.
+        step_vals: list[int] = []
+        prev: Optional[int] = None
+        for _t, p in points:
+            v = int(p)
+            if prev is None:
+                step_vals.append(v)
+                prev = v
+                continue
+            if v != prev:
+                step_vals.append(prev)
+            step_vals.append(v)
+            prev = v
+
+        ys = step_vals[-width:] if len(step_vals) > width else step_vals
         lo, hi = min(ys), max(ys)
         blocks = "▁▂▃▄▅▆▇█"
         if hi == lo:
             return "█" * len(ys)
+
+        # Match GUI y-mapping:
+        # - linear: proportional across [lo..hi]
+        # - log: apply log(·+1) and gamma so low values have more resolution
+        def frac_for(v: int) -> float:
+            vv = max(lo, min(hi, int(v)))
+            if not log_scale:
+                return (float(vv) - float(lo)) / (float(hi) - float(lo))
+            lvmin = math.log(float(lo) + 1.0)
+            lvmax = math.log(float(hi) + 1.0)
+            lv = math.log(float(vv) + 1.0)
+            if lvmax <= lvmin:
+                frac = 0.0
+            else:
+                frac = (lv - lvmin) / (lvmax - lvmin)
+            frac = max(0.0, min(1.0, frac))
+            return frac**GRAPH_LOG_GAMMA
+
         out: list[str] = []
         for y in ys:
-            frac = (float(y) - float(lo)) / (float(hi) - float(lo))
+            frac = frac_for(int(y))
             out.append(blocks[min(7, max(0, int(frac * 8.0)))])
         return "".join(out)
 
@@ -106,7 +139,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 n_roll = eng._rolling_window_points_int()
                 hdr = f"RATE (Rolling {n_roll})"
                 pts = list(eng.graph_points)
-                spark = _sparkline(pts)
+                spark = _sparkline(pts, width=56, log_scale=bool(eng.graph_log_scale_var.get()))
                 prog = float(getattr(eng, "_queue_progress_value", 0.0))
                 text = (
                     f"[bold]{APP_DISPLAY_NAME}[/] v{VERSION}  (headless engine, no Tk)\n\n"
