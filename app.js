@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.91";
+const APP_VERSION = "2.0.92";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -23,6 +23,7 @@ const ui = {
   btnClear: $("btnClear"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
+  btnNotifyPill: $("btnNotifyPill"),
   notifyHint: $("notifyHint"),
   btnSaveSettings: $("btnSaveSettings"),
   btnCancelSettings: $("btnCancelSettings"),
@@ -152,6 +153,64 @@ function syncNotifyButtonUi() {
 }
 
 syncNotifyButtonUi();
+
+let _baseTitle = document.title || "VS Queue Monitor";
+let _attentionActive = false;
+function setAttentionBadge(prefix) {
+  try {
+    if (!_baseTitle) _baseTitle = document.title || "VS Queue Monitor";
+    const p = String(prefix || "!");
+    document.title = `(${p}) ${_baseTitle}`;
+    _attentionActive = true;
+  } catch {
+    // ignore
+  }
+}
+function clearAttentionBadge() {
+  if (!_attentionActive) return;
+  try {
+    document.title = _baseTitle;
+  } catch {
+    // ignore
+  }
+  _attentionActive = false;
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") clearAttentionBadge();
+});
+document.addEventListener("click", () => clearAttentionBadge(), { capture: true });
+
+function syncNotifyPill() {
+  const pill = ui.btnNotifyPill;
+  if (!pill) return;
+  try {
+    if (!("Notification" in window)) {
+      pill.hidden = false;
+      pill.className = "pill pill--danger";
+      pill.textContent = "Desktop notifications: unsupported";
+      return;
+    }
+    const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+    if (!secure) {
+      pill.hidden = false;
+      pill.className = "pill pill--warn";
+      pill.textContent = "Desktop notifications: open via localhost";
+      return;
+    }
+    const p = Notification.permission;
+    if (p !== "granted") {
+      pill.hidden = false;
+      pill.className = "pill pill--warn";
+      pill.textContent = "Desktop notifications: off";
+      return;
+    }
+    pill.hidden = true;
+  } catch {
+    pill.hidden = true;
+  }
+}
+
+syncNotifyPill();
 
 // -----------------------------
 // Inline editing (settings)
@@ -2846,6 +2905,7 @@ function raiseAlert(position, reason) {
   const now = Date.now() / 1000;
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
   lastAlertEpoch = now;
+  if (document.visibilityState !== "visible") setAttentionBadge("!");
   bumpWarningsMarquee(12);
   // If the thresholds overflow the KPI cell, pan to the newly-hit milestone.
   autoPanWarningsToLatestHit();
@@ -2889,6 +2949,7 @@ function maybeNotifyCompletion(position, tailText) {
   lastCompletionNotifyEpoch = now;
   appendHistory("Queue completion: past queue wait — connecting (position 0).");
   ui.infoLastAlert.textContent = `${nowStamp()} · queue complete`;
+  if (document.visibilityState !== "visible") setAttentionBadge("✓");
   beep("completion");
   if (wantPopup) {
     const msg = "Past queue wait detected — connecting or loading.";
@@ -2970,6 +3031,7 @@ function enterInterruptedState(detail) {
   appendHistory(`Queue interrupted; still watching the log. (${detail})`);
 
   // Separate alert channel for disconnects/interrupts.
+  if (document.visibilityState !== "visible") setAttentionBadge("×");
   notifyDesktop("interrupt", "VS Queue Monitor — interrupted", detail);
   beep("interrupt");
 }
@@ -3995,6 +4057,7 @@ ui.btnRequestNotify.addEventListener("click", async () => {
       { durationMs: 14000 },
     );
     syncNotifyButtonUi();
+    syncNotifyPill();
     return;
   }
   if (Notification.permission === "denied") {
@@ -4021,6 +4084,16 @@ ui.btnRequestNotify.addEventListener("click", async () => {
     showToast("Notifications not granted", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
   }
   syncNotifyButtonUi();
+  syncNotifyPill();
+});
+
+ui.btnNotifyPill?.addEventListener("click", () => {
+  try {
+    if (ui.btnRequestNotify && !ui.btnRequestNotify.disabled) ui.btnRequestNotify.click();
+    else desktopNotifyCapabilityHint();
+  } catch {
+    // ignore
+  }
 });
 
 ui.btnSaveSettings.addEventListener("click", () => {
