@@ -101,6 +101,13 @@ body{
 .btn:disabled{opacity:0.55;cursor:not-allowed}
 .btn--small{padding:6px 9px;font-size:12px;border-radius:9px}
 .btn--secondary{background:rgba(46,55,66,0.6)}
+.btn--icon{
+  width:38px;
+  padding:9px 0;
+  text-align:center;
+  font-family:var(--mono);
+  font-weight:800;
+}
 .btn--primary{
   background:var(--btn-primary);
   border-color:rgba(31,136,61,0.65);
@@ -209,6 +216,79 @@ body{
 .link:hover{text-decoration:underline}
 
 .danger{color:var(--danger)!important}
+
+.toastHost{
+  position:fixed;
+  top:14px;
+  right:14px;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  pointer-events:none;
+}
+.toast{
+  pointer-events:auto;
+  min-width:240px;
+  max-width:380px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(46,55,66,0.95);
+  background:rgba(24,27,31,0.96);
+  color:var(--text);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  font-size:13px;
+  line-height:1.35;
+}
+.toast--error{border-color:rgba(242,73,92,0.7)}
+.toast__title{font-weight:800;margin-bottom:4px}
+.toast__body{color:var(--text)}
+
+.overlay{
+  position:fixed;
+  inset:0;
+  z-index:60;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,0.55);
+}
+.modal{
+  width:min(820px, 100%);
+  max-height:min(80vh, 820px);
+  overflow:auto;
+  border-radius:14px;
+  border:1px solid rgba(46,55,66,0.95);
+  background:var(--bg-card);
+}
+.modal__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 12px;
+  border-bottom:1px solid var(--sep);
+  background:rgba(13,15,20,0.35);
+  position:sticky;
+  top:0;
+}
+.modal__title{font-weight:800;font-size:13px}
+.modal__body{padding:14px 14px 18px}
+.modal__sectionTitle{font-weight:800;color:var(--muted);font-size:12px;letter-spacing:0.4px;margin-top:14px}
+.modal__sectionTitle:first-child{margin-top:0}
+.modal__text{margin-top:8px;color:var(--text);font-size:13px;line-height:1.45}
+.code{
+  margin:10px 0 0;
+  padding:10px 12px;
+  background:rgba(13,15,18,0.85);
+  border:1px solid rgba(46,55,66,0.95);
+  border-radius:12px;
+  font-family:var(--mono);
+  font-size:12px;
+  overflow:auto;
+}
+.mono{font-family:var(--mono)}
     </style>
   </head>
   <body>
@@ -222,9 +302,47 @@ body{
         <button id="btnPickFolder" class="btn btn--secondary" title="Folder picking is optional and may be unavailable under file://">
           Pick folder…
         </button>
+        <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
         <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
       </div>
     </header>
+
+    <div id="toastHost" class="toastHost" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="helpOverlay" class="overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="modal__header">
+          <div id="helpTitle" class="modal__title">VS Queue Monitor — Help</div>
+          <button id="btnHelpClose" class="btn btn--secondary btn--icon" title="Close">×</button>
+        </div>
+        <div class="modal__body">
+          <div class="modal__sectionTitle">Live tail requirements</div>
+          <div class="modal__text">
+            Live tail requires Edge/Chrome with the File System Access API. The app polls the picked log file handle and reads new bytes as it grows.
+          </div>
+
+          <div class="modal__sectionTitle">Picker blocked by “system files”</div>
+          <div class="modal__text">
+            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a junction/symlink, then pick the exposed path.
+          </div>
+
+          <div class="modal__sectionTitle">Windows (junction via Documents)</div>
+          <pre class="code">mkdir "%USERPROFILE%\\Documents\\VintagestoryData"
+mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"</pre>
+          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log</span></div>
+
+          <div class="modal__sectionTitle">Linux (symlink into ~/VSLogs)</div>
+          <pre class="code">mkdir -p ~/VSLogs
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</pre>
+          <div class="modal__text">Then pick: <span class="mono">~/VSLogs/client-main.log</span></div>
+
+          <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
+          <div class="modal__text">
+            For security, browsers don’t reveal the exact filesystem path you attempted to pick when access is blocked. The commands above use typical Vintage Story locations; replace the source path if yours differs.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <main class="layout">
       <section class="card kpis">
@@ -382,19 +500,23 @@ body{
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const ui = {
   btnPickLog: $("btnPickLog"),
   btnPickFolder: $("btnPickFolder"),
+  btnHelp: $("btnHelp"),
+  btnHelpClose: $("btnHelpClose"),
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnClear: $("btnClear"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
   btnSaveSettings: $("btnSaveSettings"),
+  toastHost: $("toastHost"),
+  helpOverlay: $("helpOverlay"),
   graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
   graphHint: $("graphHint"),
 
@@ -427,6 +549,52 @@ const ui = {
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function showToast(title, body = "", kind = "info") {
+  const host = ui.toastHost;
+  if (!host) return;
+  const el = document.createElement("div");
+  el.className = `toast ${kind === "error" ? "toast--error" : ""}`.trim();
+  el.innerHTML =
+    `<div class="toast__title">${escapeHtml(String(title))}</div>` +
+    (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "");
+  host.appendChild(el);
+  window.setTimeout(() => {
+    try { el.remove(); } catch {}
+  }, 2400);
+}
+
+function openHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = false;
+  try { ui.btnHelpClose?.focus(); } catch {}
+}
+
+function closeHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = true;
+  try { ui.btnHelp?.focus(); } catch {}
+}
+
+function wireHelpOverlay() {
+  ui.btnHelp?.addEventListener("click", () => openHelp());
+  ui.btnHelpClose?.addEventListener("click", () => closeHelp());
+  ui.helpOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.helpOverlay) closeHelp();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
+  });
+}
 
 const QUEUE_RE = new RegExp(
   "(?:" +
@@ -861,6 +1029,7 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
+      showToast("Picker tip", "If blocked by “system files”, click ? for workaround.");
       if (isWin) {
         appendHistory("Windows workaround (junction via Documents):");
         appendHistory('  mkdir \"%USERPROFILE%\\\\Documents\\\\VintagestoryData\"');
@@ -898,6 +1067,7 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
+      showToast("Pick cancelled", "No file was selected.");
       return;
     }
     const looksBlocked =
@@ -909,6 +1079,7 @@ async function pickLogFile() {
       low.includes("permission");
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
+      showToast("Picker blocked", "Browser denied access (protected/system location). Click ? for help.", "error");
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can only provide a best-guess command. If your Vintage Story data/logs live elsewhere, replace the source path below.");
       appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
       appendHistory('  mkdir \"%USERPROFILE%\\\\Documents\\\\VintagestoryData\"');
@@ -923,6 +1094,7 @@ async function pickLogFile() {
       return;
     }
     appendHistory(`Pick log failed: ${msg}`);
+    showToast("Pick failed", msg, "error");
     return;
   }
   logFileHandle = handle ?? null;
@@ -947,9 +1119,11 @@ async function pickFolder() {
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
+      showToast("Pick cancelled", "No folder was selected.");
       return;
     }
     appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
+    showToast("Pick failed", "Folder access was blocked. Pick the log file instead.", "error");
     return;
   }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
@@ -1645,6 +1819,7 @@ syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory("VS Queue Monitor ready. Pick your client log and press Start.");
+wireHelpOverlay();
 
 try {
   const isFile = String(window.location && window.location.protocol) === "file:";

@@ -89,6 +89,13 @@ body{
 .btn:disabled{opacity:0.55;cursor:not-allowed}
 .btn--small{padding:6px 9px;font-size:12px;border-radius:9px}
 .btn--secondary{background:rgba(46,55,66,0.6)}
+.btn--icon{
+  width:38px;
+  padding:9px 0;
+  text-align:center;
+  font-family:var(--mono);
+  font-weight:800;
+}
 .btn--primary{
   background:var(--btn-primary);
   border-color:rgba(31,136,61,0.65);
@@ -197,4 +204,78 @@ body{
 .link:hover{text-decoration:underline}
 
 .danger{color:var(--danger)!important}
+
+.toastHost{
+  position:fixed;
+  top:14px;
+  right:14px;
+  z-index:50;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  pointer-events:none;
+}
+.toast{
+  pointer-events:auto;
+  min-width:240px;
+  max-width:380px;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(46,55,66,0.95);
+  background:rgba(24,27,31,0.96);
+  color:var(--text);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  font-size:13px;
+  line-height:1.35;
+}
+.toast--error{border-color:rgba(242,73,92,0.7)}
+.toast__title{font-weight:800;margin-bottom:4px}
+.toast__body{color:var(--text)}
+.toast__hint{margin-top:6px;color:var(--muted);font-size:12px}
+
+.overlay{
+  position:fixed;
+  inset:0;
+  z-index:60;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,0.55);
+}
+.modal{
+  width:min(820px, 100%);
+  max-height:min(80vh, 820px);
+  overflow:auto;
+  border-radius:14px;
+  border:1px solid rgba(46,55,66,0.95);
+  background:var(--bg-card);
+}
+.modal__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 12px;
+  border-bottom:1px solid var(--sep);
+  background:rgba(13,15,20,0.35);
+  position:sticky;
+  top:0;
+}
+.modal__title{font-weight:800;font-size:13px}
+.modal__body{padding:14px 14px 18px}
+.modal__sectionTitle{font-weight:800;color:var(--muted);font-size:12px;letter-spacing:0.4px;margin-top:14px}
+.modal__sectionTitle:first-child{margin-top:0}
+.modal__text{margin-top:8px;color:var(--text);font-size:13px;line-height:1.45}
+.code{
+  margin:10px 0 0;
+  padding:10px 12px;
+  background:rgba(13,15,18,0.85);
+  border:1px solid rgba(46,55,66,0.95);
+  border-radius:12px;
+  font-family:var(--mono);
+  font-size:12px;
+  overflow:auto;
+}
+.mono{font-family:var(--mono)}
 
