@@ -315,6 +315,9 @@ body{
 .btnWarnEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--warnings:hover .btnWarnEdit,
 .kpi--warnings:focus-within .btnWarnEdit{opacity:1;pointer-events:auto}
+.btnRateEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--rate:hover .btnRateEdit,
+.kpi--rate:focus-within .btnRateEdit{opacity:1;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
