@@ -298,6 +298,12 @@ body{
   opacity:0.65;
   filter:saturate(0.7);
 }
+#btnRequestNotify{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:0;
+}
 .btn--primary{
   background:linear-gradient(180deg, var(--btn-primary) 0%, #17803a 100%);
   border-color:rgba(46,180,95,0.55);
