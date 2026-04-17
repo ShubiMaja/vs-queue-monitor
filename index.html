@@ -165,35 +165,6 @@
         <div class="modal__body settings settings--modal">
           <div class="form">
             <div class="settingsSection">
-              <div class="settingsSection__title">Basics</div>
-              <div class="settingsSection__grid">
-                <div class="field field--wide">
-                  <div class="muted" style="margin-top:6px;line-height:1.35">
-                    Tip: refresh and AVG window are edited inline from the KPI strip (STATUS and RATE).
-                  </div>
-                </div>
-                <div class="field field--wide">
-                  <div class="label">Status refresh (seconds)</div>
-                  <div class="popover__row">
-                    <button id="btnPollSecMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease refresh seconds">−</button>
-                    <input id="inpPollSec" class="input popover__input" inputmode="decimal" placeholder="e.g. 2" />
-                    <button id="btnPollSecPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase refresh seconds">+</button>
-                  </div>
-                  <div class="muted popover__hint">Seconds ≥ 0.2. Lower = more responsive, higher = less CPU.</div>
-                </div>
-                <div class="field field--wide">
-                  <div class="label">Rate AVG window (points)</div>
-                  <div class="popover__row">
-                    <button id="btnWindowPointsMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease AVG window points">−</button>
-                    <input id="inpWindowPoints" class="input popover__input" inputmode="numeric" placeholder="e.g. 10" />
-                    <button id="btnWindowPointsPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase AVG window points">+</button>
-                  </div>
-                  <div class="muted popover__hint">Whole number ≥ 2. Higher = smoother, lower = more responsive.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="settingsSection">
               <div class="settingsSection__title">Alerts</div>
               <div class="settingsSection__grid">
                 <div class="field field--wide">
@@ -383,7 +354,25 @@
           <div id="statusRefreshPopover" class="popover" hidden>
             <div class="popover__title">Edit refresh (seconds)</div>
             <div class="popover__row">
+              <button
+                id="btnStatusRefreshMinus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Decrease"
+                aria-label="Decrease refresh seconds"
+              >
+                −
+              </button>
               <input id="inpStatusRefreshSec" class="input popover__input" inputmode="decimal" placeholder="e.g. 2" />
+              <button
+                id="btnStatusRefreshPlus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Increase"
+                aria-label="Increase refresh seconds"
+              >
+                +
+              </button>
               <button
                 id="btnStatusRefreshCancel"
                 type="button"
@@ -417,7 +406,25 @@
           <div id="rateWindowPopover" class="popover" hidden>
             <div class="popover__title">Edit AVG window (points)</div>
             <div class="popover__row">
+              <button
+                id="btnRateWindowMinus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Decrease"
+                aria-label="Decrease AVG window points"
+              >
+                −
+              </button>
               <input id="inpRateWindowPoints" class="input popover__input" inputmode="numeric" placeholder="e.g. 10" />
+              <button
+                id="btnRateWindowPlus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Increase"
+                aria-label="Increase AVG window points"
+              >
+                +
+              </button>
               <button
                 id="btnRateWindowCancel"
                 type="button"

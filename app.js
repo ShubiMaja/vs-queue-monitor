@@ -100,10 +100,10 @@ const ui = {
   inpPollSec: /** @type {HTMLInputElement|null} */ (document.getElementById("inpPollSec")),
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement|null} */ (document.getElementById("inpWindowPoints")),
-  btnPollSecMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecMinus")),
-  btnPollSecPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecPlus")),
-  btnWindowPointsMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsMinus")),
-  btnWindowPointsPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsPlus")),
+  btnStatusRefreshMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnStatusRefreshMinus")),
+  btnStatusRefreshPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnStatusRefreshPlus")),
+  btnRateWindowMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnRateWindowMinus")),
+  btnRateWindowPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnRateWindowPlus")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
   chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
@@ -671,9 +671,7 @@ function makeInlineField(inputEl, opts) {
 
 function wireSettingsInlineEditing() {
   // Numeric/text fields
-if (ui.inpPollSec) makeInlineField(ui.inpPollSec);
   if (ui.inpThresholds) makeInlineField(ui.inpThresholds);
-if (ui.inpWindowPoints) makeInlineField(ui.inpWindowPoints);
 
   // Sound URLs stay editable as-is (power users); show inline view for consistency.
   makeInlineField(ui.inpWarnSoundUrl, { format: () => ui.warnSoundSummary?.textContent || "—" });
@@ -5513,17 +5511,8 @@ function flashInput(el) {
 }
 
 function openSettingsAndEditRollingWindow() {
-  openSettings();
-  // Wait a frame so the modal is visible before scrolling/focusing.
-  requestAnimationFrame(() => {
-    focusAndReveal(ui.inpWindowPoints);
-    try {
-      ui.inpWindowPoints.select();
-    } catch {
-      // ignore
-    }
-    flashInput(ui.inpWindowPoints);
-  });
+  // Rolling window is edited inline (RATE popover), not in the Settings modal.
+  openRateWindowPopover();
 }
 
 let rateWindowEditOpen = false;
@@ -5911,11 +5900,23 @@ bindEnterToSave(ui.inpWarnSoundUrl);
 bindEnterToSave(ui.inpCompletionSoundUrl);
 bindEnterToSave(ui.inpInterruptSoundUrl);
 
-// Settings modal steppers (Status refresh + Rate AVG window)
-ui.btnPollSecMinus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) - 0.2));
-ui.btnPollSecPlus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) + 0.2));
-ui.btnWindowPointsMinus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) - 1));
-ui.btnWindowPointsPlus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) + 1));
+// Inline steppers in KPI popovers (Status refresh + Rate AVG window)
+ui.btnStatusRefreshMinus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = String(Math.max(0.2, (Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) - 0.2));
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) - 0.2);
+});
+ui.btnStatusRefreshPlus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = String((Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) + 0.2);
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) + 0.2);
+});
+ui.btnRateWindowMinus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = String(Math.max(2, (Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) - 1));
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) - 1);
+});
+ui.btnRateWindowPlus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = String((Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+});
 
 // Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [

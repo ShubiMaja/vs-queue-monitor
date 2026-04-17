@@ -1277,35 +1277,6 @@ body{
         <div class="modal__body settings settings--modal">
           <div class="form">
             <div class="settingsSection">
-              <div class="settingsSection__title">Basics</div>
-              <div class="settingsSection__grid">
-                <div class="field field--wide">
-                  <div class="muted" style="margin-top:6px;line-height:1.35">
-                    Tip: refresh and AVG window are edited inline from the KPI strip (STATUS and RATE).
-                  </div>
-                </div>
-                <div class="field field--wide">
-                  <div class="label">Status refresh (seconds)</div>
-                  <div class="popover__row">
-                    <button id="btnPollSecMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease refresh seconds">−</button>
-                    <input id="inpPollSec" class="input popover__input" inputmode="decimal" placeholder="e.g. 2" />
-                    <button id="btnPollSecPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase refresh seconds">+</button>
-                  </div>
-                  <div class="muted popover__hint">Seconds ≥ 0.2. Lower = more responsive, higher = less CPU.</div>
-                </div>
-                <div class="field field--wide">
-                  <div class="label">Rate AVG window (points)</div>
-                  <div class="popover__row">
-                    <button id="btnWindowPointsMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease AVG window points">−</button>
-                    <input id="inpWindowPoints" class="input popover__input" inputmode="numeric" placeholder="e.g. 10" />
-                    <button id="btnWindowPointsPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase AVG window points">+</button>
-                  </div>
-                  <div class="muted popover__hint">Whole number ≥ 2. Higher = smoother, lower = more responsive.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="settingsSection">
               <div class="settingsSection__title">Alerts</div>
               <div class="settingsSection__grid">
                 <div class="field field--wide">
@@ -1495,7 +1466,25 @@ body{
           <div id="statusRefreshPopover" class="popover" hidden>
             <div class="popover__title">Edit refresh (seconds)</div>
             <div class="popover__row">
+              <button
+                id="btnStatusRefreshMinus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Decrease"
+                aria-label="Decrease refresh seconds"
+              >
+                −
+              </button>
               <input id="inpStatusRefreshSec" class="input popover__input" inputmode="decimal" placeholder="e.g. 2" />
+              <button
+                id="btnStatusRefreshPlus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Increase"
+                aria-label="Increase refresh seconds"
+              >
+                +
+              </button>
               <button
                 id="btnStatusRefreshCancel"
                 type="button"
@@ -1529,7 +1518,25 @@ body{
           <div id="rateWindowPopover" class="popover" hidden>
             <div class="popover__title">Edit AVG window (points)</div>
             <div class="popover__row">
+              <button
+                id="btnRateWindowMinus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Decrease"
+                aria-label="Decrease AVG window points"
+              >
+                −
+              </button>
               <input id="inpRateWindowPoints" class="input popover__input" inputmode="numeric" placeholder="e.g. 10" />
+              <button
+                id="btnRateWindowPlus"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Increase"
+                aria-label="Increase AVG window points"
+              >
+                +
+              </button>
               <button
                 id="btnRateWindowCancel"
                 type="button"
@@ -1842,10 +1849,10 @@ const ui = {
   inpPollSec: /** @type {HTMLInputElement|null} */ (document.getElementById("inpPollSec")),
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement|null} */ (document.getElementById("inpWindowPoints")),
-  btnPollSecMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecMinus")),
-  btnPollSecPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecPlus")),
-  btnWindowPointsMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsMinus")),
-  btnWindowPointsPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsPlus")),
+  btnStatusRefreshMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnStatusRefreshMinus")),
+  btnStatusRefreshPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnStatusRefreshPlus")),
+  btnRateWindowMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnRateWindowMinus")),
+  btnRateWindowPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnRateWindowPlus")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
   chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
@@ -7255,17 +7262,8 @@ function flashInput(el) {
 }
 
 function openSettingsAndEditRollingWindow() {
-  openSettings();
-  // Wait a frame so the modal is visible before scrolling/focusing.
-  requestAnimationFrame(() => {
-    focusAndReveal(ui.inpWindowPoints);
-    try {
-      ui.inpWindowPoints.select();
-    } catch {
-      // ignore
-    }
-    flashInput(ui.inpWindowPoints);
-  });
+  // Rolling window is edited inline (RATE popover), not in the Settings modal.
+  openRateWindowPopover();
 }
 
 let rateWindowEditOpen = false;
@@ -7421,6 +7419,19 @@ ui.inpRateWindowPoints?.addEventListener("keydown", (e) => {
   }
 });
 
+ui.btnRateWindowMinus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) {
+    ui.inpRateWindowPoints.value = String(Math.max(2, (Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) - 1));
+  }
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) - 1);
+});
+ui.btnRateWindowPlus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) {
+    ui.inpRateWindowPoints.value = String((Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+  }
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+});
+
 document.addEventListener("click", (e) => {
   if (!rateWindowEditOpen) return;
   const pop = ui.rateWindowPopover;
@@ -7454,6 +7465,21 @@ ui.inpStatusRefreshSec?.addEventListener("keydown", (e) => {
     e.preventDefault();
     commitStatusRefreshPopover();
   }
+});
+
+ui.btnStatusRefreshMinus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) {
+    ui.inpStatusRefreshSec.value = String(
+      Math.max(0.2, (Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) - 0.2)
+    );
+  }
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) - 0.2);
+});
+ui.btnStatusRefreshPlus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) {
+    ui.inpStatusRefreshSec.value = String((Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) + 0.2);
+  }
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) + 0.2);
 });
 document.addEventListener("click", (e) => {
   if (!statusRefreshEditOpen) return;
