@@ -5321,6 +5321,16 @@ function formatQueueRate(mpp) {
   return "—";
 }
 
+function formatDurationHms(totalSeconds) {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) return "—";
+  const s = Math.floor(totalSeconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  return `${m}:${String(ss).padStart(2, "0")}`;
+}
+
 function computeSelectedSessionStats() {
   const pts = graphPoints;
   if (!pts || pts.length < 1) {
@@ -5328,6 +5338,7 @@ function computeSelectedSessionStats() {
       startPos: null,
       endPos: null,
       cleared: null,
+      seconds: null,
       minutes: null,
       avgPosPerMin: null,
     };
@@ -5350,11 +5361,12 @@ function computeSelectedSessionStats() {
 
   const endPos = pts[pts.length - 1][1];
   const endT = pts[pts.length - 1][0];
-  const minutes = startT != null && endT != null ? Math.max(0, (endT - startT) / 60) : null;
+  const seconds = startT != null && endT != null ? Math.max(0, endT - startT) : null;
+  const minutes = seconds != null ? seconds / 60 : null;
   const cleared = startPos != null && endPos != null ? Math.max(0, startPos - endPos) : null;
   const avgPosPerMin =
     minutes != null && minutes > 0 && cleared != null ? cleared / minutes : null;
-  return { startPos, endPos, cleared, minutes, avgPosPerMin };
+  return { startPos, endPos, cleared, seconds, minutes, avgPosPerMin };
 }
 
 function renderSelectedSessionStats() {
@@ -5362,7 +5374,7 @@ function renderSelectedSessionStats() {
   if (ui.infoStatStart) ui.infoStatStart.textContent = stats.startPos == null ? "—" : String(stats.startPos);
   if (ui.infoStatEnd) ui.infoStatEnd.textContent = stats.endPos == null ? "—" : String(stats.endPos);
   if (ui.infoStatCleared) ui.infoStatCleared.textContent = stats.cleared == null ? "—" : String(stats.cleared);
-  if (ui.infoStatSpan) ui.infoStatSpan.textContent = stats.minutes == null ? "—" : `${stats.minutes.toFixed(1)} min`;
+  if (ui.infoStatSpan) ui.infoStatSpan.textContent = formatDurationHms(stats.seconds);
   if (ui.infoStatAvg) ui.infoStatAvg.textContent = stats.avgPosPerMin == null ? "—" : `${stats.avgPosPerMin.toFixed(2)} pos/min`;
 }
 
