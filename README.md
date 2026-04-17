@@ -30,6 +30,8 @@ Open the built one-page app:
 
 The app stores settings in **`localStorage`** (on your machine in the browser profile). It does not upload your log anywhere.
 
+**Picker default folder:** browsers do not allow preselecting arbitrary paths like `%APPDATA%` or `$HOME`. The file picker will start in a safe well-known location (typically **Documents**) and may remember your last choice depending on browser behavior.
+
 ## Open-source hosted assets
 
 The app can use hosted assets (no backend). If you want everything to work fully offline, you’ll need to embed/inline assets instead; this section is specifically for **hosted** open-source assets.

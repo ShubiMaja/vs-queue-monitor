@@ -341,6 +341,7 @@ function parseAlertThresholds(raw) {
 // -----------------------------
 
 const STORAGE_KEY = "vsqm_web_config_v1";
+const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
 
 /**
  * @typedef {{
@@ -550,8 +551,20 @@ async function pickLogFile() {
     appendHistory("This browser does not support file picking. Use Edge or Chrome.");
     return;
   }
+  /** @type {any} */
+  let startIn = undefined;
+  try {
+    // `startIn` cannot be an arbitrary path (e.g. %APPDATA% or $HOME). Best-effort only.
+    const last = localStorage.getItem(STORAGE_LAST_DIR_KEY);
+    if (last) startIn = last;
+  } catch {
+    // ignore
+  }
+  if (!startIn) startIn = "documents";
+
   const [handle] = await window.showOpenFilePicker({
     multiple: false,
+    startIn,
     types: [
       {
         description: "Vintage Story log",
@@ -567,6 +580,14 @@ async function pickLogFile() {
   ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
   ui.btnStartStop.disabled = !logFileHandle;
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
+
+  // Best-effort: remember the last directory via well-known startIn token (not a real path).
+  // Browsers do not expose a parent directory for a picked file handle.
+  try {
+    localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents"));
+  } catch {
+    // ignore
+  }
 }
 
 async function pickFolder() {
