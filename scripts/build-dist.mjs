@@ -59,9 +59,20 @@ async function main() {
     `<script type="module">\n/* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */\n\n${js}\n</script>` +
     out.slice(scriptMatch.index + scriptMatch[0].length);
 
+  const verMatch = /const\s+APP_VERSION\s*=\s*"([^"]+)"/.exec(js);
+  if (!verMatch) fail("Could not parse APP_VERSION from app.js");
+  const version = verMatch[1];
+  const versionJson = `${JSON.stringify({ version }, null, 2)}\n`;
+
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(OUT_HTML, out, "utf8");
   console.log(`[build-dist] Wrote ${path.relative(ROOT, OUT_HTML)}`);
+
+  await writeFile(path.join(OUT_DIR, "version.json"), versionJson, "utf8");
+  console.log(`[build-dist] Wrote ${path.relative(ROOT, path.join(OUT_DIR, "version.json"))}`);
+
+  await writeFile(path.join(ROOT, "version.json"), versionJson, "utf8");
+  console.log(`[build-dist] Wrote ${path.relative(ROOT, path.join(ROOT, "version.json"))}`);
 }
 
 main().catch((e) => {

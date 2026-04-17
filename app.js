@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.43";
+const APP_VERSION = "2.0.44";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -89,7 +89,15 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   if (!host) return;
   const el = document.createElement("div");
   const toastMod =
-    kind === "error" ? "toast--error" : kind === "warn" ? "toast--warn" : kind === "ok" ? "toast--ok" : "";
+    kind === "error"
+      ? "toast--error"
+      : kind === "warn"
+        ? "toast--warn"
+        : kind === "ok"
+          ? "toast--ok"
+          : kind === "update"
+            ? "toast--update"
+            : "";
   el.className = `toast ${toastMod}`.trim();
   const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
@@ -149,6 +157,92 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+// -----------------------------
+// App update (same-origin version.json; no backend)
+// -----------------------------
+
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const UPDATE_CHECK_FIRST_DELAY_MS = 45 * 1000;
+const UPDATE_PROMPT_KEY = "vsqm_update_prompt_version";
+
+/** @returns {null | [number, number, number]} */
+function parseSemver(s) {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(s).trim());
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function isRemoteNewer(remote, local) {
+  const a = parseSemver(remote);
+  const b = parseSemver(local);
+  if (!a || !b) return String(remote) !== String(local);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+let updateCheckInFlight = false;
+/** @type {ReturnType<typeof setInterval> | null} */
+let updateIntervalTimer = null;
+let lastVisibilityCheckAt = 0;
+
+async function checkForRemoteUpdate() {
+  if (updateCheckInFlight) return;
+  if (typeof location === "undefined" || location.protocol === "file:") return;
+  updateCheckInFlight = true;
+  try {
+    const url = new URL("./version.json", import.meta.url);
+    url.searchParams.set("_", String(Date.now()));
+    const r = await fetch(url.href, { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    const remote = j && typeof j.version === "string" ? j.version.trim() : "";
+    if (!remote) return;
+    if (!isRemoteNewer(remote, APP_VERSION)) return;
+    if (sessionStorage.getItem(UPDATE_PROMPT_KEY) === remote) return;
+    sessionStorage.setItem(UPDATE_PROMPT_KEY, remote);
+    showToast(
+      "New version available",
+      `You are on v${APP_VERSION}. The site is serving v${remote}. Reload when convenient.`,
+      "update",
+      {
+        durationMs: 120000,
+        actionLabel: "Reload",
+        onAction: () => location.reload(),
+      },
+    );
+  } catch {
+    // ignore (offline, missing version.json, etc.)
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+
+function startUpdateCheckLoop() {
+  try {
+    if (typeof location === "undefined" || location.protocol === "file:") return;
+  } catch {
+    return;
+  }
+  const kick = () => {
+    window.setTimeout(() => void checkForRemoteUpdate(), UPDATE_CHECK_FIRST_DELAY_MS);
+    if (updateIntervalTimer != null) window.clearInterval(updateIntervalTimer);
+    updateIntervalTimer = window.setInterval(() => void checkForRemoteUpdate(), UPDATE_CHECK_INTERVAL_MS);
+  };
+  if (document.readyState === "complete") kick();
+  else window.addEventListener("load", kick, { once: true });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    const t = Date.now();
+    if (t - lastVisibilityCheckAt < 60_000) return;
+    lastVisibilityCheckAt = t;
+    void checkForRemoteUpdate();
+  });
 }
 
 function openHelp() {
@@ -2606,6 +2700,7 @@ window.addEventListener(
   { once: true },
 );
 wireHelpOverlay();
+startUpdateCheckLoop();
 
 ui.btnResumeLastLog.addEventListener("click", async () => {
   const h = pendingRestoreHandle;
