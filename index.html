@@ -278,7 +278,13 @@
           <div id="kpiRate" class="kpi__value">—</div>
         </div>
         <div class="kpi kpi--warnings">
-          <div class="kpi__label">WARNINGS</div>
+          <div class="kpi__label kpi__labelRow">
+            <span>WARNINGS</span>
+            <span class="kpi__labelActions" aria-label="Edit warning thresholds">
+              <button id="btnWarningsEdit" type="button" class="btn btn--secondary btn--small btn--icon" title="Edit thresholds">✎</button>
+              <button id="btnWarningsAdd" type="button" class="btn btn--secondary btn--small btn--icon" title="Add threshold">+</button>
+            </span>
+          </div>
           <div
             id="kpiWarnings"
             class="kpiWarn kpi__value kpi__value--mono"
@@ -288,6 +294,15 @@
             <div class="kpiWarn__viewport">
               <div id="kpiWarningsRail" class="kpiWarn__rail" aria-live="polite"></div>
             </div>
+          </div>
+          <div id="warningsAddPopover" class="popover" hidden>
+            <div class="popover__title">Add warning threshold</div>
+            <div class="popover__row">
+              <input id="inpWarningsAdd" class="input popover__input" inputmode="numeric" placeholder="e.g. 7" />
+              <button id="btnWarningsAddOk" type="button" class="btn btn--secondary btn--small">Add</button>
+              <button id="btnWarningsAddCancel" type="button" class="btn btn--secondary btn--small">Cancel</button>
+            </div>
+            <div class="muted popover__hint">Alerts fire when you cross downward through the number.</div>
           </div>
         </div>
         <div class="kpi">
@@ -376,7 +391,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.65"></script>
+    <script type="module" src="./app.js?v=2.0.66"></script>
   </body>
 </html>
 
