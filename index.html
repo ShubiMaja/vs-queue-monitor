@@ -60,6 +60,25 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</
           <div class="modal__text">
             For security, browsers don’t reveal the exact filesystem path you attempted to pick when access is blocked. The commands above use typical Vintage Story locations; replace the source path if yours differs.
           </div>
+
+          <div class="modal__sectionTitle">Generate an exact command (paste your real path)</div>
+          <div class="modal__text">
+            Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
+          </div>
+          <div class="helpForm">
+            <label class="helpForm__label" for="inpHelpSourcePath">Your path</label>
+            <input
+              id="inpHelpSourcePath"
+              class="input helpForm__input"
+              placeholder='Example (Windows): %APPDATA%\VintagestoryData  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div class="helpForm__actions">
+              <button id="btnHelpCopyCmd" class="btn btn--secondary btn--small">Copy command</button>
+            </div>
+          </div>
+          <pre id="preHelpCmd" class="code"></pre>
         </div>
       </div>
     </div>
