@@ -646,7 +646,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.41";
+const APP_VERSION = "2.0.42";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1516,32 +1516,54 @@ function notifyDesktop(kind, title, body) {
 /** @type {AudioContext|null} */
 let audioCtx = null;
 
+/** Soft sine chimes: warning = two-step attention; completion = short major arpeggio. */
 function beep(kind) {
   if (kind === "warning" && !config.warnSound) return;
   if (kind === "completion" && !config.completionSound) return;
   try {
     audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx;
+    void ctx.resume();
+
+    const master = ctx.createGain();
+    master.gain.value = 0.72;
+    master.connect(ctx.destination);
+
     const now = ctx.currentTime;
-    const tone = (freq, t0, dur, type, gain) => {
+    /**
+     * @param {number} freqHz
+     * @param {number} t0
+     * @param {number} durSec
+     * @param {number} peak linear ~0..0.14
+     */
+    const tone = (freqHz, t0, durSec, peak) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, t0);
+      o.type = "sine";
+      o.frequency.setValueAtTime(freqHz, t0);
+      const atk = Math.min(0.022, durSec * 0.22);
+      const rel = Math.min(0.12, durSec * 0.45);
+      const peakT = t0 + atk;
+      const endT = t0 + durSec;
       g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), peakT);
+      g.gain.exponentialRampToValueAtTime(0.0001, endT);
       o.connect(g);
-      g.connect(ctx.destination);
+      g.connect(master);
       o.start(t0);
-      o.stop(t0 + dur + 0.02);
+      o.stop(endT + 0.04);
     };
+
     if (kind === "warning") {
-      tone(480, now, 0.1, "square", 0.06);
-      tone(640, now + 0.11, 0.11, "square", 0.065);
+      // Ascending perfect fifth (C5 → G5): clear, not harsh.
+      tone(523.25, now, 0.12, 0.1);
+      tone(783.99, now + 0.13, 0.14, 0.095);
     } else {
-      tone(880, now, 0.16, "triangle", 0.07);
-      tone(990, now + 0.1, 0.18, "triangle", 0.055);
+      // C major arpeggio (C5–E5–G5–C6): short celebratory swell.
+      tone(523.25, now, 0.2, 0.1);
+      tone(659.25, now + 0.1, 0.22, 0.095);
+      tone(783.99, now + 0.2, 0.24, 0.09);
+      tone(1046.5, now + 0.3, 0.32, 0.085);
     }
   } catch {
     // ignore
