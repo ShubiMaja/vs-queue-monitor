@@ -382,6 +382,9 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="helpPlat">
+            <button id="btnHelpPickLog" class="btn btn--secondary btn--small" type="button">Pick log file…</button>
+          </div>
+          <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
             <button id="btnHelpPlatUnix" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Mac/Linux</button>
           </div>
@@ -560,7 +563,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.7";
+const APP_VERSION = "2.0.8";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -578,6 +581,7 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
+  btnHelpPickLog: $("btnHelpPickLog"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
@@ -719,6 +723,13 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
+  ui.btnHelpPickLog?.addEventListener("click", async () => {
+    try {
+      await pickLogFile();
+    } catch (e) {
+      appendHistory(`Pick log cancelled/failed: ${String(e)}`);
+    }
+  });
   ui.btnHelpPlatWin?.addEventListener("click", () => setHelpPlat("win"));
   ui.btnHelpPlatUnix?.addEventListener("click", () => setHelpPlat("unix"));
   ui.btnHelpCopyCmd?.addEventListener("click", async () => {

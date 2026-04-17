@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.7";
+const APP_VERSION = "2.0.8";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -16,6 +16,7 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
+  btnHelpPickLog: $("btnHelpPickLog"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
@@ -193,6 +194,13 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
+  ui.btnHelpPickLog?.addEventListener("click", async () => {
+    try {
+      await pickLogFile();
+    } catch (e) {
+      appendHistory(`Pick log cancelled/failed: ${String(e)}`);
+    }
+  });
   ui.btnHelpPlatWin?.addEventListener("click", () => setHelpPlat("win"));
   ui.btnHelpPlatUnix?.addEventListener("click", () => setHelpPlat("unix"));
   ui.btnHelpCopyCmd?.addEventListener("click", async () => {
