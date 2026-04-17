@@ -1,16 +1,20 @@
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const ui = {
   btnPickLog: $("btnPickLog"),
   btnPickFolder: $("btnPickFolder"),
+  btnHelp: $("btnHelp"),
+  btnHelpClose: $("btnHelpClose"),
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnClear: $("btnClear"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
   btnSaveSettings: $("btnSaveSettings"),
+  toastHost: $("toastHost"),
+  helpOverlay: $("helpOverlay"),
   graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
   graphHint: $("graphHint"),
 
@@ -43,6 +47,64 @@ const ui = {
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+function showToast(title, body = "", kind = "info") {
+  const host = ui.toastHost;
+  if (!host) return;
+  const el = document.createElement("div");
+  el.className = `toast ${kind === "error" ? "toast--error" : ""}`.trim();
+  el.innerHTML =
+    `<div class="toast__title">${escapeHtml(String(title))}</div>` +
+    (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "");
+  host.appendChild(el);
+  window.setTimeout(() => {
+    try {
+      el.remove();
+    } catch {
+      // ignore
+    }
+  }, 2400);
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function openHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = false;
+  try {
+    ui.btnHelpClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function closeHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = true;
+  try {
+    ui.btnHelp?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function wireHelpOverlay() {
+  ui.btnHelp?.addEventListener("click", () => openHelp());
+  ui.btnHelpClose?.addEventListener("click", () => closeHelp());
+  ui.helpOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.helpOverlay) closeHelp();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
+  });
+}
 
 // -----------------------------
 // Parsing (ported from core.py)
@@ -589,6 +651,7 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
+      showToast("Picker tip", "If blocked by “system files”, click ? for workaround.");
       if (isWin) {
         appendHistory("Windows workaround (junction via Documents):");
         appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
@@ -634,6 +697,7 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
+      showToast("Pick cancelled", "No file was selected.");
       return;
     }
     const looksBlocked =
@@ -645,6 +709,7 @@ async function pickLogFile() {
       low.includes("permission");
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
+      showToast("Picker blocked", "Browser denied access (protected/system location). Click ? for help.", "error");
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can only provide a best-guess command. If your Vintage Story data/logs live elsewhere, replace the source path below.");
       appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
       appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
@@ -659,6 +724,7 @@ async function pickLogFile() {
       return;
     }
     appendHistory(`Pick log failed: ${msg}`);
+    showToast("Pick failed", msg, "error");
     return;
   }
   logFileHandle = handle ?? null;
@@ -690,9 +756,11 @@ async function pickFolder() {
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
+      showToast("Pick cancelled", "No folder was selected.");
       return;
     }
     appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
+    showToast("Pick failed", "Folder access was blocked. Pick the log file instead.", "error");
     return;
   }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
@@ -1481,6 +1549,7 @@ syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
+wireHelpOverlay();
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).
 try {

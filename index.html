@@ -22,9 +22,47 @@
         <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
           Pick folder…
         </button>
+        <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
         <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
       </div>
     </header>
+
+    <div id="toastHost" class="toastHost" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="helpOverlay" class="overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="modal__header">
+          <div id="helpTitle" class="modal__title">VS Queue Monitor — Help</div>
+          <button id="btnHelpClose" class="btn btn--secondary btn--icon" title="Close">×</button>
+        </div>
+        <div class="modal__body">
+          <div class="modal__sectionTitle">Live tail requirements</div>
+          <div class="modal__text">
+            Live tail requires Edge/Chrome with the File System Access API. The app polls the picked log file handle and reads new bytes as it grows.
+          </div>
+
+          <div class="modal__sectionTitle">Picker blocked by “system files”</div>
+          <div class="modal__text">
+            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a junction/symlink, then pick the exposed path.
+          </div>
+
+          <div class="modal__sectionTitle">Windows (junction via Documents)</div>
+          <pre class="code">mkdir "%USERPROFILE%\Documents\VintagestoryData"
+mklink /J "%USERPROFILE%\Documents\VintagestoryData" "%APPDATA%\VintagestoryData"</pre>
+          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\VintagestoryData\Logs\client-main.log</span></div>
+
+          <div class="modal__sectionTitle">Linux (symlink into ~/VSLogs)</div>
+          <pre class="code">mkdir -p ~/VSLogs
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</pre>
+          <div class="modal__text">Then pick: <span class="mono">~/VSLogs/client-main.log</span></div>
+
+          <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
+          <div class="modal__text">
+            For security, browsers don’t reveal the exact filesystem path you attempted to pick when access is blocked. The commands above use typical Vintage Story locations; replace the source path if yours differs.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <main class="layout">
       <section class="card kpis">
