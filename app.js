@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.65";
+const APP_VERSION = "2.0.66";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -52,6 +52,12 @@ const ui = {
   kpiRate: $("kpiRate"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
+  btnWarningsEdit: $("btnWarningsEdit"),
+  btnWarningsAdd: $("btnWarningsAdd"),
+  warningsAddPopover: $("warningsAddPopover"),
+  inpWarningsAdd: /** @type {HTMLInputElement} */ ($("inpWarningsAdd")),
+  btnWarningsAddOk: $("btnWarningsAddOk"),
+  btnWarningsAddCancel: $("btnWarningsAddCancel"),
   kpiElapsed: $("kpiElapsed"),
   kpiRemaining: $("kpiRemaining"),
   progressFill: $("progressFill"),
@@ -1977,6 +1983,7 @@ let lastAlertEpoch = 0;
 let thresholdsFired = new Set();
 /** Only animate warnings marquee briefly after a warning fires. */
 let warningsMarqueeUntilEpoch = 0;
+let warningsEditMode = false;
 /** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
@@ -2286,11 +2293,12 @@ function refreshWarningsKpi() {
   for (const t of thresholds) {
     const passed = (pos != null && pos <= t) || fired.has(t);
     const cls = passed ? "kpiWarn--hit" : "kpiWarn--pending";
-    parts.push(`<span class="${cls}">${escapeHtml(String(t))}</span>`);
+    parts.push(`<span class="kpiWarn__threshold ${cls}" data-threshold="${t}">${escapeHtml(String(t))}</span>`);
   }
   if (ui.kpiWarningsRail) {
     ui.kpiWarningsRail.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
   }
+  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
   syncWarningsMarquee();
 }
 
@@ -3353,6 +3361,106 @@ startUpdateCheckLoop();
   );
 })();
 
+function setWarningsEditMode(on) {
+  warningsEditMode = !!on;
+  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
+  try {
+    ui.btnWarningsEdit.textContent = warningsEditMode ? "✓" : "✎";
+    ui.btnWarningsEdit.title = warningsEditMode ? "Done" : "Edit thresholds";
+  } catch {
+    // ignore
+  }
+}
+
+function openWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden = false;
+  try {
+    ui.inpWarningsAdd.focus();
+    ui.inpWarningsAdd.select();
+  } catch {
+    // ignore
+  }
+}
+
+function closeWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden = true;
+}
+
+function updateThresholdsFromList(list) {
+  const uniq = [...new Set(list.filter((n) => Number.isFinite(n) && n >= 1))];
+  uniq.sort((a, b) => b - a);
+  config.thresholdsRaw = uniq.join(", ");
+  try {
+    ui.inpThresholds.value = config.thresholdsRaw;
+  } catch {
+    // ignore
+  }
+  saveConfig();
+  refreshWarningsKpi();
+}
+
+ui.btnWarningsEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
+  setWarningsEditMode(!warningsEditMode);
+  closeWarningsAddPopover();
+});
+
+ui.btnWarningsAdd?.addEventListener("click", (e) => {
+  e.preventDefault();
+  setWarningsEditMode(true);
+  openWarningsAddPopover();
+});
+
+ui.btnWarningsAddCancel?.addEventListener("click", () => closeWarningsAddPopover());
+
+ui.btnWarningsAddOk?.addEventListener("click", () => {
+  let n = Number.parseInt(String(ui.inpWarningsAdd.value || "").trim(), 10);
+  if (!Number.isFinite(n) || n < 1) {
+    showToast("Invalid threshold", "Enter a whole number ≥ 1.", "warn", { durationMs: 7000 });
+    return;
+  }
+  let cur = [];
+  try {
+    cur = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    cur = [];
+  }
+  cur.push(n);
+  updateThresholdsFromList(cur);
+  ui.inpWarningsAdd.value = "";
+  closeWarningsAddPopover();
+});
+
+ui.inpWarningsAdd?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    ui.btnWarningsAddOk.click();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeWarningsAddPopover();
+  }
+});
+
+ui.kpiWarningsRail?.addEventListener("click", (e) => {
+  if (!warningsEditMode) return;
+  const t = /** @type {HTMLElement|null} */ (e.target);
+  const el = t?.closest?.(".kpiWarn__threshold");
+  if (!el) return;
+  const raw = el.getAttribute("data-threshold") || "";
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return;
+  let cur = [];
+  try {
+    cur = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    cur = [];
+  }
+  const next = cur.filter((x) => x !== n);
+  updateThresholdsFromList(next);
+});
+
 ui.btnResumeLastLog.addEventListener("click", async () => {
   const h = pendingRestoreHandle;
   if (!h) return;
@@ -3419,6 +3527,7 @@ function flashInput(el) {
 ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
+  if (warningsEditMode) return;
   focusAndReveal(ui.inpThresholds);
   try {
     ui.inpThresholds.select();

@@ -290,6 +290,10 @@ body{
   text-transform:uppercase;
   opacity:0.95;
 }
+.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi__labelActions{display:inline-flex;gap:6px;align-items:center}
+.kpi__labelActions .btn{padding:4px 8px;font-size:12px;border-radius:8px;line-height:1}
+.kpi__labelActions .btn--icon{width:auto}
 .kpi__value{
   margin-top:8px;
   font-size:21px;
@@ -309,6 +313,18 @@ body{
 .kpiWarn--hit{color:var(--ok);font-weight:800}
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
+.kpiWarn__threshold{position:relative;display:inline-flex;align-items:center;padding:2px 6px;border-radius:8px}
+.kpiWarn--editMode .kpiWarn__threshold{cursor:pointer}
+.kpiWarn--editMode .kpiWarn__threshold:hover{background:rgba(242,73,92,0.10);color:#ffd0d0}
+.kpiWarn--editMode .kpiWarn__threshold:hover::after{
+  content:"🗑";
+  position:absolute;
+  right:2px;
+  top:-10px;
+  font-size:12px;
+  opacity:0.9;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
 .kpiWarn{width:100%;min-width:0}
@@ -346,6 +362,26 @@ body{
     linear-gradient(270deg, rgba(28,31,38,0.95) 0%, rgba(28,31,38,0) 12%);
   opacity:0.45;
 }
+
+/* Small popover used by inline warning editor */
+.kpi--warnings{position:relative}
+.popover{
+  position:absolute;
+  top:24px;
+  right:10px;
+  z-index:5;
+  width:min(340px, calc(100vw - 40px));
+  padding:12px 12px 10px;
+  border-radius:12px;
+  border:1px solid rgba(55,65,82,0.75);
+  background:linear-gradient(180deg, rgba(18,21,28,0.98), rgba(10,12,16,0.92));
+  box-shadow:0 16px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.popover[hidden]{display:none !important}
+.popover__title{font-weight:800;font-size:12px;letter-spacing:0.02em;color:var(--text-bright)}
+.popover__row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.popover__input{flex:1;min-width:140px;margin-top:0}
+.popover__hint{margin-top:8px;font-size:12px;line-height:1.35}
 .kpiWarn__rail{
   display:inline-flex;
   flex-wrap:nowrap;
@@ -912,7 +948,13 @@ body{
           <div id="kpiRate" class="kpi__value">—</div>
         </div>
         <div class="kpi kpi--warnings">
-          <div class="kpi__label">WARNINGS</div>
+          <div class="kpi__label kpi__labelRow">
+            <span>WARNINGS</span>
+            <span class="kpi__labelActions" aria-label="Edit warning thresholds">
+              <button id="btnWarningsEdit" type="button" class="btn btn--secondary btn--small btn--icon" title="Edit thresholds">✎</button>
+              <button id="btnWarningsAdd" type="button" class="btn btn--secondary btn--small btn--icon" title="Add threshold">+</button>
+            </span>
+          </div>
           <div
             id="kpiWarnings"
             class="kpiWarn kpi__value kpi__value--mono"
@@ -922,6 +964,15 @@ body{
             <div class="kpiWarn__viewport">
               <div id="kpiWarningsRail" class="kpiWarn__rail" aria-live="polite"></div>
             </div>
+          </div>
+          <div id="warningsAddPopover" class="popover" hidden>
+            <div class="popover__title">Add warning threshold</div>
+            <div class="popover__row">
+              <input id="inpWarningsAdd" class="input popover__input" inputmode="numeric" placeholder="e.g. 7" />
+              <button id="btnWarningsAddOk" type="button" class="btn btn--secondary btn--small">Add</button>
+              <button id="btnWarningsAddCancel" type="button" class="btn btn--secondary btn--small">Cancel</button>
+            </div>
+            <div class="muted popover__hint">Alerts fire when you cross downward through the number.</div>
           </div>
         </div>
         <div class="kpi">
@@ -1014,7 +1065,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.65";
+const APP_VERSION = "2.0.66";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1067,6 +1118,12 @@ const ui = {
   kpiRate: $("kpiRate"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
+  btnWarningsEdit: $("btnWarningsEdit"),
+  btnWarningsAdd: $("btnWarningsAdd"),
+  warningsAddPopover: $("warningsAddPopover"),
+  inpWarningsAdd: /** @type {HTMLInputElement} */ ($("inpWarningsAdd")),
+  btnWarningsAddOk: $("btnWarningsAddOk"),
+  btnWarningsAddCancel: $("btnWarningsAddCancel"),
   kpiElapsed: $("kpiElapsed"),
   kpiRemaining: $("kpiRemaining"),
   progressFill: $("progressFill"),
@@ -2992,6 +3049,7 @@ let lastAlertEpoch = 0;
 let thresholdsFired = new Set();
 /** Only animate warnings marquee briefly after a warning fires. */
 let warningsMarqueeUntilEpoch = 0;
+let warningsEditMode = false;
 /** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
@@ -3301,11 +3359,12 @@ function refreshWarningsKpi() {
   for (const t of thresholds) {
     const passed = (pos != null && pos <= t) || fired.has(t);
     const cls = passed ? "kpiWarn--hit" : "kpiWarn--pending";
-    parts.push(`<span class="${cls}">${escapeHtml(String(t))}</span>`);
+    parts.push(`<span class="kpiWarn__threshold ${cls}" data-threshold="${t}">${escapeHtml(String(t))}</span>`);
   }
   if (ui.kpiWarningsRail) {
     ui.kpiWarningsRail.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
   }
+  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
   syncWarningsMarquee();
 }
 
@@ -4368,6 +4427,106 @@ startUpdateCheckLoop();
   );
 })();
 
+function setWarningsEditMode(on) {
+  warningsEditMode = !!on;
+  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
+  try {
+    ui.btnWarningsEdit.textContent = warningsEditMode ? "✓" : "✎";
+    ui.btnWarningsEdit.title = warningsEditMode ? "Done" : "Edit thresholds";
+  } catch {
+    // ignore
+  }
+}
+
+function openWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden = false;
+  try {
+    ui.inpWarningsAdd.focus();
+    ui.inpWarningsAdd.select();
+  } catch {
+    // ignore
+  }
+}
+
+function closeWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden = true;
+}
+
+function updateThresholdsFromList(list) {
+  const uniq = [...new Set(list.filter((n) => Number.isFinite(n) && n >= 1))];
+  uniq.sort((a, b) => b - a);
+  config.thresholdsRaw = uniq.join(", ");
+  try {
+    ui.inpThresholds.value = config.thresholdsRaw;
+  } catch {
+    // ignore
+  }
+  saveConfig();
+  refreshWarningsKpi();
+}
+
+ui.btnWarningsEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
+  setWarningsEditMode(!warningsEditMode);
+  closeWarningsAddPopover();
+});
+
+ui.btnWarningsAdd?.addEventListener("click", (e) => {
+  e.preventDefault();
+  setWarningsEditMode(true);
+  openWarningsAddPopover();
+});
+
+ui.btnWarningsAddCancel?.addEventListener("click", () => closeWarningsAddPopover());
+
+ui.btnWarningsAddOk?.addEventListener("click", () => {
+  let n = Number.parseInt(String(ui.inpWarningsAdd.value || "").trim(), 10);
+  if (!Number.isFinite(n) || n < 1) {
+    showToast("Invalid threshold", "Enter a whole number ≥ 1.", "warn", { durationMs: 7000 });
+    return;
+  }
+  let cur = [];
+  try {
+    cur = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    cur = [];
+  }
+  cur.push(n);
+  updateThresholdsFromList(cur);
+  ui.inpWarningsAdd.value = "";
+  closeWarningsAddPopover();
+});
+
+ui.inpWarningsAdd?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    ui.btnWarningsAddOk.click();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeWarningsAddPopover();
+  }
+});
+
+ui.kpiWarningsRail?.addEventListener("click", (e) => {
+  if (!warningsEditMode) return;
+  const t = /** @type {HTMLElement|null} */ (e.target);
+  const el = t?.closest?.(".kpiWarn__threshold");
+  if (!el) return;
+  const raw = el.getAttribute("data-threshold") || "";
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return;
+  let cur = [];
+  try {
+    cur = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    cur = [];
+  }
+  const next = cur.filter((x) => x !== n);
+  updateThresholdsFromList(next);
+});
+
 ui.btnResumeLastLog.addEventListener("click", async () => {
   const h = pendingRestoreHandle;
   if (!h) return;
@@ -4434,6 +4593,7 @@ function flashInput(el) {
 ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
+  if (warningsEditMode) return;
   focusAndReveal(ui.inpThresholds);
   try {
     ui.inpThresholds.select();

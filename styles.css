@@ -278,6 +278,10 @@ body{
   text-transform:uppercase;
   opacity:0.95;
 }
+.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi__labelActions{display:inline-flex;gap:6px;align-items:center}
+.kpi__labelActions .btn{padding:4px 8px;font-size:12px;border-radius:8px;line-height:1}
+.kpi__labelActions .btn--icon{width:auto}
 .kpi__value{
   margin-top:8px;
   font-size:21px;
@@ -297,6 +301,18 @@ body{
 .kpiWarn--hit{color:var(--ok);font-weight:800}
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
+.kpiWarn__threshold{position:relative;display:inline-flex;align-items:center;padding:2px 6px;border-radius:8px}
+.kpiWarn--editMode .kpiWarn__threshold{cursor:pointer}
+.kpiWarn--editMode .kpiWarn__threshold:hover{background:rgba(242,73,92,0.10);color:#ffd0d0}
+.kpiWarn--editMode .kpiWarn__threshold:hover::after{
+  content:"🗑";
+  position:absolute;
+  right:2px;
+  top:-10px;
+  font-size:12px;
+  opacity:0.9;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
 .kpiWarn{width:100%;min-width:0}
@@ -334,6 +350,26 @@ body{
     linear-gradient(270deg, rgba(28,31,38,0.95) 0%, rgba(28,31,38,0) 12%);
   opacity:0.45;
 }
+
+/* Small popover used by inline warning editor */
+.kpi--warnings{position:relative}
+.popover{
+  position:absolute;
+  top:24px;
+  right:10px;
+  z-index:5;
+  width:min(340px, calc(100vw - 40px));
+  padding:12px 12px 10px;
+  border-radius:12px;
+  border:1px solid rgba(55,65,82,0.75);
+  background:linear-gradient(180deg, rgba(18,21,28,0.98), rgba(10,12,16,0.92));
+  box-shadow:0 16px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.popover[hidden]{display:none !important}
+.popover__title{font-weight:800;font-size:12px;letter-spacing:0.02em;color:var(--text-bright)}
+.popover__row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.popover__input{flex:1;min-width:140px;margin-top:0}
+.popover__hint{margin-top:8px;font-size:12px;line-height:1.35}
 .kpiWarn__rail{
   display:inline-flex;
   flex-wrap:nowrap;
