@@ -133,9 +133,18 @@
           <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
           <div id="kpiRate" class="kpi__value">—</div>
         </div>
-        <div class="kpi">
+        <div class="kpi kpi--warnings">
           <div class="kpi__label">WARNINGS</div>
-          <div id="kpiWarnings" class="kpi__value kpi__value--mono">10 · 5 · 1</div>
+          <div
+            id="kpiWarnings"
+            class="kpiWarn kpi__value kpi__value--mono"
+            role="group"
+            aria-label="Warning thresholds"
+          >
+            <div class="kpiWarn__viewport">
+              <div id="kpiWarningsRail" class="kpiWarn__rail" aria-live="polite"></div>
+            </div>
+          </div>
         </div>
         <div class="kpi">
           <div class="kpi__label">ELAPSED</div>
@@ -276,7 +285,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.45"></script>
+    <script type="module" src="./app.js?v=2.0.46"></script>
   </body>
 </html>
 

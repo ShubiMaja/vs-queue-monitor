@@ -196,6 +196,7 @@ body{
   padding:14px 14px 16px;
   border-right:1px solid var(--sep);
   min-height:78px;
+  min-width:0;
   transition:background 0.2s ease;
 }
 .kpi:hover{background:rgba(91,156,247,0.04)}
@@ -222,6 +223,25 @@ body{
 .kpiWarn--hit{color:var(--ok);font-weight:800}
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
+/* Warnings row: horizontal pan when thresholds overflow the KPI cell */
+.kpi--warnings{min-width:0}
+.kpiWarn{width:100%;min-width:0}
+.kpiWarn__viewport{
+  overflow:hidden;
+  width:100%;
+  min-width:0;
+  border-radius:6px;
+}
+.kpiWarn__rail{
+  display:inline-flex;
+  flex-wrap:nowrap;
+  align-items:baseline;
+  white-space:nowrap;
+}
+@keyframes kpiWarnMarquee{
+  0%, 10%{transform:translateX(0)}
+  90%, 100%{transform:translateX(calc(-1 * var(--kpi-warn-shift, 0px)))}
+}
 .kpi--progress{grid-column: span 1}
 
 .progress{
