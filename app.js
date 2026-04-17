@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.22";
+const APP_VERSION = "2.0.23";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -281,6 +281,19 @@ function winPathRelativeBelowLogs(fullPath, logsRoot) {
   return f.slice(root.length).replace(/^\\+/, "");
 }
 
+/**
+ * Destination path for `mklink /H` — one file directly under Documents\vs-queue-monitor (no subfolder).
+ * @param {string} srcLogPath
+ */
+function winHardLinkExposedLogPath(srcLogPath) {
+  const base = srcLogPath.replace(/^.*[\\/]/, "") || "client-main.log";
+  const dot = base.lastIndexOf(".");
+  const stem = dot >= 0 ? base.slice(0, dot) : base;
+  const ext = dot >= 0 ? base.slice(dot) : ".log";
+  const hex = hashSourcePathForLinkFolder(srcLogPath, "file");
+  return `%USERPROFILE%\\Documents\\vs-queue-monitor\\${stem}-${hex}${ext}`;
+}
+
 function renderHelpCommandPreview() {
   if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
   const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
@@ -299,15 +312,11 @@ function renderHelpCommandPreview() {
       /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
     const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
-    // Hard link the log file into Documents (no admin on same volume). Avoids pickers that still block folder junctions.
+    // Hard link the log file into Documents (no admin on same volume). Single file under vs-queue-monitor — no subfolder.
     if (looksLikeLogFile) {
-      const leaf = linkFolderName("file", srcIn);
-      const destDir = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
-      const baseName = srcIn.replace(/^.*[\\/]/, "") || logName;
-      const destFile = `${destDir}\\${baseName}`;
+      const destFile = winHardLinkExposedLogPath(srcIn);
       let txt =
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mkdir "${destDir}"\n` +
         `mklink /H "${destFile}" "${srcIn}"`;
       if (logsRoot) {
         const leafJ = linkFolderName("logs", logsRoot);

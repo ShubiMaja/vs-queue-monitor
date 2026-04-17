@@ -43,14 +43,13 @@
 
           <div class="modal__sectionTitle">Picker blocked by “system files”</div>
           <div class="modal__text">
-            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a <strong>hard link</strong> to the log file, a <strong>folder junction</strong>, or a symlink — then pick the exposed path. If the picker still complains after a junction, paste the <strong>full path to the .log file</strong> in “Generate an exact command” so the app suggests a hard link (<span class="mono">file-xxxxxxxx</span>) first.
+            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a <strong>hard link</strong> to the log file, a <strong>folder junction</strong>, or a symlink — then pick the exposed path. If the picker still complains after a junction, paste the <strong>full path to the .log file</strong> in “Generate an exact command” so the app suggests a direct hard link first.
           </div>
 
           <div class="modal__sectionTitle">Windows (hard link to log file — try first)</div>
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
-mkdir "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d"
-mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d\client-main.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
-          <div class="modal__text">Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder. Then pick the path under <span class="mono">file-xxxxxxxx</span> — <span class="muted">filled in by “Generate an exact command” when you paste the real log path.</span></div>
+mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\client-main-1a2b3c4d.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
+          <div class="modal__text">One file directly under <span class="mono">vs-queue-monitor</span> (name includes an 8-char hash — filled in by the generator). Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder.</div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
@@ -75,7 +74,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
             Paste the <strong>full path to your log file</strong> (Windows) or the log file path (Linux), or a data folder if you are not pasting a <span class="mono">.log</span> path — then copy the generated command.
           </div>
           <div class="modal__text muted">
-            On Windows, if you paste a <span class="mono">.log</span> path, the generator prefers a <span class="mono">mklink /H</span> hard link under <span class="mono">file-xxxxxxxx</span> (same drive as Documents; log file must exist). Otherwise it suggests a <span class="mono">mklink /J</span> junction (<span class="mono">data-…</span> / <span class="mono">logs-…</span>). Mac/Linux use symlinks under <span class="mono">~/vs-queue-monitor/</span>.
+            On Windows, if you paste a <span class="mono">.log</span> path, the generator prefers a <span class="mono">mklink /H</span> hard link to a single file in <span class="mono">vs-queue-monitor</span> (e.g. <span class="mono">client-main-xxxxxxxx.log</span> — same drive as Documents; log file must exist). Otherwise it suggests a <span class="mono">mklink /J</span> junction (<span class="mono">data-…</span> / <span class="mono">logs-…</span>). Mac/Linux use symlinks under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
