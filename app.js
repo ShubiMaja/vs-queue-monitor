@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.19";
+const APP_VERSION = "2.0.20";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -248,6 +248,39 @@ function linkFolderName(kind, seedPath) {
   return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
 }
 
+/**
+ * Path to the Vintage Story `Logs` folder if `p` contains `\\Logs\\` or ends with `\\Logs`.
+ * @param {string} p
+ * @returns {string|null}
+ */
+function findWindowsLogsFolderRoot(p) {
+  const n = normalizeSlashes(p).replaceAll("/", "\\");
+  if (!n) return null;
+  const lower = n.toLowerCase();
+  const needle = "\\logs\\";
+  const i = lower.lastIndexOf(needle);
+  if (i >= 0) return n.slice(0, i + "\\logs".length);
+  if (lower.endsWith("\\logs")) return n;
+  return null;
+}
+
+/**
+ * Path under `Logs\\` for a file or folder under that logs root, or "" if `fullPath` is exactly `logsRoot`.
+ * @param {string} fullPath
+ * @param {string} logsRoot
+ * @returns {string|null}
+ */
+function winPathRelativeBelowLogs(fullPath, logsRoot) {
+  const f = normalizeSlashes(fullPath).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const lr = normalizeSlashes(logsRoot).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const fl = f.toLowerCase();
+  const lrl = lr.toLowerCase();
+  if (fl === lrl) return "";
+  const root = lr + "\\";
+  if (!fl.startsWith(root.toLowerCase())) return null;
+  return f.slice(root.length).replace(/^\\+/, "");
+}
+
 function renderHelpCommandPreview() {
   if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
   const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
@@ -262,23 +295,27 @@ function renderHelpCommandPreview() {
 
   if (isWin) {
     const srcIn = raw || "%APPDATA%\\VintagestoryData";
-    const looksLikeLogFile = /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
-    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
-    const looksLikeLogsDir = /[\\/]Logs[\\/]?$/i.test(srcIn);
-    const looksLikeLogsFolder =
-      looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
+    const looksLikeLogFile =
+      /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
+    const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
-    // Folder junction (mklink /J): creates the leaf name; only mkdir the parent folder (not the junction path).
-    if (looksLikeLogsFolder) {
-      const leaf = linkFolderName("logs", srcDir);
+    // Junction the real `Logs` folder (not a subfolder under it) so the mirror matches Explorer.
+    if (logsRoot) {
+      const leaf = linkFolderName("logs", logsRoot);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      let pickSuffix = logName;
+      if (looksLikeLogFile) {
+        const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
+        if (rel !== null && rel.length > 0) pickSuffix = rel;
+      }
       ui.preHelpCmd.textContent =
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mklink /J "${dest}" "${srcDir}"`;
-      setPick(`${dest}\\${logName}`);
+        `mklink /J "${dest}" "${logsRoot}"`;
+      setPick(`${dest}\\${pickSuffix}`);
       return;
     }
 
+    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
