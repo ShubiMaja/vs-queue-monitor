@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.97";
+const APP_VERSION = "2.0.98";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2740,8 +2740,12 @@ function updateTimeEstimates() {
  * @param {number|null} lineEpoch
  */
 function appendGraphPoint(position, lineEpoch) {
-  const t = lineEpoch ?? (Date.now() / 1000);
-  if (currentPoint && currentPoint[1] === position) return;
+  let t = lineEpoch ?? (Date.now() / 1000);
+  // Store every queue reading (even if position didn't change) so hover can snap to “minor” updates.
+  // Ensure time is strictly increasing to avoid zero-width segments when logs repeat timestamps.
+  const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+  if (lastT != null && t <= lastT) t = lastT + 0.001;
+
   currentPoint = [t, position];
   lastPosition = position;
   predSpeedScale = 1.0;
@@ -2821,13 +2825,15 @@ function replayQueueGraphFromText(fullText) {
 
     const t = lastQueueEpoch ?? Date.now() / 1000;
 
-    if (!currentPoint || currentPoint[1] !== pos) {
-      currentPoint = [t, pos];
-      graphPoints.push(currentPoint);
-      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
-      lastPosition = pos;
-      sessionAtLastEmit = sess;
-    }
+    // Store every queue reading (even if position didn't change), matching live appendGraphPoint().
+    let tt = t;
+    const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+    if (lastT != null && tt <= lastT) tt = lastT + 0.001;
+    currentPoint = [tt, pos];
+    graphPoints.push(currentPoint);
+    if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+    lastPosition = pos;
+    sessionAtLastEmit = sess;
   }
 
   const { session } = parseTailLastQueueReading(text);
