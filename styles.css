@@ -229,6 +229,7 @@ body{
   line-height:1.35;
 }
 .toast--error{border-color:rgba(242,73,92,0.7)}
+.toast--warn{border-color:rgba(255, 176, 32, 0.75)}
 .toast__title{font-weight:800;margin-bottom:4px}
 .toast__body{color:var(--text)}
 .toast__hint{margin-top:6px;color:var(--muted);font-size:12px}
