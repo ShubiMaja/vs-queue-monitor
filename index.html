@@ -358,8 +358,24 @@
             <div class="popover__title">Edit warning thresholds</div>
             <div class="popover__row">
               <input id="inpWarningsAdd" class="input popover__input" inputmode="text" placeholder="e.g. 10, 5, 1" />
-              <button id="btnWarningsAddOk" type="button" class="btn btn--secondary btn--small">Save</button>
-              <button id="btnWarningsAddCancel" type="button" class="btn btn--secondary btn--small">Cancel</button>
+              <button
+                id="btnWarningsAddCancel"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Cancel"
+                aria-label="Cancel"
+              >
+                ×
+              </button>
+              <button
+                id="btnWarningsAddOk"
+                type="button"
+                class="btn btn--secondary btn--small btn--icon"
+                title="Save"
+                aria-label="Save"
+              >
+                ✓
+              </button>
             </div>
             <div class="muted popover__hint">Comma- or space-separated whole numbers ≥ 1. Fires on downward crossings.</div>
           </div>
@@ -453,7 +469,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.1.1"></script>
+    <script type="module" src="./app.js?v=2.1.2"></script>
   </body>
 </html>
 
