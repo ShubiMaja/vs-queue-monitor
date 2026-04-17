@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.0.2";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -646,6 +646,13 @@ let logFileHandle = null;
 let sourceLabel = null;
 
 const TAIL_BYTES = 128 * 1024;
+const MAX_READ_BYTES_PER_POLL = 512 * 1024;
+const BUFFER_MAX_CHARS = 400_000;
+
+/** @type {number|null} */
+let lastReadOffset = null;
+/** @type {string} */
+let logBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
 const ALERT_MIN_INTERVAL_SEC = 12.0;
 const COMPLETION_NOTIFY_MIN_INTERVAL_SEC = 2.0;
@@ -684,13 +691,20 @@ function decodeLogBytes(buf, startOffset) {
  * @param {FileSystemFileHandle} handle
  * @param {number} tailBytes
  */
+async function readLogRangeText(handle, start, end) {
+  const file = await handle.getFile();
+  const safeStart = Math.max(0, Math.min(start, file.size));
+  const safeEnd = Math.max(safeStart, Math.min(end, file.size));
+  const slice = file.slice(safeStart, safeEnd);
+  const buf = await slice.arrayBuffer();
+  return decodeLogBytes(buf, safeStart);
+}
+
 async function readLogTailText(handle, tailBytes) {
   const file = await handle.getFile();
   const size = file.size;
   const start = Math.max(0, size - tailBytes);
-  const slice = file.slice(start, size);
-  const buf = await slice.arrayBuffer();
-  return decodeLogBytes(buf, start);
+  return await readLogRangeText(handle, start, size);
 }
 
 /**
@@ -805,6 +819,8 @@ async function pickLogFile() {
   ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
   ui.btnStartStop.disabled = !logFileHandle;
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
+  lastReadOffset = null;
+  logBuffer = "";
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -851,6 +867,8 @@ async function pickFolder() {
   ui.infoResolved.textContent = (await logFileHandle.getFile()).name;
   ui.btnStartStop.disabled = false;
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
+  lastReadOffset = null;
+  logBuffer = "";
 }
 
 // -----------------------------
@@ -1327,6 +1345,49 @@ async function bumpLogActivityIfChanged() {
   }
 }
 
+function appendToLogBuffer(text) {
+  if (!text) return;
+  logBuffer += text;
+  if (logBuffer.length > BUFFER_MAX_CHARS) logBuffer = logBuffer.slice(-BUFFER_MAX_CHARS);
+}
+
+async function readNewLogText(handle) {
+  const file = await handle.getFile();
+  const size = file.size;
+
+  // First read: seed context from the tail, then set offset to EOF.
+  if (lastReadOffset == null) {
+    const start = Math.max(0, size - TAIL_BYTES);
+    const seed = await readLogRangeText(handle, start, size);
+    lastReadOffset = size;
+    return seed;
+  }
+
+  // Truncation / rotation: file got smaller, reset and seed tail again.
+  if (size < lastReadOffset) {
+    const start = Math.max(0, size - TAIL_BYTES);
+    const seed = await readLogRangeText(handle, start, size);
+    lastReadOffset = size;
+    appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
+    return seed;
+  }
+
+  if (size === lastReadOffset) return "";
+
+  // Read only appended bytes, with a cap to avoid huge spikes.
+  const start = lastReadOffset;
+  const end = Math.min(size, start + MAX_READ_BYTES_PER_POLL);
+  const chunk = await readLogRangeText(handle, start, end);
+  lastReadOffset = end;
+
+  if (end < size) {
+    appendHistory(
+      `Log grew quickly; read ${MAX_READ_BYTES_PER_POLL} bytes this poll and will continue next poll.`,
+    );
+  }
+  return chunk;
+}
+
 async function pollOnce() {
   if (!running) return;
   if (!logFileHandle) {
@@ -1337,12 +1398,14 @@ async function pollOnce() {
   try {
     updateTimeEstimates();
     await bumpLogActivityIfChanged();
-    const tail = await readLogTailText(logFileHandle, TAIL_BYTES);
-    const { kind } = classifyTailConnectionState(tail);
-    const { lastPos, session } = parseTailLastQueueReading(tail);
-    const lastLineEpoch = parseTailLastQueueLineEpoch(tail);
+    const newText = await readNewLogText(logFileHandle);
+    if (newText) appendToLogBuffer(newText);
+    const view = logBuffer || "";
+    const { kind } = classifyTailConnectionState(view);
+    const { lastPos, session } = parseTailLastQueueReading(view);
+    const lastLineEpoch = parseTailLastQueueLineEpoch(view);
     if (lastLineEpoch != null) lastQueueLineEpoch = lastLineEpoch;
-    const left = tailHasPostQueueAfterLastQueueLine(tail);
+    const left = tailHasPostQueueAfterLastQueueLine(view);
     const now = Date.now() / 1000;
     const logSilent = lastLogGrowthEpoch != null && now - lastLogGrowthEpoch >= LOG_SILENCE_RECONNECT_SEC;
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
