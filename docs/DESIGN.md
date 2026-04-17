@@ -1,487 +1,465 @@
-# VS Queue Monitor — product & UX design
+# VS Queue Monitor — product & UX design (web)
 
-This document describes **intended** behavior from a **product** and **UI/UX** perspective: vision, who we serve, strategic goals, journeys, information architecture, and feature-level intent. It stays **high level**—no API keys, storage keys, or line-by-line parsing rules.
+This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a more maintainable, professional design format.
 
-**Layers:** **Product** = why the tool exists and what success means. **Features** = what surfaces do (dashboard, alerts, settings). **UI/UX** = how it should feel (progressive disclosure, honest copy, recovery). **Visual design** = dark dashboard look, color tokens, type, and layout (see **§2.1**). **Implementation** (exact strings, edge cases, build steps) lives in code and in [`README.md`](../README.md).
+**Scope.** This repository ships a **browser-only web app** (no backend). The design assumes the constraints of the **File System Access API** and browser notifications. Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---
 
-## 1. Product intent
+## 1. Product definition
 
-**One-line product.** A **local-first, browser-based assistant** that reads the Vintage Story **client log** on the user’s machine and turns it into a **small dashboard**: queue position, movement over time, rough wait estimates, and **optional** alerts — **without** uploading logs or requiring a server.
+### 1.1 One-line product
 
-**Problem.** Players joining a busy Vintage Story server often wait in a **connect queue**. The game log contains queue position updates, but the game UI does not always surface wait time, rate of progress, or reliable “you are done waiting” feedback in one place.
+A **local-first, browser-based assistant** that reads the Vintage Story **client log** and turns it into a **glanceable dashboard**: queue position, movement over time, rough wait estimates, and optional alerts — **without uploading logs** or requiring a server.
 
-**Solution.** A **local, browser-only** companion that **tails the client log**, derives **queue position**, **elapsed wait**, **estimated remaining time**, and **progress**, and optionally **alerts** at chosen thresholds and when the wait is **actually over** (per log semantics—not only “position 1”).
+### 1.2 Problem statement
 
-**Who it’s for**
+When connecting to a busy server, players often wait in a **connect queue**. The client log contains position updates, but users don’t get a single surface that reliably communicates:
 
-- Players who **queue via the client** and want **visibility** (position, pace, rough ETA) without digging through raw logs.
-- Users who care about **privacy** (log stays on device; no backend in this product).
-- People who accept that **inference from log text** can be wrong or incomplete when formats or edge cases change.
+- **Where am I** (position)?
+- **Is it moving** (trend/rate)?
+- **How long have I waited** and **roughly how much longer**?
+- **When am I actually done waiting** (not merely “at 1”)?
 
-**Primary surface**
+### 1.3 Solution (what we provide)
+
+A browser UI that:
+
+- **Tails** the chosen log file and derives queue KPIs (position, elapsed, ETA, progress).
+- Visualizes the **current run** as a **time series** (step chart).
+- Fires optional **threshold** and **completion** alerts (toast + sound + desktop notifications where supported).
+- Provides in-context **help and recovery** for browser/OS file access limitations.
+
+### 1.4 Audience
+
+- Players who want **visibility** (position, pace, rough ETA) without reading raw logs.
+- Users who value **privacy** (no upload; no backend).
+- Users who accept that inference from logs can be imperfect if formats change.
+
+### 1.5 Non-goals
+
+- No backend, account, or upload.
+- Not an official Vintage Story product; log formats may change.
+- Not a general-purpose log analyzer; scope is **connect queue** + closely related states.
+
+### 1.6 Primary surface
 
 | Surface | Role |
 |--------|------|
-| **Web app** (e.g. `dist/index.html` in Chromium) | **Primary** and **only** shipped UI in this repository: pick log, monitor, settings, help, notifications as supported by the browser. |
+| **Web app** (e.g. `dist/index.html` in Chromium) | The **primary and only** shipped UI: pick log, monitor, settings, help, and notifications as supported by the browser. |
 
-Behavior should assume **File System Access** constraints (picker, permissions, protected paths): the product must **recover gracefully** and never imply we can read paths the browser cannot expose (see **§5.6**).
-
-### 1.1 Graphical UI vs terminal UI (parity and justified differences)
-
-**Scope of this repo.** The codebase here implements the **web** client only. There is **no** separate desktop (Tk) or terminal (Textual/curses) UI in-tree to “match” or diff against. Any **GUI vs TUI** discussion below is a **design contract** for forks, future surfaces, or legacy branches so that differences are either **justified** or treated as **bugs**.
-
-**What must stay aligned (behavioral parity)** — any alternate UI should present the **same product truth**:
-
-- **Queue semantics:** Position, “at front,” **completed** (past queue wait), **interrupted**, and **no queue detected** mean the **same thing** as in the shared rules (see README).
-- **Numbers:** Rolling rate, global rate, elapsed, ETA, progress **percent**, and threshold list behavior — **same formulas and firing rules** (downward crossings, once per threshold per run, completion not equal to “threshold at 0”).
-- **Settings meaning:** Poll interval, thresholds, rolling window, alert toggles, “log every change” — **same defaults and effect on History**.
-- **Vocabulary:** Reuse the **same status strings and KPI labels** where space allows so users can switch surfaces without relearning.
-
-**Justified differences (presentation and platform)** — these do **not** need pixel parity:
-
-| Area | Why a TUI (or other CLI) may differ | Requirement |
-|------|--------------------------------------|-------------|
-| **Chart** | Terminals use braille blocks, ASCII, or simplified sparklines instead of a canvas. | Same **time series for the current session**; fidelity can be lower; axis labels may be compressed. |
-| **Color** | Limited palette (16/256 colors) vs full CSS. | Map **roles**: accent ≈ primary data, muted ≈ labels, danger ≈ error — not necessarily the same hex. |
-| **Layout** | Fixed character grid, no drag-resize panes. | Same **information order** where possible: control → KPIs → graph → detail (Info/History). |
-| **File access** | Direct filesystem path or `stdin` vs browser file picker and permission tokens. | Same **outcome**: user points at the log (or folder) the engine reads; recovery paths differ (symlink docs vs `?` overlay). |
-| **Help** | Inline text, man-page style, or link to README vs modal + command generator. | Same **substance**: why picks fail, how to expose logs on disk. |
-| **Notifications** | Bell, OSC 9, or OS APIs vs **Notification** API. | Same **events** (threshold, completion) when the user enables alerts. |
-| **Settings UI** | Modal form vs tabbed panels vs config file only. | Persisted **fields** should map 1:1 to the web app’s settings model. |
-
-**Not justified (should be fixed or documented as debt):**
-
-- Different **math** or **alert firing** for the same log input.
-- Hiding a **core KPI** (position, status, rate, elapsed, remaining, progress) without a **hard terminal size** constraint — if the terminal is too narrow, truncation or a single “summary line” is OK; **silently omitting** semantics is not.
-- **Contradictory copy** for the same state (e.g. “Completed” in one UI vs “Stopped” in another for the same tail).
-
-**Summary:** **Match behavior and language; vary chrome.** If a terminal UI is added alongside this web app, treat it as **another skin** on the same monitor, not a second product with different rules.
-
-**Strategic goals**
-
-1. **Glanceable truth (within limits):** One screen answers: *Where am I? Is the queue moving? Roughly how long? Anything I should react to?*
-2. **Trust:** No hidden upload; **honest** copy about estimates and log-derived inference.
-3. **Low ceremony:** Happy path is *open → pick log* (monitoring starts automatically); **Stop** / **Start** pauses and resumes; depth (Info, History, settings) is **optional**, not mandatory reading.
-4. **Resilience:** Picker cancel, permission denial, and “system file” blocks are **expected**; the UI always offers a **next step** (retry, Help, copyable commands), not a dead end.
-
-**Success looks like**
-
-- The user can **glance** at one screen and understand: *where they are in queue*, *whether monitoring is active*, *how long they have been waiting*, and *roughly how much longer* (when the model can say).
-- The user is **never stranded**: permission issues, canceled pickers, and blocked paths come with **clear next steps** (in-context help, actions, copyable commands—not only prose).
-- The tool is **honest**: estimates and statuses are labeled as such; **completion** aligns with **log-backed “past queue wait”**, not wishful UI.
-
-**Non-goals**
-
-- **No backend**, no account, no uploading logs—by design.
-- **Not** a guarantee of server behavior: ETAs and positions are **derived from the log** and can be wrong if the log or game behavior changes.
-- **Not** an official Vintage Story product; log formats can change.
-- **Not** a general-purpose log analyzer — scope stays **connect queue** and closely related client status.
+Design must assume File System Access constraints (picker availability, secure origin, permissions, protected paths): the product should **recover gracefully** and never imply we can read paths the browser cannot expose.
 
 ---
 
-## 2. UX principles (what “good” feels like)
+## 2. Parity contract (GUI vs TUI / alternate clients)
 
-These align with [`.cursor/rules/ux-seamless-flow.mdc`](../.cursor/rules/ux-seamless-flow.mdc) and should guide UI decisions:
+This repo implements the **web** client only. If alternate UIs exist in forks or future work, parity is defined as **behavior + language**, not pixels.
 
-| Principle | Desired behavior |
-|-----------|------------------|
-| **Low friction** | Few steps to go from “open page” to “monitoring,” with **remembered log** and **autostart** when the browser allows. |
-| **In-context guidance** | Help, recovery, and “next action” live **where the user already is** (toasts, banners, `?` overlay)—not only in external docs. |
-| **Actionable errors** | Cancellation or denial is **not a dead end**: offer **retry**, **guide**, or **copy command** paths. |
-| **Calm dashboard** | Primary view stays **readable at a glance**: big KPIs, one chart, optional detail collapsed by default. |
-| **Honest states** | Distinguish **still in queue at front** vs **completed past queue**, **interrupted** vs **still monitoring**, **waiting for file** vs **no queue in log**. |
-| **No fake precision** | ETAs and rates are **estimates**; copy and UI should not imply scientific certainty. |
-| **Gesture-safe** | Anything that must follow a user gesture (e.g. file picker) is a **button**, not an automatic popup on load. |
-| **Consistent vocabulary** | Same words for the same states across KPIs, graph, History, and alerts. |
+### Must stay aligned (behavioral parity)
+
+- **Queue semantics:** Position, “at front,” **completed** (past queue wait), **interrupted**, and **no queue detected** mean the same thing.
+- **Numbers:** Rolling rate, global rate, elapsed, ETA, progress percent, and alert firing rules (downward crossings; once per threshold per run; completion ≠ “threshold at 0”).
+- **Settings meaning:** Poll interval, thresholds, rolling window, alert toggles, “log every change” defaults and effects on History.
+- **Vocabulary:** Same status strings/KPI labels where space allows.
+
+### Justified differences (presentation/platform)
+
+| Area | Why it may differ | Requirement |
+|------|--------------------|-------------|
+| Chart | Terminal charts differ (ASCII/braille). | Same **time series for the current session**; labels may be compressed. |
+| Color | Limited palettes. | Map semantic roles (accent/muted/danger), not hex parity. |
+| Layout | Fixed grids, no drag-resize. | Preserve information order: control → KPIs → graph → detail. |
+| File access | Direct paths vs browser picker tokens. | Same user outcome; recovery differs (symlink docs vs in-app Help). |
+| Help | Modal vs inline text. | Same substance: why picks fail + how to expose logs safely. |
+| Notifications | Different OS mechanisms. | Same events (threshold, completion, interrupt) when enabled. |
+| Settings UI | Modal vs config file. | Same persisted fields and defaults. |
+
+### Not justified (bugs or explicit debt)
+
+- Different math or alert rules for the same input.
+- Silently omitting core KPIs without hard size constraints.
+- Contradictory copy for the same state.
 
 ---
 
-## 2.1 Visual design: colors, typography, and layout
+## 3. Product goals and success metrics
 
-The web UI follows a **dark, dashboard-style** look: low-glare backgrounds, **muted labels** with **high-contrast values**, and a **single accent** for links, focus, chart series, and progress—similar in spirit to monitoring tools (e.g. Grafana-like dark UIs), tuned for **long sessions** without harsh contrast.
+### 3.1 Strategic goals
 
-### Color system (CSS tokens)
+1. **Glanceable truth:** One screen answers “where, moving, how long, what next.”
+2. **Trust:** Honest copy about estimates and log-derived inference.
+3. **Low ceremony:** Open → pick log; monitoring starts; Stop/Start pauses/resumes; depth (Info/History/Settings) is optional.
+4. **Resilience:** Cancellation/denial/protected paths are expected; UI always offers the next step.
 
-Implementation lives in [`styles.css`](../styles.css) on `:root`. Tokens are **semantic**: use them for meaning, not one-off hex in new UI.
+### 3.2 Success looks like
+
+- Users understand **position**, **monitoring state**, **elapsed**, and **rough remaining** at a glance.
+- No dead ends: blocked picks include actionable recovery (Help, copyable commands, retry).
+- Completion UX aligns with **log-backed “past queue wait”**, not “position 1”.
+
+---
+
+## 4. UX principles (how “good” feels)
+
+Aligned with [`.cursor/rules/ux-seamless-flow.mdc`](../.cursor/rules/ux-seamless-flow.mdc).
+
+| Principle | What it means here |
+|-----------|--------------------|
+| **Low friction** | Minimal steps from open page → monitoring; remember last log when policy allows. |
+| **In-context guidance** | Recovery lives in toasts/banners/help modal (not only README). |
+| **Actionable errors** | Cancel/deny/protected path always offers retry/guide/copy-command route. |
+| **Calm dashboard** | KPIs + one chart are primary; detail is collapsible. |
+| **Honest states** | At front ≠ completed; interrupted ≠ monitoring; missing file ≠ no queue. |
+| **No fake precision** | ETAs/rates are estimates; UI copy must not oversell accuracy. |
+| **Gesture-safe** | Picker/permission actions are explicit (buttons), not auto-popups. |
+| **Consistent vocabulary** | Same words for the same states across KPIs/graph/history/alerts. |
+
+---
+
+## 5. Visual design system (web)
+
+The UI uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit): low glare, muted labels, high-contrast values, one accent family for data/progress/links, and semantic success/danger colors.
+
+### 5.1 Tokens (CSS variables)
+
+Tokens live in [`styles.css`](../styles.css) on `:root` and are semantic:
 
 | Token | Typical use |
 |-------|-------------|
-| **`--bg-app`**, **`--bg-app-mid`** | Page background: cool dark base plus **radial** highlights (subtle blue/green wash) and a vertical blend for depth—not a flat fill. |
-| **`--bg-card`**, **`--bg-card-2`**, **`--bg-inset`** | Card surfaces (often **gradient**), inset panels (history, inputs). |
-| **`--text`**, **`--text-bright`** | Primary copy vs KPI / titles (slightly brighter for scan). |
-| **`--muted`** | Labels, hints, footer—**scan hierarchy** with uppercase micro-labels on cards. |
-| **`--sep`**, **`--border-card`** | Dividers and card hairlines (soft rgba, not harsh lines). |
-| **`--shadow-card`** | Card/modal elevation: soft outer shadow + **inset** top highlight. |
-| **`--accent`**, **`--accent-soft`** | **Primary accent** (links, progress, chart); soft variant for focus rings. |
-| **`--link`** | Hyperlinks (hover brightens slightly). |
-| **`--btn`**, **`--btn-active`** | Default buttons: neutral slate; hover brightens. |
-| **`--btn-primary`**, **`--btn-primary-active`** | **Positive / go** actions (e.g. grant access, primary confirmations)—green, not the same as the blue accent. |
-| **`--btn-stop-*`**, **`btn--stop`** | **Stop** while monitoring is live: warm dark gradient + amber border—visually distinct from green **Start**, so pause/stop is not mistaken for another “go”. |
-| **`--danger`** (`#f2495c`) | Errors, destructive emphasis, danger text (e.g. `.danger` on status). |
-| **`--ok`** (`#73bf69`) | Success-adjacent accents where used (e.g. positive framing in banners). |
+| `--bg-app`, `--bg-app-mid` | Page background: cool base + subtle radial highlights. |
+| `--bg-card`, `--bg-card-2`, `--bg-inset` | Cards and inset panels (history, inputs). |
+| `--text`, `--text-bright` | Copy vs KPI values/titles. |
+| `--muted` | Labels/hints/footer; scan hierarchy via uppercase micro-labels. |
+| `--sep`, `--border-card` | Dividers and card hairlines (soft rgba). |
+| `--shadow-card` | Elevation + inset highlight (cards/modals/toasts). |
+| `--accent`, `--accent-soft` | Primary accent (links/progress/chart); focus rings. |
+| `--link` | Links. |
+| `--btn`, `--btn-active` | Neutral buttons. |
+| `--btn-primary`, `--btn-primary-active` | Positive “go” actions (green). |
+| `btn--stop` / stop tokens | Stop while monitoring: warm/amber distinct from Start. |
+| `--danger` | Errors/danger emphasis. |
+| `--ok` | Success-adjacent accents. |
 
-**State overlays (not always separate tokens):**
+### 5.2 Typography
 
-- **Restore / resume banner:** Green-tinted gradient over the app bar so “you can continue” reads as **opportunity**, not alarm (`restoreBanner` in CSS).
-- **Toasts:** Gradient card panels; **error** / **warn** / **ok** border tints; backdrop blur on the stack—**noticeable but not full-screen**.
+- UI: `system-ui` (`--sans`)
+- Data: monospace (`--mono`) for paths, history, numeric settings/code-like text
 
-### Chart (canvas)
+### 5.3 Chart styling
 
-The queue **graph** is drawn in [`app.js`](../app.js) with colors aligned to the same system: **vertical gradient** plot fill, soft grid lines, axis labels near **`--muted`**, cyan-tinted **series** line and marker—so the chart **matches** the KPI strip and progress bar.
+Canvas graph uses the same system: framed plot, soft grids, muted axis labels, cyan-tinted series line and markers, gradient fill under the step series.
 
-### Typography
+### 5.4 Layout
 
-- **UI:** `system-ui` stack (`--sans`) for labels, buttons, and prose.
-- **Data:** **Monospace** (`--mono`) for paths, history, numeric settings, and code blocks—signals **machine-sourced** content and improves alignment when scanning columns.
-
-### Layout and shape
-
-- **Max width** (~1280px) keeps the dashboard readable on ultrawide monitors; content stays **centered**, not edge-to-edge chaos.
-- **Cards:** Rounded corners (~14px), **`--border-card`** + **`--shadow-card`**; **sticky top bar** with blur/saturation and shadow so controls stay reachable while scrolling.
-- **Density:** KPI row is **compact but legible**; graph is the **largest** visual anchor below KPIs—reinforces “position over time” as the main story.
-
-### Design principles (visual)
-
-- **One accent family:** Blue/cyan for **data + progress + links**; green for **primary affirmative** actions; red only for **problems**—avoid rainbow KPIs.
-- **Calm defaults:** No animation required for trust; optional subtle transitions in CSS are fine; **no** flashy effects that distract from numbers during a queue wait.
-- **Accessibility:** Relies on **color + label** (e.g. danger class on status, not color alone); focus rings use visible blue-tinted outlines on inputs (`--link` / accent family).
-
-When adding features, **extend tokens** or reuse existing ones before introducing new hex values—keeps the product visually coherent as the README and help content grow.
+- Max width ~1280px; centered to avoid ultrawide sprawl.
+- Cards with rounded corners and soft elevation.
+- Sticky top bar keeps primary controls reachable.
 
 ---
 
-## 3. Information architecture (high level)
+## 6. Information architecture (one-page app)
 
-The app is a **single-page dashboard** with a stable mental model:
+Mental model (stable and scan-friendly):
 
-1. **Header** — identity, **Pick log**, **help** (`?` placed adjacent to picking), optional **notifications** enablement. Help is a **working surface** (short picker guidance, command generator, load actions); **README** holds full troubleshooting.
-2. **Control strip** — pick log (and optionally folder where supported), **Start / Stop**, and when needed **permission / grant access** flows. This is the **gate** between “configured” and “live.”
-3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings (thresholds remain readable even when the list overflows: subtle motion only when an alert fires, plus user-controlled horizontal pan), elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
-4. **Chart** — **time series** of position for the **current queue session**, so the user sees **trend**, not only a snapshot.
-5. **Info (collapsible)** — **secondary** detail: last changes, global averages, resolved label for the log source—**supporting** the KPIs, not competing with them.
-6. **History (collapsible)** — **narrative log** of app events and optional per-step queue lines (when enabled). For debugging and reassurance, not the primary readout.
-7. **Settings (advanced)** — should trend toward **advanced overrides**, not a primary workflow surface. Prefer **inline customization** where effects are visible (e.g. warning thresholds edited from the WARNINGS KPI via a contextual popover). Keep debounced save; explicit save remains for validation and “I’m done” reassurance.
+1. **Header:** identity, Pick log, Help, Settings, notification enablement.
+2. **Control strip:** Start/Stop, permission/grant flows.
+3. **KPI strip:** position, status, rate, warnings, elapsed, remaining, progress.
+4. **Graph:** time series for the current session/run.
+5. **Info (secondary):** supporting context.
+6. **History (secondary):** narrative events + optional per-step queue changes.
+7. **Settings (advanced):** rarely used; prefer inline edits for frequent tweaks.
 
-**Layout:** Dense but readable; **Info** and **History** stay secondary so the **graph and KPIs** remain primary during active monitoring.
-
-**Progressive disclosure:** First-time users need **control strip + KPI + chart**; power users open **Info** and **History** and tune **Settings**.
+Progressive disclosure: first-time users need (1–4); power users expand (5–7).
 
 ---
 
-## 4. Core user journeys (desired behavior)
+## 7. Core user journeys (desired behavior)
 
 ### Journey at a glance
 
-| Phase | What the user should experience |
-|--------|----------------------------------|
-| **First open** | Clear primary path: **Pick log file** (or equivalent). Monitoring **starts** when a log is chosen successfully; **Stop** / **Start** controls pause and resume. |
-| **After pick** | Path/state is visible enough that the user knows *what* is being watched. Tail/poll behavior begins automatically; status reflects reality (idle → monitoring, errors explained). |
-| **While monitoring** | KPIs and graph update on a **sensible cadence**; **status** vocabulary matches log-derived states (e.g. in queue, at front, completed, interrupted, waiting for file, error). |
-| **Alerts** | Threshold and completion signals are **noticeable** (optional sound / system notification where enabled) but **not hostile**; History records what happened in plain language. |
-| **Return visit** | If the browser still allows access to the same file, **resume** should be low-friction; if a new grant is needed, the UI says so explicitly (**no** silent failure). |
-| **Something goes wrong** | Short, actionable feedback; **Help** explains platform limits and offers **generated commands** when the browser cannot open AppData-like paths directly. |
+| Phase | Experience |
+|------|------------|
+| First open | One clear action: **Pick log**. Monitoring starts after a successful pick. |
+| After pick | Status explains what’s being watched; chart + KPIs seed from the current session. |
+| While monitoring | KPIs + chart update on a sensible cadence; states are honest and consistent. |
+| Alerts | Noticeable but non-hostile; recorded in History. |
+| Return visit | Restore is low-friction when permissions allow; otherwise one obvious “grant/allow” action. |
+| Something goes wrong | Actionable recovery: toasts/banners + Help generator. |
 
-### 4.1 First-time setup
+### 7.1 First-time setup
 
-1. User opens the app (file or dev server).
-2. User chooses **Pick log file** and selects `client-main.log` (or equivalent); monitoring **starts** when the pick succeeds.
-3. If the browser requires **permission** or a **gesture** to resume after reload, the UI shows a **clear bar or toast** with **one obvious action** (e.g. grant / allow)—not a silent failure.
-4. KPIs and chart **populate** from the **current queue session** in the log (same seeding rules as any monitoring start).
+1. Open the app.
+2. Pick `client-main.log`.
+3. If a gesture/permission is required on reload, show one obvious action (grant/allow).
+4. Seed KPIs + chart from the current run.
 
-**Desired emotion:** *I know what to click; nothing scary happened.*
+Desired emotion: “I know what to click; nothing scary happened.”
 
-### 4.2 Returning user
+### 7.2 Returning user
 
-1. **Saved handle** and config allow **restore** when policy allows.
-2. If permission is already granted, monitoring can **resume with minimal clicks** (autostart path).
+- Restore the saved handle when policy allows; otherwise request permission with clear UI.
 
-**Desired emotion:** *It remembered me.*
+Desired emotion: “It remembered me.”
 
-### 4.3 Active monitoring (the “happy path”)
+### 7.3 Active monitoring
 
-1. **Position** updates as new log lines arrive; **chart** steps.
-2. **Elapsed** tracks **wait in this session** from log-anchored timestamps, not wall clock alone.
-3. **ETA** and **rate** update from empirical and windowed models; at **position 1** (at front), ETA should **remain meaningful** (e.g. one-step-to-done framing)—not “blank” while the log still says `1` for a long time.
-4. **Progress** advances toward completion but should **not claim 100%** until the product definition of **done** (past-queue / position `0` in UI terms).
+- Position steps, chart updates.
+- Elapsed tracks this session (log-anchored when available).
+- ETA/rate remain meaningful, including at position 1 (one-step framing).
+- Progress reaches 100% only at true completion (past queue).
 
-**Desired emotion:** *I trust the direction of travel; I’m not fooled into thinking I’m done at 1.*
+Desired emotion: “I trust the direction of travel.”
 
-### 4.4 Threshold alerts
+### 7.4 Threshold alerts
 
-1. User configures **warning thresholds** (e.g. when position drops through 10, 5, 1).
-2. Each threshold should fire **once per queue run** when crossed **downward**, with optional sound/popup/browser notification.
-3. Thresholds are **warnings about position**, not the same as **completion**.
+- Fire once per threshold per run on downward crossings.
+- Thresholds are position milestones, not completion.
 
-**Desired emotion:** *Tell me when I cross lines I care about—without spam.*
+### 7.5 Completion (past queue wait)
 
-### 4.5 Completion (past queue wait)
+- Completion is not “position <= 1”.
+- It triggers when post-queue progress appears **after** the last queue line.
+- Completed status + 100% progress + completion alert align to that moment.
 
-1. **Completion** is **not** “threshold at 0.”
-2. It fires when the log indicates **post-queue-wait** activity **after** the last queue line (connecting/loading patterns as defined by the product)—so long stalls at position **1** do not prematurely celebrate **done**.
-3. UI: **Completed**, **100% progress**, completion sound/popup align with this moment.
+### 7.6 Interrupted/stale queue
 
-**Desired emotion:** *That was the real finish line.*
+- Interrupted is explicit; elapsed/rate freeze appropriately.
+- Continue watching the log for recovery.
 
-### 4.6 Interrupted or stale queue
+### 7.7 New queue after interrupt
 
-1. If the run is **interrupted** (disconnect, staleness, or equivalent), the UI shows **Interrupted** (or similar) clearly.
-2. **Elapsed** (and rate display where applicable) should **freeze** in a way that **does not lie**—not keep ticking as if still in a healthy queue.
-3. Tailing may **continue** so the user can recover when new lines appear.
-
-**Desired emotion:** *Something went wrong or stalled; the UI isn’t pretending everything is fine.*
-
-### 4.7 New queue after interrupt
-
-1. If a **new** queue appears in the log while interrupted, the product may offer to **adopt** that run and **re-seed** graph/alerts.
-2. User should **confirm** intentional reset vs accidental jump.
-
-**Implementation (web):** While **Interrupted**, if the log tail shows a **new** queue-run session (session index increased since interrupt), a **modal** offers **Adopt new run** (re-seeds graph + alerts from the current-session slice) or **Not now** (stays interrupted; prompt can repeat if the session changes). If the session is unchanged, recovery is **automatic** without the modal.
-
-**Desired emotion:** *I can recover without losing my mind.*
+- If a new session appears, offer **Adopt new run** (re-seed) vs Not now.
 
 ---
 
-## 5. Feature areas (product-level intent)
+## 8. Feature decisions captured from prompts (lossless)
 
-### 5.0 Feature requests (captured from prompts)
+This section converts ad-hoc prompts into durable feature requests, with **request → decision → shipped**.
 
-This section turns the project’s ad-hoc prompts into durable **feature requests** and records the **decision** the product adopted. Treat these as the “why” behind recent UX changes.
-
-#### KPI tooltips & inline edits (reduce trips to Settings)
+### 8.1 KPI tooltips & inline edits (reduce trips to Settings)
 
 - **FR: Progress bar should show exact percent**
-  - **Request**: Add informative tooltips, e.g. show percentage over the progress bar.
-  - **Decision**: Progress remains a simple bar, but hovering should reveal the exact percent (and any lightweight context) to avoid guesswork.
-  - **Shipped**: Progress fill has a tooltip with the current percent; it should never obscure primary controls.
+  - **Request**: Add informative tooltips, e.g. percentage over the progress bar.
+  - **Decision**: Keep a simple bar; hover reveals exact percent (plus minimal context).
+  - **Shipped**: Tooltip with current percent; must not obscure controls.
 
 - **FR: Make key KPI settings editable in-place**
-  - **Request**: “Make relevant settings interactive… clicking WARNINGS lets you edit it; same for rolling window.”
-  - **Decision**: Prefer contextual popovers on the KPI strip for the few settings that users frequently tweak during a live queue. Settings modal remains for advanced/rare items.
+  - **Request**: Make relevant settings interactive (warnings, rolling window, refresh).
+  - **Decision**: Use contextual KPI popovers for frequently tuned values; keep Settings modal for advanced items.
   - **Shipped**:
     - WARNINGS: inline popover CSV editor.
-    - RATE: inline popover editor for the AVG window points.
-    - STATUS: inline popover editor for refresh/poll seconds (shows as part of the STATUS label).
+    - RATE: inline popover editor for AVG window points.
+    - STATUS: inline popover editor for refresh/poll seconds (shown in label).
 
 - **FR: Inline popover actions should be icon-only**
-  - **Request**: Use save/cancel icons in the little pop up dialogs.
-  - **Decision**: Popovers use compact icon buttons (✓/×) with `title`/`aria-label` for clarity and accessibility.
-  - **Shipped**: Inline popovers use ✓/× instead of “Save/Cancel” text.
+  - **Request**: Use save/cancel icons in popovers.
+  - **Decision**: Compact ✓/× with `title`/`aria-label`.
+  - **Shipped**: ✓/× instead of Save/Cancel text.
 
-#### Visualization & graph (Grafana-inspired)
+### 8.2 Visualization & graph (Grafana-inspired)
 
-- **FR: Grafana-inspired graph panel polish**
-  - **Request**: Learn what a good graph UI looks like from Grafana and improve this chart.
-  - **Decision**: Adopt a monitoring-panel look: framed plot area, readable grid, compact axes, hover crosshair, and an area-under-line fill.
-  - **Shipped**: Panel frame, horizontal + vertical grid, X time ticks, Y label, gradient fill under the step line, hover crosshair.
+- **FR: Grafana-inspired panel polish**
+  - **Request**: Improve the chart with Grafana-like readability.
+  - **Decision**: Framed plot, readable grid, compact axes, hover crosshair, area fill.
+  - **Shipped**: Frame + grid + ticks + gradient fill + hover crosshair.
 
 - **FR: Show time on the X axis**
-  - **Request**: The axis should show time.
-  - **Decision**: Render compact time ticks (HH:MM:SS) along the bottom so the user can read cadence at a glance.
+  - **Request**: X axis should show time.
+  - **Decision**: Compact HH:MM:SS ticks.
   - **Shipped**: Bottom time ticks.
 
 - **FR: One “Live view” toggle (X-axis motion only), default on**
-  - **Request**: “I don’t need 2 views… just a button to toggle live view on/off… live view on by default.” Live view means the timeline keeps stretching as the file updates, so there’s constant motion.
-  - **Decision**: Keep **full-session history** as the data range (the story of the current run), but let the X-axis advance to “now” while monitoring so the plot has subtle motion. One toggle controls this.
-  - **Shipped**: `Live view: on/off` toggle; **on by default**; affects **X-axis motion**, not which points are included.
+  - **Request**: Single toggle; live view on by default; “constant motion”.
+  - **Decision**: Full-session history remains the data range; live view advances X-axis to “now” while monitoring.
+  - **Shipped**: `Live view: on/off`, default on; affects X-axis motion only.
 
 - **FR: Hover should reveal real update points (no crosshair snapping)**
-  - **Request**: “Cross hair does not need to snap… the travelling dot snaps” and show a data point only when the cursor is **near** an actual update (including minor updates).
-  - **Decision**: Always keep the crosshair under the pointer; separately snap the hover marker to the nearest real update point **only when close enough**. Treat **every log-derived update line** as a point so hover can snap to “minor” updates.
-  - **Shipped**: Hover crosshair follows the mouse; hover marker snaps to the nearest point only within a small radius; all update lines are recorded as points (even if position didn’t change).
+  - **Request**: Crosshair stays under mouse; the traveling dot snaps; only show when near a real update; snap to minor dots too.
+  - **Decision**: Crosshair follows pointer; hover marker snaps to nearest real point only within a small radius. Every log-derived update line is a point (even unchanged position).
+  - **Shipped**: Pointer crosshair + proximity-based point snapping; minor updates recorded as points.
 
 - **FR: Graph must not “jump” over intermediate updates**
-  - **Request**: “You jumped straight from position 40 to 34..”
-  - **Decision**: If multiple queue readings arrive between polls, append **each** reading as its own point (monotonic timestamps) so the step plot reflects intermediate movement.
-  - **Shipped**: Poll delta parsing appends all queue readings found in the new chunk, not only the last one.
+  - **Request**: Avoid 40 → 34 style jumps.
+  - **Decision**: Parse poll deltas and append each reading as its own point (monotonic timestamps).
+  - **Shipped**: Poll delta parsing appends all readings.
 
 - **FR: Graph hover must work reliably on HiDPI**
-  - **Request**: “Graph still broken” (hover/snap unreliable).
-  - **Decision**: Hover hit-testing must use a **CSS-pixel** radius scaled by DPR so it doesn’t become too small on high-density displays.
-  - **Shipped**: Hit radius scales with canvas-to-CSS pixel ratio.
+  - **Request**: Hover/snap unreliable on some displays.
+  - **Decision**: Hit-testing uses CSS-pixel radius scaled by DPR.
+  - **Shipped**: DPI-safe hit radius.
 
 - **FR: Graph should be resizable (at least vertically)**
-  - **Request**: Graph should be resizable at least vertically.
-  - **Decision**: Let the graph panel resize vertically via a drag handle; the canvas should re-render immediately on resize.
-  - **Shipped**: Graph card supports vertical resize; canvas resizes/redraws with the panel.
+  - **Request**: Vertical resize.
+  - **Decision**: Resizable card; immediate redraw via resize observation.
+  - **Shipped**: Vertical resize + redraw.
 
 - **FR: Copy a snapshot of the graph**
-  - **Request**: Button to copy snapshot of graph to clipboard.
-  - **Decision**: Provide a “Copy” action in the graph header that tries to copy a PNG to clipboard; if unsupported, download the PNG instead (with clear messaging).
-  - **Shipped**: Graph header includes a snapshot action with clipboard PNG + download fallback.
+  - **Request**: Copy graph image to clipboard.
+  - **Decision**: Copy PNG when supported; download fallback with clear messaging.
+  - **Shipped**: Snapshot action with clipboard PNG + download fallback.
 
-#### Alerts, sounds, and history verbosity
+### 8.3 Alerts, sounds, and History verbosity
 
 - **FR: Log every position change by default**
-  - **Request**: Enable logging every position change by default.
-  - **Decision**: Default should favor auditability; users can turn it off to reduce History noise.
-  - **Shipped**: Default on (web config) while preserving user overrides.
+  - **Request**: Enable by default.
+  - **Decision**: Default favors auditability; user can reduce noise.
+  - **Shipped**: Default on (web config), respecting user overrides.
 
 - **FR: Sound sources should be visible and configurable**
-  - **Request**: Show which sounds are being used; allow URL or local file; provide nice defaults.
-  - **Decision**: Each alert channel should expose (a) default shipped clip, (b) URL, (c) local file stored in browser, and (d) built-in tones as fallback.
-  - **Shipped**: Settings show active sound source and provide URL/local/built-in/default controls.
+  - **Request**: Show current source; allow URL/local/default/built-in.
+  - **Decision**: Each alert channel supports default shipped clip, URL, local file stored in browser, and built-in tones fallback.
+  - **Shipped**: Per-channel controls in Settings.
 
-- **FR: Sound preview button in Settings**
-  - **Request**: A play button to preview in Settings.
-  - **Decision**: Preview should always play regardless of whether the channel is enabled (to avoid “why didn’t it play?” confusion).
-  - **Shipped**: “Play” preview per channel that ignores enable toggles.
-
-- **FR: Sound settings should support local file pick**
-  - **Request**: Local file picker for sound sources; should be reliable.
-  - **Decision**: Each sound channel supports a local file picker whose chosen file is stored in browser storage; the picker must work reliably across browsers.
-  - **Shipped**: Local file… picker for warn/completion/interrupt sound sources; files persisted in browser storage.
+- **FR: Sound preview should toggle Play/Stop**
+  - **Request**: Preview must stop and not overlap.
+  - **Decision**: Preview is independent of enable toggles; Play toggles to Stop and halts playback cleanly.
+  - **Shipped**: Stateful preview with Play/Stop behavior.
 
 - **FR: Separate disconnected/interrupted alert channel**
-  - **Request**: A separate disconnected or interrupted sound/notification alert.
-  - **Decision**: Treat Interrupted as its own alert channel (popup + sound + desktop notify) distinct from threshold and completion.
-  - **Shipped**: Dedicated Interrupt alert toggles and sound source configuration; fires when the app enters Interrupted.
+  - **Request**: Dedicated alert for Interrupted.
+  - **Decision**: Interrupt is a distinct channel (toast + sound + desktop notification when enabled).
+  - **Shipped**: Dedicated interrupt toggles and sound source.
 
-#### KPI polish and motion discipline
+### 8.4 KPI polish and motion discipline
 
-- **FR: Warnings should not slide unless a warning just fired**
-  - **Request**: The warning list marquee should not animate continuously.
-  - **Decision**: Motion is a “just happened” cue. Only marquee briefly after an alert fires (and only if overflow requires it).
-  - **Shipped**: Marquee gate window triggered by threshold alerts.
+- **FR: Warnings should not animate unless something happened**
+  - **Request**: No continuous marquee.
+  - **Decision**: Motion is an event cue; marquee briefly after alert fires (and only if overflow requires it).
+  - **Shipped**: Gated marquee.
 
 - **FR: Warnings should be side-scrollable**
-  - **Request**: Warnings is side scrollable; scrolling over it moves it left or right.
-  - **Decision**: Prefer direct manipulation over animation: let the user pan the threshold strip horizontally (mouse wheel/trackpad) when it overflows.
-  - **Shipped**: Warnings viewport is horizontally scrollable; wheel/trackpad pans left/right on hover.
+  - **Request**: Pan left/right with wheel/trackpad.
+  - **Decision**: Prefer direct manipulation; keep scroll arrows discoverable on hover.
+  - **Shipped**: Horizontal pan + hover-revealed arrows.
 
-- **FR: Warning thresholds should be editable inline (without a weird edit mode)**
-  - **Request**: Make thresholds customizable without dumping users into a “settings screen”.
-  - **Decision**: Keep the KPI strip calm: show thresholds as a read-only rail, and open a **small contextual editor** from the WARNINGS label (⚙/✎). In the editor, thresholds are **chips** with remove (×) and an “Add…” input that accepts CSV. No “hover-to-delete” surprises on the main rail.
-  - **Shipped**: WARNINGS opens a popover editor with removable chips + CSV add; the rail remains read-only.
+- **FR: Warning thresholds editable inline**
+  - **Request**: No weird edit mode; keep main rail calm.
+  - **Decision**: Read-only rail; open a small contextual editor with chips + CSV add.
+  - **Shipped**: WARNINGS popover editor.
 
 - **FR: Status should be color-coded**
-  - **Request**: Make Status glanceable with color.
-  - **Decision**: Map status to semantic roles: connecting/info, at-front/warn, completed/done, interrupted/error/danger, monitoring/ok.
-  - **Shipped**: Status KPI class mapping and colors.
+  - **Request**: Make status glanceable.
+  - **Decision**: Map states to semantic roles: info/warn/done/danger/ok.
+  - **Shipped**: Status value styling classes.
 
-#### Tail activity indicator
+### 8.5 Tail activity indicator
 
-- **FR: Tail pulse should be subtle and placed near the graph**
-  - **Request**: Make tail pulse less bright and more subtle; maybe on bottom right of the graph.
-  - **Decision**: Keep a quiet “tailing” affordance near the chart, not a bright centerpiece.
-  - **Shipped**: Tail indicator docked to the graph; softer styling.
+- **FR: Tail indicator should be subtle**
+  - **Request**: Softer, near graph; avoid redundant motion.
+  - **Decision**: Quiet “armed” indicator; pulse minimized/disabled when graph already conveys motion.
+  - **Shipped**: Subtle indicator; pulse disabled.
 
-- **FR: If the graph scrolls each tick, the light doesn’t need to pulse**
-  - **Request**: With per-tick motion, remove the pulse.
-  - **Decision**: Avoid redundant motion; prefer the graph itself as the activity signal.
-  - **Shipped**: Pulse disabled (indicator remains as a subtle “armed” state).
+### 8.6 Settings as a modal
 
-#### Settings as a modal
+- **FR: Settings should be a top-right modal**
+  - **Request**: Settings in a popup dialog.
+  - **Decision**: Keep dashboard focused; settings are secondary.
+  - **Shipped**: Settings modal opened from top-right.
 
-- **FR: Settings should be a top-right button with a popup dialog**
-  - **Request**: Settings should be a button in the top right with a popup.
-  - **Decision**: Settings is secondary; move it out of the main scroll into a modal overlay (like Help) to keep the dashboard focused.
-  - **Shipped**: Settings modal opened from top-right button.
-
-#### Onboarding & guidance
+### 8.7 Onboarding & guidance
 
 - **FR: First-run guided tutorial**
-  - **Request**: Add a tutorial for new users; require choosing a log file before moving on; guide warnings and rolling rate; start monitoring on completion; skippable + persistent completion status.
-  - **Decision**: Provide first-run onboarding that is actionable, gated on key prerequisites, and can be resumed if the user temporarily closes it to perform an action.
-  - **Shipped**: First-run tutorial overlay with step gating, skip/complete persistence, and a “resume tutorial” affordance when the user jumps into an editor.
+  - **Request**: Gated steps; require log pick; guide warnings + rate; start monitoring on completion; skippable; persistent.
+  - **Decision**: First-run onboarding with resume behavior (minimize to complete actions, then resume).
+  - **Shipped**: Tutorial overlay with gating + “resume tutorial” affordance.
 
-#### Notifications (desktop) clarity
+### 8.8 Notifications clarity
 
-- **FR: Desktop notifications should be actionable (focus the monitor)**
-  - **Request**: Desktop notification should have a button/info so the user knows they can click to focus the monitor.
-  - **Decision**: Notifications should explicitly tell the user they can click to return; when supported, include an action label like “Open monitor”. Clicking should focus an existing tab or open the app.
-  - **Shipped**: Desktop notification copy indicates click-to-open; service worker focuses/opens the app on click.
+- **FR: Desktop notifications should be actionable**
+  - **Request**: Indicate click-to-focus; include action button when possible.
+  - **Decision**: Copy must tell the user they can click; action label like “Open monitor” where supported; click focuses existing tab or opens app.
+  - **Shipped**: Click-to-open copy + service worker click focus/open handling.
 
-#### Help command generator (copy/paste quality)
+### 8.9 Help generator (copy/paste quality)
 
 - **FR: Remove Windows `/J` guidance**
-  - **Request**: Only hard link for a file works in Windows; get rid of `/J`.
-  - **Decision**: Windows guidance should generate only `mklink /H` for a **file**; do not suggest folder links.
-  - **Shipped**: Help generator only supports `mklink /H` on Windows.
+  - **Request**: Use only hard links for a file.
+  - **Decision**: Windows generator produces only `mklink /H` for a file; no folder links.
+  - **Shipped**: `/H` only.
 
-- **FR: Copy command output should be clean (no `REM` noise)**
-  - **Request**: Get rid of weird `REM` prefixes in the copy command window.
-  - **Decision**: The command block should be mostly runnable commands; minimal guidance is acceptable but should not dominate the copy buffer.
-  - **Shipped**: Windows command output is free of `REM` comment spam.
+- **FR: Command output should be clean (no `REM` noise)**
+  - **Request**: Copy buffer should be runnable.
+  - **Decision**: Keep guidance minimal; avoid comment spam.
+  - **Shipped**: Clean command output.
 
-### 5.1 Dashboard (main view)
+### 8.10 Secure origin requirement (browser reality)
 
-- **At a glance:** Position, status, rate (with rolling-window context where applicable), warnings/thresholds, elapsed time, estimated remaining (when meaningful), and **progress** aligned with “how much of the wait is behind you”—not a fake precision meter.
-- **Graph:** Queue position over time for the **current session**; scale/mode (e.g. log vs linear Y) should support “seeing movement” during long waits.
-- Collapsible or secondary regions for Info/History so monitoring stays **scannable**.
-
-### 5.2 Queue position and “done”
-
-- **Position** is derived from log lines; **0** in the UI means **past connect-queue wait** (post-queue signals), not merely “number ≤ 1.”
-- **At front** and **Completed** must remain **visually and semantically distinct**.
-
-### 5.3 Visualization
-
-- **Chart:** **Recent history** for the **current session** so users see **trend and volatility**, not only the latest integer.
-- **KPI strip:** Optimized for **numeric scan**; chart for **shape of the wait**.
-
-### 5.4 Monitoring lifecycle
-
-- Monitoring **starts** when the user successfully **picks** a log (or restores/grants access), or when they press **Start** after **Stop**; it begins reading/tailing the log on a **user-configurable poll interval** (within sensible bounds).
-- **Stop** ends polling; state settles to a clear **stopped** (or **completed** when log semantics say so)—not an ambiguous limbo.
-- The first read after any **start** should seed enough recent context for a **meaningful graph and timers** for the **current queue session** (session boundaries as documented in the README).
-- **Interrupted / stale / reconnecting** states must be **visible** in status (and reflected in estimates where the design freezes or dampens values)—**no** silent pretense that the queue is still advancing.
-
-### 5.5 Alerts: warnings vs completion
-
-- **Warnings:** User-configured **milestones** on the way down the queue; fire on **downward crossings**, **once per threshold per run** (idempotent)—not on every poll tick.
-- **Completion:** **Log-backed** end-of-queue-wait—**not** driven by the threshold list; triggers completion UX (notification/sound) in line with the **Completed** state.
-- **Surface:** **In-page toasts** when alert toggles are on (works without notification permission); **desktop notifications** optional. Sounds are **optional** and user-controlled; defaults err toward **informative**, not alarming.
-
-### 5.6 Estimation (ETA, rate, progress)
-
-- **Rate** and **ETA** derive from recent steps and optional longer history; they **degrade gracefully** when data is thin.
-- At **position 1**, remaining time should still be **meaningful** where the model allows (e.g. one-step-to-done), without implying second-level accuracy.
-- **Progress** reaches **full** only when the run is **completed** in the log-derived sense—not merely after sitting at position 1.
-- Communicate **rolling** and **global** notions of speed without duplicating jargon in the primary KPI row; **Info** can hold the longer explanation.
-- Prefer **stable, understandable** numbers over noisy flicker; **dwell** and windowing exist to serve that.
-
-### 5.7 History verbosity
-
-- **Log every position change** off: reduce noise—routine steps **omitted** from History, not merely relabeled.
-- On: full step-by-step narrative for users who want auditability.
-
-### 5.8 Settings & persistence
-
-- Settings persist **locally** (browser storage) without uploading paths or log content.
-- Changes feel **safe**: debounced save, validation with clear errors, **reset to defaults** without hunting.
-
-### 5.9 Help and path friction (browser reality)
-
-- When the OS/browser blocks paths, the product should **not** pretend to know paths it cannot read.
-- Some users **cannot** pick logs under protected locations. Desired UX:
-  - Explain **why** (browser/OS policy), not “your fault.”
-  - Offer **Help** with **Windows vs Mac/Linux** paths where behavior differs.
-  - Provide **generated commands** from a user-pasted path so they can create a **reachable** file or junction and pick that—**copy/paste friendly**, minimal jargon in-app; **README** for long-form edge cases.
-
-- **Secure origin is required for pick/notifications**
-  - File picking (and service-worker-backed notifications) may be **unavailable** when the app is opened from **`file://`** or other non-secure contexts.
-  - The UI should explain this clearly and instruct the user to open via **`http://localhost`** (or `https://`) rather than silently failing.
+- **FR: “Non-packed index.html is not usable”**
+  - **Request**: File picking doesn’t work when opened directly.
+  - **Decision**: Be explicit: picking and service-worker-backed notifications may be unavailable on `file://` / non-secure origins; instruct `http://localhost` (or `https://`) and avoid silent failure.
+  - **Shipped**: Clear guidance and toasts to open via localhost for picker reliability.
 
 ---
 
-## 6. Constraints we design around
+## 9. Feature-level intent (product surfaces)
 
-- **No server:** all state is **local** (storage APIs in the browser).
-- **Security:** file access **requires user gestures** where the platform demands it; flows must **teach** that, not fight it silently.
-- **Privacy:** logs stay on device; the README disclaimer remains the legal/expectation anchor.
-- **Deploys:** Optional **static** `version.json` (same semver as the bundle) lets the client **compare** against a fetched copy and **nudge** reloads without a backend—**non-blocking** toast only.
+### 9.1 Dashboard (main view)
+
+- At a glance: position, status, rate, warnings, elapsed, estimated remaining, progress.
+- Graph: time series for the current session; log/linear Y improves readability during long waits.
+- Info/History are secondary and collapsible.
+
+### 9.2 Queue semantics (“done”)
+
+- Position is derived from log lines.
+- UI position **0** means **past connect-queue wait** (post-queue signals), not merely “<= 1”.
+- At front and completed must remain visually and semantically distinct.
+
+### 9.3 Monitoring lifecycle
+
+- Monitoring starts on successful pick or explicit Start after Stop.
+- Stop ends polling; state resolves clearly.
+- Seeding after start should produce meaningful history/graph for the current run.
+- Interrupted/stale/reconnecting states are visible and do not pretend the queue is advancing.
+
+### 9.4 Alerts
+
+- Warnings: downward crossings; once per threshold per run.
+- Completion: log-backed end-of-queue-wait; distinct from thresholds.
+- Toasts work without notification permission; desktop notifications are optional; sounds are optional and user-controlled.
+
+### 9.5 Estimation (ETA, rate, progress)
+
+- ETA/rate degrade gracefully when data is thin.
+- At position 1, remaining time stays meaningful where the model supports it.
+- Progress reaches full only at true completion (past queue).
+- Prefer stability and comprehensibility over noisy flicker (dwell/windowing serve this).
+
+### 9.6 History verbosity
+
+- “Log every position change” off: routine steps omitted (not just re-labeled).
+- On: step-by-step narrative for auditability.
+
+### 9.7 Settings & persistence
+
+- Local persistence only (browser storage).
+- Changes feel safe: debounced save, validation, easy recovery.
+
+### 9.8 Help & path friction
+
+- Explain “why” when blocked: browser/OS policy, not user blame.
+- Provide Windows vs macOS/Linux guidance.
+- Offer generated commands from user-pasted paths; keep in-app copy/paste friendly.
 
 ---
 
-## 7. How this doc relates to others
+## 10. Constraints we design around
+
+- **No server:** all state local.
+- **Security:** user gestures and secure origins are required for some features; flows must teach this.
+- **Privacy:** log stays on device.
+- **Deploys:** optional `version.json` enables a lightweight “update available” nudge without a backend.
+
+---
+
+## 11. How this doc relates to other docs
 
 | Doc | Role |
 |-----|------|
-| **[`README.md`](../README.md)** | How to build, run, configure, and troubleshoot—**operator-facing** detail and **precise** behavioral notes for contributors. |
-| **[`ux-seamless-flow.mdc`](../.cursor/rules/ux-seamless-flow.mdc)** | **Implementation bias** for agents: seamless flows, actionable UI. |
-| **This file** | **Product and UX intent**—what we want users to experience and why. |
-| **Source / `app.js`** | Exact parsing rules, state machines, and strings. |
+| [`README.md`](../README.md) | Setup, run, troubleshooting, precise behavior for contributors. |
+| `.cursor/rules/ux-seamless-flow.mdc` | Implementation bias for agents (seamless flows, actionable UI). |
+| This file | Product and UX intent: what the user experiences and why. |
+| `app.js` | Exact parsing, state machine, strings, and edge cases. |
 
-When behavior changes in ways users would notice, update **README** (and this doc if the **intent** or **journeys** change) in the same change set, per project rules.
+When user-visible behavior changes, update **README** (and this doc if intent/journeys change) in the same change set.
