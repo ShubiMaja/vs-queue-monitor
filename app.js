@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.4";
+const APP_VERSION = "2.1.5";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -474,6 +474,12 @@ function makeInlineField(inputEl, opts) {
   val.className = "inlineView__value";
 
   view.appendChild(val);
+
+  const edit = document.createElement("span");
+  edit.className = "inlineView__edit";
+  edit.textContent = "✎";
+  edit.setAttribute("aria-hidden", "true");
+  view.appendChild(edit);
 
   const label = field.querySelector(".label");
   if (label && label.nextSibling) field.insertBefore(view, label.nextSibling);

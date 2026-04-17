@@ -571,9 +571,9 @@ body{
   border:1px solid rgba(55,65,82,0.65);
   background:rgba(8,10,14,0.35);
 }
-.inlineView::after{
-  content:"✎";
+.inlineView__edit{
   width:18px;
+  flex:0 0 18px;
   text-align:center;
   opacity:0;
   color:var(--muted);
@@ -582,7 +582,7 @@ body{
   transition:opacity 0.12s ease, color 0.12s ease;
   pointer-events:none;
 }
-.inlineView:hover::after{
+.inlineView:hover .inlineView__edit{
   opacity:0.8;
   color:#aab6c2;
 }
@@ -1379,7 +1379,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.4";
+const APP_VERSION = "2.1.5";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1854,6 +1854,12 @@ function makeInlineField(inputEl, opts) {
   val.className = "inlineView__value";
 
   view.appendChild(val);
+
+  const edit = document.createElement("span");
+  edit.className = "inlineView__edit";
+  edit.textContent = "✎";
+  edit.setAttribute("aria-hidden", "true");
+  view.appendChild(edit);
 
   const label = field.querySelector(".label");
   if (label && label.nextSibling) field.insertBefore(view, label.nextSibling);
