@@ -32,6 +32,8 @@ The app stores settings in **`localStorage`** (on your machine in the browser pr
 
 Tip: if you **cancel** a file/folder pick, the UI will show a small **popup/toast** confirming the picker was canceled. You can also click the **`?`** button in the header for in-app help (including the junction/symlink workaround when the browser blocks “system files”).
 
+If the browser blocks access, it will not reveal the exact path you attempted to pick. Use the **`?`** overlay’s **“Generate an exact command”** field to paste your real VS data/log path and copy a command tailored to your exact location.
+
 **Picker default folder:** browsers do not allow preselecting arbitrary paths like `%APPDATA%` or `$HOME`. The file picker will start in a safe well-known location (typically **Documents**) and may remember your last choice depending on browser behavior.
 
 **Settings persistence:** settings are saved automatically (debounced) to `localStorage` as you edit them. The **Save** button is still available to validate inputs and force an immediate save.

@@ -15,6 +15,9 @@ const ui = {
   btnSaveSettings: $("btnSaveSettings"),
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
+  inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
+  btnHelpCopyCmd: $("btnHelpCopyCmd"),
+  preHelpCmd: $("preHelpCmd"),
   graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
   graphHint: $("graphHint"),
 
@@ -79,6 +82,17 @@ function openHelp() {
   if (!ui.helpOverlay) return;
   ui.helpOverlay.hidden = false;
   try {
+    // Set a sensible default in the generator if empty.
+    if (ui.inpHelpSourcePath && !ui.inpHelpSourcePath.value) {
+      const plat = String(navigator.platform || "").toLowerCase();
+      if (plat.includes("win")) ui.inpHelpSourcePath.value = "%APPDATA%\\VintagestoryData";
+      else if (plat.includes("linux")) ui.inpHelpSourcePath.value = "~/.config/VintagestoryData/Logs/client-main.log";
+    }
+    renderHelpCommandPreview();
+  } catch {
+    // ignore
+  }
+  try {
     ui.btnHelpClose?.focus();
   } catch {
     // ignore
@@ -104,6 +118,63 @@ function wireHelpOverlay() {
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
   });
+
+  ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
+  ui.btnHelpCopyCmd?.addEventListener("click", async () => {
+    const txt = String(ui.preHelpCmd?.textContent || "");
+    if (!txt.trim()) return;
+    try {
+      await navigator.clipboard.writeText(txt);
+      showToast("Copied", "Command copied to clipboard.");
+    } catch {
+      showToast("Copy failed", "Clipboard access was blocked by the browser.", "error");
+    }
+  });
+}
+
+function normalizeSlashes(s) {
+  return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
+}
+
+function renderHelpCommandPreview() {
+  if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
+  const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
+  const plat = String(navigator.platform || "").toLowerCase();
+  const isWin = plat.includes("win");
+  const isLinux = plat.includes("linux");
+  const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
+  const logName = /client\.log$/i.test(raw) ? "client.log" : "client-main.log";
+
+  if (isWin) {
+    const src = raw || "%APPDATA%\\VintagestoryData";
+    const dest = '%USERPROFILE%\\Documents\\VintagestoryData';
+    ui.preHelpCmd.textContent =
+      `mkdir "${dest}"\n` +
+      `mklink /J "${dest}" "${src}"\n` +
+      `\nThen pick: ${dest}\\Logs\\${logName}`;
+    return;
+  }
+
+  if (isLinux) {
+    if (wantsFile) {
+      const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
+      ui.preHelpCmd.textContent =
+        `mkdir -p ~/VSLogs\n` +
+        `ln -s ${srcFile} ~/VSLogs/${logName}\n` +
+        `\nThen pick: ~/VSLogs/${logName}`;
+      return;
+    }
+    const srcDir = raw || "~/.config/VintagestoryData";
+    ui.preHelpCmd.textContent =
+      `mkdir -p ~/VSLogs\n` +
+      `ln -s ${srcDir}/Logs/${logName} ~/VSLogs/${logName}\n` +
+      `\nThen pick: ~/VSLogs/${logName}`;
+    return;
+  }
+
+  ui.preHelpCmd.textContent =
+    "Open this app in Edge/Chrome.\n" +
+    "If the picker is blocked, paste your real VS data/log path above to generate a junction/symlink command.";
 }
 
 // -----------------------------
@@ -710,7 +781,8 @@ async function pickLogFile() {
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
       showToast("Picker blocked", "Browser denied access (protected/system location). Click ? for help.", "error");
-      appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can only provide a best-guess command. If your Vintage Story data/logs live elsewhere, replace the source path below.");
+      appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
+      appendHistory('Tip: click "?" and paste your real VS data/log path to generate an exact junction/symlink command.');
       appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
       appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
       appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
