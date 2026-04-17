@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.30";
+const APP_VERSION = "2.0.31";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -684,6 +684,11 @@ function parseAlertThresholds(raw) {
 
 const STORAGE_KEY = "vsqm_web_config_v1";
 const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
+/** Display metadata for the last successfully opened log (name + how it was chosen). Browsers do not expose real paths to pages. */
+const STORAGE_LAST_LOG_META_KEY = "vsqm_last_log_meta_v1";
+const IDB_HANDLES_NAME = "vsqm_handles_v1";
+const IDB_HANDLES_STORE = "handles";
+const IDB_LOG_FILE_KEY = "logFile";
 
 // Debounced auto-save (mirrors the old app’s “save shortly after change” feel).
 let _autosaveTimer = /** @type {number|null} */ (null);
@@ -982,6 +987,191 @@ async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
   }
 }
 
+/**
+ * @returns {Promise<IDBDatabase>}
+ */
+function openLogHandlesDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_HANDLES_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_HANDLES_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ */
+async function idbPutLogFileHandle(handle) {
+  const db = await openLogHandlesDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_HANDLES_STORE, "readwrite");
+    tx.oncomplete = () => resolve(undefined);
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(IDB_HANDLES_STORE).put(handle, IDB_LOG_FILE_KEY);
+  });
+  db.close();
+}
+
+/**
+ * @returns {Promise<FileSystemFileHandle|undefined>}
+ */
+async function idbGetLogFileHandle() {
+  const db = await openLogHandlesDb();
+  const handle = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_HANDLES_STORE, "readonly");
+    const r = tx.objectStore(IDB_HANDLES_STORE).get(IDB_LOG_FILE_KEY);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  db.close();
+  return handle;
+}
+
+async function idbDeleteLogFileHandle() {
+  try {
+    const db = await openLogHandlesDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_HANDLES_STORE, "readwrite");
+      tx.oncomplete = () => resolve(undefined);
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore(IDB_HANDLES_STORE).delete(IDB_LOG_FILE_KEY);
+    });
+    db.close();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {string} sourceLabel_
+ * @param {{ name: string }} meta
+ */
+async function saveLastLogToStorage(handle, sourceLabel_, meta) {
+  try {
+    await idbPutLogFileHandle(handle);
+  } catch {
+    return;
+  }
+  try {
+    localStorage.setItem(
+      STORAGE_LAST_LOG_META_KEY,
+      JSON.stringify({ name: meta.name, sourceLabel: sourceLabel_, savedAt: Date.now() }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+async function clearSavedLogHandle() {
+  await idbDeleteLogFileHandle();
+  try {
+    localStorage.removeItem(STORAGE_LAST_LOG_META_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {string} sourceLabel_
+ * @param {{ historyLine?: string|null }} opts
+ */
+async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
+  const historyLine = opts.historyLine;
+  logFileHandle = handle;
+  sourceLabel = sourceLabel_;
+  ui.infoSource.textContent = sourceLabel ?? "—";
+  ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
+  ui.btnStartStop.disabled = !logFileHandle;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
+  if (historyLine) appendHistory(historyLine);
+  lastReadOffset = null;
+  pendingGraphReplayText = null;
+  logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
+  try {
+    const f = await handle.getFile();
+    await saveLastLogToStorage(handle, sourceLabel_, { name: f.name });
+  } catch {
+    await clearSavedLogHandle();
+  }
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ */
+async function finishRestoreSavedLog(handle) {
+  let meta = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
+    if (raw) meta = JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  const label = meta && typeof meta.sourceLabel === "string" ? meta.sourceLabel : "Saved log";
+  const name = meta && typeof meta.name === "string" ? meta.name : (await handle.getFile()).name;
+  await applyPickedLogHandle(handle, label, {
+    historyLine: `Restored last log: ${name} (${label}).`,
+  });
+}
+
+async function tryRestoreLastLogOnLoad() {
+  if (!window.showOpenFilePicker) return;
+  /** @type {FileSystemFileHandle|undefined} */
+  let handle;
+  try {
+    handle = await idbGetLogFileHandle();
+  } catch {
+    return;
+  }
+  if (!handle) return;
+
+  try {
+    const perm = await handle.queryPermission({ mode: "read" });
+    if (perm === "denied") {
+      await clearSavedLogHandle();
+      return;
+    }
+    if (perm === "prompt") {
+      const p = await handle.requestPermission({ mode: "read" });
+      if (p !== "granted") {
+        showToast(
+          "Reopen last log",
+          "Allow access to restore the log file you used last time, or pick the file again.",
+          "info",
+          {
+            actionLabel: "Allow",
+            onAction: async () => {
+              try {
+                const p2 = await handle.requestPermission({ mode: "read" });
+                if (p2 === "granted") await finishRestoreSavedLog(handle);
+                else appendHistory("Last log not restored (permission denied).");
+              } catch (e) {
+                appendHistory(`Could not restore last log: ${String(e)}`);
+              }
+            },
+            durationMs: 45000,
+          },
+        );
+        appendHistory("Last log is saved — use “Allow” in the toast to reopen it, or pick the log again.");
+        return;
+      }
+    }
+    await finishRestoreSavedLog(handle);
+  } catch (e) {
+    appendHistory(`Could not restore last log: ${String(e)}`);
+    await clearSavedLogHandle();
+  }
+}
+
 async function pickLogFile() {
   if (!window.showOpenFilePicker) {
     appendHistory("This browser does not support file picking. Use Edge or Chrome.");
@@ -1087,21 +1277,11 @@ async function pickLogFile() {
     return;
   }
   tipToast?.remove();
-  logFileHandle = handle ?? null;
-  sourceLabel = "Picked file";
-  ui.infoSource.textContent = sourceLabel ?? "—";
-  ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
-  ui.btnStartStop.disabled = !logFileHandle;
-  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
-  appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
-  lastReadOffset = null;
-  pendingGraphReplayText = null;
-  logBuffer = "";
-  graphPoints = [];
-  currentPoint = null;
-  lastPosition = null;
-  positionOneReachedAt = null;
-  drawGraph();
+  if (!handle) return;
+  const pickedName = (await handle.getFile()).name;
+  await applyPickedLogHandle(handle, "Picked file", {
+    historyLine: `Selected log file: ${pickedName}`,
+  });
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -1146,21 +1326,10 @@ async function pickFolder() {
     ui.btnStartStop.disabled = true;
     return;
   }
-  logFileHandle = file;
-  sourceLabel = "Picked folder";
-  ui.infoSource.textContent = sourceLabel;
-  ui.infoResolved.textContent = (await logFileHandle.getFile()).name;
-  ui.btnStartStop.disabled = false;
-  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
-  appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
-  lastReadOffset = null;
-  pendingGraphReplayText = null;
-  logBuffer = "";
-  graphPoints = [];
-  currentPoint = null;
-  lastPosition = null;
-  positionOneReachedAt = null;
-  drawGraph();
+  const pickedName = (await file.getFile()).name;
+  await applyPickedLogHandle(file, "Picked folder", {
+    historyLine: `Selected folder; resolved log file: ${pickedName}`,
+  });
 }
 
 // -----------------------------
@@ -2147,6 +2316,7 @@ syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
+void tryRestoreLastLogOnLoad();
 wireHelpOverlay();
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).
