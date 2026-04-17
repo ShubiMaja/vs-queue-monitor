@@ -1,8 +1,8 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.0";
+const APP_VERSION = "2.1.1";
 
-/** Same as favicon; desktop notifications need HTTPS or localhost. */
-const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
+/** Desktop notification icon (same-origin). */
+const NOTIFICATION_ICON_URL = "./assets/icon.svg";
 
 /** Shipped WAV clips (same-origin). Empty URL field in settings = use these. */
 const DEFAULT_WARN_SOUND_URL = "./assets/sounds/warning.wav";
