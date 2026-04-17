@@ -592,18 +592,49 @@ async function pickLogFile() {
   }
   if (!startIn) startIn = "documents";
 
-  const [handle] = await window.showOpenFilePicker({
-    multiple: false,
-    startIn,
-    types: [
-      {
-        description: "Vintage Story log",
-        accept: {
-          "text/plain": [".log", ".txt"],
+  let handle;
+  try {
+    [handle] = await window.showOpenFilePicker({
+      multiple: false,
+      startIn,
+      types: [
+        {
+          description: "Vintage Story log",
+          accept: {
+            "text/plain": [".log", ".txt"],
+          },
         },
-      },
-    ],
-  });
+      ],
+    });
+  } catch (e) {
+    const msg = String(e && (e.message || e.name || e));
+    const low = msg.toLowerCase();
+    if (low.includes("abort") || low.includes("cancel")) {
+      appendHistory("Pick log cancelled.");
+      return;
+    }
+    const looksBlocked =
+      low.includes("system files") ||
+      low.includes("not allowed") ||
+      low.includes("not permitted") ||
+      low.includes("denied") ||
+      low.includes("security") ||
+      low.includes("permission");
+    if (looksBlocked) {
+      appendHistory("Browser blocked access to that folder/file (protected/system location). Workaround: expose the log under a non-system folder, then pick it from there.");
+      appendHistory("Windows (junction via Documents):");
+      appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
+      appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
+      appendHistory("Then pick: Documents\\VintagestoryData\\Logs\\client-main.log");
+      appendHistory("Linux (symlink into ~/VSLogs):");
+      appendHistory("  mkdir -p ~/VSLogs");
+      appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
+      appendHistory("Then pick: ~/VSLogs/client-main.log");
+      return;
+    }
+    appendHistory(`Pick log failed: ${msg}`);
+    return;
+  }
   logFileHandle = handle ?? null;
   sourceLabel = "Picked file";
   ui.infoSource.textContent = sourceLabel ?? "—";

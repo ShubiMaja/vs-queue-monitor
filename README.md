@@ -34,6 +34,28 @@ The app stores settings in **`localStorage`** (on your machine in the browser pr
 
 **Settings persistence:** settings are saved automatically (debounced) to `localStorage` as you edit them. The **Save** button is still available to validate inputs and force an immediate save.
 
+### If the browser blocks your log file (permissions)
+
+Chrome/Edge can refuse access to some protected “system” folders. If the file picker says it **can’t open** the file/folder due to **system files**, use one of these:
+
+**Windows (junction via Documents):**
+
+```bat
+mkdir "%USERPROFILE%\Documents\VintagestoryData"
+mklink /J "%USERPROFILE%\Documents\VintagestoryData" "%APPDATA%\VintagestoryData"
+```
+
+Then pick: `Documents\VintagestoryData\Logs\client-main.log`
+
+**Linux (symlink into ~/VSLogs):**
+
+```bash
+mkdir -p ~/VSLogs
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log
+```
+
+Then pick: `~/VSLogs/client-main.log`
+
 ## Open-source hosted assets
 
 The app can use hosted assets (no backend). If you want everything to work fully offline, you’ll need to embed/inline assets instead; this section is specifically for **hosted** open-source assets.
