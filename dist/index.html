@@ -1009,7 +1009,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.61";
+const APP_VERSION = "2.0.62";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -4093,6 +4093,38 @@ function hitTestGraphPoint(clientX, clientY) {
   return best;
 }
 
+/**
+ * Like `hitTestGraphPoint`, but also returns the snapped canvas X for crosshair.
+ * @param {number} clientX
+ * @param {number} clientY
+ * @returns {{ pt: GraphPoint, xCanvas: number } | null}
+ */
+function hitTestGraphPointSnap(clientX, clientY) {
+  const layout = lastGraphLayout;
+  if (!layout || graphPoints.length < 1) return null;
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (clientX - rect.left) * scaleX;
+  const my = (clientY - rect.top) * scaleY;
+  const { padL, padR, padT, padB, plotW, w, h, t1, span } = layout;
+  if (mx < padL || mx > w - padR || my < padT || my > h - padB) return null;
+  const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
+  /** @type {GraphPoint|null} */
+  let best = null;
+  let bestD = Infinity;
+  for (let i = 0; i < graphPoints.length; i++) {
+    const d = Math.abs(xOf(graphPoints[i][0]) - mx);
+    if (d < bestD) {
+      bestD = d;
+      best = graphPoints[i];
+    }
+  }
+  if (!best) return null;
+  return { pt: best, xCanvas: xOf(best[0]) };
+}
+
 function graphYMap(pos, minP, maxP, h) {
   const padTop = 22;
   const padBot = 46;
@@ -4799,11 +4831,12 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
   const canvas = ui.graphCanvas;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
-  graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
-  const pt = hitTestGraphPoint(e.clientX, e.clientY);
-  if (pt) {
-    ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
+  const snapped = hitTestGraphPointSnap(e.clientX, e.clientY);
+  if (snapped) {
+    graphHoverCanvasX = snapped.xCanvas;
+    ui.graphHint.textContent = `${formatGraphHoverTime(snapped.pt[0])} — position ${snapped.pt[1]}`;
   } else {
+    graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
     ui.graphHint.textContent = graphHintDefaultText();
   }
   scheduleDrawGraph();
