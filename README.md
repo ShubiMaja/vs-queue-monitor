@@ -30,6 +30,29 @@ Open the built one-page app:
 
 The app stores settings in **`localStorage`** (on your machine in the browser profile). It does not upload your log anywhere.
 
+## Open-source hosted assets
+
+The app can use hosted assets (no backend). If you want everything to work fully offline, you’ll need to embed/inline assets instead; this section is specifically for **hosted** open-source assets.
+
+### Image (favicon)
+
+- Twemoji (MIT): `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg`
+
+### Sounds (free hosted examples)
+
+These are hosted on Wikimedia. Use them as defaults or as examples of “public URLs that work everywhere”:
+
+- **Warning** (CC BY-SA 4.0): `https://upload.wikimedia.org/wikipedia/commons/f/f6/En-us-notification.oga`
+- **Completion** (Public Domain): `https://upload.wikimedia.org/wikipedia/commons/1/1b/Clapping_hurray_%28cropped%29.oga`
+
+If you use CC BY/CC BY-SA sounds, you must provide attribution (Wikimedia file pages list author/license).
+
+### Host your own assets for free
+
+If you prefer stable URLs under your control:
+
+- **GitHub Pages**: commit files to a repo → Settings → Pages → Deploy from branch → use `https://<user>.github.io/<repo>/path/to/file.ogg`.\n- **Cloudflare Pages**: connect a GitHub repo in Cloudflare Pages → deploy → use `https://<project>.pages.dev/path/to/file.ogg`.\n- **Netlify Drop** (quickest): drag a folder with your files + an `index.html` into Netlify Drop to get a public URL.
+
 ## Log file
 
 The game writes queue lines similar to:
