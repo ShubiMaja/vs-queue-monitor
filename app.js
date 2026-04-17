@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.8";
+const APP_VERSION = "2.0.9";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -16,7 +16,7 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
-  btnHelpPickLog: $("btnHelpPickLog"),
+  btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
@@ -194,7 +194,12 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
-  ui.btnHelpPickLog?.addEventListener("click", async () => {
+  ui.btnHelpLoadFile?.addEventListener("click", async () => {
+    const expected = String(ui.spanHelpPickPath?.textContent || "").trim();
+    if (expected) {
+      showToast("Load file", `In the picker, select: ${expected}`, "info", { durationMs: 9000 });
+      appendHistory(`Help: expected log path: ${expected}`);
+    }
     try {
       await pickLogFile();
     } catch (e) {
