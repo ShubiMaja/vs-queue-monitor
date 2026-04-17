@@ -659,7 +659,12 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
     });
   }
 
-  const durationMs = opts && Number.isFinite(opts.durationMs) ? Math.max(800, opts.durationMs) : 2400;
+  const durationMs =
+    opts && opts.durationMs === Infinity
+      ? Infinity
+      : opts && Number.isFinite(opts.durationMs)
+        ? Math.max(800, opts.durationMs)
+        : 2400;
   let timer = null;
   if (durationMs !== Infinity) {
     timer = window.setTimeout(() => {
