@@ -70,25 +70,25 @@ If the browser blocks access, it will not reveal the exact path you attempted to
 
 Chrome/Edge can refuse access to some protected “system” folders. If the file picker says it **can’t open** the file/folder due to **system files**, use one of these:
 
-**Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree).
+**Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree). Each destination uses a **unique** folder name (`vsqm-data-xxxxxxxx` or `vsqm-logs-xxxxxxxx`, 8 hex digits from your pasted path) so you can create **multiple** links without overwriting the same folder.
 
 ```bat
-mkdir "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData" "%APPDATA%\VintagestoryData"
+mkdir "%USERPROFILE%\Documents\vs-queue-monitor\vsqm-data-xxxxxxxx"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\vsqm-data-xxxxxxxx" "%APPDATA%\VintagestoryData"
 ```
 
-Then pick: `Documents\vs-queue-monitor\VintagestoryData\Logs\client-main.log`
+Then pick: `Documents\vs-queue-monitor\vsqm-data-xxxxxxxx\Logs\client-main.log` (use the exact `xxxxxxxx` from **Generate an exact command** in the app).
 
 **Linux / macOS (file symlink into ~/vs-queue-monitor):**
 
 ```bash
-mkdir -p ~/vs-queue-monitor/Logs
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/Logs/client-main.log
+mkdir -p ~/vs-queue-monitor/vsqm-logs-xxxxxxxx
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/vsqm-logs-xxxxxxxx/client-main.log
 ```
 
-Then pick: `~/vs-queue-monitor/Logs/client-main.log`
+Then pick: `~/vs-queue-monitor/vsqm-logs-xxxxxxxx/client-main.log` (id from the generator).
 
-Note: the browser does not reveal the exact path you attempted to pick when it blocks access, so these commands use the typical Vintage Story data locations. Replace the source path if your install uses a different location.
+Note: the browser does not reveal the exact path you attempted to pick when it blocks access. Use the in-app generator for the exact `xxxxxxxx` and source path; replace the source if your install uses a different location.
 
 If the destination folder already exists (for example from a previous attempt), remove it first (`rmdir /S /Q` on Windows for a non-empty directory you no longer need) before running `mklink`.
 

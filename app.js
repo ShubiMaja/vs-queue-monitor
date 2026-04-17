@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.13";
+const APP_VERSION = "2.0.14";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -224,6 +224,24 @@ function normalizeSlashes(s) {
   return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
 }
 
+/**
+ * Stable 8-char hex id from path + kind so each source gets its own link folder.
+ * @param {string} seedPath
+ * @param {"logs"|"data"} kind
+ */
+function uniqueLinkFolderName(seedPath, kind) {
+  const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
+  let h = 0x811c9dc5;
+  const str = `${kind}|${p}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  const hex = (h >>> 0).toString(16).padStart(8, "0");
+  const prefix = kind === "logs" ? "vsqm-logs" : "vsqm-data";
+  return `${prefix}-${hex}`;
+}
+
 function renderHelpCommandPreview() {
   if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
   const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
@@ -246,7 +264,8 @@ function renderHelpCommandPreview() {
 
     // Folder junction (mklink /J): works without Developer Mode; exposes Logs so you pick client-main.log inside.
     if (looksLikeLogsFolder) {
-      const dest = "%USERPROFILE%\\Documents\\vs-queue-monitor\\Logs";
+      const leaf = uniqueLinkFolderName(srcDir, "logs");
+      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
         `mklink /J "${dest}" "${srcDir}"`;
@@ -254,7 +273,8 @@ function renderHelpCommandPreview() {
       return;
     }
 
-    const dest = "%USERPROFILE%\\Documents\\vs-queue-monitor\\VintagestoryData";
+    const leaf = uniqueLinkFolderName(srcIn, "data");
+    const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
       `mklink /J "${dest}" "${srcDir}"`;
@@ -265,17 +285,19 @@ function renderHelpCommandPreview() {
   if (isUnix) {
     if (wantsFile) {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
+      const leaf = uniqueLinkFolderName(srcFile, "logs");
       ui.preHelpCmd.textContent =
-        `mkdir -p ~/vs-queue-monitor/Logs\n` +
-        `ln -s ${srcFile} ~/vs-queue-monitor/Logs/${logName}`;
-      setPick(`~/vs-queue-monitor/Logs/${logName}`);
+        `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
+        `ln -s ${srcFile} ~/vs-queue-monitor/${leaf}/${logName}`;
+      setPick(`~/vs-queue-monitor/${leaf}/${logName}`);
       return;
     }
     const srcDir = raw || "~/.config/VintagestoryData";
+    const leaf = uniqueLinkFolderName(srcDir, "data");
     ui.preHelpCmd.textContent =
-      `mkdir -p ~/vs-queue-monitor/Logs\n` +
-      `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/Logs/${logName}`;
-    setPick(`~/vs-queue-monitor/Logs/${logName}`);
+      `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
+      `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/${leaf}/${logName}`;
+    setPick(`~/vs-queue-monitor/${leaf}/${logName}`);
     return;
   }
 
