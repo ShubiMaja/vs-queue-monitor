@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.92";
+const APP_VERSION = "2.0.93";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1440,26 +1440,15 @@ function appendNotifyDiagnostics(prefix) {
 
 /**
  * Test notifications are frequently suppressed while focused / by Windows settings.
- * This sends multiple pings spaced out and keeps them visible longer where supported.
+ * Keep it minimal: send a single ping (same codepath as real alerts).
  */
 function showTestDesktopNotification() {
   appendNotifyDiagnostics("Notification test:");
-  /** @type {Array<{title:string, body:string, delayMs:number}>} */
-  const msgs = [
-    { title: "VS Queue Monitor", body: "Test notification 1/3. If you don’t see a banner, check Notification Center.", delayMs: 0 },
-    { title: "VS Queue Monitor", body: "Test notification 2/3. Windows may suppress banners while this tab is focused.", delayMs: 900 },
-    { title: "VS Queue Monitor", body: "Test notification 3/3. Ensure Windows notifications for your browser are enabled.", delayMs: 1800 },
-  ];
-
-  const sendOne = (i) => {
-    const m = msgs[i];
-    // Prefer the same codepath as real alerts.
-    notifyDesktop("threshold", m.title, m.body);
-  };
-
-  for (let i = 0; i < msgs.length; i++) {
-    window.setTimeout(() => sendOne(i), msgs[i].delayMs);
-  }
+  notifyDesktop(
+    "threshold",
+    "VS Queue Monitor",
+    "Test notification. If you don’t see a banner, open Notification Center and check Windows notification settings for your browser.",
+  );
 }
 
 /** @type {AudioContext|null} */
