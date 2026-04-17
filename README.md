@@ -70,14 +70,13 @@ If the browser blocks access, it will not reveal the exact path you attempted to
 
 Chrome/Edge can refuse access to some protected “system” folders. If the file picker says it **can’t open** the file/folder due to **system files**, use one of these:
 
-**Windows:** Paste the **full path to your log file** (e.g. `client-main.log`) into the in-app **`?`** generator when possible. The app **prefers a hard link** (`mklink /H`) into `Documents\vs-queue-monitor\file-xxxxxxxx\` — the browser opens a normal file under Documents, which avoids some “system files” errors you can still see when picking **through** a folder junction. **Requirements:** the real log file must **already exist**, and it must be on the **same drive** as your Documents folder (typical case: both on `C:`). If `mklink /H` fails, the generated command includes **commented** fallback lines for a **directory junction** (`mklink /J`) to the `Logs` folder (`logs-xxxxxxxx`) or data root (`data-xxxxxxxx`).
+**Windows:** Paste the **full path to your log file** (e.g. `client-main.log`) into the in-app **`?`** generator when possible. The app **prefers a hard link** (`mklink /H`) to **one file** directly in `Documents\vs-queue-monitor\` (e.g. `client-main-xxxxxxxx.log` — the hex id comes from your path). The browser opens a normal file under Documents, which avoids some “system files” errors you can still see when picking **through** a folder junction. **Requirements:** the real log file must **already exist**, and it must be on the **same drive** as your Documents folder (typical case: both on `C:`). If `mklink /H` fails, the generated command includes **commented** fallback lines for a **directory junction** (`mklink /J`) to the `Logs` folder (`logs-xxxxxxxx`) or data root (`data-xxxxxxxx`).
 
 **Folder-only paste (no `.log` path):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` does not need symlink privileges. If your path includes a **`Logs`** folder, the generator junctions that **`Logs`** directory. The **`logs-xxxxxxxx`** name is a hash of that **`Logs`** folder path. **`data-xxxxxxxx`** is used when you paste a data root path with no `Logs` segment.
 
 ```bat
 if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
-mkdir "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d"
-mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d\client-main.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"
+mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\client-main-1a2b3c4d.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"
 ```
 
 ```bat
@@ -85,7 +84,7 @@ if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Doc
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"
 ```
 
-For **junctions**, only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that leaf name first or the link step fails. For **hard links**, **`mkdir` creates the `file-…` folder** (a normal directory) and **`mklink /H` creates the linked file** inside it — do not create a file with that name before `mklink /H`.
+For **junctions**, only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that leaf name first or the link step fails. For **hard links**, **`mklink /H` creates the linked filename** in that folder — do not create a file with that name first.
 
 **`vs-queue-monitor` looks empty:** until `mklink` succeeds, there will be no `data-…` / `logs-…` entry there. Run the two lines in **Command Prompt (`cmd.exe`)** — in **PowerShell**, `mklink` is not available (use `cmd /c "mklink /J …"` or `New-Item -ItemType Junction -Path … -Target …`).
 
@@ -93,7 +92,7 @@ For **junctions**, only ensure the parent folder `Documents\vs-queue-monitor` ex
 
 **If the junction exists but shows nothing while the real `Logs` folder has files,** remove that junction and regenerate from **`?`** — you may have used an older command that pointed at the wrong folder (common when the log path was under a subfolder of `Logs`).
 
-Then pick the path shown under **Generate an exact command** — usually `Documents\vs-queue-monitor\file-…\client-main.log` when you pasted a `.log` path, or `…\data-…\Logs\client-main.log` / `…\logs-…\…` for junctions.
+Then pick the path shown under **Generate an exact command** — usually `Documents\vs-queue-monitor\client-main-….log` (or similar) when you pasted a `.log` path, or `…\data-…\Logs\client-main.log` / `…\logs-…\…` for junctions.
 
 **Linux / macOS (file symlink into ~/vs-queue-monitor):**
 
