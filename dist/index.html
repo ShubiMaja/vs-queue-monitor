@@ -360,8 +360,14 @@ body{
 
           <div class="modal__sectionTitle">Picker blocked by “system files”</div>
           <div class="modal__text">
-            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a junction/symlink, then pick the exposed path.
+            Browsers may block protected/system locations (commonly parts of %APPDATA% on Windows). Workaround: expose the log under a non-system folder (e.g. Documents/home) using a <strong>hard link</strong> to the log file, a <strong>folder junction</strong>, or a symlink — then pick the exposed path. If the picker still complains after a junction, paste the <strong>full path to the .log file</strong> in “Generate an exact command” so the app suggests a hard link (<span class="mono">file-xxxxxxxx</span>) first.
           </div>
+
+          <div class="modal__sectionTitle">Windows (hard link to log file — try first)</div>
+          <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
+mkdir "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d"
+mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\file-1a2b3c4d\client-main.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
+          <div class="modal__text">Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder. Then pick the path under <span class="mono">file-xxxxxxxx</span> — <span class="muted">filled in by “Generate an exact command” when you paste the real log path.</span></div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
@@ -383,10 +389,10 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
 
           <div class="modal__sectionTitle">Generate an exact command (paste your real path)</div>
           <div class="modal__text">
-            Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
+            Paste the <strong>full path to your log file</strong> (Windows) or the log file path (Linux), or a data folder if you are not pasting a <span class="mono">.log</span> path — then copy the generated command.
           </div>
           <div class="modal__text muted">
-            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> with names like <span class="mono">data-xxxxxxxx</span> or <span class="mono">logs-xxxxxxxx</span> (8 hex chars from a hash of the <strong>source path</strong> you paste — for paths under <span class="mono">Logs</span>, the <span class="mono">logs-…</span> name is derived from the <span class="mono">Logs</span> folder path). Mac/Linux use the same pattern under <span class="mono">~/vs-queue-monitor/</span>.
+            On Windows, if you paste a <span class="mono">.log</span> path, the generator prefers a <span class="mono">mklink /H</span> hard link under <span class="mono">file-xxxxxxxx</span> (same drive as Documents; log file must exist). Otherwise it suggests a <span class="mono">mklink /J</span> junction (<span class="mono">data-…</span> / <span class="mono">logs-…</span>). Mac/Linux use symlinks under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -570,7 +576,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.21";
+const APP_VERSION = "2.0.22";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -814,22 +820,44 @@ function renderHelpCommandPreview() {
       /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
     const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
-    if (logsRoot) {
-      const leaf = linkFolderName("logs", logsRoot);
-      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
-      let pickSuffix = logName;
-      if (looksLikeLogFile) {
+    if (looksLikeLogFile) {
+      const leaf = linkFolderName("file", srcIn);
+      const destDir = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      const baseName = srcIn.replace(/^.*[\\/]/, "") || logName;
+      const destFile = `${destDir}\\${baseName}`;
+      let txt =
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mkdir "${destDir}"\n` +
+        `mklink /H "${destFile}" "${srcIn}"`;
+      if (logsRoot) {
+        const leafJ = linkFolderName("logs", logsRoot);
+        const destJ = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leafJ}`;
+        let pickSuffix = logName;
         const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
         if (rel !== null && rel.length > 0) pickSuffix = rel;
+        txt +=
+          `\n\n` +
+          `REM If mklink /H fails (log file must exist and be on the same drive as Documents), use a folder junction:\n` +
+          `REM if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+          `REM mklink /J "${destJ}" "${logsRoot}"\n` +
+          `REM Then pick: ${destJ}\\${pickSuffix}`;
       }
-      ui.preHelpCmd.textContent =
-        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mklink /J "${dest}" "${logsRoot}"`;
-      setPick(`${dest}\\${pickSuffix}`);
+      ui.preHelpCmd.textContent = txt;
+      setPick(destFile);
       return;
     }
 
-    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
+    if (logsRoot) {
+      const leaf = linkFolderName("logs", logsRoot);
+      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      ui.preHelpCmd.textContent =
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mklink /J "${dest}" "${logsRoot}"`;
+      setPick(`${dest}\\${logName}`);
+      return;
+    }
+
+    const srcDir = srcIn;
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =

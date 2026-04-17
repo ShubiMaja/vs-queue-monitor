@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.21";
+const APP_VERSION = "2.0.22";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -227,7 +227,7 @@ function normalizeSlashes(s) {
 /**
  * Stable 8-char hex id from the pasted source path + kind (same path → same folder name).
  * @param {string} seedPath
- * @param {"logs"|"data"} kind
+ * @param {"logs"|"data"|"file"} kind
  */
 function hashSourcePathForLinkFolder(seedPath, kind) {
   const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
@@ -241,7 +241,7 @@ function hashSourcePathForLinkFolder(seedPath, kind) {
 }
 
 /**
- * @param {"logs"|"data"} kind
+ * @param {"logs"|"data"|"file"} kind
  * @param {string} seedPath
  */
 function linkFolderName(kind, seedPath) {
@@ -299,23 +299,46 @@ function renderHelpCommandPreview() {
       /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
     const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
-    // Junction the real `Logs` folder (not a subfolder under it) so the mirror matches Explorer.
-    if (logsRoot) {
-      const leaf = linkFolderName("logs", logsRoot);
-      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
-      let pickSuffix = logName;
-      if (looksLikeLogFile) {
+    // Hard link the log file into Documents (no admin on same volume). Avoids pickers that still block folder junctions.
+    if (looksLikeLogFile) {
+      const leaf = linkFolderName("file", srcIn);
+      const destDir = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      const baseName = srcIn.replace(/^.*[\\/]/, "") || logName;
+      const destFile = `${destDir}\\${baseName}`;
+      let txt =
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mkdir "${destDir}"\n` +
+        `mklink /H "${destFile}" "${srcIn}"`;
+      if (logsRoot) {
+        const leafJ = linkFolderName("logs", logsRoot);
+        const destJ = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leafJ}`;
+        let pickSuffix = logName;
         const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
         if (rel !== null && rel.length > 0) pickSuffix = rel;
+        txt +=
+          `\n\n` +
+          `REM If mklink /H fails (log file must exist and be on the same drive as Documents), use a folder junction:\n` +
+          `REM if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+          `REM mklink /J "${destJ}" "${logsRoot}"\n` +
+          `REM Then pick: ${destJ}\\${pickSuffix}`;
       }
-      ui.preHelpCmd.textContent =
-        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mklink /J "${dest}" "${logsRoot}"`;
-      setPick(`${dest}\\${pickSuffix}`);
+      ui.preHelpCmd.textContent = txt;
+      setPick(destFile);
       return;
     }
 
-    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
+    // Folder junction: Logs directory or data root (no .log file pasted).
+    if (logsRoot) {
+      const leaf = linkFolderName("logs", logsRoot);
+      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      ui.preHelpCmd.textContent =
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mklink /J "${dest}" "${logsRoot}"`;
+      setPick(`${dest}\\${logName}`);
+      return;
+    }
+
+    const srcDir = srcIn;
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
