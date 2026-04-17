@@ -1,8 +1,13 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.47";
+const APP_VERSION = "2.0.50";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
+
+/** Shipped WAV clips (same-origin). Empty URL field in settings = use these. */
+const DEFAULT_WARN_SOUND_URL = "./assets/sounds/warning.wav";
+const DEFAULT_COMPLETION_SOUND_URL = "./assets/sounds/completion.wav";
+const DEFAULT_INTERRUPT_SOUND_URL = "./assets/sounds/disconnected.wav";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -61,6 +66,32 @@ const ui = {
   chkWarnSound: /** @type {HTMLInputElement} */ ($("chkWarnSound")),
   chkCompletionNotify: /** @type {HTMLInputElement} */ ($("chkCompletionNotify")),
   chkCompletionSound: /** @type {HTMLInputElement} */ ($("chkCompletionSound")),
+  chkInterruptNotify: /** @type {HTMLInputElement} */ ($("chkInterruptNotify")),
+  chkInterruptSound: /** @type {HTMLInputElement} */ ($("chkInterruptSound")),
+  inpWarnSoundUrl: /** @type {HTMLInputElement} */ ($("inpWarnSoundUrl")),
+  inpCompletionSoundUrl: /** @type {HTMLInputElement} */ ($("inpCompletionSoundUrl")),
+  inpInterruptSoundUrl: /** @type {HTMLInputElement} */ ($("inpInterruptSoundUrl")),
+  fileWarnSound: /** @type {HTMLInputElement} */ ($("fileWarnSound")),
+  fileCompletionSound: /** @type {HTMLInputElement} */ ($("fileCompletionSound")),
+  fileInterruptSound: /** @type {HTMLInputElement} */ ($("fileInterruptSound")),
+  btnPickWarnSound: $("btnPickWarnSound"),
+  btnPickCompletionSound: $("btnPickCompletionSound"),
+  btnPickInterruptSound: $("btnPickInterruptSound"),
+  btnClearWarnSoundFile: $("btnClearWarnSoundFile"),
+  btnClearCompletionSoundFile: $("btnClearCompletionSoundFile"),
+  btnClearInterruptSoundFile: $("btnClearInterruptSoundFile"),
+  btnTestWarnSound: $("btnTestWarnSound"),
+  btnTestCompletionSound: $("btnTestCompletionSound"),
+  btnTestInterruptSound: $("btnTestInterruptSound"),
+  btnWarnBuiltin: $("btnWarnBuiltin"),
+  btnWarnDefaultUrl: $("btnWarnDefaultUrl"),
+  btnCompletionBuiltin: $("btnCompletionBuiltin"),
+  btnCompletionDefaultUrl: $("btnCompletionDefaultUrl"),
+  btnInterruptBuiltin: $("btnInterruptBuiltin"),
+  btnInterruptDefaultUrl: $("btnInterruptDefaultUrl"),
+  warnSoundSummary: $("warnSoundSummary"),
+  completionSoundSummary: $("completionSoundSummary"),
+  interruptSoundSummary: $("interruptSoundSummary"),
   settingsNote: $("settingsNote"),
   historyPre: $("historyPre"),
   footerVersion: $("footerVersion"),
@@ -840,6 +871,7 @@ function scheduleAutosave(note = "") {
     _autosaveTimer = null;
     try {
       saveConfig();
+      void syncSoundSummaries();
       if (note) showSettingsNote(note);
     } catch {
       // ignore
@@ -859,6 +891,11 @@ function applyFormToConfig() {
   config.warnSound = ui.chkWarnSound.checked;
   config.completionNotify = ui.chkCompletionNotify.checked;
   config.completionSound = ui.chkCompletionSound.checked;
+  config.interruptNotify = ui.chkInterruptNotify.checked;
+  config.interruptSound = ui.chkInterruptSound.checked;
+  config.warnSoundUrl = ui.inpWarnSoundUrl.value.trim();
+  config.completionSoundUrl = ui.inpCompletionSoundUrl.value.trim();
+  config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
   ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
 }
 
@@ -872,6 +909,14 @@ function applyFormToConfig() {
  *   warnSound: boolean,
  *   completionNotify: boolean,
  *   completionSound: boolean,
+ *   interruptNotify: boolean,
+ *   interruptSound: boolean,
+ *   warnSoundUrl: string,
+ *   warnSoundFileName: string,
+ *   completionSoundUrl: string,
+ *   completionSoundFileName: string,
+ *   interruptSoundUrl: string,
+ *   interruptSoundFileName: string,
  *   graphLogScale: boolean
  * }} AppConfig
  */
@@ -881,11 +926,19 @@ let config = {
   pollSec: 2,
   thresholdsRaw: "10, 5, 1",
   windowPoints: 10,
-  logEveryChange: false,
+  logEveryChange: true,
   warnNotify: true,
   warnSound: true,
   completionNotify: true,
   completionSound: true,
+  interruptNotify: true,
+  interruptSound: true,
+  warnSoundUrl: "",
+  warnSoundFileName: "",
+  completionSoundUrl: "",
+  completionSoundFileName: "",
+  interruptSoundUrl: "",
+  interruptSoundFileName: "",
   graphLogScale: false,
 };
 
@@ -918,6 +971,11 @@ function syncConfigToForm() {
   ui.chkWarnSound.checked = !!config.warnSound;
   ui.chkCompletionNotify.checked = !!config.completionNotify;
   ui.chkCompletionSound.checked = !!config.completionSound;
+  ui.chkInterruptNotify.checked = !!config.interruptNotify;
+  ui.chkInterruptSound.checked = !!config.interruptSound;
+  ui.inpWarnSoundUrl.value = config.warnSoundUrl ?? "";
+  ui.inpCompletionSoundUrl.value = config.completionSoundUrl ?? "";
+  ui.inpInterruptSoundUrl.value = config.interruptSoundUrl ?? "";
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
   ui.kpiRateLabel.textContent = `RATE (Rolling ${config.windowPoints})`;
 }
@@ -957,6 +1015,7 @@ function appendHistory(msg) {
 function notifyDesktop(kind, title, body) {
   if (kind === "threshold" && !config.warnNotify) return;
   if (kind === "completion" && !config.completionNotify) return;
+  if (kind === "interrupt" && !config.interruptNotify) return;
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   try {
@@ -964,7 +1023,12 @@ function notifyDesktop(kind, title, body) {
       body,
       silent: true,
       icon: NOTIFICATION_ICON_URL,
-      tag: kind === "threshold" ? "vsqm-threshold" : "vsqm-completion",
+      tag:
+        kind === "threshold"
+          ? "vsqm-threshold"
+          : kind === "completion"
+            ? "vsqm-completion"
+            : "vsqm-interrupt",
     });
   } catch {
     // ignore
@@ -988,10 +1052,8 @@ function showTestDesktopNotification() {
 /** @type {AudioContext|null} */
 let audioCtx = null;
 
-/** Soft sine chimes: warning = two-step attention; completion = short major arpeggio. */
-function beep(kind) {
-  if (kind === "warning" && !config.warnSound) return;
-  if (kind === "completion" && !config.completionSound) return;
+/** Soft sine chimes: used as fallback (and optional built-in sound). */
+function beepBuiltin(kind) {
   try {
     audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx;
@@ -1030,12 +1092,16 @@ function beep(kind) {
       // Ascending perfect fifth (C5 → G5): clear, not harsh.
       tone(523.25, now, 0.12, 0.1);
       tone(783.99, now + 0.13, 0.14, 0.095);
-    } else {
+    } else if (kind === "completion") {
       // C major arpeggio (C5–E5–G5–C6): short celebratory swell.
       tone(523.25, now, 0.2, 0.1);
       tone(659.25, now + 0.1, 0.22, 0.095);
       tone(783.99, now + 0.2, 0.24, 0.09);
       tone(1046.5, now + 0.3, 0.32, 0.085);
+    } else {
+      // Interrupt: descending minor third (E5 → C5): noticeable but not harsh.
+      tone(659.25, now, 0.14, 0.1);
+      tone(523.25, now + 0.16, 0.2, 0.095);
     }
   } catch {
     // ignore
@@ -1241,6 +1307,165 @@ async function idbDeleteLogFileHandle() {
   } catch {
     // ignore
   }
+}
+
+const IDB_SOUNDS_NAME = "vsqm_sounds_v1";
+const IDB_SOUNDS_STORE = "blobs";
+
+/**
+ * @returns {Promise<IDBDatabase>}
+ */
+function openSoundsDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_SOUNDS_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_SOUNDS_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ * @param {Blob} blob
+ */
+async function idbPutSoundBlob(key, blob) {
+  const db = await openSoundsDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_SOUNDS_STORE, "readwrite");
+    tx.oncomplete = () => resolve(undefined);
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(IDB_SOUNDS_STORE).put(blob, key);
+  });
+  db.close();
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ * @returns {Promise<Blob|undefined>}
+ */
+async function idbGetSoundBlob(key) {
+  try {
+    const db = await openSoundsDb();
+    const blob = await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SOUNDS_STORE, "readonly");
+      const r = tx.objectStore(IDB_SOUNDS_STORE).get(key);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    db.close();
+    return /** @type {Blob|undefined} */ (blob);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ */
+async function idbDeleteSoundBlob(key) {
+  try {
+    const db = await openSoundsDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SOUNDS_STORE, "readwrite");
+      tx.oncomplete = () => resolve(undefined);
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore(IDB_SOUNDS_STORE).delete(key);
+    });
+    db.close();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @param {string} s
+ * @param {number} [max]
+ */
+function truncateUrl(s, max = 56) {
+  if (s.length <= max) return s;
+  return s.slice(0, Math.max(0, max - 1)) + "…";
+}
+
+/**
+ * @param {"warn"|"completion"|"interrupt"} kind
+ * @param {Blob|undefined} blob
+ */
+function soundSummaryLine(kind, blob) {
+  const fileName =
+    kind === "warn" ? config.warnSoundFileName : kind === "completion" ? config.completionSoundFileName : config.interruptSoundFileName;
+  const urlStr =
+    kind === "warn" ? config.warnSoundUrl?.trim() : kind === "completion" ? config.completionSoundUrl?.trim() : config.interruptSoundUrl?.trim();
+  const def =
+    kind === "warn" ? DEFAULT_WARN_SOUND_URL : kind === "completion" ? DEFAULT_COMPLETION_SOUND_URL : DEFAULT_INTERRUPT_SOUND_URL;
+  if (blob) return `Using: local file (${fileName || "saved in browser"})`;
+  if (urlStr === "builtin") return "Using: built-in sine tones";
+  if (!urlStr) return `Using: default clip (${def})`;
+  return `Using: ${truncateUrl(urlStr)}`;
+}
+
+async function syncSoundSummaries() {
+  const wBlob = await idbGetSoundBlob("warn");
+  const cBlob = await idbGetSoundBlob("completion");
+  const iBlob = await idbGetSoundBlob("interrupt");
+  ui.warnSoundSummary.textContent = soundSummaryLine("warn", wBlob);
+  ui.completionSoundSummary.textContent = soundSummaryLine("completion", cBlob);
+  ui.interruptSoundSummary.textContent = soundSummaryLine("interrupt", iBlob);
+  ui.btnClearWarnSoundFile.hidden = !wBlob && !config.warnSoundFileName;
+  ui.btnClearCompletionSoundFile.hidden = !cBlob && !config.completionSoundFileName;
+  ui.btnClearInterruptSoundFile.hidden = !iBlob && !config.interruptSoundFileName;
+}
+
+/**
+ * @param {"warning"|"completion"} kind
+ */
+async function playSoundAsync(kind, opts = undefined) {
+  const force = !!opts?.force;
+  if (!force) {
+    if (kind === "warning" && !config.warnSound) return;
+    if (kind === "completion" && !config.completionSound) return;
+    if (kind === "interrupt" && !config.interruptSound) return;
+  }
+  const key = kind === "warning" ? "warn" : kind === "completion" ? "completion" : "interrupt";
+  const defaultUrl =
+    kind === "warning" ? DEFAULT_WARN_SOUND_URL : kind === "completion" ? DEFAULT_COMPLETION_SOUND_URL : DEFAULT_INTERRUPT_SOUND_URL;
+  try {
+    const blob = await idbGetSoundBlob(key);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.onended = () => URL.revokeObjectURL(url);
+      await a.play();
+      return;
+    }
+    const urlStr =
+      kind === "warning" ? config.warnSoundUrl?.trim() : kind === "completion" ? config.completionSoundUrl?.trim() : config.interruptSoundUrl?.trim();
+    if (urlStr === "builtin") {
+      beepBuiltin(kind === "warning" ? "warning" : "completion");
+      return;
+    }
+    const src = urlStr || defaultUrl;
+    const a = new Audio(src);
+    await a.play();
+  } catch {
+    beepBuiltin(kind === "warning" ? "warning" : "completion");
+  }
+}
+
+/**
+ * @param {"warning"|"completion"} kind
+ */
+function beep(kind) {
+  void playSoundAsync(kind);
+}
+
+/**
+ * Preview sound from Settings (ignores the enable toggles).
+ * @param {"warning"|"completion"} kind
+ */
+function previewSound(kind) {
+  void playSoundAsync(kind, { force: true });
 }
 
 /**
@@ -1599,6 +1824,16 @@ let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: numb
   null
 );
 let graphCanvasHovering = false;
+/** Canvas-space X for hover crosshair (null when pointer leaves). */
+let graphHoverCanvasX = /** @type {number|null} */ (null);
+let graphDrawRaf = 0;
+function scheduleDrawGraph() {
+  if (graphDrawRaf) return;
+  graphDrawRaf = requestAnimationFrame(() => {
+    graphDrawRaf = 0;
+    drawGraph();
+  });
+}
 /** @type {GraphPoint|null} */
 let currentPoint = null;
 /** @type {number|null} */
@@ -1621,6 +1856,8 @@ let estimateTimer = null;
 let lastAlertEpoch = 0;
 /** @type {Set<number>} */
 let thresholdsFired = new Set();
+/** Only animate warnings marquee briefly after a warning fires. */
+let warningsMarqueeUntilEpoch = 0;
 /** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
@@ -1826,6 +2063,15 @@ function formatQueueRate(mpp) {
   return "—";
 }
 
+function bumpWarningsMarquee(sec = 10) {
+  const now = Date.now() / 1000;
+  warningsMarqueeUntilEpoch = Math.max(warningsMarqueeUntilEpoch, now + Math.max(2, sec));
+  syncWarningsMarquee();
+  window.setTimeout(() => {
+    if (Date.now() / 1000 >= warningsMarqueeUntilEpoch - 0.05) syncWarningsMarquee();
+  }, Math.ceil(sec * 1000) + 60);
+}
+
 function syncWarningsMarquee() {
   const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
   const rail = ui.kpiWarningsRail;
@@ -1840,6 +2086,8 @@ function syncWarningsMarquee() {
       const vw = viewport.clientWidth;
       const rw = rail.scrollWidth;
       if (rw <= vw + 2) return;
+      const now = Date.now() / 1000;
+      if (!(now < warningsMarqueeUntilEpoch)) return;
       if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         return;
       }
@@ -2126,6 +2374,7 @@ function raiseAlert(position, reason) {
   const now = Date.now() / 1000;
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
   lastAlertEpoch = now;
+  bumpWarningsMarquee(12);
   const secRem = estimateSecondsRemaining();
   const etaDisplay = secRem == null ? "—" : formatDurationRemaining(secRem);
   const etaPart = secRem == null ? "" : ` Est. remaining ${etaDisplay}.`;
@@ -2245,6 +2494,10 @@ function enterInterruptedState(detail) {
   frozenRatesAtInterrupt = [ui.kpiRate.textContent, ui.infoGlobalRate.textContent];
   setStatus("Interrupted", true);
   appendHistory(`Queue interrupted; still watching the log. (${detail})`);
+
+  // Separate alert channel for disconnects/interrupts.
+  notifyDesktop("interrupt", "VS Queue Monitor — interrupted", detail);
+  beep("interrupt");
 }
 
 function snapshotElapsedSecondsAtInterrupt() {
@@ -2616,6 +2869,19 @@ function formatGraphHoverTime(tSec) {
   }
 }
 
+/** Short time for X-axis ticks (Grafana-style compact axis). */
+function formatGraphXTick(tSec) {
+  try {
+    return new Date(tSec * 1000).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 /**
  * @param {number} clientX
  * @param {number} clientY
@@ -2647,8 +2913,8 @@ function hitTestGraphPoint(clientX, clientY) {
 }
 
 function graphYMap(pos, minP, maxP, h) {
-  const padTop = 18;
-  const padBot = 26;
+  const padTop = 22;
+  const padBot = 34;
   const plotH = h - padTop - padBot;
   const clamp = (v) => Math.max(0, Math.min(1, v));
   if (config.graphLogScale) {
@@ -2685,12 +2951,13 @@ function drawGraph() {
   }
   if (!graphCanvasHovering) ui.graphHint.textContent = graphHintDefaultText();
 
-  const padL = 54;
+  const padL = 56;
   const padR = 20;
-  const padT = 18;
-  const padB = 26;
+  const padT = 22;
+  const padB = 34;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
+  const plotBottom = padT + plotH;
 
   // Range
   const positions = graphPoints.map((p) => p[1]);
@@ -2706,25 +2973,41 @@ function drawGraph() {
   }
 
   // Time range
-  const t0 = graphPoints[0][0];
   const t1 = graphPoints[graphPoints.length - 1][0];
-  const span = Math.max(60, t1 - t0);
+  const span = Math.max(60, t1 - graphPoints[0][0]);
   const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
 
-  // Grid
-  ctx.strokeStyle = "rgba(55,65,82,0.55)";
+  const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "ui-monospace, monospace";
+
+  // Grids (horizontal + vertical, Grafana-style readability)
+  const yTickCount = 5;
+  const xTickCount = 5;
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 6; i++) {
-    const y = padT + (i / 6) * plotH;
+  for (let i = 0; i <= yTickCount; i++) {
+    const y = padT + (i / yTickCount) * plotH;
+    ctx.strokeStyle = i === 0 || i === yTickCount ? "rgba(55,65,82,0.62)" : "rgba(55,65,82,0.36)";
     ctx.beginPath();
     ctx.moveTo(padL, y);
     ctx.lineTo(w - padR, y);
     ctx.stroke();
   }
+  for (let i = 0; i <= xTickCount; i++) {
+    const x = padL + (i / xTickCount) * plotW;
+    ctx.strokeStyle = i === 0 || i === xTickCount ? "rgba(55,65,82,0.42)" : "rgba(55,65,82,0.2)";
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, plotBottom);
+    ctx.stroke();
+  }
 
-  // Axes labels (simple)
+  // Panel frame
+  ctx.strokeStyle = "rgba(46,55,66,0.95)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padL - 0.5, padT - 0.5, plotW + 1, plotH + 1);
+
+  // Y-axis tick labels
   ctx.fillStyle = "rgba(155,165,176,0.92)";
-  ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--mono");
+  ctx.font = "12px " + mono;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   const yLabels = [maxP, Math.round((maxP + minP) / 2), minP];
@@ -2733,23 +3016,63 @@ function drawGraph() {
     ctx.fillText(String(val), padL - 8, y);
   }
 
-  // Series (step plot)
-  ctx.strokeStyle = "rgba(100,168,255,0.92)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < graphPoints.length; i++) {
-    const [t, p] = graphPoints[i];
-    const x = xOf(t);
-    const y = graphYMap(p, minP, maxP, h);
-    if (i === 0) ctx.moveTo(x, y);
-    else {
-      const [tPrev, pPrev] = graphPoints[i - 1];
-      const xPrev = xOf(tPrev);
+  // Y-axis title
+  ctx.save();
+  ctx.fillStyle = "rgba(130,140,155,0.85)";
+  ctx.font = "10px " + mono;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.translate(12, padT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Position", 0, 0);
+  ctx.restore();
+
+  function traceStepLine() {
+    for (let i = 0; i < graphPoints.length; i++) {
+      const [t, p] = graphPoints[i];
+      const x = xOf(t);
+      const y = graphYMap(p, minP, maxP, h);
+      if (i === 0) ctx.moveTo(x, y);
+      else {
+        const [, pPrev] = graphPoints[i - 1];
+        const yPrev = graphYMap(pPrev, minP, maxP, h);
+        ctx.lineTo(x, yPrev);
+        ctx.lineTo(x, y);
+      }
+    }
+  }
+
+  // Gradient area under the step series
+  if (graphPoints.length >= 2) {
+    const gradFill = ctx.createLinearGradient(0, padT, 0, plotBottom);
+    gradFill.addColorStop(0, "rgba(100,168,255,0.24)");
+    gradFill.addColorStop(1, "rgba(100,168,255,0.03)");
+    const [t0, p0] = graphPoints[0];
+    const x0 = xOf(t0);
+    const y0 = graphYMap(p0, minP, maxP, h);
+    ctx.beginPath();
+    ctx.moveTo(x0, plotBottom);
+    ctx.lineTo(x0, y0);
+    for (let i = 1; i < graphPoints.length; i++) {
+      const [t, p] = graphPoints[i];
+      const [, pPrev] = graphPoints[i - 1];
+      const x = xOf(t);
+      const y = graphYMap(p, minP, maxP, h);
       const yPrev = graphYMap(pPrev, minP, maxP, h);
       ctx.lineTo(x, yPrev);
       ctx.lineTo(x, y);
     }
+    const xLast = xOf(graphPoints[graphPoints.length - 1][0]);
+    ctx.lineTo(xLast, plotBottom);
+    ctx.closePath();
+    ctx.fillStyle = gradFill;
+    ctx.fill();
   }
+
+  ctx.strokeStyle = "rgba(100,168,255,0.92)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  traceStepLine();
   ctx.stroke();
 
   // Current marker
@@ -2761,6 +3084,31 @@ function drawGraph() {
   ctx.arc(xm, ym, 4.5, 0, Math.PI * 2);
   ctx.fill();
 
+  // Hover crosshair (vertical, scoped to plot)
+  if (graphCanvasHovering && graphHoverCanvasX != null) {
+    const cx = Math.max(padL, Math.min(w - padR, graphHoverCanvasX));
+    ctx.strokeStyle = "rgba(200,210,230,0.4)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx, padT);
+    ctx.lineTo(cx, plotBottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // X-axis time ticks
+  ctx.fillStyle = "rgba(130,140,155,0.88)";
+  ctx.font = "10px " + mono;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= xTickCount; i++) {
+    const frac = i / xTickCount;
+    const tTick = t1 - span + frac * span;
+    const x = padL + frac * plotW;
+    ctx.fillText(formatGraphXTick(tTick), x, plotBottom + 4);
+  }
+
   lastGraphLayout = { padL, padR, padT, padB, plotW, plotH, w, h, t1, span, minP, maxP };
 }
 
@@ -2770,6 +3118,7 @@ function drawGraph() {
 
 loadConfig();
 syncConfigToForm();
+void syncSoundSummaries();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory(
@@ -3005,13 +3354,10 @@ ui.btnSaveSettings.addEventListener("click", () => {
     config.pollSec = pollSec;
     config.windowPoints = win;
     config.thresholdsRaw = ui.inpThresholds.value.trim();
-    config.logEveryChange = ui.chkLogEveryChange.checked;
-    config.warnNotify = ui.chkWarnNotify.checked;
-    config.warnSound = ui.chkWarnSound.checked;
-    config.completionNotify = ui.chkCompletionNotify.checked;
-    config.completionSound = ui.chkCompletionSound.checked;
+    applyFormToConfig();
     saveConfig();
     syncConfigToForm();
+    void syncSoundSummaries();
     refreshWarningsKpi();
     updateTimeEstimates();
     showSettingsNote("Saved.");
@@ -3037,17 +3383,25 @@ function bindEnterToSave(input) {
 bindEnterToSave(ui.inpPollSec);
 bindEnterToSave(ui.inpThresholds);
 bindEnterToSave(ui.inpWindowPoints);
+bindEnterToSave(ui.inpWarnSoundUrl);
+bindEnterToSave(ui.inpCompletionSoundUrl);
+bindEnterToSave(ui.inpInterruptSoundUrl);
 
 // Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [
   ui.inpPollSec,
   ui.inpThresholds,
   ui.inpWindowPoints,
+  ui.inpWarnSoundUrl,
+  ui.inpCompletionSoundUrl,
+  ui.inpInterruptSoundUrl,
   ui.chkLogEveryChange,
   ui.chkWarnNotify,
   ui.chkWarnSound,
   ui.chkCompletionNotify,
   ui.chkCompletionSound,
+  ui.chkInterruptNotify,
+  ui.chkInterruptSound,
 ]) {
   el.addEventListener("input", () => {
     applyFormToConfig();
@@ -3071,6 +3425,127 @@ for (const el of [
   });
 }
 
+ui.btnPickWarnSound.addEventListener("click", () => ui.fileWarnSound.click());
+ui.btnPickCompletionSound.addEventListener("click", () => ui.fileCompletionSound.click());
+ui.btnPickInterruptSound.addEventListener("click", () => ui.fileInterruptSound.click());
+
+ui.fileWarnSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("warn", f);
+    config.warnSoundFileName = f.name;
+    saveConfig();
+    ui.fileWarnSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save warning sound file.", true);
+  }
+});
+
+ui.fileCompletionSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("completion", f);
+    config.completionSoundFileName = f.name;
+    saveConfig();
+    ui.fileCompletionSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save completion sound file.", true);
+  }
+});
+
+ui.fileInterruptSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("interrupt", f);
+    config.interruptSoundFileName = f.name;
+    saveConfig();
+    ui.fileInterruptSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save interrupt sound file.", true);
+  }
+});
+
+ui.btnClearWarnSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("warn");
+  config.warnSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnClearCompletionSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("completion");
+  config.completionSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnClearInterruptSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("interrupt");
+  config.interruptSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnWarnBuiltin.addEventListener("click", () => {
+  ui.inpWarnSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnCompletionBuiltin.addEventListener("click", () => {
+  ui.inpCompletionSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnInterruptBuiltin.addEventListener("click", () => {
+  ui.inpInterruptSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnWarnDefaultUrl.addEventListener("click", () => {
+  ui.inpWarnSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnCompletionDefaultUrl.addEventListener("click", () => {
+  ui.inpCompletionSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnInterruptDefaultUrl.addEventListener("click", () => {
+  ui.inpInterruptSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnTestWarnSound.addEventListener("click", () => {
+  previewSound("warning");
+});
+
+ui.btnTestCompletionSound.addEventListener("click", () => {
+  previewSound("completion");
+});
+
+ui.btnTestInterruptSound.addEventListener("click", () => {
+  previewSound("interrupt");
+});
+
 // Resize canvas for crisp rendering on HiDPI (keep CSS size fixed)
 function resizeCanvasToDisplaySize() {
   const canvas = ui.graphCanvas;
@@ -3092,15 +3567,22 @@ ui.graphCanvas.addEventListener("mouseenter", () => {
 });
 ui.graphCanvas.addEventListener("mouseleave", () => {
   graphCanvasHovering = false;
+  graphHoverCanvasX = null;
   ui.graphHint.textContent = graphHintDefaultText();
+  scheduleDrawGraph();
 });
 ui.graphCanvas.addEventListener("mousemove", (e) => {
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
   const pt = hitTestGraphPoint(e.clientX, e.clientY);
   if (pt) {
     ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
   } else {
     ui.graphHint.textContent = graphHintDefaultText();
   }
+  scheduleDrawGraph();
 });
 
 drawGraph();

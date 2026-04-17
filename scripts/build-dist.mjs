@@ -1,5 +1,5 @@
 // Run after editing app.js, styles.css, or index.html: npm run build
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -9,6 +9,7 @@ const SRC_CSS = path.join(ROOT, "styles.css");
 const SRC_JS = path.join(ROOT, "app.js");
 const OUT_DIR = path.join(ROOT, "dist");
 const OUT_HTML = path.join(OUT_DIR, "index.html");
+const ASSETS_SRC = path.join(ROOT, "assets");
 
 function fail(msg) {
   console.error(`[build-dist] ${msg}`);
@@ -67,6 +68,13 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(OUT_HTML, out, "utf8");
   console.log(`[build-dist] Wrote ${path.relative(ROOT, OUT_HTML)}`);
+
+  try {
+    await cp(ASSETS_SRC, path.join(OUT_DIR, "assets"), { recursive: true });
+    console.log(`[build-dist] Copied assets → ${path.relative(ROOT, path.join(OUT_DIR, "assets"))}`);
+  } catch (e) {
+    console.warn(`[build-dist] assets copy skipped: ${e?.message || e}`);
+  }
 
   await writeFile(path.join(OUT_DIR, "version.json"), versionJson, "utf8");
   console.log(`[build-dist] Wrote ${path.relative(ROOT, path.join(OUT_DIR, "version.json"))}`);
