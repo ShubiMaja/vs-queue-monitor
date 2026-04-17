@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.94";
+const APP_VERSION = "2.0.95";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -13,7 +13,6 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const ui = {
   btnPickLog: $("btnPickLog"),
-  btnPickFolder: $("btnPickFolder"),
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
@@ -2222,52 +2221,6 @@ async function pickLogFile() {
   }
 }
 
-async function pickFolder() {
-  if (!window.showDirectoryPicker) {
-    appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
-    return;
-  }
-  let dir;
-  try {
-    dir = await window.showDirectoryPicker({ mode: "read" });
-  } catch (e) {
-    // Chrome/Edge can block protected folders (and users can cancel).
-    const msg = String(e && (e.message || e.name || e));
-    if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
-      appendHistory("Pick folder cancelled.");
-      showToast(
-        "Pick cancelled",
-        "No folder was selected. If the picker blocked the folder as “system files” / protected, use the fix guide (recommended: pick the log file via a hard link).",
-        "warn",
-        { actionLabel: "Open fix guide", onAction: () => openPickerFixGuide(), durationMs: 12000 },
-      );
-      return;
-    }
-    appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
-    showToast("Pick failed", "Folder access was blocked. Pick the log file instead (or open the fix guide).", "error", {
-      actionLabel: "Open fix guide",
-      onAction: () => openPickerFixGuide(),
-      durationMs: 16000,
-    });
-    return;
-  }
-  const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
-  if (!file) {
-    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
-    sourceLabel = "Picked folder (no log yet)";
-    ui.infoSource.textContent = sourceLabel;
-    ui.infoResolved.textContent = "—";
-    logFileHandle = null;
-    ui.btnStartStop.disabled = true;
-    return;
-  }
-  const pickedName = (await file.getFile()).name;
-  await applyPickedLogHandle(file, "Picked folder", {
-    historyLine: `Selected folder; resolved log file: ${pickedName}`,
-  });
-  startMonitoringAfterSuccessfulPick();
-}
-
 // -----------------------------
 // Monitor engine (browser)
 // -----------------------------
@@ -3353,7 +3306,6 @@ function startMonitoring() {
   setStatus("Monitoring");
   setStartStopButtonLook(true);
   ui.btnPickLog.disabled = true;
-  ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
   interruptedMode = false;
@@ -3382,7 +3334,6 @@ function stopMonitoring() {
   setLogActivityMonitoring(false);
   setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
-  ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
@@ -3900,13 +3851,7 @@ ui.btnInterruptAdoptNotNow.addEventListener("click", () => {
   appendHistory("Keeping interrupted state — adopt the new run when ready (dialog will show again if the session changes).");
 });
 
-// Hide folder picking when unsupported (common under file:// or non-Chromium).
-try {
-  const isFile = String(window.location && window.location.protocol) === "file:";
-  if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
-} catch {
-  // ignore
-}
+// Folder picking removed (confusing UX). Keep only “Pick log file…”.
 
 function focusAndReveal(el) {
   try {
@@ -3984,14 +3929,6 @@ ui.btnPickLog.addEventListener("click", async () => {
     await pickLogFile();
   } catch (e) {
     appendHistory(`Pick log cancelled/failed: ${String(e)}`);
-  }
-});
-
-ui.btnPickFolder.addEventListener("click", async () => {
-  try {
-    await pickFolder();
-  } catch (e) {
-    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
   }
 });
 

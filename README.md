@@ -157,7 +157,6 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 ### Picking the log
 
 - **Pick log file…** is required for **live tail**.
-- **Pick folder…** is optional and may be hidden/unsupported depending on your browser context.
 - After you successfully open a log, the app **remembers** it for the next visit: the **file handle** is stored in **IndexedDB** (same origin as the page), and **localStorage** holds the **file name** plus how it was chosen (e.g. “Picked file”). Browsers do **not** expose real filesystem paths to web pages, so there is no full path string to save.
 - **Reload / autostart (Chromium rules):** On reload, `queryPermission` may already be **`granted`** for the saved handle — then the app **restores the log and starts monitoring with no extra click**. If permission is **`prompt`**, the **File System Access API does not allow** granting read access from a “bare” page-load script: you must use a **user gesture** (the **Grant access & start** bar or the toast **Allow**). That limitation is from the browser, not something a web page can bypass.
 

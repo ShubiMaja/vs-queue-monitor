@@ -820,9 +820,6 @@ body{
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
-        <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
-          Pick folder…
-        </button>
         <button id="btnSettings" class="btn btn--secondary btn--icon" title="Settings">⚙</button>
         <button
           id="btnStartStop"
@@ -1235,7 +1232,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.94";
+const APP_VERSION = "2.0.95";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1249,7 +1246,6 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const ui = {
   btnPickLog: $("btnPickLog"),
-  btnPickFolder: $("btnPickFolder"),
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
@@ -4588,7 +4584,6 @@ function startMonitoring() {
   setStatus("Monitoring");
   setStartStopButtonLook(true);
   ui.btnPickLog.disabled = true;
-  ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
   interruptedMode = false;
@@ -4617,7 +4612,6 @@ function stopMonitoring() {
   setLogActivityMonitoring(false);
   setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
-  ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
