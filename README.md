@@ -52,25 +52,27 @@ If the browser blocks access, it will not reveal the exact path you attempted to
 
 Chrome/Edge can refuse access to some protected “system” folders. If the file picker says it **can’t open** the file/folder due to **system files**, use one of these:
 
-**Windows (junction via Documents):**
+**Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree).
 
 ```bat
-mkdir "%USERPROFILE%\Documents\VintagestoryData"
-mklink /J "%USERPROFILE%\Documents\VintagestoryData" "%APPDATA%\VintagestoryData"
+mkdir "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData" "%APPDATA%\VintagestoryData"
 ```
 
-Then pick: `Documents\VintagestoryData\Logs\client-main.log`
+Then pick: `Documents\vs-queue-monitor\VintagestoryData\Logs\client-main.log`
 
-**Linux (symlink into ~/VSLogs):**
+**Linux / macOS (file symlink into ~/vs-queue-monitor):**
 
 ```bash
-mkdir -p ~/VSLogs
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log
+mkdir -p ~/vs-queue-monitor/Logs
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/Logs/client-main.log
 ```
 
-Then pick: `~/VSLogs/client-main.log`
+Then pick: `~/vs-queue-monitor/Logs/client-main.log`
 
 Note: the browser does not reveal the exact path you attempted to pick when it blocks access, so these commands use the typical Vintage Story data locations. Replace the source path if your install uses a different location.
+
+If the destination folder already exists (for example from a previous attempt), remove it first (`rmdir /S /Q` on Windows for a non-empty directory you no longer need) before running `mklink`.
 
 ## Open-source hosted assets
 
@@ -93,7 +95,9 @@ If you use CC BY/CC BY-SA sounds, you must provide attribution (Wikimedia file p
 
 If you prefer stable URLs under your control:
 
-- **GitHub Pages**: commit files to a repo → Settings → Pages → Deploy from branch → use `https://<user>.github.io/<repo>/path/to/file.ogg`.\n- **Cloudflare Pages**: connect a GitHub repo in Cloudflare Pages → deploy → use `https://<project>.pages.dev/path/to/file.ogg`.\n- **Netlify Drop** (quickest): drag a folder with your files + an `index.html` into Netlify Drop to get a public URL.
+- **GitHub Pages**: commit files to a repo → Settings → Pages → Deploy from branch → use `https://<user>.github.io/<repo>/path/to/file.ogg`.
+- **Cloudflare Pages**: connect a GitHub repo in Cloudflare Pages → deploy → use `https://<project>.pages.dev/path/to/file.ogg`.
+- **Netlify Drop** (quickest): drag a folder with your files + an `index.html` into Netlify Drop to get a public URL.
 
 ## Log file
 

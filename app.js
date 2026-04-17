@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.11";
+const APP_VERSION = "2.0.12";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -238,11 +238,14 @@ function renderHelpCommandPreview() {
 
   if (isWin) {
     const srcIn = raw || "%APPDATA%\\VintagestoryData";
-    const looksLikeLogsDir = /[\\/]Logs[\\/]?$/i.test(srcIn);
     const looksLikeLogFile = /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
     const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
+    const looksLikeLogsDir = /[\\/]Logs[\\/]?$/i.test(srcIn);
+    const looksLikeLogsFolder =
+      looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
 
-    if (looksLikeLogsDir) {
+    // Folder junction (mklink /J): works without Developer Mode; exposes Logs so you pick client-main.log inside.
+    if (looksLikeLogsFolder) {
       const dest = "%USERPROFILE%\\Documents\\vs-queue-monitor\\Logs";
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
