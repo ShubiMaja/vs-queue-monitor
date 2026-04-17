@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.28";
+const APP_VERSION = "2.0.30";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -855,11 +855,15 @@ let logFileHandle = null;
 let sourceLabel = null;
 
 const TAIL_BYTES = 128 * 1024;
+/** First read after pick: load up to this many bytes for buffer + full graph replay (whole file if smaller). */
+const INITIAL_FULL_READ_MAX_BYTES = 12 * 1024 * 1024;
 const MAX_READ_BYTES_PER_POLL = 512 * 1024;
 const BUFFER_MAX_CHARS = 400_000;
 
 /** @type {number|null} */
 let lastReadOffset = null;
+/** @type {string|null} */
+let pendingGraphReplayText = null;
 /** @type {string} */
 let logBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
@@ -1091,7 +1095,13 @@ async function pickLogFile() {
   await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
+  pendingGraphReplayText = null;
   logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -1144,7 +1154,13 @@ async function pickFolder() {
   await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
+  pendingGraphReplayText = null;
   logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
 }
 
 // -----------------------------
@@ -1391,7 +1407,7 @@ function refreshWarningsKpi() {
     const passed = (pos != null && pos <= t) || fired.has(t);
     parts.push(passed ? String(t) : String(t));
   }
-  ui.kpiWarnings.textContent = thresholds.join(" · ");
+  ui.kpiWarnings.textContent = parts.join(" · ");
 }
 
 function estimateSecondsRemaining() {
@@ -1522,6 +1538,89 @@ function appendGraphPoint(position, lineEpoch) {
 }
 
 /**
+ * Rebuild graph points from a full log snapshot (first load / truncate resync), matching live poll semantics.
+ * @param {string} fullText
+ */
+function replayQueueGraphFromText(fullText) {
+  if (!fullText) {
+    graphPoints = [];
+    currentPoint = null;
+    lastPosition = null;
+    drawGraph();
+    return;
+  }
+  const lines = fullText.split(/\r?\n/);
+  const sessionBeforeLine = new Array(lines.length);
+  let s = 0;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = s;
+    if (isQueueRunBoundaryLine(lines[i])) s++;
+  }
+
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  /** @type {number|null} */
+  let sessionAtLastEmit = null;
+
+  let lastQIdx = -1;
+  let lastQueuePos = /** @type {number|null} */ (null);
+  let lastQueueEpoch = /** @type {number|null} */ (null);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isQueueRunBoundaryLine(line)) continue;
+
+    const rawPos = queuePositionFromLine(line);
+    if (rawPos != null) {
+      lastQIdx = i;
+      lastQueuePos = rawPos;
+      lastQueueEpoch = parseLogTimestampEpoch(line);
+    }
+
+    if (lastQIdx < 0 || lastQueuePos == null) continue;
+
+    const sess = sessionBeforeLine[lastQIdx];
+    let pos = lastQueuePos;
+
+    let left = false;
+    for (let j = lastQIdx + 1; j <= i; j++) {
+      if (isPostQueueProgressLine(lines[j])) {
+        left = true;
+        break;
+      }
+    }
+
+    const prevPos = lastPosition;
+    if (
+      prevPos != null &&
+      sessionAtLastEmit != null &&
+      sess === sessionAtLastEmit &&
+      pos > prevPos &&
+      pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD
+    ) {
+      pos = prevPos;
+    }
+
+    if (pos <= 1 && left) pos = 0;
+
+    const t = lastQueueEpoch ?? Date.now() / 1000;
+
+    if (!currentPoint || currentPoint[1] !== pos) {
+      currentPoint = [t, pos];
+      graphPoints.push(currentPoint);
+      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+      lastPosition = pos;
+      sessionAtLastEmit = sess;
+    }
+  }
+
+  const { session } = parseTailLastQueueReading(fullText);
+  lastQueueRunSession = session;
+  drawGraph();
+}
+
+/**
  * @param {number|null} prevPos
  * @param {number} currPos
  * @returns {{ should: boolean, reason: string }}
@@ -1637,19 +1736,34 @@ async function readNewLogText(handle) {
   const file = await handle.getFile();
   const size = file.size;
 
-  // First read: seed context from the tail, then set offset to EOF.
+  // First read: load full file when reasonable so we can replay the full queue graph; then set offset to EOF.
   if (lastReadOffset == null) {
-    const start = Math.max(0, size - TAIL_BYTES);
-    const seed = await readLogRangeText(handle, start, size);
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+      appendHistory(
+        `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
+      );
+    }
     lastReadOffset = size;
+    pendingGraphReplayText = seed;
     return seed;
   }
 
-  // Truncation / rotation: file got smaller, reset and seed tail again.
+  // Truncation / rotation: file got smaller, reset and reload window for replay.
   if (size < lastReadOffset) {
-    const start = Math.max(0, size - TAIL_BYTES);
-    const seed = await readLogRangeText(handle, start, size);
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+    }
     lastReadOffset = size;
+    pendingGraphReplayText = seed;
     appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
     return seed;
   }
@@ -1681,7 +1795,10 @@ async function pollOnce() {
     updateTimeEstimates();
     await bumpLogActivityIfChanged();
     const newText = await readNewLogText(logFileHandle);
+    const replayChunk = pendingGraphReplayText;
+    pendingGraphReplayText = null;
     if (newText) appendToLogBuffer(newText);
+    if (replayChunk != null) replayQueueGraphFromText(replayChunk);
     const view = logBuffer || "";
     const { kind } = classifyTailConnectionState(view);
     const { lastPos, session } = parseTailLastQueueReading(view);
@@ -1783,22 +1900,26 @@ async function pollOnce() {
       if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
 
       appendGraphPoint(pos, lastLineEpoch);
-      updateTimeEstimates();
+      try {
+        updateTimeEstimates();
 
-      if (pos !== prevPos) {
-        ui.infoLastChange.textContent = nowStamp();
-        mppFloorPosition = pos;
-        mppFloorValue = minutesPerPositionFromWindow();
-        if (config.logEveryChange) {
-          if (prevPos == null) appendHistory(`Queue position: ${pos}`);
-          else appendHistory(`Queue changed: ${prevPos} → ${pos}`);
+        if (pos !== prevPos) {
+          ui.infoLastChange.textContent = nowStamp();
+          mppFloorPosition = pos;
+          mppFloorValue = minutesPerPositionFromWindow();
+          if (config.logEveryChange) {
+            if (prevPos == null) appendHistory(`Queue position: ${pos}`);
+            else appendHistory(`Queue changed: ${prevPos} → ${pos}`);
+          }
         }
-      }
 
-      const { should, reason } = computeAlert(prevPos, pos);
-      if (should) raiseAlert(pos, reason);
-      maybeNotifyCompletion(pos, view);
-      refreshWarningsKpi();
+        const { should, reason } = computeAlert(prevPos, pos);
+        if (should) raiseAlert(pos, reason);
+        maybeNotifyCompletion(pos, view);
+        refreshWarningsKpi();
+      } catch (e) {
+        appendHistory(`Non-fatal: ${String(e)}`);
+      }
       return;
     }
 

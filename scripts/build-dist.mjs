@@ -45,12 +45,18 @@ async function main() {
     "CSS link tag",
   );
 
-  out = replaceOnce(
-    out,
-    '<script type="module" src="./app.js"></script>',
-    `<script type="module">\n/* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */\n\n${js}\n</script>`,
-    "JS script tag",
-  );
+  const scriptRe =
+    /<script type="module" src="\.\/app\.js(?:\?v=[^"]*)?"><\/script>/g;
+  const scriptMatches = [...out.matchAll(scriptRe)];
+  if (scriptMatches.length === 0) {
+    fail('Could not find JS script tag (expected src="./app.js" with optional ?v= cache bust).');
+  }
+  if (scriptMatches.length > 1) fail("Found JS script tag more than once.");
+  const scriptMatch = scriptMatches[0];
+  out =
+    out.slice(0, scriptMatch.index) +
+    `<script type="module">\n/* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */\n\n${js}\n</script>` +
+    out.slice(scriptMatch.index + scriptMatch[0].length);
 
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(OUT_HTML, out, "utf8");
