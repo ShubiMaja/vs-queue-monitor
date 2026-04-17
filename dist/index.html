@@ -368,7 +368,7 @@ body{
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
           <div class="modal__text">Do not <span class="mono">mkdir</span> the <span class="mono">data-…</span> / <span class="mono">logs-…</span> name first — <span class="mono">mklink /J</span> creates it. Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
           <div class="modal__text muted">
-            <strong>Empty folder?</strong> <span class="mono">Documents\vs-queue-monitor</span> stays empty until a junction is created successfully. Run the commands in <strong>Command Prompt</strong> (<span class="mono">cmd</span>) — <span class="mono">mklink</span> is not a PowerShell command. If <span class="mono">logs-…</span> / <span class="mono">data-…</span> exists but has no files, the real Vintage Story <span class="mono">Logs</span> folder is empty or the source path is wrong — open that path in Explorer first.
+            <strong>Empty folder?</strong> <span class="mono">Documents\vs-queue-monitor</span> stays empty until a junction is created successfully. Run the commands in <strong>Command Prompt</strong> (<span class="mono">cmd</span>) — <span class="mono">mklink</span> is not a PowerShell command. If the junction opens but looks empty while your real <span class="mono">Logs</span> folder is not, delete the junction and copy a fresh command — older builds could mis-handle log paths under a subfolder of <span class="mono">Logs</span>.
           </div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
@@ -386,7 +386,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="modal__text muted">
-            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> with names like <span class="mono">data-xxxxxxxx</span> or <span class="mono">logs-xxxxxxxx</span> (8 hex chars from a hash of the <strong>source path</strong> you paste — same path always gets the same name). Mac/Linux use the same pattern under <span class="mono">~/vs-queue-monitor/</span>.
+            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> with names like <span class="mono">data-xxxxxxxx</span> or <span class="mono">logs-xxxxxxxx</span> (8 hex chars from a hash of the <strong>source path</strong> you paste — for paths under <span class="mono">Logs</span>, the <span class="mono">logs-…</span> name is derived from the <span class="mono">Logs</span> folder path). Mac/Linux use the same pattern under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -570,7 +570,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.19";
+const APP_VERSION = "2.0.20";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -775,6 +775,28 @@ function linkFolderName(kind, seedPath) {
   return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
 }
 
+function findWindowsLogsFolderRoot(p) {
+  const n = normalizeSlashes(p).replaceAll("/", "\\");
+  if (!n) return null;
+  const lower = n.toLowerCase();
+  const needle = "\\logs\\";
+  const i = lower.lastIndexOf(needle);
+  if (i >= 0) return n.slice(0, i + "\\logs".length);
+  if (lower.endsWith("\\logs")) return n;
+  return null;
+}
+
+function winPathRelativeBelowLogs(fullPath, logsRoot) {
+  const f = normalizeSlashes(fullPath).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const lr = normalizeSlashes(logsRoot).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const fl = f.toLowerCase();
+  const lrl = lr.toLowerCase();
+  if (fl === lrl) return "";
+  const root = lr + "\\";
+  if (!fl.startsWith(root.toLowerCase())) return null;
+  return f.slice(root.length).replace(/^\\+/, "");
+}
+
 function renderHelpCommandPreview() {
   if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
   const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
@@ -788,23 +810,26 @@ function renderHelpCommandPreview() {
 
   if (isWin) {
     const srcIn = raw || "%APPDATA%\\VintagestoryData";
-    const looksLikeLogFile = /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
-    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
-    const looksLikeLogsDir = /[\\/]Logs[\\/]?$/i.test(srcIn);
-    const looksLikeLogsFolder =
-      looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
+    const looksLikeLogFile =
+      /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
+    const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
-    // Folder junction (mklink /J): creates the leaf name; only mkdir the parent folder (not the junction path).
-    if (looksLikeLogsFolder) {
-      const leaf = linkFolderName("logs", srcDir);
+    if (logsRoot) {
+      const leaf = linkFolderName("logs", logsRoot);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      let pickSuffix = logName;
+      if (looksLikeLogFile) {
+        const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
+        if (rel !== null && rel.length > 0) pickSuffix = rel;
+      }
       ui.preHelpCmd.textContent =
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mklink /J "${dest}" "${srcDir}"`;
-      setPick(`${dest}\\${logName}`);
+        `mklink /J "${dest}" "${logsRoot}"`;
+      setPick(`${dest}\\${pickSuffix}`);
       return;
     }
 
+    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
