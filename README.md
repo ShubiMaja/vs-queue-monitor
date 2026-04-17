@@ -86,6 +86,8 @@ mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\Vi
 
 For **junctions**, only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that leaf name first or the link step fails. For **hard links**, **`mklink /H` creates the linked filename** in that folder — do not create a file with that name first.
 
+**`mklink /H` vs folders:** `mklink /H` hard-links **files only**. Running it on a **directory** fails (e.g. “illegal operation”). Expose a **folder** with `mklink /J` (junction), or paste the **path to `client-main.log`** in **`?`** so the generated command uses **`/H` on that file**.
+
 **Copy works but “shortcut” / link does not (common confusion):** Windows **Create shortcut** (e.g. right‑click → **Create shortcut**, or **Send to → Desktop**) creates a **`.lnk`** **shell** shortcut. It is a small binary that Windows Explorer knows how to **open**; Edge/Chrome’s file picker does **not** resolve `.lnk` to the real `client-main.log`. The app would read the wrong bytes, so queue monitoring fails. **`mklink /H`** in **Command Prompt** creates a **hard link**—a second directory entry pointing at the **same file data** as the original log (for reading, it behaves like a copy). Use the **`?`** generator’s `mklink /H` command, or **copy** the log under Documents. The in-app picker also warns if you select a `.lnk` or a file whose header looks like one.
 
 **`vs-queue-monitor` looks empty:** until `mklink` succeeds, there will be no `data-…` / `logs-…` entry there. Run the two lines in **Command Prompt (`cmd.exe`)** — in **PowerShell**, `mklink` is not available (use `cmd /c "mklink /J …"` or `New-Item -ItemType Junction -Path … -Target …`).

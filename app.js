@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.25";
+const APP_VERSION = "2.0.26";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -316,6 +316,7 @@ function renderHelpCommandPreview() {
     if (looksLikeLogFile) {
       const destFile = winHardLinkExposedLogPath(srcIn);
       let txt =
+        `REM mklink /H is for FILES only (not folders). Second path must be your real client-main.log file.\n` +
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
         `mklink /H "${destFile}" "${srcIn}"`;
       if (logsRoot) {
@@ -326,7 +327,7 @@ function renderHelpCommandPreview() {
         if (rel !== null && rel.length > 0) pickSuffix = rel;
         txt +=
           `\n\n` +
-          `REM If mklink /H fails (log file must exist and be on the same drive as Documents), use a folder junction:\n` +
+          `REM If mklink /H fails (file must exist; same drive as Documents), use a folder junction — /J for folders, not /H:\n` +
           `REM if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
           `REM mklink /J "${destJ}" "${logsRoot}"\n` +
           `REM Then pick: ${destJ}\\${pickSuffix}`;
@@ -341,6 +342,7 @@ function renderHelpCommandPreview() {
       const leaf = linkFolderName("logs", logsRoot);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
+        `REM Folders: use mklink /J only. Do not use mklink /H on a directory (that causes an error).\n` +
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
         `mklink /J "${dest}" "${logsRoot}"`;
       setPick(`${dest}\\${logName}`);
@@ -351,6 +353,7 @@ function renderHelpCommandPreview() {
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
+      `REM Folders: mklink /J only. For a single log file under Documents, paste the .log path to get mklink /H instead.\n` +
       `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
       `mklink /J "${dest}" "${srcDir}"`;
     setPick(`${dest}\\Logs\\${logName}`);
