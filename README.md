@@ -37,11 +37,18 @@ Then close and reopen your terminal so `node` and `npm` are on `PATH`.
 If you already have Node.js installed:
 
 ```bash
-npm install
 npm run build
 ```
 
-`npm install` pulls dev dependencies (for example `http-server` for `npm run dev`). The build script itself only uses Node’s standard library.
+No `npm install` is required: the build runs `node scripts/build-dist.mjs` and only uses Node’s standard library.
+
+Optional — local **dev server** (serves the repo so you can use `index.html` + `app.js` without a manual rebuild):
+
+```bash
+npm run dev
+```
+
+That uses **`npx`** to run `http-server` (pinned in `package.json`) the first time you start it; it will download the package if needed.
 
 ## Using it
 
