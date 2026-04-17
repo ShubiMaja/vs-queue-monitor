@@ -5451,18 +5451,14 @@ function updateThresholdsFromList(list) {
 }
 
 function normalizeThresholdInput(raw) {
-  const s = String(raw ?? "").replaceAll(",", " ");
-  const parts = s.split(/\s+/).map((x) => x.trim()).filter(Boolean);
-  /** @type {number[]} */
-  const out = [];
-  for (const p of parts) {
-    const n = Number.parseInt(p, 10);
-    if (!Number.isFinite(n)) continue;
-    if (n >= 1) out.push(n);
+  try {
+    const list = parseAlertThresholds(String(raw ?? ""));
+    const uniq = [...new Set(list.filter((n) => Number.isFinite(n) && n >= 1))];
+    uniq.sort((a, b) => b - a);
+    return { list: uniq, normalized: uniq.join(", ") };
+  } catch {
+    return { list: [], normalized: "" };
   }
-  const uniq = [...new Set(out)];
-  uniq.sort((a, b) => b - a);
-  return { list: uniq, normalized: uniq.join(", ") };
 }
 
 ui.btnWarningsEdit?.addEventListener("click", (e) => {
@@ -5479,7 +5475,7 @@ ui.btnWarningsAddCancel?.addEventListener("click", () => {
 ui.btnWarningsAddOk?.addEventListener("click", () => {
   const { list: next, normalized } = normalizeThresholdInput(ui.inpWarningsAdd.value);
   if (next.length === 0) {
-    showToast("Invalid thresholds", "Enter one or more whole numbers ≥ 1 (comma- or space-separated).", "warn", { durationMs: 8000 });
+    showToast("Invalid thresholds", "Enter whole numbers ≥ 1. Ranges are allowed (e.g. 10, 5, 3-1).", "warn", { durationMs: 8000 });
     return;
   }
   updateThresholdsFromList(next);
