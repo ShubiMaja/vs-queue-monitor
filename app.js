@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.24";
+const APP_VERSION = "2.0.25";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -391,7 +391,7 @@ const QUEUE_RE = new RegExp(
     "client\\s+is\\s+in\\s+connect\\s+queue\\s+at\\s+position" +
     "|your\\s+position\\s+in\\s+the\\s+queue\\s+is" +
     ")\\D*(\\d+)",
-  "i",
+  "gi",
 );
 
 /**

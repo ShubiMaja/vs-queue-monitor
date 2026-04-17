@@ -580,7 +580,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.24";
+const APP_VERSION = "2.0.25";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -906,7 +906,7 @@ const QUEUE_RE = new RegExp(
     "client\\s+is\\s+in\\s+connect\\s+queue\\s+at\\s+position" +
     "|your\\s+position\\s+in\\s+the\\s+queue\\s+is" +
     ")\\D*(\\d+)",
-  "i",
+  "gi",
 );
 
 function queuePositionFromLine(line) {
