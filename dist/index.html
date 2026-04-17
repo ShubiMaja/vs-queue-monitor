@@ -382,7 +382,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="helpPlat">
-            <button id="btnHelpPickLog" class="btn btn--secondary btn--small" type="button">Pick log file…</button>
+            <button id="btnHelpLoadFile" class="btn btn--secondary btn--small" type="button">Load file</button>
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -563,7 +563,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log</
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.8";
+const APP_VERSION = "2.0.9";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -581,7 +581,7 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
-  btnHelpPickLog: $("btnHelpPickLog"),
+  btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
@@ -723,7 +723,12 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
-  ui.btnHelpPickLog?.addEventListener("click", async () => {
+  ui.btnHelpLoadFile?.addEventListener("click", async () => {
+    const expected = String(ui.spanHelpPickPath?.textContent || "").trim();
+    if (expected) {
+      showToast("Load file", `In the picker, select: ${expected}`, "info", { durationMs: 9000 });
+      appendHistory(`Help: expected log path: ${expected}`);
+    }
     try {
       await pickLogFile();
     } catch (e) {
