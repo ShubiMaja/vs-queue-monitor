@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.93";
+const APP_VERSION = "2.0.94";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -589,6 +589,18 @@ function openHelp() {
   }
   try {
     ui.btnHelpClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function openPickerFixGuide() {
+  openHelp();
+  try {
+    // Make the “solution” obvious: scroll + focus the generator input.
+    ui.inpHelpSourcePath?.scrollIntoView({ block: "center", inline: "nearest" });
+    ui.inpHelpSourcePath?.focus();
+    ui.inpHelpSourcePath?.select?.();
   } catch {
     // ignore
   }
@@ -2094,9 +2106,9 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
-      tipToast = showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
+      tipToast = showToast("Picker tip", "If you hit “system files” / protected folders, use the fix guide (mklink/ln -s).", "info", {
+        actionLabel: "Open fix guide",
+        onAction: () => openPickerFixGuide(),
         durationMs: Infinity,
       });
       if (isWin) {
@@ -2144,11 +2156,16 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
-      showToast("Pick cancelled", "No file was selected.", "warn", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 7000,
-      });
+      showToast(
+        "Pick cancelled",
+        "No file was selected. If you were trying to pick from AppData/protected folders and saw “system files”, the browser blocked it — use the fix guide.",
+        "warn",
+        {
+          actionLabel: "Open fix guide",
+          onAction: () => openPickerFixGuide(),
+          durationMs: 12000,
+        },
+      );
       return;
     }
     const looksBlocked =
@@ -2160,11 +2177,16 @@ async function pickLogFile() {
       low.includes("permission");
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
-      showToast("Picker blocked", "Browser denied access (protected/system location).", "error", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 9000,
-      });
+      showToast(
+        "Picker blocked",
+        "Browser denied access (protected/system location). Use the fix guide to expose the log under Documents/Home (mklink /H or ln -s).",
+        "error",
+        {
+          actionLabel: "Open fix guide",
+          onAction: () => openPickerFixGuide(),
+          durationMs: 16000,
+        },
+      );
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
       appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
       appendHistory("Windows fallback (junction; may still be blocked by the picker):");
@@ -2213,15 +2235,20 @@ async function pickFolder() {
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
-      showToast("Pick cancelled", "No folder was selected.", "warn", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 7000,
-      });
+      showToast(
+        "Pick cancelled",
+        "No folder was selected. If the picker blocked the folder as “system files” / protected, use the fix guide (recommended: pick the log file via a hard link).",
+        "warn",
+        { actionLabel: "Open fix guide", onAction: () => openPickerFixGuide(), durationMs: 12000 },
+      );
       return;
     }
     appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
-    showToast("Pick failed", "Folder access was blocked. Pick the log file instead.", "error");
+    showToast("Pick failed", "Folder access was blocked. Pick the log file instead (or open the fix guide).", "error", {
+      actionLabel: "Open fix guide",
+      onAction: () => openPickerFixGuide(),
+      durationMs: 16000,
+    });
     return;
   }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
