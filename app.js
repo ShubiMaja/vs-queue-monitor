@@ -1967,8 +1967,20 @@ function parseAlertThresholds(raw) {
   const parts = raw.replaceAll(",", " ").split(/\s+/).map((s) => s.trim()).filter(Boolean);
   const out = [];
   for (const p of parts) {
+    // Support ranges like "3-1" or "1-3" (inclusive).
+    const m = /^(\d+)\s*-\s*(\d+)$/.exec(p);
+    if (m) {
+      const a = Number.parseInt(m[1], 10);
+      const b = Number.parseInt(m[2], 10);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error("Warning thresholds must be numbers (e.g. 10, 5, 3-1).");
+      if (a < 1 || b < 1) throw new Error("Warning thresholds must be >= 1.");
+      const step = a <= b ? 1 : -1;
+      for (let x = a; step > 0 ? x <= b : x >= b; x += step) out.push(x);
+      continue;
+    }
+
     const n = Number.parseInt(p, 10);
-    if (!Number.isFinite(n)) throw new Error("Warning thresholds must be numbers (e.g. 10, 5, 1).");
+    if (!Number.isFinite(n)) throw new Error("Warning thresholds must be numbers (e.g. 10, 5, 3-1).");
     if (n < 1) throw new Error(`Warning threshold ${n} must be >= 1.`);
     out.push(n);
   }
