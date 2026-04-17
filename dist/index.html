@@ -341,15 +341,15 @@ body{
 .kpiWarn__threshold{background:rgba(110,179,255,0.06)}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
-.btnWarnEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.btnWarnEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--warnings:hover .btnWarnEdit,
-.kpi--warnings:focus-within .btnWarnEdit{opacity:1;pointer-events:auto}
-.btnRateEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--warnings:focus-within .btnWarnEdit{opacity:1;visibility:visible;pointer-events:auto}
+.btnRateEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--rate:hover .btnRateEdit,
-.kpi--rate:focus-within .btnRateEdit{opacity:1;pointer-events:auto}
-.btnStatusRefreshEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--rate:focus-within .btnRateEdit{opacity:1;visibility:visible;pointer-events:auto}
+.btnStatusRefreshEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--status:hover .btnStatusRefreshEdit,
-.kpi--status:focus-within .btnStatusRefreshEdit{opacity:1;pointer-events:auto}
+.kpi--status:focus-within .btnStatusRefreshEdit{opacity:1;visibility:visible;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
@@ -700,6 +700,7 @@ body{
   pointer-events:none;
 }
 .toast{
+  position:relative;
   pointer-events:auto;
   min-width:260px;
   max-width:400px;
@@ -731,6 +732,34 @@ body{
 .toast__body{color:var(--text)}
 .toast__hint{margin-top:6px;color:var(--muted);font-size:12px}
 .toast__actions{margin-top:8px;display:flex;gap:8px}
+.toast__close{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.04);
+  color:rgba(255,255,255,0.78);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  line-height:1;
+  font-size:16px;
+  font-weight:700;
+  transition:background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.toast__close:hover{
+  background:rgba(255,255,255,0.07);
+  border-color:rgba(255,255,255,0.14);
+  color:rgba(255,255,255,0.90);
+}
+.toast__close:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(91,156,247,0.22);
+  border-color:rgba(91,156,247,0.45);
+}
 .toast__btn{
   appearance:none;
   border:1px solid rgba(55,65,82,0.9);
@@ -990,12 +1019,6 @@ body{
             <div class="settingsSection">
               <div class="settingsSection__title">Basics</div>
               <div class="settingsSection__grid">
-                <div class="field field--wide">
-                  <label class="label" for="chkLogEveryChange">
-                    <input id="chkLogEveryChange" type="checkbox" checked />
-                    Log every position change
-                  </label>
-                </div>
                 <div class="field field--wide">
                   <div class="muted" style="margin-top:6px;line-height:1.35">
                     Tip: refresh and AVG window are edited inline from the KPI strip (STATUS and RATE).
@@ -1363,6 +1386,10 @@ body{
         <div class="card__header">
           <div class="card__title">History</div>
           <div class="card__actions">
+            <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
+              <input id="chkLogEveryChangeHistory" type="checkbox" />
+              Log every change
+            </label>
             <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
           </div>
         </div>
@@ -1486,6 +1513,7 @@ const ui = {
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement} */ ($("inpWindowPoints")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
+  chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
   chkWarnSound: /** @type {HTMLInputElement} */ ($("chkWarnSound")),
   chkCompletionNotify: /** @type {HTMLInputElement} */ ($("chkCompletionNotify")),
@@ -2038,10 +2066,20 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   el.className = `toast ${toastMod}`.trim();
   const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
+    `<button type="button" class="toast__close" aria-label="Dismiss">×</button>` +
     `<div class="toast__title">${escapeHtml(String(title))}</div>` +
     (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "") +
     (actionLabel ? `<div class="toast__actions"><button type="button" class="toast__btn">${escapeHtml(actionLabel)}</button></div>` : "");
   host.appendChild(el);
+
+  const closeBtn = el.querySelector(".toast__close");
+  closeBtn?.addEventListener("click", () => {
+    try {
+      el.remove();
+    } catch {
+      // ignore
+    }
+  });
 
   if (actionLabel && opts && typeof opts.onAction === "function") {
     const btn = el.querySelector(".toast__btn");
@@ -2923,7 +2961,13 @@ function applyFormToConfig() {
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
   if (ui.inpThresholds) config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
-  config.logEveryChange = ui.chkLogEveryChange.checked;
+  const logEvery =
+    ui.chkLogEveryChangeHistory != null
+      ? ui.chkLogEveryChangeHistory.checked
+      : ui.chkLogEveryChange != null
+        ? ui.chkLogEveryChange.checked
+        : config.logEveryChange;
+  config.logEveryChange = !!logEvery;
   config.warnNotify = ui.chkWarnNotify.checked;
   config.warnSound = ui.chkWarnSound.checked;
   config.completionNotify = ui.chkCompletionNotify.checked;
@@ -3007,7 +3051,8 @@ function syncConfigToForm() {
   ui.inpPollSec.value = String(config.pollSec);
   if (ui.inpThresholds) ui.inpThresholds.value = String(config.thresholdsRaw);
   ui.inpWindowPoints.value = String(config.windowPoints);
-  ui.chkLogEveryChange.checked = !!config.logEveryChange;
+  if (ui.chkLogEveryChange) ui.chkLogEveryChange.checked = !!config.logEveryChange;
+  if (ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = !!config.logEveryChange;
   ui.chkWarnNotify.checked = !!config.warnNotify;
   ui.chkWarnSound.checked = !!config.warnSound;
   ui.chkCompletionNotify.checked = !!config.completionNotify;
@@ -6427,6 +6472,7 @@ for (const el of [
   ui.inpCompletionSoundUrl,
   ui.inpInterruptSoundUrl,
   ui.chkLogEveryChange,
+  ui.chkLogEveryChangeHistory,
   ui.chkWarnNotify,
   ui.chkWarnSound,
   ui.chkCompletionNotify,
@@ -6435,6 +6481,8 @@ for (const el of [
   ui.chkInterruptSound,
 ].filter(Boolean)) {
   el.addEventListener("input", () => {
+    if (el === ui.chkLogEveryChangeHistory && ui.chkLogEveryChange) ui.chkLogEveryChange.checked = ui.chkLogEveryChangeHistory.checked;
+    if (el === ui.chkLogEveryChange && ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = ui.chkLogEveryChange.checked;
     applyFormToConfig();
     scheduleAutosave();
     refreshWarningsKpi();
@@ -6445,6 +6493,8 @@ for (const el of [
     }
   });
   el.addEventListener("change", () => {
+    if (el === ui.chkLogEveryChangeHistory && ui.chkLogEveryChange) ui.chkLogEveryChange.checked = ui.chkLogEveryChangeHistory.checked;
+    if (el === ui.chkLogEveryChange && ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = ui.chkLogEveryChange.checked;
     applyFormToConfig();
     scheduleAutosave();
     refreshWarningsKpi();

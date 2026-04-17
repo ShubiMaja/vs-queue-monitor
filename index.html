@@ -154,12 +154,6 @@
               <div class="settingsSection__title">Basics</div>
               <div class="settingsSection__grid">
                 <div class="field field--wide">
-                  <label class="label" for="chkLogEveryChange">
-                    <input id="chkLogEveryChange" type="checkbox" checked />
-                    Log every position change
-                  </label>
-                </div>
-                <div class="field field--wide">
                   <div class="muted" style="margin-top:6px;line-height:1.35">
                     Tip: refresh and AVG window are edited inline from the KPI strip (STATUS and RATE).
                   </div>
@@ -526,6 +520,10 @@
         <div class="card__header">
           <div class="card__title">History</div>
           <div class="card__actions">
+            <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
+              <input id="chkLogEveryChangeHistory" type="checkbox" />
+              Log every change
+            </label>
             <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
           </div>
         </div>

@@ -98,6 +98,7 @@ const ui = {
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement} */ ($("inpWindowPoints")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
+  chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
   chkWarnSound: /** @type {HTMLInputElement} */ ($("chkWarnSound")),
   chkCompletionNotify: /** @type {HTMLInputElement} */ ($("chkCompletionNotify")),
@@ -650,10 +651,20 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   el.className = `toast ${toastMod}`.trim();
   const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
+    `<button type="button" class="toast__close" aria-label="Dismiss">×</button>` +
     `<div class="toast__title">${escapeHtml(String(title))}</div>` +
     (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "") +
     (actionLabel ? `<div class="toast__actions"><button type="button" class="toast__btn">${escapeHtml(actionLabel)}</button></div>` : "");
   host.appendChild(el);
+
+  const closeBtn = el.querySelector(".toast__close");
+  closeBtn?.addEventListener("click", () => {
+    try {
+      el.remove();
+    } catch {
+      // ignore
+    }
+  });
 
   if (actionLabel && opts && typeof opts.onAction === "function") {
     const btn = el.querySelector(".toast__btn");
@@ -1535,7 +1546,13 @@ function applyFormToConfig() {
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
   if (ui.inpThresholds) config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
-  config.logEveryChange = ui.chkLogEveryChange.checked;
+  const logEvery =
+    ui.chkLogEveryChangeHistory != null
+      ? ui.chkLogEveryChangeHistory.checked
+      : ui.chkLogEveryChange != null
+        ? ui.chkLogEveryChange.checked
+        : config.logEveryChange;
+  config.logEveryChange = !!logEvery;
   config.warnNotify = ui.chkWarnNotify.checked;
   config.warnSound = ui.chkWarnSound.checked;
   config.completionNotify = ui.chkCompletionNotify.checked;
@@ -1619,7 +1636,8 @@ function syncConfigToForm() {
   ui.inpPollSec.value = String(config.pollSec);
   if (ui.inpThresholds) ui.inpThresholds.value = String(config.thresholdsRaw);
   ui.inpWindowPoints.value = String(config.windowPoints);
-  ui.chkLogEveryChange.checked = !!config.logEveryChange;
+  if (ui.chkLogEveryChange) ui.chkLogEveryChange.checked = !!config.logEveryChange;
+  if (ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = !!config.logEveryChange;
   ui.chkWarnNotify.checked = !!config.warnNotify;
   ui.chkWarnSound.checked = !!config.warnSound;
   ui.chkCompletionNotify.checked = !!config.completionNotify;
@@ -5039,6 +5057,7 @@ for (const el of [
   ui.inpCompletionSoundUrl,
   ui.inpInterruptSoundUrl,
   ui.chkLogEveryChange,
+  ui.chkLogEveryChangeHistory,
   ui.chkWarnNotify,
   ui.chkWarnSound,
   ui.chkCompletionNotify,
@@ -5047,6 +5066,8 @@ for (const el of [
   ui.chkInterruptSound,
 ].filter(Boolean)) {
   el.addEventListener("input", () => {
+    if (el === ui.chkLogEveryChangeHistory && ui.chkLogEveryChange) ui.chkLogEveryChange.checked = ui.chkLogEveryChangeHistory.checked;
+    if (el === ui.chkLogEveryChange && ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = ui.chkLogEveryChange.checked;
     applyFormToConfig();
     scheduleAutosave();
     refreshWarningsKpi();
@@ -5057,6 +5078,8 @@ for (const el of [
     }
   });
   el.addEventListener("change", () => {
+    if (el === ui.chkLogEveryChangeHistory && ui.chkLogEveryChange) ui.chkLogEveryChange.checked = ui.chkLogEveryChangeHistory.checked;
+    if (el === ui.chkLogEveryChange && ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = ui.chkLogEveryChange.checked;
     applyFormToConfig();
     scheduleAutosave();
     refreshWarningsKpi();
