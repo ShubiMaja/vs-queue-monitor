@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.11";
+const APP_VERSION = "2.1.12";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1946,6 +1946,25 @@ function decodeLogBytes(buf, startOffset) {
 }
 
 /**
+ * When reading from a byte offset in the middle of a file, the first decoded line may be a partial fragment.
+ * Drop that fragment so log parsing (which is line-oriented) stays stable across reloads and large-log seeds.
+ * @param {string} text
+ * @param {number} startOffset
+ */
+function trimLeadingPartialLine(text, startOffset) {
+  if (!text) return text;
+  if (!(startOffset > 0)) return text;
+  // If we started exactly on a newline boundary, just trim blank newlines.
+  if (text[0] === "\n") return text.slice(1);
+  if (text.startsWith("\r\n")) return text.slice(2);
+  const idx = text.indexOf("\n");
+  if (idx < 0) return "";
+  // Avoid trimming if the "first line" is implausibly long; in that case, keep the text.
+  if (idx > 4000) return text;
+  return text.slice(idx + 1);
+}
+
+/**
  * @param {FileSystemFileHandle} handle
  * @param {number} tailBytes
  */
@@ -1955,7 +1974,8 @@ async function readLogRangeText(handle, start, end) {
   const safeEnd = Math.max(safeStart, Math.min(end, file.size));
   const slice = file.slice(safeStart, safeEnd);
   const buf = await slice.arrayBuffer();
-  return decodeLogBytes(buf, safeStart);
+  const decoded = decodeLogBytes(buf, safeStart);
+  return trimLeadingPartialLine(decoded, safeStart);
 }
 
 async function readLogTailText(handle, tailBytes) {
