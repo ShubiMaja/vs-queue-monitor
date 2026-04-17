@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.58";
+const APP_VERSION = "2.0.59";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2223,6 +2223,19 @@ function bumpWarningsMarquee(sec = 10) {
   }, Math.ceil(sec * 1000) + 60);
 }
 
+function autoPanWarningsToLatestHit() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const hits = viewport.querySelectorAll(".kpiWarn--hit");
+  const el = hits.length ? /** @type {HTMLElement} */ (hits[hits.length - 1]) : null;
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  } catch {
+    // ignore
+  }
+}
+
 function syncWarningsMarquee() {
   const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
   const rail = ui.kpiWarningsRail;
@@ -2526,6 +2539,8 @@ function raiseAlert(position, reason) {
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
   lastAlertEpoch = now;
   bumpWarningsMarquee(12);
+  // If the thresholds overflow the KPI cell, pan to the newly-hit milestone.
+  autoPanWarningsToLatestHit();
   const secRem = estimateSecondsRemaining();
   const etaDisplay = secRem == null ? "—" : formatDurationRemaining(secRem);
   const etaPart = secRem == null ? "" : ` Est. remaining ${etaDisplay}.`;
