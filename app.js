@@ -1,5 +1,7 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
 const APP_VERSION = "2.1.18";
+// Manual build fingerprint so we can confirm which file is actually running.
+const BUILD_FINGERPRINT = "5071d90";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -149,7 +151,7 @@ const ui = {
   logActivityLed: $("logActivityLed"),
 };
 
-ui.footerVersion.textContent = `v${APP_VERSION}`;
+ui.footerVersion.textContent = `v${APP_VERSION} (${BUILD_FINGERPRINT})`;
 
 // If the page was reloaded due to a code update, notify the user and avoid false "Interrupted"
 // based on stale tail content from a previous run.

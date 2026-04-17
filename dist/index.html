@@ -7904,6 +7904,27 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
 
 drawGraph();
 
+// Build fingerprint (helps confirm which dist file is running).
+try {
+  const fp = document.createElement("div");
+  fp.textContent = "build 5071d90";
+  fp.style.position = "fixed";
+  fp.style.left = "10px";
+  fp.style.bottom = "10px";
+  fp.style.zIndex = "9999";
+  fp.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace";
+  fp.style.fontSize = "12px";
+  fp.style.opacity = "0.6";
+  fp.style.pointerEvents = "none";
+  fp.style.background = "rgba(0,0,0,0.25)";
+  fp.style.color = "#fff";
+  fp.style.padding = "4px 6px";
+  fp.style.borderRadius = "6px";
+  document.body.appendChild(fp);
+} catch {
+  // ignore
+}
+
 
 </script>
   </body>
