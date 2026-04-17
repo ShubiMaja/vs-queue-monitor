@@ -2947,8 +2947,9 @@ function renderHelpCommandPreview() {
 
     const srcDir = srcIn;
     ui.preHelpCmd.textContent =
-      `echo Paste the full path to client-main.log above (not a folder).\n` +
-      `echo Example: %APPDATA%\\VintagestoryData\\Logs\\client-main.log`;
+      `REM Paste the full path to client-main.log above (not a folder).\n` +
+      `REM Example: %APPDATA%\\VintagestoryData\\Logs\\client-main.log\n` +
+      `REM Then re-open Help after pasting the full file path to generate mklink /H.`;
     setPick("%USERPROFILE%\\Documents\\vs-queue-monitor\\client-main.log");
     return;
   }
