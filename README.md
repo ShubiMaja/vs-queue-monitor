@@ -12,22 +12,15 @@ One-page **web app** that tails the **Vintage Story** client log, tracks **conne
 
 ## Requirements
 
-- **A modern Chromium browser** (Microsoft **Edge** or **Chrome**) is recommended.
-  - Folder picking uses the **File System Access API** and may not be available in Firefox/Safari.
-- **A local web server** (required for folder-pick + consistent file access; `file://` is not reliable).
+- **Microsoft Edge or Google Chrome** (Chromium).
+  - **Live tail requires** the File System Access API (`showOpenFilePicker`), which is not reliably available in Firefox/Safari.
+- **No backend and no local server**: the app is shipped as a **single HTML file** you open directly.
 
 ## Quick start
 
-From the repo root:
+Open the built one-page app:
 
-```bash
-npm install
-npm run dev
-```
-
-Then open `http://localhost:5173` in your browser.
-
-If you don’t want `npm`, you can use any static server you like (VS Code “Live Server”, `npx http-server . -p 5173`, etc.).
+- Open `dist/index.html` in **Edge/Chrome**
 
 ## Using it
 
@@ -50,14 +43,12 @@ This web app currently expects you to pick the log file directly (recommended). 
 
 ### Window layout
 
-- Three vertical **panes** — **Graph** (top), **Info** (middle), **History** (bottom) — separated by **draggable sashes**.
-- **Info** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
-- Dark, **tooltip-heavy** UI (hover for control explanations).
+- One-page dashboard: KPIs + graph + info + settings + history.
 
 ### Picking the log
 
-- **Pick log file…** is the most reliable way to point at the right `client-main.log`.
-- **Pick folder…** exists for convenience when supported, but is intentionally conservative (top-level only).
+- **Pick log file…** is required for **live tail**.
+- **Pick folder…** is optional and may be hidden/unsupported depending on your browser context.
 
 ### Monitoring
 

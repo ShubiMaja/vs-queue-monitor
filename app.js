@@ -366,7 +366,7 @@ let config = {
   warnSound: true,
   completionNotify: true,
   completionSound: true,
-  graphLogScale: true,
+  graphLogScale: false,
 };
 
 function loadConfig() {
@@ -571,7 +571,7 @@ async function pickLogFile() {
 
 async function pickFolder() {
   if (!window.showDirectoryPicker) {
-    appendHistory("Folder picking requires a Chromium browser (Edge/Chrome) and a secure context (localhost/https).");
+    appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
     return;
   }
   const dir = await window.showDirectoryPicker({ mode: "read" });
@@ -1362,6 +1362,72 @@ setStatus("Idle");
 refreshWarningsKpi();
 appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
 
+// Hide folder picking when unsupported (common under file:// or non-Chromium).
+try {
+  if (!window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
+} catch {
+  // ignore
+}
+
+function focusAndReveal(el) {
+  try {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  } catch {
+    // ignore
+  }
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    try {
+      el.focus();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function flashInput(el) {
+  el.classList.add("flash");
+  window.setTimeout(() => el.classList.remove("flash"), 700);
+}
+
+// Inline-edit affordances: click KPI to jump to the relevant setting.
+ui.kpiWarnings.title = "Click to edit warning thresholds";
+ui.kpiWarnings.style.cursor = "pointer";
+ui.kpiWarnings.addEventListener("click", () => {
+  focusAndReveal(ui.inpThresholds);
+  try {
+    ui.inpThresholds.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpThresholds);
+});
+
+ui.kpiRateLabel.title = "Click to edit rolling window (points)";
+ui.kpiRateLabel.style.cursor = "pointer";
+ui.kpiRateLabel.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.kpiRate.title = "Click to edit rolling window (points)";
+ui.kpiRate.style.cursor = "pointer";
+ui.kpiRate.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
 ui.btnPickLog.addEventListener("click", async () => {
   try {
     await pickLogFile();
@@ -1463,6 +1529,18 @@ ui.btnSaveSettings.addEventListener("click", () => {
     showSettingsNote(String(e), true);
   }
 });
+
+function bindEnterToSave(input) {
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    ui.btnSaveSettings.click();
+  });
+}
+
+bindEnterToSave(ui.inpPollSec);
+bindEnterToSave(ui.inpThresholds);
+bindEnterToSave(ui.inpWindowPoints);
 
 // Resize canvas for crisp rendering on HiDPI (keep CSS size fixed)
 function resizeCanvasToDisplaySize() {
