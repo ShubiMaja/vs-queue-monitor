@@ -574,7 +574,19 @@ async function pickFolder() {
     appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
     return;
   }
-  const dir = await window.showDirectoryPicker({ mode: "read" });
+  let dir;
+  try {
+    dir = await window.showDirectoryPicker({ mode: "read" });
+  } catch (e) {
+    // Chrome/Edge can block protected folders (and users can cancel).
+    const msg = String(e && (e.message || e.name || e));
+    if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
+      appendHistory("Pick folder cancelled.");
+      return;
+    }
+    appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
+    return;
+  }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
   if (!file) {
     appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
@@ -1364,7 +1376,8 @@ appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Star
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).
 try {
-  if (!window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
+  const isFile = String(window.location && window.location.protocol) === "file:";
+  if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
 } catch {
   // ignore
 }
