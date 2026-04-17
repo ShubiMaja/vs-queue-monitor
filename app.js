@@ -5403,6 +5403,8 @@ startUpdateCheckLoop();
 let _warningsEditorPrev = "";
 function openWarningsAddPopover() {
   if (!ui.warningsAddPopover) return;
+  // If a tour is active, close it so it can't cover the editor.
+  if (tourActive) closeTour(false);
   _warningsEditorPrev = String(config.thresholdsRaw || "");
   ui.inpWarningsAdd.value = _warningsEditorPrev;
   ui.warningsAddPopover.hidden = false;
@@ -5548,6 +5550,8 @@ let rateWindowEditOpen = false;
 let rateWindowPrev = "";
 function openRateWindowPopover() {
   if (!ui.rateWindowPopover || !ui.inpRateWindowPoints) return;
+  // If a tour is active, close it so it can't cover the editor.
+  if (tourActive) closeTour(false);
   rateWindowEditOpen = true;
   ui.rateWindowPopover.hidden = false;
   rateWindowPrev = String(config.windowPoints ?? "");
@@ -5599,6 +5603,8 @@ let statusRefreshEditOpen = false;
 let statusRefreshPrev = "";
 function openStatusRefreshPopover() {
   if (!ui.statusRefreshPopover || !ui.inpStatusRefreshSec) return;
+  // If a tour is active, close it so it can't cover the editor.
+  if (tourActive) closeTour(false);
   statusRefreshEditOpen = true;
   ui.statusRefreshPopover.hidden = false;
   statusRefreshPrev = String(config.pollSec ?? "");
