@@ -5395,7 +5395,7 @@ function computeSelectedSessionStats() {
       cleared: null,
       seconds: null,
       minutes: null,
-      avgPosPerMin: null,
+      avgMinPerPos: null,
     };
   }
 
@@ -5419,9 +5419,8 @@ function computeSelectedSessionStats() {
   const seconds = startT != null && endT != null ? Math.max(0, endT - startT) : null;
   const minutes = seconds != null ? seconds / 60 : null;
   const cleared = startPos != null && endPos != null ? Math.max(0, startPos - endPos) : null;
-  const avgPosPerMin =
-    minutes != null && minutes > 0 && cleared != null ? cleared / minutes : null;
-  return { startPos, endPos, cleared, seconds, minutes, avgPosPerMin };
+  const avgMinPerPos = minutes != null && minutes > 0 && cleared != null && cleared > 0 ? minutes / cleared : null;
+  return { startPos, endPos, cleared, seconds, minutes, avgMinPerPos };
 }
 
 function renderSelectedSessionStats() {
@@ -5430,7 +5429,7 @@ function renderSelectedSessionStats() {
   if (ui.infoStatEnd) ui.infoStatEnd.textContent = stats.endPos == null ? "—" : String(stats.endPos);
   if (ui.infoStatCleared) ui.infoStatCleared.textContent = stats.cleared == null ? "—" : String(stats.cleared);
   if (ui.infoStatSpan) ui.infoStatSpan.textContent = formatDurationHms(stats.seconds);
-  if (ui.infoStatAvg) ui.infoStatAvg.textContent = stats.avgPosPerMin == null ? "—" : `${stats.avgPosPerMin.toFixed(2)} pos/min`;
+  if (ui.infoStatAvg) ui.infoStatAvg.textContent = stats.avgMinPerPos == null ? "—" : `${stats.avgMinPerPos.toFixed(2)} min/pos`;
 }
 
 function computeThresholdsFiredForSelectedSession() {
@@ -6466,6 +6465,7 @@ async function pollOnce() {
         currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
         lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
         currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
+        renderSelectedSessionStats();
         drawGraph();
       } else {
       // If multiple queue readings arrived since the last poll, append them all so the graph doesn't "jump".
@@ -7609,7 +7609,7 @@ ui.btnCopyStats?.addEventListener("click", async () => {
     `End Pos: ${stats.endPos == null ? "—" : stats.endPos}\n` +
     `Pos Delta: ${stats.cleared == null ? "—" : stats.cleared}\n` +
     `Duration: ${stats.minutes == null ? "—" : `${stats.minutes.toFixed(1)} min`}\n` +
-    `Avg Rate: ${stats.avgPosPerMin == null ? "—" : `${stats.avgPosPerMin.toFixed(2)} pos/min`}\n`;
+    `Avg Rate: ${stats.avgMinPerPos == null ? "—" : `${stats.avgMinPerPos.toFixed(2)} min/pos`}\n`;
   try {
     await navigator.clipboard.writeText(txt);
     showToast("Copied", "Stats copied.", "info", { durationMs: 4000 });
