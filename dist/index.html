@@ -3665,21 +3665,47 @@ function getSelectedSessionPoints() {
 }
 
 function applySessionSelectionToGraph() {
-  // Ensure the session index we apply against matches the dropdown.
-  // We rebuild from the stable sessions buffer, but we preserve the user's chosen key so it can't be
-  // silently rewritten to "latest" during rebuild.
   const wantedKey = selectedSessionKey;
-  try {
-    rebuildSessionsFromText(sessionsIndexBuffer || logBuffer || "");
-  } finally {
-    selectedSessionKey = wantedKey;
+  const findSelectedSession = () => {
+    const latest =
+      [...queueSessions].reverse().find((s) => s.points && s.points.length) || (queueSessions.length ? queueSessions[queueSessions.length - 1] : null);
+    if (wantedKey === "latest") return latest;
+    let s = queueSessions.find((x) => x.key === wantedKey) || null;
+    if (!s && wantedKey.startsWith("t:")) {
+      const m = /^t:(\d+)/.exec(wantedKey);
+      const ep = m ? Number.parseInt(m[1], 10) : Number.parseInt(wantedKey.slice(2), 10);
+      if (Number.isFinite(ep) && ep > 0) {
+        s =
+          queueSessions.find((x) => x.startEpoch != null && Math.floor(x.startEpoch) === ep) ||
+          queueSessions.find((x) => x.markerEpoch != null && Math.floor(x.markerEpoch) === ep) ||
+          null;
+      }
+    }
+    return s;
+  };
+
+  // Prefer the already-indexed sessions (what the dropdown was built from).
+  // Rebuilding here can regenerate keys and makes selection feel like it "does nothing."
+  let s = findSelectedSession();
+
+  // If we can't find it, try a one-time rebuild from the largest available buffer, then retry.
+  if (!s && (sessionsIndexBuffer || logBuffer)) {
     try {
-      if (ui.selSession) ui.selSession.value = wantedKey;
+      rebuildSessionsFromText(sessionsIndexBuffer || logBuffer || "");
     } catch {
       // ignore
+    } finally {
+      selectedSessionKey = wantedKey;
+      try {
+        if (ui.selSession) ui.selSession.value = wantedKey;
+      } catch {
+        // ignore
+      }
     }
+    s = findSelectedSession();
   }
-  graphPoints = getSelectedSessionPoints();
+
+  graphPoints = s && s.points ? s.points.slice() : [];
   currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
   lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
   currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
@@ -3688,11 +3714,12 @@ function applySessionSelectionToGraph() {
   syncPastSessionUi();
 
   try {
-    const s = queueSessions.find((x) => x.key === selectedSessionKey) || null;
     appendHistory(
-      selectedSessionKey === "latest"
+      wantedKey === "latest"
         ? "Session applied: latest"
-        : `Session applied: ${selectedSessionKey} · points ${(s && s.points) ? s.points.length : graphPoints.length}`,
+        : s
+          ? `Session applied: ${wantedKey} · points ${s.points ? s.points.length : graphPoints.length}`
+          : `Session not found in indexed log window: ${wantedKey}`,
     );
   } catch {
     // ignore
