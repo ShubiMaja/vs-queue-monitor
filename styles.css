@@ -290,11 +290,15 @@ body{
 .kpi--warnings{min-width:0}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn__viewport{
-  overflow:hidden;
+  overflow-x:auto;
+  overflow-y:hidden;
   width:100%;
   min-width:0;
   border-radius:6px;
+  scrollbar-width:none; /* Firefox */
+  overscroll-behavior:contain;
 }
+.kpiWarn__viewport::-webkit-scrollbar{height:0} /* Chromium */
 .kpiWarn__rail{
   display:inline-flex;
   flex-wrap:nowrap;
