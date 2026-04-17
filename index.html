@@ -47,14 +47,14 @@
           </div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
-          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData" "%APPDATA%\VintagestoryData"</pre>
-          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\VintagestoryData\Logs\client-main.log</span></div>
+          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\vsqm-data-xxxxxxxx"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\vsqm-data-xxxxxxxx" "%APPDATA%\VintagestoryData"</pre>
+          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\vsqm-data-xxxxxxxx\Logs\client-main.log</span> — <span class="muted">replace <span class="mono">xxxxxxxx</span> with the id from “Generate an exact command” (unique per path).</span></div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
-          <pre class="code">mkdir -p ~/vs-queue-monitor/Logs
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/Logs/client-main.log</pre>
-          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/Logs/client-main.log</span></div>
+          <pre class="code">mkdir -p ~/vs-queue-monitor/vsqm-logs-xxxxxxxx
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/vsqm-logs-xxxxxxxx/client-main.log</pre>
+          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/vsqm-logs-xxxxxxxx/client-main.log</span> — <span class="muted">replace <span class="mono">xxxxxxxx</span> with the id from the generator.</span></div>
 
           <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
           <div class="modal__text">
@@ -66,7 +66,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/Logs/cl
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="modal__text muted">
-            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor</span> so the browser can reach <span class="mono">client-main.log</span> without symlink privileges. Mac/Linux use a normal file symlink.
+            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\vsqm-…</span> so the browser can reach <span class="mono">client-main.log</span> without symlink privileges. The generator picks a <strong>unique</strong> subfolder name per path (<span class="mono">vsqm-data-…</span> / <span class="mono">vsqm-logs-…</span>) so several links never clash. Mac/Linux use a normal file symlink with the same idea under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
