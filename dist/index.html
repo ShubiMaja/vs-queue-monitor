@@ -369,7 +369,8 @@ body{
 .infoGrid__label{color:var(--muted);font-weight:750;font-size:11px;letter-spacing:0.04em}
 .infoGrid__value{font-family:var(--mono);font-size:12px;color:var(--text);overflow-wrap:anywhere;line-height:1.45}
 
-.settings .form{padding:14px 16px;display:grid;grid-template-columns: repeat(2, minmax(0,1fr));gap:14px}
+.settings .form{padding:0;display:grid;grid-template-columns: repeat(2, minmax(0,1fr));gap:14px}
+.settings--modal .form{padding:0}
 .field--wide{grid-column:1 / -1}
 .label{display:flex;gap:8px;align-items:center;color:var(--muted);font-weight:750;font-size:12px}
 .input{
@@ -617,6 +618,7 @@ body{
         <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
           Pick folder…
         </button>
+        <button id="btnSettings" class="btn btn--secondary btn--icon" title="Settings">⚙</button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
         <button
           id="btnStartStop"
@@ -709,6 +711,138 @@ body{
           <div class="modal__text">Then pick: <span id="spanHelpPickPath" class="mono"></span> <span class="muted">(must be <span class="mono">client-main.log</span>)</span></div>
           <div class="helpPlat">
             <button id="btnHelpLoadFile" class="btn btn--secondary btn--small" type="button">Load file</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="settingsOverlay" class="overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="modal__header">
+          <div id="settingsTitle" class="modal__title">Settings</div>
+          <button id="btnSettingsClose" class="btn btn--secondary btn--icon" title="Close">×</button>
+        </div>
+        <div class="modal__body settings settings--modal">
+          <div class="form">
+            <div class="field">
+              <label class="label" for="inpPollSec">Poll (s)</label>
+              <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
+            </div>
+            <div class="field">
+              <label class="label" for="inpThresholds">Warning thresholds</label>
+              <input id="inpThresholds" class="input" value="10, 5, 1" />
+            </div>
+            <div class="field">
+              <label class="label" for="inpWindowPoints">Rolling window (points)</label>
+              <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkLogEveryChange">
+                <input id="chkLogEveryChange" type="checkbox" checked />
+                Log every position change
+              </label>
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkWarnNotify">
+                <input id="chkWarnNotify" type="checkbox" checked />
+                Warning popups (threshold notifications)
+              </label>
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkWarnSound">
+                <input id="chkWarnSound" type="checkbox" checked />
+                Warning sound
+              </label>
+              <p class="muted sound-summary" id="warnSoundSummary">—</p>
+              <div class="sound-row">
+                <input
+                  id="inpWarnSoundUrl"
+                  class="input sound-url"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="./assets/sounds/warning.wav"
+                  title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                />
+                <input type="file" id="fileWarnSound" accept="audio/*" hidden />
+                <button type="button" id="btnPickWarnSound" class="btn btn--small btn--secondary">Local file…</button>
+                <button type="button" id="btnClearWarnSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                <button type="button" id="btnTestWarnSound" class="btn btn--small btn--secondary">Play</button>
+              </div>
+              <div class="sound-row sound-row--sub">
+                <button type="button" id="btnWarnBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                <button type="button" id="btnWarnDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+              </div>
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkCompletionNotify">
+                <input id="chkCompletionNotify" type="checkbox" checked />
+                Completion popup (post-queue detected)
+              </label>
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkCompletionSound">
+                <input id="chkCompletionSound" type="checkbox" checked />
+                Completion sound
+              </label>
+              <p class="muted sound-summary" id="completionSoundSummary">—</p>
+              <div class="sound-row">
+                <input
+                  id="inpCompletionSoundUrl"
+                  class="input sound-url"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="./assets/sounds/completion.wav"
+                  title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                />
+                <input type="file" id="fileCompletionSound" accept="audio/*" hidden />
+                <button type="button" id="btnPickCompletionSound" class="btn btn--small btn--secondary">Local file…</button>
+                <button type="button" id="btnClearCompletionSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                <button type="button" id="btnTestCompletionSound" class="btn btn--small btn--secondary">Play</button>
+              </div>
+              <div class="sound-row sound-row--sub">
+                <button type="button" id="btnCompletionBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                <button type="button" id="btnCompletionDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+              </div>
+            </div>
+
+            <div class="field field--wide">
+              <label class="label" for="chkInterruptNotify">
+                <input id="chkInterruptNotify" type="checkbox" checked />
+                Disconnected / interrupted popup
+              </label>
+            </div>
+            <div class="field field--wide">
+              <label class="label" for="chkInterruptSound">
+                <input id="chkInterruptSound" type="checkbox" checked />
+                Disconnected / interrupted sound
+              </label>
+              <p class="muted sound-summary" id="interruptSoundSummary">—</p>
+              <div class="sound-row">
+                <input
+                  id="inpInterruptSoundUrl"
+                  class="input sound-url"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="./assets/sounds/disconnected.wav"
+                  title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                />
+                <input type="file" id="fileInterruptSound" accept="audio/*" hidden />
+                <button type="button" id="btnPickInterruptSound" class="btn btn--small btn--secondary">Local file…</button>
+                <button type="button" id="btnClearInterruptSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                <button type="button" id="btnTestInterruptSound" class="btn btn--small btn--secondary">Play</button>
+              </div>
+              <div class="sound-row sound-row--sub">
+                <button type="button" id="btnInterruptBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                <button type="button" id="btnInterruptDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings__footer">
+            <div class="settings__note" id="settingsNote"></div>
+            <div class="settings__buttons">
+              <button id="btnSaveSettings" class="btn btn--secondary">Save</button>
+            </div>
           </div>
         </div>
       </div>
@@ -809,132 +943,6 @@ body{
         </div>
       </section>
 
-      <section class="card settings">
-        <div class="card__header">
-          <div class="card__title">Settings</div>
-        </div>
-        <div class="form">
-          <div class="field">
-            <label class="label" for="inpPollSec">Poll (s)</label>
-            <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
-          </div>
-          <div class="field">
-            <label class="label" for="inpThresholds">Warning thresholds</label>
-            <input id="inpThresholds" class="input" value="10, 5, 1" />
-          </div>
-          <div class="field">
-            <label class="label" for="inpWindowPoints">Rolling window (points)</label>
-            <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkLogEveryChange">
-              <input id="chkLogEveryChange" type="checkbox" checked />
-              Log every position change
-            </label>
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkWarnNotify">
-              <input id="chkWarnNotify" type="checkbox" checked />
-              Warning popups (threshold notifications)
-            </label>
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkWarnSound">
-              <input id="chkWarnSound" type="checkbox" checked />
-              Warning sound
-            </label>
-            <p class="muted sound-summary" id="warnSoundSummary">—</p>
-            <div class="sound-row">
-              <input
-                id="inpWarnSoundUrl"
-                class="input sound-url"
-                type="text"
-                spellcheck="false"
-                placeholder="./assets/sounds/warning.wav"
-                title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-              />
-              <input type="file" id="fileWarnSound" accept="audio/*" hidden />
-              <button type="button" id="btnPickWarnSound" class="btn btn--small btn--secondary">Local file…</button>
-              <button type="button" id="btnClearWarnSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
-              <button type="button" id="btnTestWarnSound" class="btn btn--small btn--secondary">Play</button>
-            </div>
-            <div class="sound-row sound-row--sub">
-              <button type="button" id="btnWarnBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-              <button type="button" id="btnWarnDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
-            </div>
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkCompletionNotify">
-              <input id="chkCompletionNotify" type="checkbox" checked />
-              Completion popup (post-queue detected)
-            </label>
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkCompletionSound">
-              <input id="chkCompletionSound" type="checkbox" checked />
-              Completion sound
-            </label>
-            <p class="muted sound-summary" id="completionSoundSummary">—</p>
-            <div class="sound-row">
-              <input
-                id="inpCompletionSoundUrl"
-                class="input sound-url"
-                type="text"
-                spellcheck="false"
-                placeholder="./assets/sounds/completion.wav"
-                title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-              />
-              <input type="file" id="fileCompletionSound" accept="audio/*" hidden />
-              <button type="button" id="btnPickCompletionSound" class="btn btn--small btn--secondary">Local file…</button>
-              <button type="button" id="btnClearCompletionSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
-              <button type="button" id="btnTestCompletionSound" class="btn btn--small btn--secondary">Play</button>
-            </div>
-            <div class="sound-row sound-row--sub">
-              <button type="button" id="btnCompletionBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-              <button type="button" id="btnCompletionDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
-            </div>
-          </div>
-
-          <div class="field field--wide">
-            <label class="label" for="chkInterruptNotify">
-              <input id="chkInterruptNotify" type="checkbox" checked />
-              Disconnected / interrupted popup
-            </label>
-          </div>
-          <div class="field field--wide">
-            <label class="label" for="chkInterruptSound">
-              <input id="chkInterruptSound" type="checkbox" checked />
-              Disconnected / interrupted sound
-            </label>
-            <p class="muted sound-summary" id="interruptSoundSummary">—</p>
-            <div class="sound-row">
-              <input
-                id="inpInterruptSoundUrl"
-                class="input sound-url"
-                type="text"
-                spellcheck="false"
-                placeholder="./assets/sounds/disconnected.wav"
-                title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-              />
-              <input type="file" id="fileInterruptSound" accept="audio/*" hidden />
-              <button type="button" id="btnPickInterruptSound" class="btn btn--small btn--secondary">Local file…</button>
-              <button type="button" id="btnClearInterruptSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
-              <button type="button" id="btnTestInterruptSound" class="btn btn--small btn--secondary">Play</button>
-            </div>
-            <div class="sound-row sound-row--sub">
-              <button type="button" id="btnInterruptBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-              <button type="button" id="btnInterruptDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
-            </div>
-          </div>
-        </div>
-        <div class="settings__footer">
-          <div class="settings__note" id="settingsNote"></div>
-          <div class="settings__buttons">
-            <button id="btnSaveSettings" class="btn btn--secondary">Save</button>
-          </div>
-        </div>
-      </section>
-
       <section class="card history">
         <div class="card__header">
           <div class="card__title">History</div>
@@ -963,7 +971,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.52";
+const APP_VERSION = "2.0.53";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -978,6 +986,7 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const ui = {
   btnPickLog: $("btnPickLog"),
   btnPickFolder: $("btnPickFolder"),
+  btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
   btnStartStop: $("btnStartStop"),
@@ -996,6 +1005,8 @@ const ui = {
   btnInterruptAdoptConfirm: $("btnInterruptAdoptConfirm"),
   btnInterruptAdoptNotNow: $("btnInterruptAdoptNotNow"),
   helpOverlay: $("helpOverlay"),
+  settingsOverlay: $("settingsOverlay"),
+  btnSettingsClose: $("btnSettingsClose"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
@@ -1289,6 +1300,26 @@ function closeHelp() {
   }
 }
 
+function openSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = false;
+  try {
+    ui.btnSettingsClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function closeSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = true;
+  try {
+    ui.btnSettings?.focus();
+  } catch {
+    // ignore
+  }
+}
+
 function wireHelpOverlay() {
   ui.btnHelp?.addEventListener("click", () => openHelp());
   ui.btnHelpClose?.addEventListener("click", () => closeHelp());
@@ -1323,6 +1354,17 @@ function wireHelpOverlay() {
     } catch {
       showToast("Copy failed", "Clipboard access was blocked by the browser.", "error");
     }
+  });
+}
+
+function wireSettingsOverlay() {
+  ui.btnSettings?.addEventListener("click", () => openSettings());
+  ui.btnSettingsClose?.addEventListener("click", () => closeSettings());
+  ui.settingsOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.settingsOverlay) closeSettings();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.settingsOverlay && !ui.settingsOverlay.hidden) closeSettings();
   });
 }
 
@@ -4128,6 +4170,7 @@ window.addEventListener(
   { once: true },
 );
 wireHelpOverlay();
+wireSettingsOverlay();
 startUpdateCheckLoop();
 
 (() => {
