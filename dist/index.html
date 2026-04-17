@@ -1159,7 +1159,7 @@ body{
               Y → linear
             </button>
             <button id="btnGraphWindow" class="btn btn--small btn--secondary" title="Toggle live view (constant motion vs update-only)">
-              Live view: off
+              Live view: on
             </button>
             <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
               Clear
@@ -1228,7 +1228,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.96";
+const APP_VERSION = "2.0.97";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2491,7 +2491,7 @@ let config = {
   interruptSoundUrl: "",
   interruptSoundFileName: "",
   graphLogScale: false,
-  graphLiveWindow: false,
+  graphLiveWindow: true,
 };
 
 function loadConfig() {
