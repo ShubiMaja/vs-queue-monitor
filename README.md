@@ -57,7 +57,7 @@ That uses **`npx`** to run `http-server` (pinned in `package.json`) the first ti
 ## Using it
 
 1. Click **Pick log file…** and select your `client-main.log` (or `client.log`). Monitoring **starts automatically** when a log is opened successfully.
-2. Optional: click **Enable notifications** so threshold/completion alerts can also use **desktop notifications** when the tab is in the background. In-page toasts still work without that permission when alerts are enabled in Settings.
+2. Optional: click **Enable notifications** so threshold/completion can use **OS / desktop notifications** when the tab is **not** focused (many browsers suppress or quiet them while you are actively on this tab). You get a **test** notification after allowing. In-page toasts work without that permission when alerts are enabled in Settings.
 
 Use **Stop** / **Start** to pause and resume tailing the same file without picking again.
 
@@ -194,7 +194,7 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 - **Thresholds** — comma-separated positions (default `10, 5, 1`): an alert can fire when you **cross downward** through each value (once per value per queue run). **Threshold alerts** shows **in-page toasts** (and optional **desktop notifications** if you allow them); **Threshold sound** uses short synthesized sine chimes (no external files).
 - **Completion** — **not threshold-based**: it fires when the log tail shows a **post-queue** line **after** the last queue position line. This maps the UI position to **0** (Completed) and drives completion toast/sound/desktop notification per Settings.
-- **Desktop notifications** are optional (**Enable notifications** in Info). Toasts work without that permission as long as the corresponding alert toggles are on in Settings.
+- **Desktop notifications** are optional (**Enable notifications** in Info). They only mirror **threshold** and **completion** events (when the matching Settings toggles are on). They are most visible when **another window or app** has focus; use the button again to send a **test** notification. Toasts work without that permission.
 
 ### ETA, rate, and progress
 
