@@ -2,29 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "VS Queue Monitor: Run GUI",
-      "type": "python",
+      "name": "VS Queue Monitor: Web (dev server)",
+      "type": "pwa-node",
       "request": "launch",
-      "program": "${workspaceFolder}/monitor.py",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",
-      "justMyCode": true,
-      "args": ["--gui"],
-      "env": {
-        "VS_QUEUE_MONITOR_UI": "gui"
-      },
-      "cwd": "${workspaceFolder}"
-    },
-    {
-      "name": "VS Queue Monitor: Run GUI (no auto-start)",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/monitor.py",
-      "console": "integratedTerminal",
-      "justMyCode": true,
-      "args": ["--gui", "--no-start"],
-      "env": {
-        "VS_QUEUE_MONITOR_UI": "gui"
-      },
       "cwd": "${workspaceFolder}"
     }
   ]
