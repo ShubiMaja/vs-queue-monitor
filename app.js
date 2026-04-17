@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.6";
+const APP_VERSION = "2.1.7";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -84,6 +84,7 @@ const ui = {
   btnWarningsAddCancel: $("btnWarningsAddCancel"),
   kpiElapsed: $("kpiElapsed"),
   kpiRemaining: $("kpiRemaining"),
+  progressBar: $("progressBar"),
   progressFill: $("progressFill"),
 
   infoSource: $("infoSource"),
@@ -3028,6 +3029,7 @@ function updateTimeEstimates() {
     ui.progressFill.style.width = "0%";
     ui.progressFill.title = "Progress: 0% (interrupted)";
     ui.progressFill.setAttribute("aria-label", "Progress: 0% (interrupted)");
+    if (ui.progressBar) ui.progressBar.title = "Progress: 0% (interrupted)";
     return;
   }
 
@@ -3083,6 +3085,7 @@ function updateTimeEstimates() {
   const posText = pos != null ? ` — position ${pos}` : "";
   ui.progressFill.title = `Progress: ${pctText}${posText}`;
   ui.progressFill.setAttribute("aria-label", `Progress: ${pctText}${posText}`);
+  if (ui.progressBar) ui.progressBar.title = `Progress: ${pctText}${posText}`;
 }
 
 /**
