@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.3";
+const APP_VERSION = "2.0.4";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -51,22 +51,41 @@ const ui = {
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
-function showToast(title, body = "", kind = "info") {
+function showToast(title, body = "", kind = "info", opts = undefined) {
   const host = ui.toastHost;
   if (!host) return;
   const el = document.createElement("div");
   el.className = `toast ${kind === "error" ? "toast--error" : ""}`.trim();
+  const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
     `<div class="toast__title">${escapeHtml(String(title))}</div>` +
-    (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "");
+    (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "") +
+    (actionLabel ? `<div class="toast__actions"><button type="button" class="toast__btn">${escapeHtml(actionLabel)}</button></div>` : "");
   host.appendChild(el);
+
+  if (actionLabel && opts && typeof opts.onAction === "function") {
+    const btn = el.querySelector(".toast__btn");
+    btn?.addEventListener("click", () => {
+      try {
+        opts.onAction();
+      } finally {
+        try {
+          el.remove();
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
+  const durationMs = opts && Number.isFinite(opts.durationMs) ? Math.max(800, opts.durationMs) : 2400;
   window.setTimeout(() => {
     try {
       el.remove();
     } catch {
       // ignore
     }
-  }, 2400);
+  }, durationMs);
 }
 
 function escapeHtml(s) {
@@ -749,7 +768,11 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
-      showToast("Picker tip", "If blocked by “system files”, click ? for workaround.");
+      showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 7000,
+      });
       if (isWin) {
         appendHistory("Windows workaround (junction via Documents):");
         appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
@@ -795,7 +818,7 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
-      showToast("Pick cancelled", "No file was selected.");
+      showToast("Pick cancelled", "No file was selected.", "info", { durationMs: 5000 });
       return;
     }
     const looksBlocked =
@@ -807,7 +830,11 @@ async function pickLogFile() {
       low.includes("permission");
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
-      showToast("Picker blocked", "Browser denied access (protected/system location). Click ? for help.", "error");
+      showToast("Picker blocked", "Browser denied access (protected/system location).", "error", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 9000,
+      });
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
       appendHistory('Tip: click "?" and paste your real VS data/log path to generate an exact junction/symlink command.');
       appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
@@ -857,7 +884,7 @@ async function pickFolder() {
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
-      showToast("Pick cancelled", "No folder was selected.");
+      showToast("Pick cancelled", "No folder was selected.", "info", { durationMs: 5000 });
       return;
     }
     appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
