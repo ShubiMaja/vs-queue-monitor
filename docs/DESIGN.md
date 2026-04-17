@@ -249,6 +249,26 @@ The app is a **single-page dashboard** with a stable mental model:
 
 This section turns the project’s ad-hoc prompts into durable **feature requests** and records the **decision** the product adopted. Treat these as the “why” behind recent UX changes.
 
+#### KPI tooltips & inline edits (reduce trips to Settings)
+
+- **FR: Progress bar should show exact percent**
+  - **Request**: Add informative tooltips, e.g. show percentage over the progress bar.
+  - **Decision**: Progress remains a simple bar, but hovering should reveal the exact percent (and any lightweight context) to avoid guesswork.
+  - **Shipped**: Progress fill has a tooltip with the current percent; it should never obscure primary controls.
+
+- **FR: Make key KPI settings editable in-place**
+  - **Request**: “Make relevant settings interactive… clicking WARNINGS lets you edit it; same for rolling window.”
+  - **Decision**: Prefer contextual popovers on the KPI strip for the few settings that users frequently tweak during a live queue. Settings modal remains for advanced/rare items.
+  - **Shipped**:
+    - WARNINGS: inline popover CSV editor.
+    - RATE: inline popover editor for the AVG window points.
+    - STATUS: inline popover editor for refresh/poll seconds (shows as part of the STATUS label).
+
+- **FR: Inline popover actions should be icon-only**
+  - **Request**: Use save/cancel icons in the little pop up dialogs.
+  - **Decision**: Popovers use compact icon buttons (✓/×) with `title`/`aria-label` for clarity and accessibility.
+  - **Shipped**: Inline popovers use ✓/× instead of “Save/Cancel” text.
+
 #### Visualization & graph (Grafana-inspired)
 
 - **FR: Grafana-inspired graph panel polish**
@@ -271,6 +291,16 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Decision**: Default to full-session context (trust + narrative). Provide an explicit “live window” toggle for users who want a scrolling time window.
   - **Shipped**: Default full-history view + a window toggle (full vs live).
 
+- **FR: Graph should be resizable (at least vertically)**
+  - **Request**: Graph should be resizable at least vertically.
+  - **Decision**: Let the graph panel resize vertically via a drag handle; the canvas should re-render immediately on resize.
+  - **Shipped**: Graph card supports vertical resize; canvas resizes/redraws with the panel.
+
+- **FR: Copy a snapshot of the graph**
+  - **Request**: Button to copy snapshot of graph to clipboard.
+  - **Decision**: Provide a “Copy” action in the graph header that tries to copy a PNG to clipboard; if unsupported, download the PNG instead (with clear messaging).
+  - **Shipped**: Graph header includes a snapshot action with clipboard PNG + download fallback.
+
 #### Alerts, sounds, and history verbosity
 
 - **FR: Log every position change by default**
@@ -287,6 +317,11 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Request**: A play button to preview in Settings.
   - **Decision**: Preview should always play regardless of whether the channel is enabled (to avoid “why didn’t it play?” confusion).
   - **Shipped**: “Play” preview per channel that ignores enable toggles.
+
+- **FR: Sound settings should support local file pick**
+  - **Request**: Local file picker for sound sources; should be reliable.
+  - **Decision**: Each sound channel supports a local file picker whose chosen file is stored in browser storage; the picker must work reliably across browsers.
+  - **Shipped**: Local file… picker for warn/completion/interrupt sound sources; files persisted in browser storage.
 
 - **FR: Separate disconnected/interrupted alert channel**
   - **Request**: A separate disconnected or interrupted sound/notification alert.
@@ -333,6 +368,32 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Request**: Settings should be a button in the top right with a popup.
   - **Decision**: Settings is secondary; move it out of the main scroll into a modal overlay (like Help) to keep the dashboard focused.
   - **Shipped**: Settings modal opened from top-right button.
+
+#### Onboarding & guidance
+
+- **FR: First-run guided tutorial**
+  - **Request**: Add a tutorial for new users; require choosing a log file before moving on; guide warnings and rolling rate; start monitoring on completion; skippable + persistent completion status.
+  - **Decision**: Provide first-run onboarding that is actionable, gated on key prerequisites, and can be resumed if the user temporarily closes it to perform an action.
+  - **Shipped**: First-run tutorial overlay with step gating, skip/complete persistence, and a “resume tutorial” affordance when the user jumps into an editor.
+
+#### Notifications (desktop) clarity
+
+- **FR: Desktop notifications should be actionable (focus the monitor)**
+  - **Request**: Desktop notification should have a button/info so the user knows they can click to focus the monitor.
+  - **Decision**: Notifications should explicitly tell the user they can click to return; when supported, include an action label like “Open monitor”. Clicking should focus an existing tab or open the app.
+  - **Shipped**: Desktop notification copy indicates click-to-open; service worker focuses/opens the app on click.
+
+#### Help command generator (copy/paste quality)
+
+- **FR: Remove Windows `/J` guidance**
+  - **Request**: Only hard link for a file works in Windows; get rid of `/J`.
+  - **Decision**: Windows guidance should generate only `mklink /H` for a **file**; do not suggest folder links.
+  - **Shipped**: Help generator only supports `mklink /H` on Windows.
+
+- **FR: Copy command output should be clean (no `REM` noise)**
+  - **Request**: Get rid of weird `REM` prefixes in the copy command window.
+  - **Decision**: The command block should be mostly runnable commands; minimal guidance is acceptable but should not dominate the copy buffer.
+  - **Shipped**: Windows command output is free of `REM` comment spam.
 
 ### 5.1 Dashboard (main view)
 

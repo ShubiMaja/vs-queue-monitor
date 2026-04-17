@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.2";
+const APP_VERSION = "2.1.3";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -28,6 +28,7 @@ const ui = {
   btnYScale: $("btnYScale"),
   btnGraphWindow: $("btnGraphWindow"),
   btnClear: $("btnClear"),
+  btnCopyGraph: $("btnCopyGraph"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
   btnNotifyPill: $("btnNotifyPill"),
@@ -59,9 +60,19 @@ const ui = {
 
   kpiPosition: $("kpiPosition"),
   kpiStatus: $("kpiStatus"),
+  kpiStatusLabel: $("kpiStatusLabel"),
   kpiRateLabel: $("kpiRateLabel"),
   kpiRate: $("kpiRate"),
   btnRateEdit: $("btnRateEdit"),
+  btnStatusRefreshEdit: $("btnStatusRefreshEdit"),
+  statusRefreshPopover: $("statusRefreshPopover"),
+  inpStatusRefreshSec: /** @type {HTMLInputElement} */ ($("inpStatusRefreshSec")),
+  btnStatusRefreshOk: $("btnStatusRefreshOk"),
+  btnStatusRefreshCancel: $("btnStatusRefreshCancel"),
+  rateWindowPopover: $("rateWindowPopover"),
+  inpRateWindowPoints: /** @type {HTMLInputElement} */ ($("inpRateWindowPoints")),
+  btnRateWindowOk: $("btnRateWindowOk"),
+  btnRateWindowCancel: $("btnRateWindowCancel"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
   btnWarnScrollL: $("btnWarnScrollL"),
@@ -136,6 +147,7 @@ ui.footerVersion.textContent = `v${APP_VERSION}`;
 
 const STORAGE_TUTORIAL_DONE_KEY = "vsqm_tutorial_done_v1";
 let tutorialActive = false;
+let tutorialMinimized = false;
 let tutorialStepIdx = 0;
 let tutorialPickedDuringRun = false;
 
@@ -155,11 +167,17 @@ function setTutorialDone() {
   }
 }
 
-function openTutorial() {
+function openTutorial(reset = true) {
   if (!ui.tutorialOverlay) return;
-  tutorialActive = true;
-  tutorialPickedDuringRun = false;
-  tutorialStepIdx = 0;
+  if (!tutorialActive) {
+    tutorialActive = true;
+    tutorialPickedDuringRun = false;
+    tutorialStepIdx = 0;
+  } else if (reset) {
+    tutorialPickedDuringRun = false;
+    tutorialStepIdx = 0;
+  }
+  tutorialMinimized = false;
   ui.tutorialOverlay.hidden = false;
   renderTutorial();
 }
@@ -167,8 +185,16 @@ function openTutorial() {
 function closeTutorial(markDone) {
   if (!ui.tutorialOverlay) return;
   tutorialActive = false;
+  tutorialMinimized = false;
   ui.tutorialOverlay.hidden = true;
   if (markDone) setTutorialDone();
+}
+
+function minimizeTutorial() {
+  if (!ui.tutorialOverlay) return;
+  if (!tutorialActive) return;
+  tutorialMinimized = true;
+  ui.tutorialOverlay.hidden = true;
 }
 
 function tutorialHasLogSelected() {
@@ -214,14 +240,14 @@ function renderTutorial() {
         `<div class="tutorial__lead">Choose <span class="tutorial__k">client-main.log</span> (or <span class="tutorial__k">client.log</span>).</div>` +
         `<div class="tutorial__actions">` +
         `<button type="button" class="btn btn--primary" id="btnTutorialPickNow">Pick log file…</button>` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">Open help / fix blocked picks</button>` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">File Picker Guide</button>` +
         `</div>` +
         `<div class="tutorial__hint"><strong>Common paths</strong> (you don’t need to paste these, just a guide):</div>` +
         `<ul class="tutorial__list">` +
         `<li><strong>macOS</strong>: <span class="tutorial__k">~/Library/Application Support/VintagestoryData/Logs/client-main.log</span></li>` +
         `<li><strong>Linux</strong>: <span class="tutorial__k">~/.config/VintagestoryData/Logs/client-main.log</span></li>` +
         `</ul>` +
-        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> / blocks AppData-like folders, click <strong>Open help</strong> and use the generated <span class="tutorial__k">mklink /H</span> (Windows) or <span class="tutorial__k">ln -s</span> (Mac/Linux).</div>` +
+        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> (protected folders like AppData), open the <strong>File Picker Guide</strong> to generate a safe workaround (<span class="tutorial__k">mklink /H</span> on Windows or <span class="tutorial__k">ln -s</span> on Mac/Linux).</div>` +
         (hasLog
           ? `<div class="tutorial__hint"><strong>Selected:</strong> ${escapeHtml(String(ui.infoResolved?.textContent || "log"))}</div>`
           : `<div class="tutorial__hint"><strong>Not selected yet.</strong> Pick a log to continue.</div>`),
@@ -294,12 +320,12 @@ function renderTutorial() {
   const editWarn = document.getElementById("btnTutorialEditWarnings");
   editWarn?.addEventListener("click", () => {
     try {
-      closeTutorial(false);
+      minimizeTutorial();
       ui.btnWarningsEdit?.click();
       showToast("Tutorial", "Edit thresholds, then return to the tutorial to continue.", "info", {
         actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(),
-        durationMs: 14000,
+        onAction: () => openTutorial(false),
+        durationMs: Infinity,
       });
     } catch {
       // ignore
@@ -309,12 +335,12 @@ function renderTutorial() {
   const editRate = document.getElementById("btnTutorialEditRate");
   editRate?.addEventListener("click", () => {
     try {
-      closeTutorial(false);
+      minimizeTutorial();
       openSettingsAndEditRollingWindow();
       showToast("Tutorial", "Adjust Rolling window (points), then return to the tutorial to continue.", "info", {
         actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(),
-        durationMs: 14000,
+        onAction: () => openTutorial(false),
+        durationMs: Infinity,
       });
     } catch {
       // ignore
@@ -973,53 +999,23 @@ function renderHelpCommandPreview() {
     const srcIn = raw || "%APPDATA%\\VintagestoryData";
     const looksLikeLogFile =
       /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
-    const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
     // Hard link the log file into Documents (no admin on same volume). Single file under vs-queue-monitor — no subfolder.
     if (looksLikeLogFile) {
       const destFile = winHardLinkExposedLogPath(srcIn);
       let txt =
-        `REM mklink /H is for FILES only (not folders). Second path must be your real client-main.log file.\n` +
         `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
         `mklink /H "${destFile}" "${srcIn}"`;
-      if (logsRoot) {
-        const leafJ = linkFolderName("logs", logsRoot);
-        const destJ = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leafJ}`;
-        let pickSuffix = logName;
-        const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
-        if (rel !== null && rel.length > 0) pickSuffix = rel;
-        txt +=
-          `\n\n` +
-          `REM If mklink /H fails (file must exist; same drive as Documents), use a folder junction — /J for folders, not /H:\n` +
-          `REM if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-          `REM mklink /J "${destJ}" "${logsRoot}"\n` +
-          `REM Then pick: ${destJ}\\${pickSuffix}`;
-      }
       ui.preHelpCmd.textContent = txt;
       setPick(destFile);
       return;
     }
 
-    // Folder junction: Logs directory or data root (no .log file pasted).
-    if (logsRoot) {
-      const leaf = linkFolderName("logs", logsRoot);
-      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
-      ui.preHelpCmd.textContent =
-        `REM Folders: use mklink /J only. Do not use mklink /H on a directory (that causes an error).\n` +
-        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-        `mklink /J "${dest}" "${logsRoot}"`;
-      setPick(`${dest}\\${logName}`);
-      return;
-    }
-
     const srcDir = srcIn;
-    const leaf = linkFolderName("data", srcDir);
-    const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
-      `REM Folders: mklink /J only. For a single log file under Documents, paste the .log path to get mklink /H instead.\n` +
-      `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
-      `mklink /J "${dest}" "${srcDir}"`;
-    setPick(`${dest}\\Logs\\${logName}`);
+      `echo Paste the full path to client-main.log above (not a folder).\n` +
+      `echo Example: %APPDATA%\\VintagestoryData\\Logs\\client-main.log`;
+    setPick("%USERPROFILE%\\Documents\\vs-queue-monitor\\client-main.log");
     return;
   }
 
@@ -1044,7 +1040,7 @@ function renderHelpCommandPreview() {
 
   ui.preHelpCmd.textContent =
     "Open this app in Edge/Chrome.\n" +
-    "If the picker is blocked, paste your real VS data/log path above to generate a junction/symlink command.";
+    "If the picker is blocked, paste your real VS data/log file path above to generate a workaround command.";
   setPick("");
 }
 
@@ -1322,6 +1318,24 @@ function parseTailLastQueueLineEpoch(data) {
 }
 
 /**
+ * Extract all queue position readings from a text chunk (usually a poll delta) in order.
+ * This prevents the UI/graph from "skipping" when multiple queue updates land between polls.
+ * @param {string} chunk
+ * @returns {Array<{ pos: number, epoch: number|null }>}
+ */
+function extractQueueReadingsFromText(chunk) {
+  if (!chunk) return [];
+  /** @type {Array<{ pos: number, epoch: number|null }>} */
+  const out = [];
+  for (const line of chunk.split(/\r?\n/)) {
+    const pos = queuePositionFromLine(line);
+    if (pos == null) continue;
+    out.push({ pos, epoch: parseLogTimestampEpoch(line) });
+  }
+  return out;
+}
+
+/**
  * Keep only the **current queue run** in a loaded chunk: same session model as {@link parseTailLastQueueReading}
  * (boundaries: reconnect, disconnect, main menu, new connection attempt, etc.). Works for a full file or a tail slice;
  * session indices are relative to the start of `data`.
@@ -1418,7 +1432,8 @@ function applyFormToConfig() {
   config.completionSoundUrl = ui.inpCompletionSoundUrl.value.trim();
   config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
   // graphLiveWindow is controlled by a button (not a form field).
-  ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
+  ui.kpiRateLabel.textContent = `RATE (AVG ${rollingWindowPoints()})`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
 }
 
 /**
@@ -1502,7 +1517,8 @@ function syncConfigToForm() {
   ui.inpInterruptSoundUrl.value = config.interruptSoundUrl ?? "";
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
   if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
-  ui.kpiRateLabel.textContent = `RATE (Rolling ${config.windowPoints})`;
+  ui.kpiRateLabel.textContent = `RATE (AVG ${config.windowPoints})`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
 }
 
 function showSettingsNote(text, isError = false) {
@@ -1591,7 +1607,7 @@ function notifyDesktop(kind, title, body) {
   if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) return;
   if (Notification.permission !== "granted") return;
   const opts = {
-    body,
+    body: body ? `${body}\n\nClick to open VS Queue Monitor.` : "Click to open VS Queue Monitor.",
     silent: true,
     icon: NOTIFICATION_ICON_URL,
     tag:
@@ -1602,6 +1618,9 @@ function notifyDesktop(kind, title, body) {
           : "vsqm-interrupt",
     renotify: true,
     requireInteraction: true,
+    actions: [
+      { action: "focus", title: "Open monitor" },
+    ],
   };
   (async () => {
     try {
@@ -1664,6 +1683,54 @@ function showTestDesktopNotification() {
 
 /** @type {AudioContext|null} */
 let audioCtx = null;
+
+/** @type {HTMLAudioElement|null} */
+let previewAudioEl = null;
+/** @type {string|null} */
+let previewAudioObjectUrl = null;
+/** @type {"warning"|"completion"|"interrupt"|null} */
+let previewAudioKind = null;
+let previewAudioNonce = 0;
+
+function syncSoundPreviewButtons() {
+  /** @param {"warning"|"completion"|"interrupt"} k */
+  const isPlaying = (k) => previewAudioKind === k && previewAudioEl && !previewAudioEl.paused && !previewAudioEl.ended;
+  const setBtn = (btn, k) => {
+    const playing = isPlaying(k);
+    btn.textContent = playing ? "Stop" : "Play";
+    btn.classList.toggle("btn--stop", playing);
+    btn.setAttribute("aria-pressed", playing ? "true" : "false");
+    btn.title = playing ? "Stop preview" : "Play preview";
+  };
+  setBtn(ui.btnTestWarnSound, "warning");
+  setBtn(ui.btnTestCompletionSound, "completion");
+  setBtn(ui.btnTestInterruptSound, "interrupt");
+}
+
+function stopPreviewSound() {
+  previewAudioNonce++;
+  const a = previewAudioEl;
+  previewAudioEl = null;
+  previewAudioKind = null;
+  if (a) {
+    try {
+      a.pause();
+      a.currentTime = 0;
+      a.src = "";
+    } catch {
+      // ignore
+    }
+  }
+  if (previewAudioObjectUrl) {
+    try {
+      URL.revokeObjectURL(previewAudioObjectUrl);
+    } catch {
+      // ignore
+    }
+    previewAudioObjectUrl = null;
+  }
+  syncSoundPreviewButtons();
+}
 
 /** Soft sine chimes: used as fallback (and optional built-in sound). */
 function beepBuiltin(kind) {
@@ -2060,7 +2127,9 @@ async function syncSoundSummaries() {
 }
 
 /**
- * @param {"warning"|"completion"} kind
+ * @param {"warning"|"completion"|"interrupt"} kind
+ * @param {{ force?: boolean, returnAudio?: boolean }} [opts]
+ * @returns {Promise<{ audio: HTMLAudioElement, objectUrl: string|null } | null>}
  */
 async function playSoundAsync(kind, opts = undefined) {
   const force = !!opts?.force;
@@ -2077,22 +2146,25 @@ async function playSoundAsync(kind, opts = undefined) {
     if (blob) {
       const url = URL.createObjectURL(blob);
       const a = new Audio(url);
-      a.onended = () => URL.revokeObjectURL(url);
       await a.play();
-      return;
+      if (opts?.returnAudio) return { audio: a, objectUrl: url };
+      a.onended = () => URL.revokeObjectURL(url);
+      return null;
     }
     const urlStr =
       kind === "warning" ? config.warnSoundUrl?.trim() : kind === "completion" ? config.completionSoundUrl?.trim() : config.interruptSoundUrl?.trim();
     if (urlStr === "builtin") {
-      beepBuiltin(kind === "warning" ? "warning" : "completion");
-      return;
+      beepBuiltin(kind);
+      return null;
     }
     const src = urlStr || defaultUrl;
     const a = new Audio(src);
     await a.play();
+    if (opts?.returnAudio) return { audio: a, objectUrl: null };
   } catch {
-    beepBuiltin(kind === "warning" ? "warning" : "completion");
+    beepBuiltin(kind);
   }
+  return null;
 }
 
 /**
@@ -2104,10 +2176,52 @@ function beep(kind) {
 
 /**
  * Preview sound from Settings (ignores the enable toggles).
- * @param {"warning"|"completion"} kind
+ * Click again to stop the preview.
+ * @param {"warning"|"completion"|"interrupt"} kind
  */
 function previewSound(kind) {
-  void playSoundAsync(kind, { force: true });
+  const isPlaying = previewAudioKind === kind && previewAudioEl && !previewAudioEl.paused && !previewAudioEl.ended;
+  if (isPlaying) {
+    stopPreviewSound();
+    return;
+  }
+
+  stopPreviewSound();
+  syncSoundPreviewButtons();
+  const myNonce = ++previewAudioNonce;
+  void (async () => {
+    const res = await playSoundAsync(kind, { force: true, returnAudio: true });
+    if (myNonce !== previewAudioNonce) {
+      if (res?.audio) {
+        try {
+          res.audio.pause();
+          res.audio.currentTime = 0;
+        } catch {
+          // ignore
+        }
+      }
+      if (res?.objectUrl) {
+        try {
+          URL.revokeObjectURL(res.objectUrl);
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+    if (!res?.audio) {
+      syncSoundPreviewButtons();
+      return;
+    }
+    previewAudioEl = res.audio;
+    previewAudioObjectUrl = res.objectUrl;
+    previewAudioKind = kind;
+    res.audio.onended = () => {
+      if (previewAudioEl === res.audio) stopPreviewSound();
+      else if (res.objectUrl) URL.revokeObjectURL(res.objectUrl);
+    };
+    syncSoundPreviewButtons();
+  })();
 }
 
 /**
@@ -2312,8 +2426,7 @@ async function pickLogFile() {
       });
       if (isWin) {
         appendHistory("Windows: prefer a hard link to the log file — open ?, paste the full path to client-main.log, run the generated mklink /H in cmd.");
-        appendHistory("Folder junctions to AppData often still fail in the picker; /H on the file under Documents usually works.");
-        appendHistory("Older fallback (junction): mkdir + mklink /J from ? when you paste a folder path, or see README.");
+        appendHistory("Windows note: only mklink /H (hard link) to the log FILE is supported here — do not use folder links.");
       } else if (isLinux) {
         appendHistory("Linux workaround (symlink into ~/VSLogs):");
         appendHistory("  mkdir -p ~/VSLogs");
@@ -2387,12 +2500,7 @@ async function pickLogFile() {
         },
       );
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
-      appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
-      appendHistory("Windows fallback (junction; may still be blocked by the picker):");
-      appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
-      appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
-      appendHistory("Explanation: exposes VintagestoryData under Documents; Edge/Chrome may still treat it as a system path.");
-      appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
+      appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link).');
       appendHistory("Linux workaround (symlink; source is the usual VS data dir under ~/.config):");
       appendHistory("  mkdir -p ~/VSLogs");
       appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
@@ -2872,7 +2980,7 @@ function estimateSecondsRemaining() {
 }
 
 function updateTimeEstimates() {
-  ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
+  ui.kpiRateLabel.textContent = `RATE (AVG ${rollingWindowPoints()})`;
   const pos = currentQueuePosition();
 
   if (interruptedElapsedSec != null) {
@@ -2888,6 +2996,8 @@ function updateTimeEstimates() {
       ui.infoGlobalRate.textContent = formatQueueRate(globalAvgMinutesPerPosition());
     }
     ui.progressFill.style.width = "0%";
+    ui.progressFill.title = "Progress: 0% (interrupted)";
+    ui.progressFill.setAttribute("aria-label", "Progress: 0% (interrupted)");
     return;
   }
 
@@ -2937,7 +3047,12 @@ function updateTimeEstimates() {
   } else {
     progress = 0;
   }
-  ui.progressFill.style.width = `${progress.toFixed(1)}%`;
+  const pct = Math.min(100, Math.max(0, progress));
+  ui.progressFill.style.width = `${pct.toFixed(1)}%`;
+  const pctText = `${pct.toFixed(1)}%`;
+  const posText = pos != null ? ` — position ${pos}` : "";
+  ui.progressFill.title = `Progress: ${pctText}${posText}`;
+  ui.progressFill.setAttribute("aria-label", `Progress: ${pctText}${posText}`);
 }
 
 /**
@@ -2965,6 +3080,7 @@ function appendGraphPoint(position, lineEpoch) {
  * @param {string} fullText
  */
 function replayQueueGraphFromText(fullText) {
+  // Only graph the *current* queue run (avoid cluttering with older reconnect runs).
   const text = sliceLoadedLogToCurrentQueueRun(fullText);
   if (!text) {
     graphPoints = [];
@@ -3266,9 +3382,7 @@ async function readNewLogText(handle) {
     }
     const rawLen = seed.length;
     seed = sliceLoadedLogToCurrentQueueRun(seed);
-    if (seed.length < rawLen) {
-      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
-    }
+    if (seed.length < rawLen) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
     lastReadOffset = size;
     pendingGraphReplayText = seed;
     return seed;
@@ -3286,9 +3400,7 @@ async function readNewLogText(handle) {
     appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
     const rawLenT = seed.length;
     seed = sliceLoadedLogToCurrentQueueRun(seed);
-    if (seed.length < rawLenT) {
-      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
-    }
+    if (seed.length < rawLenT) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
     lastReadOffset = size;
     pendingGraphReplayText = seed;
     return seed;
@@ -3444,7 +3556,21 @@ async function pollOnce() {
       setPositionDisplay(pos);
       if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
 
-      appendGraphPoint(pos, lastLineEpoch);
+      // If multiple queue readings arrived since the last poll, append them all so the graph doesn't "jump".
+      const deltaReadings = newText ? extractQueueReadingsFromText(newText) : [];
+      if (deltaReadings.length >= 2) {
+        let lastEpoch = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+        for (const r of deltaReadings) {
+          let t = r.epoch;
+          if (t == null) t = (lastEpoch != null ? lastEpoch + 0.25 : Date.now() / 1000);
+          // Ensure monotonic times for the segment builder.
+          if (lastEpoch != null && t <= lastEpoch) t = lastEpoch + 0.001;
+          appendGraphPoint(r.pos, t);
+          lastEpoch = t;
+        }
+      } else {
+        appendGraphPoint(pos, lastLineEpoch);
+      }
       try {
         updateTimeEstimates();
 
@@ -3926,7 +4052,7 @@ startUpdateCheckLoop();
   try {
     if (!isTutorialDone()) {
       // If a log is already restored automatically (rare), still show tutorial but allow skipping.
-      openTutorial();
+      openTutorial(true);
     }
   } catch {
     // ignore
@@ -4127,6 +4253,92 @@ function openSettingsAndEditRollingWindow() {
   });
 }
 
+let rateWindowEditOpen = false;
+let rateWindowPrev = "";
+function openRateWindowPopover() {
+  if (!ui.rateWindowPopover || !ui.inpRateWindowPoints) return;
+  rateWindowEditOpen = true;
+  ui.rateWindowPopover.hidden = false;
+  rateWindowPrev = String(config.windowPoints ?? "");
+  ui.inpRateWindowPoints.value = String(config.windowPoints ?? rollingWindowPoints());
+  try {
+    ui.inpRateWindowPoints.focus();
+    ui.inpRateWindowPoints.select?.();
+  } catch {
+    // ignore
+  }
+}
+function closeRateWindowPopover() {
+  if (!ui.rateWindowPopover) return;
+  rateWindowEditOpen = false;
+  ui.rateWindowPopover.hidden = true;
+}
+function commitRateWindowPopover() {
+  if (!ui.inpRateWindowPoints) return;
+  const raw = String(ui.inpRateWindowPoints.value || "").trim();
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 2) {
+    showToast("Invalid AVG window", "Enter a whole number ≥ 2.", "warn", { durationMs: 7000 });
+    try {
+      ui.inpRateWindowPoints.focus();
+      ui.inpRateWindowPoints.select?.();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  config.windowPoints = n;
+  saveConfig();
+  syncConfigToForm();
+  updateTimeEstimates();
+  closeRateWindowPopover();
+}
+
+let statusRefreshEditOpen = false;
+let statusRefreshPrev = "";
+function openStatusRefreshPopover() {
+  if (!ui.statusRefreshPopover || !ui.inpStatusRefreshSec) return;
+  statusRefreshEditOpen = true;
+  ui.statusRefreshPopover.hidden = false;
+  statusRefreshPrev = String(config.pollSec ?? "");
+  ui.inpStatusRefreshSec.value = String(config.pollSec ?? 2);
+  try {
+    ui.inpStatusRefreshSec.focus();
+    ui.inpStatusRefreshSec.select?.();
+  } catch {
+    // ignore
+  }
+}
+function closeStatusRefreshPopover() {
+  if (!ui.statusRefreshPopover) return;
+  statusRefreshEditOpen = false;
+  ui.statusRefreshPopover.hidden = true;
+}
+function commitStatusRefreshPopover() {
+  if (!ui.inpStatusRefreshSec) return;
+  const raw = String(ui.inpStatusRefreshSec.value || "").trim();
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n < 0.2) {
+    showToast("Invalid refresh", "Enter a number ≥ 0.2 seconds.", "warn", { durationMs: 7000 });
+    try {
+      ui.inpStatusRefreshSec.focus();
+      ui.inpStatusRefreshSec.select?.();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  config.pollSec = n;
+  saveConfig();
+  syncConfigToForm();
+  if (running) {
+    if (pollTimer != null) window.clearInterval(pollTimer);
+    pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+    appendHistory(`Updated poll interval: ${config.pollSec}s`);
+  }
+  closeStatusRefreshPopover();
+}
+
 // Inline-edit affordances: click KPI to jump to the relevant setting.
 ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
 ui.kpiWarnings.style.cursor = "pointer";
@@ -4141,21 +4353,84 @@ ui.kpiWarnings.addEventListener("click", () => {
   flashInput(ui.inpThresholds);
 });
 
-ui.kpiRateLabel.title = "Click to edit rolling window (points)";
+ui.kpiRateLabel.title = "Click to edit AVG window (points)";
 ui.kpiRateLabel.style.cursor = "pointer";
 ui.kpiRateLabel.addEventListener("click", () => {
-  openSettingsAndEditRollingWindow();
+  if (rateWindowEditOpen) return;
+  openRateWindowPopover();
 });
 
-ui.kpiRate.title = "Click to edit rolling window (points)";
+ui.kpiRate.title = "Click to edit AVG window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
-  openSettingsAndEditRollingWindow();
+  if (rateWindowEditOpen) return;
+  openRateWindowPopover();
 });
 
 ui.btnRateEdit?.addEventListener("click", (e) => {
   e.preventDefault();
-  openSettingsAndEditRollingWindow();
+  if (rateWindowEditOpen) closeRateWindowPopover();
+  else openRateWindowPopover();
+});
+
+ui.btnRateWindowOk?.addEventListener("click", () => commitRateWindowPopover());
+ui.btnRateWindowCancel?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
+  closeRateWindowPopover();
+});
+ui.inpRateWindowPoints?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
+    closeRateWindowPopover();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    commitRateWindowPopover();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (!rateWindowEditOpen) return;
+  const pop = ui.rateWindowPopover;
+  const host = ui.kpiRate?.closest(".kpi--rate");
+  const t = /** @type {any} */ (e.target);
+  if (pop && (pop === t || pop.contains(t))) return;
+  if (host && (host === t || host.contains(t))) return;
+  closeRateWindowPopover();
+});
+
+ui.kpiStatusLabel?.addEventListener("click", () => {
+  if (statusRefreshEditOpen) return;
+  openStatusRefreshPopover();
+});
+ui.btnStatusRefreshEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (statusRefreshEditOpen) closeStatusRefreshPopover();
+  else openStatusRefreshPopover();
+});
+ui.btnStatusRefreshOk?.addEventListener("click", () => commitStatusRefreshPopover());
+ui.btnStatusRefreshCancel?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
+  closeStatusRefreshPopover();
+});
+ui.inpStatusRefreshSec?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
+    closeStatusRefreshPopover();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    commitStatusRefreshPopover();
+  }
+});
+document.addEventListener("click", (e) => {
+  if (!statusRefreshEditOpen) return;
+  const pop = ui.statusRefreshPopover;
+  const host = ui.kpiStatus?.closest(".kpi--status");
+  const t = /** @type {any} */ (e.target);
+  if (pop && (pop === t || pop.contains(t))) return;
+  if (host && (host === t || host.contains(t))) return;
+  closeStatusRefreshPopover();
 });
 
 ui.btnPickLog.addEventListener("click", async () => {
@@ -4215,6 +4490,53 @@ ui.btnCopyHistory.addEventListener("click", async () => {
     appendHistory("History copied to clipboard.");
   } catch {
     appendHistory("Could not copy history (clipboard permission).");
+  }
+});
+
+function canvasToPngBlob(canvas) {
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((b) => resolve(b), "image/png");
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+ui.btnCopyGraph?.addEventListener("click", async () => {
+  const canvas = ui.graphCanvas;
+  const blob = await canvasToPngBlob(canvas);
+  if (!blob) {
+    showToast("Copy failed", "Could not capture the canvas image.", "error");
+    return;
+  }
+
+  const fileName = `vs-queue-graph-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+  try {
+    // Clipboard image write is not supported everywhere; require a user gesture (this click).
+    if (!navigator.clipboard || typeof window.ClipboardItem !== "function") throw new Error("Clipboard image write not supported");
+    const item = new ClipboardItem({ "image/png": blob });
+    await navigator.clipboard.write([item]);
+    showToast("Copied", "Graph snapshot copied to clipboard (PNG).");
+    appendHistory("Graph snapshot copied to clipboard.");
+  } catch {
+    downloadBlob(blob, fileName);
+    showToast("Downloaded", "Clipboard image copy isn't available here, so the snapshot was downloaded instead.", "info", {
+      durationMs: 9000,
+    });
+    appendHistory(`Graph snapshot downloaded: ${fileName}`);
   }
 });
 
@@ -4512,6 +4834,14 @@ function resizeCanvasToDisplaySize() {
 }
 window.addEventListener("resize", () => resizeCanvasToDisplaySize());
 resizeCanvasToDisplaySize();
+
+// Allow vertical resizing of the graph card: redraw when the canvas box changes.
+try {
+  const ro = new ResizeObserver(() => resizeCanvasToDisplaySize());
+  ro.observe(ui.graphCanvas);
+} catch {
+  // ignore (older browsers)
+}
 
 ui.graphCanvas.addEventListener("mouseenter", () => {
   graphCanvasHovering = true;

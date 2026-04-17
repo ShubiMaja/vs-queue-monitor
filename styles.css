@@ -401,8 +401,10 @@ body{
 .kpiWarn--overflow:hover .kpiWarn__arrow,
 .kpiWarn--overflow:focus-within .kpiWarn__arrow{display:flex}
 
-/* Small popover used by inline warning editor */
+/* Small popover used by inline KPI editors */
 .kpi--warnings{position:relative}
+.kpi--rate{position:relative}
+.kpi--status{position:relative}
 .popover{
   position:absolute;
   top:24px;
@@ -451,13 +453,24 @@ body{
   transition:width 0.35s ease;
 }
 
-.graph{grid-column:1 / -1}
+.card.graph{
+  grid-column:1 / -1;
+  display:flex;
+  flex-direction:column;
+  resize:vertical;
+  overflow:hidden;
+  min-height:340px;
+  min-width:0;
+}
 #graphCanvas{
   display:block;
   width:100%;
-  height:360px;
+  height:auto;
+  min-height:0;
+  flex:1 1 auto;
   cursor:crosshair;
 }
+.graph__hint{flex:0 0 auto}
 .sound-summary{margin:6px 0 0;font-size:12px;line-height:1.35}
 .sound-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .sound-row--sub{margin-top:6px}
@@ -470,6 +483,14 @@ body{
   background:rgba(8,10,14,0.28);
 }
 .sound-url{flex:1;min-width:min(100%,220px)}
+.fileInputHidden{
+  position:absolute;
+  left:-9999px;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
 
 .graph__hint{
   padding:10px 16px;
