@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.88";
+const APP_VERSION = "2.0.89";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1230,7 +1230,7 @@ function syncConfigToForm() {
   ui.inpCompletionSoundUrl.value = config.completionSoundUrl ?? "";
   ui.inpInterruptSoundUrl.value = config.interruptSoundUrl ?? "";
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
-  if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Window → live" : "Window → full";
+  if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
   ui.kpiRateLabel.textContent = `RATE (Rolling ${config.windowPoints})`;
 }
 
@@ -3436,14 +3436,14 @@ function drawGraph() {
   // Time range
   const tLast = graphPoints[graphPoints.length - 1][0];
   const tNow = Date.now() / 1000;
+  // Live view = keep the X-axis advancing so the full-history timeline keeps stretching (constant motion).
   const t1 = config.graphLiveWindow && running ? Math.max(tLast, tNow) : tLast;
-  const span = config.graphLiveWindow ? Math.max(60, Math.round(config.pollSec * config.windowPoints * 12)) : Math.max(60, t1 - graphPoints[0][0]);
+  const span = Math.max(60, t1 - graphPoints[0][0]);
   const t0 = t1 - span;
   const xOf = (t) => padL + ((t - t0) / span) * plotW;
 
-  // Range: full-history by default; windowed when live-window is enabled.
-  const inWindow = config.graphLiveWindow ? graphPoints.filter((p) => p[0] >= t0 - 0.001 && p[0] <= t1 + 0.001) : [];
-  const positions = (inWindow.length ? inWindow : graphPoints).map((p) => p[1]);
+  // Range: always full-history (live view only affects X-axis motion).
+  const positions = graphPoints.map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
   if (!Number.isFinite(minP) || !Number.isFinite(maxP)) {
@@ -3916,7 +3916,7 @@ ui.btnYScale.addEventListener("click", () => {
 
 ui.btnGraphWindow?.addEventListener("click", () => {
   config.graphLiveWindow = !config.graphLiveWindow;
-  ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Window → live" : "Window → full";
+  ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
   saveConfig();
   drawGraph();
 });
