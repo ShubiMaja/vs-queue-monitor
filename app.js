@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.10";
+const APP_VERSION = "2.1.11";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1434,6 +1434,33 @@ function sliceLoadedLogToCurrentQueueRun(data) {
     }
   }
   return lines.slice(startIdx).join("\n");
+}
+
+/**
+ * Same as {@link sliceLoadedLogToCurrentQueueRun}, but returns metadata so callers can detect
+ * when the current run likely started *before* the loaded chunk (e.g. huge log).
+ * @param {string} data
+ * @returns {{ slice: string, startIdx: number, lastQIdx: number, lineCount: number }}
+ */
+function sliceLoadedLogToCurrentQueueRunMeta(data) {
+  if (!data) return { slice: data, startIdx: 0, lastQIdx: -1, lineCount: 0 };
+  const lines = data.split(/\r?\n/);
+  if (lines.length === 0) return { slice: data, startIdx: 0, lastQIdx: -1, lineCount: 0 };
+  const sessionBeforeLine = queueRunSessionBeforeLine(lines);
+  let lastQIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (queuePositionFromLine(lines[i]) != null) lastQIdx = i;
+  }
+  if (lastQIdx < 0) return { slice: data, startIdx: 0, lastQIdx: -1, lineCount: lines.length };
+  const targetSess = sessionBeforeLine[lastQIdx];
+  let startIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (sessionBeforeLine[i] === targetSess) {
+      startIdx = i;
+      break;
+    }
+  }
+  return { slice: lines.slice(startIdx).join("\n"), startIdx, lastQIdx, lineCount: lines.length };
 }
 
 /**
@@ -3482,14 +3509,34 @@ async function readNewLogText(handle) {
     if (size <= INITIAL_FULL_READ_MAX_BYTES) {
       seed = await readLogRangeText(handle, 0, size);
     } else {
-      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      // Large logs: start with a tail window, but walk backward a little if the current queue run
+      // appears to start before the loaded chunk (e.g. you started at 47 but the tail begins later).
+      const maxWalkBack = Math.max(INITIAL_FULL_READ_MAX_BYTES * 3, 32 * 1024 * 1024); // cap extra reads
+      let start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      let span = size - start;
       seed = await readLogRangeText(handle, start, size);
       appendHistory(
         `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
       );
+      // If the current run slice begins at the chunk start, we likely missed earlier lines for this run.
+      // Walk back (up to a cap) to capture the beginning of the active run.
+      for (let attempts = 0; attempts < 3; attempts++) {
+        const meta = sliceLoadedLogToCurrentQueueRunMeta(seed);
+        if (meta.lastQIdx < 0) break;
+        if (meta.startIdx > 0) break;
+        if (start <= 0) break;
+        const add = Math.min(INITIAL_FULL_READ_MAX_BYTES, maxWalkBack - span);
+        if (add <= 0) break;
+        const newStart = Math.max(0, start - add);
+        if (newStart === start) break;
+        start = newStart;
+        span = size - start;
+        seed = await readLogRangeText(handle, start, size);
+      }
     }
     const rawLen = seed.length;
-    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    const meta = sliceLoadedLogToCurrentQueueRunMeta(seed);
+    seed = meta.slice;
     if (seed.length < rawLen) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
     lastReadOffset = size;
     pendingGraphReplayText = seed;
@@ -3507,7 +3554,8 @@ async function readNewLogText(handle) {
     }
     appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
     const rawLenT = seed.length;
-    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    const metaT = sliceLoadedLogToCurrentQueueRunMeta(seed);
+    seed = metaT.slice;
     if (seed.length < rawLenT) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
     lastReadOffset = size;
     pendingGraphReplayText = seed;
