@@ -47,14 +47,14 @@
           </div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
-          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1" "%APPDATA%\VintagestoryData"</pre>
-          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1\Logs\client-main.log</span> — <span class="muted">use <strong>Link #</strong> below if you need <span class="mono">data-2</span>, etc.</span></div>
+          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
+          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
-          <pre class="code">mkdir -p ~/vs-queue-monitor/logs-1
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/client-main.log</pre>
-          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/logs-1/client-main.log</span> — <span class="muted">bump Link # for <span class="mono">logs-2</span> if needed.</span></div>
+          <pre class="code">mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</pre>
+          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</span> — <span class="muted">same hash idea from the generator.</span></div>
 
           <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
           <div class="modal__text">
@@ -66,7 +66,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="modal__text muted">
-            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> using simple names like <span class="mono">data-1</span> or <span class="mono">logs-1</span>. Set <strong>Link #</strong> below; increase it (2, 3, …) if that folder already exists — you can always check in Explorer. (The browser cannot silently list <span class="mono">Documents</span>; it only sees paths you pick or paste, which is why the number is a field and not auto-detected.) Mac/Linux use the same numbering under <span class="mono">~/vs-queue-monitor/</span>.
+            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> with names like <span class="mono">data-xxxxxxxx</span> or <span class="mono">logs-xxxxxxxx</span> (8 hex chars from a hash of the <strong>source path</strong> you paste — same path always gets the same name). Mac/Linux use the same pattern under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -80,16 +80,6 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/
               placeholder='Example (Windows): %APPDATA%\VintagestoryData  |  (Mac): ~/Library/Application Support/VintagestoryData/Logs/client-main.log  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
               autocomplete="off"
               spellcheck="false"
-            />
-            <label class="helpForm__label" for="inpHelpLinkSlot">Link #</label>
-            <input
-              id="inpHelpLinkSlot"
-              class="input helpForm__input helpForm__input--narrow"
-              type="number"
-              min="1"
-              max="99"
-              value="1"
-              title="Folder suffix: logs-1 / data-1. Increase if that folder already exists."
             />
             <div class="helpForm__actions">
               <button id="btnHelpCopyCmd" class="btn btn--secondary btn--small">Copy command</button>

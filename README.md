@@ -70,25 +70,25 @@ If the browser blocks access, it will not reveal the exact path you attempted to
 
 Chrome/Edge can refuse access to some protected “system” folders. If the file picker says it **can’t open** the file/folder due to **system files**, use one of these:
 
-**Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree). Folder names are simple iterators: **`data-1`**, **`logs-1`**, **`data-2`**, … — set **Link #** in the app; increase it if that folder already exists. You can always confirm existing names in Explorer; the **browser** cannot list `Documents` on its own (only paths you paste or pick), which is why Link # is manual.
+**Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree). Destination folders are named **`data-xxxxxxxx`** / **`logs-xxxxxxxx`** (8 hex characters from a hash of the **source path** you paste), so different paths never collide and the same path always gets the same name.
 
 ```bat
-mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1" "%APPDATA%\VintagestoryData"
+mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"
 ```
 
-Then pick: `Documents\vs-queue-monitor\data-1\Logs\client-main.log` (adjust `data-1` to match **Link #** in the app).
+Then pick: `Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log` (use the exact folder name from **Generate an exact command** for your path).
 
 **Linux / macOS (file symlink into ~/vs-queue-monitor):**
 
 ```bash
-mkdir -p ~/vs-queue-monitor/logs-1
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/client-main.log
+mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f8e7d6c/client-main.log
 ```
 
-Then pick: `~/vs-queue-monitor/logs-1/client-main.log` (same **Link #** idea).
+Then pick: `~/vs-queue-monitor/logs-9f8e7d6c/client-main.log` (same hash-from-path idea).
 
-Note: the browser does not reveal the exact path you attempted to pick when it blocks access. Use the in-app generator for commands and **Link #**; replace the source path if your install uses a different location.
+Note: the browser does not reveal the exact path you attempted to pick when it blocks access. Use the in-app generator for the exact folder name and source path; replace the source if your install uses a different location.
 
 If the destination folder already exists (for example from a previous attempt), remove it first (`rmdir /S /Q` on Windows for a non-empty directory you no longer need) before running `mklink`.
 

@@ -319,7 +319,6 @@ body{
   font-size:12px;
 }
 .helpForm__input:focus{outline:2px solid rgba(87,148,242,0.35);outline-offset:2px}
-.helpForm__input--narrow{max-width:96px}
 .helpForm__actions{display:flex;gap:8px;flex-wrap:wrap}
 
 .helpPlat{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
@@ -365,14 +364,14 @@ body{
           </div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
-          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1" "%APPDATA%\VintagestoryData"</pre>
-          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1\Logs\client-main.log</span> — <span class="muted">use <strong>Link #</strong> below if you need <span class="mono">data-2</span>, etc.</span></div>
+          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d"
+mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
+          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
-          <pre class="code">mkdir -p ~/vs-queue-monitor/logs-1
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/client-main.log</pre>
-          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/logs-1/client-main.log</span> — <span class="muted">bump Link # for <span class="mono">logs-2</span> if needed.</span></div>
+          <pre class="code">mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
+ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</pre>
+          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</span> — <span class="muted">same hash idea from the generator.</span></div>
 
           <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
           <div class="modal__text">
@@ -384,7 +383,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/
             Paste the Vintage Story data folder path (Windows) or the log file path (Linux), then copy the generated command.
           </div>
           <div class="modal__text muted">
-            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> using simple names like <span class="mono">data-1</span> or <span class="mono">logs-1</span>. Set <strong>Link #</strong> below; increase it (2, 3, …) if that folder already exists — you can always check in Explorer. (The browser cannot silently list <span class="mono">Documents</span>; it only sees paths you pick or paste, which is why the number is a field and not auto-detected.) Mac/Linux use the same numbering under <span class="mono">~/vs-queue-monitor/</span>.
+            Windows uses a <span class="mono">folder junction</span> (<span class="mono">mklink /J</span>) into <span class="mono">Documents\vs-queue-monitor\</span> with names like <span class="mono">data-xxxxxxxx</span> or <span class="mono">logs-xxxxxxxx</span> (8 hex chars from a hash of the <strong>source path</strong> you paste — same path always gets the same name). Mac/Linux use the same pattern under <span class="mono">~/vs-queue-monitor/</span>.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -398,16 +397,6 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/
               placeholder='Example (Windows): %APPDATA%\\VintagestoryData  |  (Mac): ~/Library/Application Support/VintagestoryData/Logs/client-main.log  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
               autocomplete="off"
               spellcheck="false"
-            />
-            <label class="helpForm__label" for="inpHelpLinkSlot">Link #</label>
-            <input
-              id="inpHelpLinkSlot"
-              class="input helpForm__input helpForm__input--narrow"
-              type="number"
-              min="1"
-              max="99"
-              value="1"
-              title="Folder suffix: logs-1 / data-1. Increase if that folder already exists."
             />
             <div class="helpForm__actions">
               <button id="btnHelpCopyCmd" class="btn btn--secondary btn--small">Copy command</button>
@@ -578,7 +567,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-1/
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.15";
+const APP_VERSION = "2.0.17";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -596,7 +585,6 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
-  inpHelpLinkSlot: /** @type {HTMLInputElement} */ ($("inpHelpLinkSlot")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
@@ -637,7 +625,6 @@ const ui = {
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
 const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
-const STORAGE_HELP_LINK_SLOT_KEY = "vsqm_help_link_slot_v1";
 let helpPlat = "win";
 
 function setHelpPlat(next) {
@@ -740,11 +727,6 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
-  loadHelpLinkSlot();
-  ui.inpHelpLinkSlot?.addEventListener("input", () => {
-    saveHelpLinkSlot();
-    renderHelpCommandPreview();
-  });
   ui.btnHelpLoadFile?.addEventListener("click", async () => {
     const expected = String(ui.spanHelpPickPath?.textContent || "").trim();
     if (expected) {
@@ -775,32 +757,19 @@ function normalizeSlashes(s) {
   return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
 }
 
-function readHelpLinkSlot() {
-  const n = Number.parseInt(String(ui.inpHelpLinkSlot?.value ?? "1"), 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  if (n > 99) return 99;
-  return Math.floor(n);
+function hashSourcePathForLinkFolder(seedPath, kind) {
+  const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
+  let h = 0x811c9dc5;
+  const str = `${kind}|${p}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
 }
 
-function loadHelpLinkSlot() {
-  try {
-    const raw = localStorage.getItem(STORAGE_HELP_LINK_SLOT_KEY);
-    if (raw == null || !ui.inpHelpLinkSlot) return;
-    const n = Number.parseInt(raw, 10);
-    if (!Number.isFinite(n) || n < 1) return;
-    ui.inpHelpLinkSlot.value = String(Math.min(99, Math.floor(n)));
-  } catch {}
-}
-
-function saveHelpLinkSlot() {
-  try {
-    localStorage.setItem(STORAGE_HELP_LINK_SLOT_KEY, String(readHelpLinkSlot()));
-  } catch {}
-}
-
-function linkFolderName(slot, kind) {
-  const n = Number.isFinite(slot) && slot >= 1 && slot <= 99 ? Math.floor(slot) : 1;
-  return kind === "logs" ? `logs-${n}` : `data-${n}`;
+function linkFolderName(kind, seedPath) {
+  return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
 }
 
 function renderHelpCommandPreview() {
@@ -810,7 +779,6 @@ function renderHelpCommandPreview() {
   const isUnix = helpPlat === "unix";
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
   const logName = "client-main.log";
-  const slot = readHelpLinkSlot();
   const setPick = (p) => {
     if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
   };
@@ -824,7 +792,7 @@ function renderHelpCommandPreview() {
       looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
 
     if (looksLikeLogsFolder) {
-      const leaf = linkFolderName(slot, "logs");
+      const leaf = linkFolderName("logs", srcDir);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
@@ -833,7 +801,7 @@ function renderHelpCommandPreview() {
       return;
     }
 
-    const leaf = linkFolderName(slot, "data");
+    const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
@@ -845,7 +813,7 @@ function renderHelpCommandPreview() {
   if (isUnix) {
     if (wantsFile) {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
-      const leaf = linkFolderName(slot, "logs");
+      const leaf = linkFolderName("logs", srcFile);
       ui.preHelpCmd.textContent =
         `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
         `ln -s ${srcFile} ~/vs-queue-monitor/${leaf}/${logName}`;
@@ -853,7 +821,7 @@ function renderHelpCommandPreview() {
       return;
     }
     const srcDir = raw || "~/.config/VintagestoryData";
-    const leaf = linkFolderName(slot, "data");
+    const leaf = linkFolderName("data", srcDir);
     ui.preHelpCmd.textContent =
       `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
       `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/${leaf}/${logName}`;

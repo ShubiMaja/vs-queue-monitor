@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.15";
+const APP_VERSION = "2.0.17";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -16,7 +16,6 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
-  inpHelpLinkSlot: /** @type {HTMLInputElement} */ ($("inpHelpLinkSlot")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
   btnHelpPlatUnix: $("btnHelpPlatUnix"),
@@ -57,7 +56,6 @@ const ui = {
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
 const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
-const STORAGE_HELP_LINK_SLOT_KEY = "vsqm_help_link_slot_v1";
 /** @type {"win"|"unix"} */
 let helpPlat = "win";
 
@@ -196,11 +194,6 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
-  loadHelpLinkSlot();
-  ui.inpHelpLinkSlot?.addEventListener("input", () => {
-    saveHelpLinkSlot();
-    renderHelpCommandPreview();
-  });
   ui.btnHelpLoadFile?.addEventListener("click", async () => {
     const expected = String(ui.spanHelpPickPath?.textContent || "").trim();
     if (expected) {
@@ -231,40 +224,28 @@ function normalizeSlashes(s) {
   return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
 }
 
-function readHelpLinkSlot() {
-  const n = Number.parseInt(String(ui.inpHelpLinkSlot?.value ?? "1"), 10);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  if (n > 99) return 99;
-  return Math.floor(n);
-}
-
-function loadHelpLinkSlot() {
-  try {
-    const raw = localStorage.getItem(STORAGE_HELP_LINK_SLOT_KEY);
-    if (raw == null || !ui.inpHelpLinkSlot) return;
-    const n = Number.parseInt(raw, 10);
-    if (!Number.isFinite(n) || n < 1) return;
-    ui.inpHelpLinkSlot.value = String(Math.min(99, Math.floor(n)));
-  } catch {
-    // ignore
+/**
+ * Stable 8-char hex id from the pasted source path + kind (same path → same folder name).
+ * @param {string} seedPath
+ * @param {"logs"|"data"} kind
+ */
+function hashSourcePathForLinkFolder(seedPath, kind) {
+  const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
+  let h = 0x811c9dc5;
+  const str = `${kind}|${p}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
   }
-}
-
-function saveHelpLinkSlot() {
-  try {
-    localStorage.setItem(STORAGE_HELP_LINK_SLOT_KEY, String(readHelpLinkSlot()));
-  } catch {
-    // ignore
-  }
+  return (h >>> 0).toString(16).padStart(8, "0");
 }
 
 /**
- * Human-readable folder under vs-queue-monitor: logs-1, data-2, … (Link # in Help).
  * @param {"logs"|"data"} kind
+ * @param {string} seedPath
  */
-function linkFolderName(slot, kind) {
-  const n = Number.isFinite(slot) && slot >= 1 && slot <= 99 ? Math.floor(slot) : 1;
-  return kind === "logs" ? `logs-${n}` : `data-${n}`;
+function linkFolderName(kind, seedPath) {
+  return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
 }
 
 function renderHelpCommandPreview() {
@@ -275,7 +256,6 @@ function renderHelpCommandPreview() {
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
   // For guidance, always prefer the canonical client log name.
   const logName = "client-main.log";
-  const slot = readHelpLinkSlot();
   const setPick = (p) => {
     if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
   };
@@ -290,7 +270,7 @@ function renderHelpCommandPreview() {
 
     // Folder junction (mklink /J): works without Developer Mode; exposes Logs so you pick client-main.log inside.
     if (looksLikeLogsFolder) {
-      const leaf = linkFolderName(slot, "logs");
+      const leaf = linkFolderName("logs", srcDir);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
@@ -299,7 +279,7 @@ function renderHelpCommandPreview() {
       return;
     }
 
-    const leaf = linkFolderName(slot, "data");
+    const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
@@ -311,7 +291,7 @@ function renderHelpCommandPreview() {
   if (isUnix) {
     if (wantsFile) {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
-      const leaf = linkFolderName(slot, "logs");
+      const leaf = linkFolderName("logs", srcFile);
       ui.preHelpCmd.textContent =
         `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
         `ln -s ${srcFile} ~/vs-queue-monitor/${leaf}/${logName}`;
@@ -319,7 +299,7 @@ function renderHelpCommandPreview() {
       return;
     }
     const srcDir = raw || "~/.config/VintagestoryData";
-    const leaf = linkFolderName(slot, "data");
+    const leaf = linkFolderName("data", srcDir);
     ui.preHelpCmd.textContent =
       `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
       `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/${leaf}/${logName}`;
