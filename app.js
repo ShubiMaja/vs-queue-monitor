@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.60";
+const APP_VERSION = "2.0.61";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2243,6 +2243,7 @@ function syncWarningsMarquee() {
   const rail = ui.kpiWarningsRail;
   if (!viewport || !rail) return;
   viewport.classList.remove("kpiWarn__viewport--scroll");
+  viewport.classList.remove("kpiWarn__viewport--overflow");
   rail.classList.remove("kpiWarn__rail--marquee");
   rail.style.removeProperty("--kpi-warn-shift");
   rail.style.removeProperty("animation");
@@ -2252,6 +2253,7 @@ function syncWarningsMarquee() {
       const vw = viewport.clientWidth;
       const rw = rail.scrollWidth;
       if (rw <= vw + 2) return;
+      viewport.classList.add("kpiWarn__viewport--overflow");
       const now = Date.now() / 1000;
       if (!(now < warningsMarqueeUntilEpoch)) return;
       if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -3397,7 +3399,7 @@ function flashInput(el) {
 }
 
 // Inline-edit affordances: click KPI to jump to the relevant setting.
-ui.kpiWarnings.title = "Click to edit warning thresholds. Pans horizontally when the list is wider than the cell.";
+ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
   focusAndReveal(ui.inpThresholds);
