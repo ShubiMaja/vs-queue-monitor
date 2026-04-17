@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.7";
+const APP_VERSION = "2.1.8";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1125,18 +1125,55 @@ const POST_QUEUE_PROGRESS_LINE_RES = [
   /\bspawn(?:ed|ing)?\s+(?:at|in|near)\b/i,
 ];
 
-const QUEUE_RUN_BOUNDARY_RES = [
-  /\breconnect(?:ing|ed)?\b/i,
+// Queue run "session" boundaries.
+// Important: some logs contain "connecting/opening connection" lines *during* a single queue wait.
+// Treat those as "soft" boundaries only *before* we’ve observed a queue position in the current session.
+const QUEUE_RUN_HARD_BOUNDARY_RES = [
   /\b(?:connection|connect)\s+(?:to\s+(?:the\s+)?)?(?:server\s+)?(?:lost|closed|failed|aborted|reset|refused|timed\s*out)\b/i,
   /\b(?:lost|closed)\s+connection\b/i,
   /\bdisconnect(?:ed|ing)?\b/i,
+  /\breturned\s+to\s+(?:the\s+)?main\s+menu\b/i,
+  /\b(?:server|client)\s+shut\s+down\b/i,
+];
+const QUEUE_RUN_SOFT_BOUNDARY_RES = [
+  /\breconnect(?:ing|ed)?\b/i,
   /\bopening\s+connection\b/i,
   /\bconnecting\s+to\s+/i,
   /\binitialized\s+server\s+connection\b/i,
   /\btrying\s+to\s+connect\b/i,
-  /\breturned\s+to\s+(?:the\s+)?main\s+menu\b/i,
-  /\b(?:server|client)\s+shut\s+down\b/i,
 ];
+
+/**
+ * Build a session counter (relative to this chunk) that does not split a single queue wait
+ * just because the log emitted reconnect/connecting lines mid-queue.
+ * @param {string[]} lines
+ */
+function queueRunSessionBeforeLine(lines) {
+  const sessionBeforeLine = new Array(lines.length);
+  let session = 0;
+  let sawQueueInSession = false;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = session;
+    const s = String(lines[i] || "").trim();
+    if (!s) continue;
+    const pos = queuePositionFromLine(s);
+    if (pos != null) {
+      sawQueueInSession = true;
+      continue;
+    }
+    if (QUEUE_RUN_HARD_BOUNDARY_RES.some((r) => r.test(s))) {
+      session += 1;
+      sawQueueInSession = false;
+      continue;
+    }
+    if (!sawQueueInSession && QUEUE_RUN_SOFT_BOUNDARY_RES.some((r) => r.test(s))) {
+      session += 1;
+      sawQueueInSession = false;
+      continue;
+    }
+  }
+  return sessionBeforeLine;
+}
 
 /**
  * @param {string} line
@@ -1145,7 +1182,7 @@ function isQueueRunBoundaryLine(line) {
   const s = line.trim();
   if (!s) return false;
   if (queuePositionFromLine(s) != null) return false;
-  return QUEUE_RUN_BOUNDARY_RES.some((r) => r.test(s));
+  return QUEUE_RUN_HARD_BOUNDARY_RES.some((r) => r.test(s)) || QUEUE_RUN_SOFT_BOUNDARY_RES.some((r) => r.test(s));
 }
 
 /**
@@ -1272,17 +1309,14 @@ function classifyTailConnectionState(data) {
 function parseTailLastQueueReading(data) {
   /** @type {number|null} */
   let lastPos = null;
-  let session = 0;
+  const lines = data.split(/\r?\n/);
+  const sessionBeforeLine = queueRunSessionBeforeLine(lines);
   let lastSess = 0;
-  for (const line of data.split(/\r?\n/)) {
-    if (isQueueRunBoundaryLine(line)) {
-      session += 1;
-      continue;
-    }
-    const pos = queuePositionFromLine(line);
+  for (let i = 0; i < lines.length; i++) {
+    const pos = queuePositionFromLine(lines[i]);
     if (pos == null) continue;
     lastPos = pos;
-    lastSess = session;
+    lastSess = sessionBeforeLine[i] ?? lastSess;
   }
   return { lastPos, session: lastSess };
 }
@@ -1352,12 +1386,7 @@ function sliceLoadedLogToCurrentQueueRun(data) {
   if (!data) return data;
   const lines = data.split(/\r?\n/);
   if (lines.length === 0) return data;
-  const sessionBeforeLine = new Array(lines.length);
-  let s = 0;
-  for (let i = 0; i < lines.length; i++) {
-    sessionBeforeLine[i] = s;
-    if (isQueueRunBoundaryLine(lines[i])) s++;
-  }
+  const sessionBeforeLine = queueRunSessionBeforeLine(lines);
   let lastQIdx = -1;
   for (let i = 0; i < lines.length; i++) {
     if (queuePositionFromLine(lines[i]) != null) lastQIdx = i;
@@ -3123,12 +3152,7 @@ function replayQueueGraphFromText(fullText) {
     return;
   }
   const lines = text.split(/\r?\n/);
-  const sessionBeforeLine = new Array(lines.length);
-  let s = 0;
-  for (let i = 0; i < lines.length; i++) {
-    sessionBeforeLine[i] = s;
-    if (isQueueRunBoundaryLine(lines[i])) s++;
-  }
+  const sessionBeforeLine = queueRunSessionBeforeLine(lines);
 
   graphPoints = [];
   currentPoint = null;
@@ -3521,13 +3545,10 @@ async function pollOnce() {
     }
 
     if (!interruptedMode && (kind === "reconnecting" || kind === "grace" || logSilent) && !(lastPos != null && lastPos <= 1)) {
-      leftConnectQueueDetected = false;
-      progressAtFrontEntry = null;
-      positionOneReachedAt = null;
-      connectPhaseStartedEpoch = null;
+      // Do not wipe rate/progress history just because the tail is temporarily in a connecting/reconnecting phase.
+      // We still want ETA/rate/progress to remain stable using existing graphPoints until we truly detect a new run or a disconnect.
       setStatus(logSilent || kind === "grace" ? "Reconnecting…" : "Connecting…");
-      setPositionDisplay(null);
-      lastPosition = null;
+      setPositionDisplay(lastPosition);
       return;
     }
 
