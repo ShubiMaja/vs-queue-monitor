@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.59";
+const APP_VERSION = "2.0.60";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2013,7 +2013,9 @@ let mppFloorPosition = null;
 let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
-  ui.kpiStatus.textContent = text;
+  const statusTextEl = /** @type {HTMLElement|null} */ (document.getElementById("kpiStatusText"));
+  if (statusTextEl) statusTextEl.textContent = text;
+  else ui.kpiStatus.textContent = text;
   // legacy flag (still used by some callers)
   ui.kpiStatus.classList.toggle("danger", danger);
 

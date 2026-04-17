@@ -156,14 +156,20 @@ body{
   margin:0 auto;
 }
 
-/* Tail activity indicator, docked to graph (subtle). */
-.card.graph{position:relative}
-.logActivity--graph{
-  position:absolute;
-  right:12px;
-  bottom:42px; /* sits just above the hint bar */
-  z-index:2;
-  padding:4px 10px;
+/* Tail activity indicator, merged into Status KPI (subtle dot). */
+.logActivity--status{
+  display:inline-flex;
+  padding:0;
+  border:0;
+  background:transparent;
+  backdrop-filter:none;
+  margin-right:10px;
+  vertical-align:middle;
+}
+.logActivity--status .logActivityLed{
+  width:9px;
+  height:9px;
+  opacity:0.35;
 }
 
 @media (max-width: 980px){
@@ -860,7 +866,17 @@ body{
         </div>
         <div class="kpi">
           <div class="kpi__label">STATUS</div>
-          <div id="kpiStatus" class="kpi__value kpi__value--ok">Idle</div>
+          <div id="kpiStatus" class="kpi__value kpi__value--ok">
+            <span
+              id="logActivityWrap"
+              class="logActivity logActivity--status"
+              hidden
+              title="Monitoring is tailing the log (live read)."
+            >
+              <span class="logActivityLed" id="logActivityLed" aria-hidden="true"></span>
+            </span>
+            <span class="statusText" id="kpiStatusText">Idle</span>
+          </div>
         </div>
         <div class="kpi">
           <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
@@ -911,15 +927,6 @@ body{
           </div>
         </div>
         <canvas id="graphCanvas" width="1200" height="360"></canvas>
-        <div
-          id="logActivityWrap"
-          class="logActivity logActivity--graph"
-          hidden
-          title="Pulses when a new line appears in the log tail (live read)."
-        >
-          <span class="logActivityLed" id="logActivityLed" aria-hidden="true"></span>
-          <span class="logActivity__label">tail</span>
-        </div>
         <div class="graph__hint" id="graphHint"></div>
       </section>
 
@@ -978,7 +985,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.59";
+const APP_VERSION = "2.0.60";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2992,7 +2999,9 @@ let mppFloorPosition = null;
 let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
-  ui.kpiStatus.textContent = text;
+  const statusTextEl = /** @type {HTMLElement|null} */ (document.getElementById("kpiStatusText"));
+  if (statusTextEl) statusTextEl.textContent = text;
+  else ui.kpiStatus.textContent = text;
   // legacy flag (still used by some callers)
   ui.kpiStatus.classList.toggle("danger", danger);
 
