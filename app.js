@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.5";
+const APP_VERSION = "2.0.6";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -56,7 +56,7 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   const host = ui.toastHost;
   if (!host) return;
   const el = document.createElement("div");
-  el.className = `toast ${kind === "error" ? "toast--error" : ""}`.trim();
+  el.className = `toast ${kind === "error" ? "toast--error" : kind === "warn" ? "toast--warn" : ""}`.trim();
   const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
     `<div class="toast__title">${escapeHtml(String(title))}</div>` +
@@ -823,7 +823,11 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
-      showToast("Pick cancelled", "No file was selected.", "info", { durationMs: 5000 });
+      showToast("Pick cancelled", "No file was selected.", "warn", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 7000,
+      });
       return;
     }
     const looksBlocked =
@@ -889,7 +893,11 @@ async function pickFolder() {
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
-      showToast("Pick cancelled", "No folder was selected.", "info", { durationMs: 5000 });
+      showToast("Pick cancelled", "No folder was selected.", "warn", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 7000,
+      });
       return;
     }
     appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
