@@ -581,6 +581,29 @@ async function pickLogFile() {
     appendHistory("This browser does not support file picking. Use Edge or Chrome.");
     return;
   }
+  // Proactive guidance: the picker UI can block “system” folders before we get a rejection.
+  try {
+    const isFile = String(window.location && window.location.protocol) === "file:";
+    const plat = String(navigator.platform || "").toLowerCase();
+    const isWin = plat.includes("win");
+    const isLinux = plat.includes("linux");
+    if (isFile && (isWin || isLinux)) {
+      appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
+      if (isWin) {
+        appendHistory("Windows workaround (junction via Documents):");
+        appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
+        appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
+        appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
+      } else if (isLinux) {
+        appendHistory("Linux workaround (symlink into ~/VSLogs):");
+        appendHistory("  mkdir -p ~/VSLogs");
+        appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
+        appendHistory("Then pick: ~/VSLogs/client-main.log");
+      }
+    }
+  } catch {
+    // ignore
+  }
   /** @type {any} */
   let startIn = undefined;
   try {
