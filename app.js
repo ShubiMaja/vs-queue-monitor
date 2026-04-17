@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.45";
+const APP_VERSION = "2.0.46";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -42,6 +42,7 @@ const ui = {
   kpiRateLabel: $("kpiRateLabel"),
   kpiRate: $("kpiRate"),
   kpiWarnings: $("kpiWarnings"),
+  kpiWarningsRail: $("kpiWarningsRail"),
   kpiElapsed: $("kpiElapsed"),
   kpiRemaining: $("kpiRemaining"),
   progressFill: $("progressFill"),
@@ -1823,12 +1824,40 @@ function formatQueueRate(mpp) {
   return "—";
 }
 
+function syncWarningsMarquee() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  const rail = ui.kpiWarningsRail;
+  if (!viewport || !rail) return;
+  viewport.classList.remove("kpiWarn__viewport--scroll");
+  rail.classList.remove("kpiWarn__rail--marquee");
+  rail.style.removeProperty("--kpi-warn-shift");
+  rail.style.removeProperty("animation");
+
+  queueMicrotask(() => {
+    requestAnimationFrame(() => {
+      const vw = viewport.clientWidth;
+      const rw = rail.scrollWidth;
+      if (rw <= vw + 2) return;
+      if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+      const shift = rw - vw;
+      rail.style.setProperty("--kpi-warn-shift", `${shift}px`);
+      const sec = Math.min(22, Math.max(7, 6 + shift / 28));
+      rail.style.animation = `kpiWarnMarquee ${sec}s ease-in-out infinite alternate`;
+      viewport.classList.add("kpiWarn__viewport--scroll");
+      rail.classList.add("kpiWarn__rail--marquee");
+    });
+  });
+}
+
 function refreshWarningsKpi() {
   let thresholds;
   try {
     thresholds = parseAlertThresholds(config.thresholdsRaw);
   } catch {
-    ui.kpiWarnings.textContent = "—";
+    if (ui.kpiWarningsRail) ui.kpiWarningsRail.textContent = "—";
+    syncWarningsMarquee();
     return;
   }
   const pos = currentQueuePosition();
@@ -1839,7 +1868,10 @@ function refreshWarningsKpi() {
     const cls = passed ? "kpiWarn--hit" : "kpiWarn--pending";
     parts.push(`<span class="${cls}">${escapeHtml(String(t))}</span>`);
   }
-  ui.kpiWarnings.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
+  if (ui.kpiWarningsRail) {
+    ui.kpiWarningsRail.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
+  }
+  syncWarningsMarquee();
 }
 
 function estimateSecondsRemaining() {
@@ -2724,6 +2756,13 @@ window.addEventListener(
 wireHelpOverlay();
 startUpdateCheckLoop();
 
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport || typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => syncWarningsMarquee());
+  ro.observe(viewport);
+})();
+
 ui.btnResumeLastLog.addEventListener("click", async () => {
   const h = pendingRestoreHandle;
   if (!h) return;
@@ -2787,7 +2826,7 @@ function flashInput(el) {
 }
 
 // Inline-edit affordances: click KPI to jump to the relevant setting.
-ui.kpiWarnings.title = "Click to edit warning thresholds";
+ui.kpiWarnings.title = "Click to edit warning thresholds. Pans horizontally when the list is wider than the cell.";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
   focusAndReveal(ui.inpThresholds);

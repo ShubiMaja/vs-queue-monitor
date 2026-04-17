@@ -158,7 +158,7 @@ The app is a **single-page dashboard** with a stable mental model:
 
 1. **Header** — identity, **help** (`?`), optional **notifications** enablement. Help is a **working surface** (short picker guidance, command generator, load actions); **README** holds full troubleshooting.
 2. **Control strip** — pick log (and optionally folder where supported), **Start / Stop**, and when needed **permission / grant access** flows. This is the **gate** between “configured” and “live.”
-3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings, elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
+3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings (the threshold row **auto-pans** when the list is wider than the cell), elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
 4. **Chart** — **time series** of position for the **current queue session**, so the user sees **trend**, not only a snapshot.
 5. **Info (collapsible)** — **secondary** detail: last changes, global averages, resolved label for the log source—**supporting** the KPIs, not competing with them.
 6. **History (collapsible)** — **narrative log** of app events and optional per-step queue lines (when enabled). For debugging and reassurance, not the primary readout.
