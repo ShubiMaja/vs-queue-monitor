@@ -1,3 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VS Queue Monitor</title>
+    <link
+      rel="icon"
+      href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg"
+      type="image/svg+xml"
+    />
+    <style>
+:root{
+  --bg-app:#111217;
+  --bg-card:#181b1f;
+  --bg-card-2:#0d0f14;
+  --text:#d8d9da;
+  --muted:#8e9ba3;
+  --link:#58a6ff;
+  --sep:#2e3742;
+  --danger:#f2495c;
+  --ok:#73bf69;
+  --accent:#5794f2;
+  --btn:#2e3742;
+  --btn-active:#384556;
+  --btn-primary:#1f883d;
+  --btn-primary-active:#2ea043;
+  --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --sans:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--sans);
+  background:var(--bg-app);
+  color:var(--text);
+}
+
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg, rgba(24,27,31,0.92), rgba(17,18,23,0.92));
+  position:sticky;
+  top:0;
+  backdrop-filter: blur(10px);
+  z-index:10;
+}
+.brand__title{font-weight:800;font-size:16px;letter-spacing:0.2px}
+.brand__tagline{font-size:12px;color:var(--muted);margin-top:2px}
+.topbar__actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+
+.layout{
+  padding:16px;
+  display:grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap:14px;
+  max-width:1280px;
+  margin:0 auto;
+}
+
+@media (max-width: 980px){
+  .layout{grid-template-columns:1fr}
+}
+
+.card{
+  background:var(--bg-card);
+  border:1px solid rgba(46,55,66,0.9);
+  border-radius:12px;
+  overflow:hidden;
+}
+.card__header{
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid var(--sep);
+  background:rgba(13,15,20,0.35);
+}
+.card__title{font-weight:700;font-size:13px;color:var(--text)}
+.card__actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.btn{
+  appearance:none;
+  border:1px solid rgba(46,55,66,0.9);
+  background:var(--btn);
+  color:var(--text);
+  padding:9px 11px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:650;
+  font-size:13px;
+  letter-spacing:0.1px;
+}
+.btn:hover{background:var(--btn-active)}
+.btn:disabled{opacity:0.55;cursor:not-allowed}
+.btn--small{padding:6px 9px;font-size:12px;border-radius:9px}
+.btn--secondary{background:rgba(46,55,66,0.6)}
+.btn--primary{
+  background:var(--btn-primary);
+  border-color:rgba(31,136,61,0.65);
+}
+.btn--primary:hover{background:var(--btn-primary-active)}
+
+.kpis{
+  grid-column:1 / -1;
+  display:grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+@media (max-width: 980px){
+  .kpis{grid-template-columns: repeat(2, minmax(0, 1fr))}
+}
+.kpi{padding:12px 12px;border-right:1px solid var(--sep);min-height:72px}
+.kpi:last-child{border-right:0}
+.kpi__label{font-size:11px;letter-spacing:0.8px;color:var(--muted);font-weight:800}
+.kpi__value{margin-top:6px;font-size:20px;font-weight:800;color:#f0f4f8;line-height:1.1}
+.kpi__value--mono{font-family:var(--mono);font-weight:750}
+.kpi__value--ok{color:#f0f4f8}
+.kpi--progress{grid-column: span 1}
+
+.progress{
+  margin-top:12px;
+  width:100%;
+  height:10px;
+  border-radius:999px;
+  background:rgba(46,55,66,0.9);
+  overflow:hidden;
+}
+.progress__fill{
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg, var(--accent), #8be9fd);
+}
+
+.graph{grid-column:1 / -1}
+#graphCanvas{display:block;width:100%;height:360px;background:rgba(13,15,18,0.95)}
+.graph__hint{padding:8px 12px;color:var(--muted);font-size:12px}
+
+.twoCol .infoGrid{padding:12px}
+.infoGrid{
+  display:grid;
+  grid-template-columns: 140px 1fr;
+  gap:10px 12px;
+}
+.infoGrid__label{color:var(--muted);font-weight:750;font-size:12px}
+.infoGrid__value{font-family:var(--mono);font-size:12px;color:var(--text);overflow-wrap:anywhere}
+
+.settings .form{padding:12px;display:grid;grid-template-columns: repeat(2, minmax(0,1fr));gap:12px}
+.field--wide{grid-column:1 / -1}
+.label{display:flex;gap:8px;align-items:center;color:var(--muted);font-weight:750;font-size:12px}
+.input{
+  width:100%;
+  margin-top:6px;
+  padding:10px 10px;
+  border-radius:10px;
+  border:1px solid rgba(46,55,66,0.95);
+  background:rgba(13,15,18,0.85);
+  color:var(--text);
+  outline:none;
+  font-family:var(--mono);
+  font-size:13px;
+}
+.input:focus{border-color:rgba(88,166,255,0.7)}
+.input.flash{
+  border-color:rgba(88,166,255,0.9);
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.15);
+}
+.settings__footer{
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  border-top:1px solid var(--sep);
+  background:rgba(13,15,20,0.35);
+}
+.settings__note{color:var(--muted);font-size:12px;min-height:18px}
+.settings__buttons{display:flex;gap:8px}
+
+.history__pre{
+  margin:0;
+  padding:12px;
+  max-height:320px;
+  overflow:auto;
+  font-family:var(--mono);
+  font-size:12px;
+  line-height:1.45;
+  white-space:pre-wrap;
+  background:rgba(13,15,18,0.6);
+}
+
+.footer{
+  max-width:1280px;
+  margin:0 auto;
+  padding:14px 16px 20px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  color:var(--muted);
+  font-size:12px;
+}
+.footer__sep{margin:0 8px;opacity:0.7}
+.link{color:var(--link);text-decoration:none}
+.link:hover{text-decoration:underline}
+
+.danger{color:var(--danger)!important}
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">VS Queue Monitor</div>
+        <div class="brand__tagline">Vintage Story client log queue monitor</div>
+      </div>
+      <div class="topbar__actions">
+        <button id="btnPickLog" class="btn">Pick log file…</button>
+        <button id="btnPickFolder" class="btn btn--secondary" title="Folder picking is optional and may be unavailable under file://">
+          Pick folder…
+        </button>
+        <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card kpis">
+        <div class="kpi">
+          <div class="kpi__label">POSITION</div>
+          <div id="kpiPosition" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">STATUS</div>
+          <div id="kpiStatus" class="kpi__value kpi__value--ok">Idle</div>
+        </div>
+        <div class="kpi">
+          <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
+          <div id="kpiRate" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">WARNINGS</div>
+          <div id="kpiWarnings" class="kpi__value kpi__value--mono">10 · 5 · 1</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">ELAPSED</div>
+          <div id="kpiElapsed" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">EST. REMAINING</div>
+          <div id="kpiRemaining" class="kpi__value">—</div>
+        </div>
+        <div class="kpi kpi--progress">
+          <div class="kpi__label">PROGRESS</div>
+          <div class="progress">
+            <div id="progressFill" class="progress__fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card graph">
+        <div class="card__header">
+          <div class="card__title">Queue graph</div>
+          <div class="card__actions">
+            <button id="btnYScale" class="btn btn--small btn--secondary" title="Toggle Y scale (log/linear)">
+              Y → linear
+            </button>
+            <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
+              Clear
+            </button>
+          </div>
+        </div>
+        <canvas id="graphCanvas" width="1200" height="360"></canvas>
+        <div class="graph__hint" id="graphHint"></div>
+      </section>
+
+      <section class="card twoCol">
+        <div class="card__header">
+          <div class="card__title">Info</div>
+          <div class="card__actions">
+            <button id="btnRequestNotify" class="btn btn--small btn--secondary" title="Enable browser notifications">
+              Enable notifications
+            </button>
+          </div>
+        </div>
+        <div class="infoGrid">
+          <div class="infoGrid__label">Logs folder</div>
+          <div id="infoSource" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Resolved log</div>
+          <div id="infoResolved" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Last change</div>
+          <div id="infoLastChange" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Last alert</div>
+          <div id="infoLastAlert" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Global rate</div>
+          <div id="infoGlobalRate" class="infoGrid__value">—</div>
+        </div>
+      </section>
+
+      <section class="card settings">
+        <div class="card__header">
+          <div class="card__title">Settings</div>
+        </div>
+        <div class="form">
+          <div class="field">
+            <label class="label" for="inpPollSec">Poll (s)</label>
+            <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
+          </div>
+          <div class="field">
+            <label class="label" for="inpThresholds">Warning thresholds</label>
+            <input id="inpThresholds" class="input" value="10, 5, 1" />
+          </div>
+          <div class="field">
+            <label class="label" for="inpWindowPoints">Rolling window (points)</label>
+            <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkLogEveryChange">
+              <input id="chkLogEveryChange" type="checkbox" />
+              Log every position change
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkWarnNotify">
+              <input id="chkWarnNotify" type="checkbox" checked />
+              Warning popups (threshold notifications)
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkWarnSound">
+              <input id="chkWarnSound" type="checkbox" checked />
+              Warning sound
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkCompletionNotify">
+              <input id="chkCompletionNotify" type="checkbox" checked />
+              Completion popup (post-queue detected)
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkCompletionSound">
+              <input id="chkCompletionSound" type="checkbox" checked />
+              Completion sound
+            </label>
+          </div>
+        </div>
+        <div class="settings__footer">
+          <div class="settings__note" id="settingsNote"></div>
+          <div class="settings__buttons">
+            <button id="btnSaveSettings" class="btn btn--secondary">Save</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card history">
+        <div class="card__header">
+          <div class="card__title">History</div>
+          <div class="card__actions">
+            <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
+          </div>
+        </div>
+        <pre id="historyPre" class="history__pre"></pre>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__left">
+        <span id="footerVersion">vweb-1</span>
+        <span class="footer__sep">·</span>
+        <span>Browser-only (no backend)</span>
+      </div>
+      <div class="footer__right">
+        <a class="link" href="https://www.vintagestory.at/" target="_blank" rel="noreferrer">Vintage Story</a>
+        <span class="footer__sep">·</span>
+        <a class="link" href="https://github.com/ShubiMaja/vs-queue-monitor" target="_blank" rel="noreferrer">Repo</a>
+      </div>
+    </footer>
+
+    <script type="module">
+/* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
+
 const APP_VERSION = "2.0.0";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -44,10 +428,6 @@ const ui = {
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
-// -----------------------------
-// Parsing (ported from core.py)
-// -----------------------------
-
 const QUEUE_RE = new RegExp(
   "(?:" +
     "client\\s+is\\s+in\\s+connect\\s+queue\\s+at\\s+position" +
@@ -56,10 +436,6 @@ const QUEUE_RE = new RegExp(
   "i",
 );
 
-/**
- * @param {string} line
- * @returns {number|null}
- */
 function queuePositionFromLine(line) {
   const matches = [...line.matchAll(QUEUE_RE)];
   for (let i = matches.length - 1; i >= 0; i--) {
@@ -131,9 +507,6 @@ const QUEUE_RUN_BOUNDARY_RES = [
   /\b(?:server|client)\s+shut\s+down\b/i,
 ];
 
-/**
- * @param {string} line
- */
 function isQueueRunBoundaryLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -141,9 +514,6 @@ function isQueueRunBoundaryLine(line) {
   return QUEUE_RUN_BOUNDARY_RES.some((r) => r.test(s));
 }
 
-/**
- * @param {string} line
- */
 function isGraceDisconnectLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -151,9 +521,6 @@ function isGraceDisconnectLine(line) {
   return GRACE_DISCONNECT_LINE_RES.some((r) => r.test(s));
 }
 
-/**
- * @param {string} line
- */
 function isFinalCrashLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -161,9 +528,6 @@ function isFinalCrashLine(line) {
   return FINAL_CRASH_LINE_RES.some((r) => r.test(s));
 }
 
-/**
- * @param {string} line
- */
 function isReconnectingLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -171,9 +535,6 @@ function isReconnectingLine(line) {
   return RECONNECTING_LINE_RES.some((r) => r.test(s));
 }
 
-/**
- * @param {string} line
- */
 function isDisconnectedLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -181,9 +542,6 @@ function isDisconnectedLine(line) {
   return DISCONNECTED_LINE_RES.some((r) => r.test(s));
 }
 
-/**
- * @param {string} line
- */
 function isHardDisconnectLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -192,9 +550,6 @@ function isHardDisconnectLine(line) {
   return isDisconnectedLine(s);
 }
 
-/**
- * @param {string} s
- */
 function isPostQueueProgressLine(s) {
   const t = s.trim();
   if (!t) return false;
@@ -202,9 +557,6 @@ function isPostQueueProgressLine(s) {
   return POST_QUEUE_PROGRESS_LINE_RES.some((r) => r.test(t));
 }
 
-/**
- * @param {string} data
- */
 function tailHasPostQueueAfterLastQueueLine(data) {
   const lines = data.split(/\r?\n/);
   let lastQ = -1;
@@ -218,14 +570,8 @@ function tailHasPostQueueAfterLastQueueLine(data) {
   return false;
 }
 
-/**
- * @param {string} data
- * @returns {{ kind: "disconnected"|"reconnecting"|"grace"|"queue"|"unknown", lastPos: number|null }}
- */
 function classifyTailConnectionState(data) {
-  /** @type {"disconnected"|"reconnecting"|"grace"|"queue"|"unknown"} */
   let lastKind = "unknown";
-  /** @type {number|null} */
   let lastPos = null;
 
   for (const line of data.split(/\r?\n/)) {
@@ -258,12 +604,7 @@ function classifyTailConnectionState(data) {
   return { kind: lastKind, lastPos };
 }
 
-/**
- * @param {string} data
- * @returns {{ lastPos: number|null, session: number }}
- */
 function parseTailLastQueueReading(data) {
-  /** @type {number|null} */
   let lastPos = null;
   let session = 0;
   let lastSess = 0;
@@ -282,10 +623,6 @@ function parseTailLastQueueReading(data) {
 
 const TS_RE = /^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\b/;
 
-/**
- * @param {string} line
- * @returns {number|null} epoch seconds
- */
 function parseLogTimestampEpoch(line) {
   const m = TS_RE.exec(line);
   if (!m) return null;
@@ -302,12 +639,7 @@ function parseLogTimestampEpoch(line) {
   return t;
 }
 
-/**
- * @param {string} data
- * @returns {number|null}
- */
 function parseTailLastQueueLineEpoch(data) {
-  /** @type {number|null} */
   let lastT = null;
   for (const line of data.split(/\r?\n/)) {
     if (queuePositionFromLine(line) == null) continue;
@@ -317,10 +649,6 @@ function parseTailLastQueueLineEpoch(data) {
   return lastT;
 }
 
-/**
- * @param {string} raw
- * @returns {number[]}
- */
 function parseAlertThresholds(raw) {
   const parts = raw.replaceAll(",", " ").split(/\s+/).map((s) => s.trim()).filter(Boolean);
   const out = [];
@@ -336,15 +664,10 @@ function parseAlertThresholds(raw) {
   return uniq;
 }
 
-// -----------------------------
-// State + config
-// -----------------------------
-
 const STORAGE_KEY = "vsqm_web_config_v1";
 const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
 
-// Debounced auto-save (mirrors the old app’s “save shortly after change” feel).
-let _autosaveTimer = /** @type {number|null} */ (null);
+let _autosaveTimer = null;
 function scheduleAutosave(note = "") {
   if (_autosaveTimer != null) window.clearTimeout(_autosaveTimer);
   _autosaveTimer = window.setTimeout(() => {
@@ -352,16 +675,13 @@ function scheduleAutosave(note = "") {
     try {
       saveConfig();
       if (note) showSettingsNote(note);
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, 450);
 }
 
 function applyFormToConfig() {
   const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
   const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
-  // Validate thresholds but only throw if the user explicitly saves.
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
   config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
@@ -373,21 +693,6 @@ function applyFormToConfig() {
   ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
 }
 
-/**
- * @typedef {{
- *   pollSec: number,
- *   thresholdsRaw: string,
- *   windowPoints: number,
- *   logEveryChange: boolean,
- *   warnNotify: boolean,
- *   warnSound: boolean,
- *   completionNotify: boolean,
- *   completionSound: boolean,
- *   graphLogScale: boolean
- * }} AppConfig
- */
-
-/** @type {AppConfig} */
 let config = {
   pollSec: 2,
   thresholdsRaw: "10, 5, 1",
@@ -406,10 +711,7 @@ function loadConfig() {
     if (!raw) return;
     const obj = JSON.parse(raw);
     if (obj && typeof obj === "object") {
-      config = {
-        ...config,
-        ...obj,
-      };
+      config = { ...config, ...obj };
     }
   } catch {
     // ignore
@@ -439,11 +741,6 @@ function showSettingsNote(text, isError = false) {
   if (text) setTimeout(() => showSettingsNote("", false), 4000);
 }
 
-// -----------------------------
-// History + notifications + sound
-// -----------------------------
-
-/** @type {string[]} */
 let history = [];
 
 function nowStamp() {
@@ -459,10 +756,6 @@ function appendHistory(msg) {
   ui.historyPre.scrollTop = ui.historyPre.scrollHeight;
 }
 
-/**
- * @param {string} title
- * @param {string} body
- */
 function notify(title, body) {
   if (!config.warnNotify && title.startsWith("⚠")) return;
   if (!config.completionNotify && title.startsWith("🎉")) return;
@@ -475,7 +768,6 @@ function notify(title, body) {
   }
 }
 
-/** @type {AudioContext|null} */
 let audioCtx = null;
 
 function beep(kind) {
@@ -503,13 +795,7 @@ function beep(kind) {
   }
 }
 
-// -----------------------------
-// File access
-// -----------------------------
-
-/** @type {FileSystemFileHandle|null} */
 let logFileHandle = null;
-/** @type {string|null} */
 let sourceLabel = null;
 
 const TAIL_BYTES = 128 * 1024;
@@ -520,10 +806,6 @@ const QUEUE_UPDATE_INTERVAL_SEC = 30.0;
 const QUEUE_STALE_TIMEOUT_MULT = 2.0;
 const LOG_SILENCE_RECONNECT_SEC = 30.0;
 
-/**
- * @param {ArrayBuffer} buf
- * @param {number} startOffset
- */
 function decodeLogBytes(buf, startOffset) {
   if (!buf || buf.byteLength === 0) return "";
   const bytes = new Uint8Array(buf);
@@ -533,7 +815,6 @@ function decodeLogBytes(buf, startOffset) {
   const nulRatio = nul / Math.max(1, sample.length);
 
   if (nulRatio > 0.05) {
-    // Ensure 2-byte alignment if sliced mid-file
     let aligned = bytes;
     if (startOffset % 2 === 1 && aligned.length > 1) aligned = aligned.slice(1);
     for (const enc of ["utf-16le", "utf-16be", "utf-16"]) {
@@ -547,10 +828,6 @@ function decodeLogBytes(buf, startOffset) {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
-/**
- * @param {FileSystemFileHandle} handle
- * @param {number} tailBytes
- */
 async function readLogTailText(handle, tailBytes) {
   const file = await handle.getFile();
   const size = file.size;
@@ -560,10 +837,6 @@ async function readLogTailText(handle, tailBytes) {
   return decodeLogBytes(buf, start);
 }
 
-/**
- * @param {FileSystemDirectoryHandle} dir
- * @param {string[]} names
- */
 async function tryGetFirstExistingFile(dir, names) {
   for (const name of names) {
     try {
@@ -578,18 +851,14 @@ async function tryGetFirstExistingFile(dir, names) {
 
 async function pickLogFile() {
   if (!window.showOpenFilePicker) {
-    appendHistory("This browser does not support file picking. Use Edge or Chrome.");
+    appendHistory("Live tail requires Edge/Chrome with File System Access API (showOpenFilePicker).");
     return;
   }
-  /** @type {any} */
   let startIn = undefined;
   try {
-    // `startIn` cannot be an arbitrary path (e.g. %APPDATA% or $HOME). Best-effort only.
     const last = localStorage.getItem(STORAGE_LAST_DIR_KEY);
     if (last) startIn = last;
-  } catch {
-    // ignore
-  }
+  } catch {}
   if (!startIn) startIn = "documents";
 
   const [handle] = await window.showOpenFilePicker({
@@ -598,9 +867,7 @@ async function pickLogFile() {
     types: [
       {
         description: "Vintage Story log",
-        accept: {
-          "text/plain": [".log", ".txt"],
-        },
+        accept: { "text/plain": [".log", ".txt"] },
       },
     ],
   });
@@ -611,13 +878,7 @@ async function pickLogFile() {
   ui.btnStartStop.disabled = !logFileHandle;
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
 
-  // Best-effort: remember the last directory via well-known startIn token (not a real path).
-  // Browsers do not expose a parent directory for a picked file handle.
-  try {
-    localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents"));
-  } catch {
-    // ignore
-  }
+  try { localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents")); } catch {}
 }
 
 async function pickFolder() {
@@ -629,7 +890,6 @@ async function pickFolder() {
   try {
     dir = await window.showDirectoryPicker({ mode: "read" });
   } catch (e) {
-    // Chrome/Edge can block protected folders (and users can cancel).
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
@@ -640,7 +900,7 @@ async function pickFolder() {
   }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
   if (!file) {
-    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
+    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly.");
     sourceLabel = "Picked folder (no log yet)";
     ui.infoSource.textContent = sourceLabel;
     ui.infoResolved.textContent = "—";
@@ -656,59 +916,32 @@ async function pickFolder() {
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
 }
 
-// -----------------------------
-// Monitor engine (browser)
-// -----------------------------
-
-/** @typedef {[number, number]} GraphPoint */ // [epochSec, position]
-
-/** @type {GraphPoint[]} */
 let graphPoints = [];
-/** @type {GraphPoint|null} */
 let currentPoint = null;
-/** @type {number|null} */
 let lastPosition = null;
-/** @type {number|null} */
 let positionOneReachedAt = null;
-/** @type {number|null} */
 let connectPhaseStartedEpoch = null;
-/** @type {number|null} */
 let progressAtFrontEntry = null;
 let leftConnectQueueDetected = false;
 let running = false;
-/** @type {number|null} */
 let monitorStartEpoch = null;
-/** @type {number|null} */
 let pollTimer = null;
-/** @type {number|null} */
 let estimateTimer = null;
-/** @type {number} */
 let lastAlertEpoch = 0;
-/** @type {Set<number>} */
 let thresholdsFired = new Set();
-/** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
-/** @type {number|null} */
 let lastQueueRunSession = null;
-/** @type {number|null} */
 let lastQueueLineEpoch = null;
-/** @type {{ size: number, mtime: number } | null} */
 let lastLogStat = null;
-/** @type {number|null} */
 let lastLogGrowthEpoch = null;
 let interruptedMode = false;
-/** @type {number|null} */
 let interruptedElapsedSec = null;
-/** @type {[string, string] | null} */
 let frozenRatesAtInterrupt = null;
-/** @type {number|null} */
 let lastQueuePositionChangeEpoch = null;
 let predSpeedScale = 1.0;
 let staleSlotsAccounted = 0;
-/** @type {number|null} */
 let mppFloorPosition = null;
-/** @type {number|null} */
 let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
@@ -716,16 +949,10 @@ function setStatus(text, danger = false) {
   ui.kpiStatus.classList.toggle("danger", danger);
 }
 
-/**
- * @param {number|null} pos
- */
 function setPositionDisplay(pos) {
   ui.kpiPosition.textContent = pos == null ? "—" : String(pos);
 }
 
-/**
- * @param {number} sec
- */
 function formatDuration(sec) {
   const total = Math.max(0, Math.round(sec));
   const h = Math.floor(total / 3600);
@@ -735,9 +962,6 @@ function formatDuration(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/**
- * @param {number} sec
- */
 function formatDurationRemaining(sec) {
   sec = Math.max(0, Number(sec));
   if (!Number.isFinite(sec) || sec <= 0) return "—";
@@ -749,8 +973,7 @@ function formatDurationRemaining(sec) {
 }
 
 function rollingWindowPoints() {
-  const n = Math.max(2, Math.min(10000, Math.floor(config.windowPoints || 10)));
-  return n;
+  return Math.max(2, Math.min(10000, Math.floor(config.windowPoints || 10)));
 }
 
 function windowRecentPoints() {
@@ -771,11 +994,9 @@ function queueElapsedStartEpoch() {
 
 function computeMovingAverageSpeedPosPerSec() {
   const pts = graphPoints;
-  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
+  if (pts.length < 2) return { speed: null, n: 0 };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
-  const trail = recent.map((p) => p[1]);
-  /** @type {number[]} */
   const rates = [];
   for (let i = 0; i < recent.length - 1; i++) {
     const [t0, p0] = recent[i];
@@ -786,18 +1007,17 @@ function computeMovingAverageSpeedPosPerSec() {
     if (improvement <= 0) continue;
     rates.push(improvement / dt);
   }
-  if (rates.length === 0) return { speed: null, n: 0, trail };
-  if (rates.length < 3) return { speed: rates.reduce((a, b) => a + b, 0) / rates.length, n: rates.length, trail };
+  if (rates.length === 0) return { speed: null, n: 0 };
+  if (rates.length < 3) return { speed: rates.reduce((a, b) => a + b, 0) / rates.length, n: rates.length };
   rates.sort((a, b) => a - b);
-  return { speed: rates[Math.floor(rates.length / 2)], n: rates.length, trail };
+  return { speed: rates[Math.floor(rates.length / 2)], n: rates.length };
 }
 
 function computeWeightedSpeedPosPerSec() {
   const pts = graphPoints;
-  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
+  if (pts.length < 2) return { speed: null, n: 0 };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
-  const trail = recent.map((p) => p[1]);
   let now = Date.now() / 1000;
   if (currentQueuePosition() === 0 && recent.length >= 2) now = recent[recent.length - 1][0];
   const TAU = 90.0;
@@ -817,10 +1037,10 @@ function computeWeightedSpeedPosPerSec() {
     rSum += rate * w;
     nSeg += 1;
   }
-  if (wSum <= 0 || nSeg < 1) return { speed: null, n: 0, trail };
+  if (wSum <= 0 || nSeg < 1) return { speed: null, n: 0 };
   const speed = rSum / wSum;
-  if (!(speed > 0)) return { speed: null, n: 0, trail };
-  return { speed, n: nSeg, trail };
+  if (!(speed > 0)) return { speed: null, n: 0 };
+  return { speed, n: nSeg };
 }
 
 function computeEmpiricalPosPerSec() {
@@ -858,7 +1078,6 @@ function minutesPerPositionCappedForDwell(mppRaw, pos) {
 
 function globalAvgMinutesPerPosition() {
   if (graphPoints.length < 2) return null;
-  /** @type {number[]} */
   const mpps = [];
   for (let i = 0; i < graphPoints.length - 1; i++) {
     const [t0, p0] = graphPoints[i];
@@ -886,13 +1105,6 @@ function refreshWarningsKpi() {
   } catch {
     ui.kpiWarnings.textContent = "—";
     return;
-  }
-  const pos = currentQueuePosition();
-  const fired = thresholdsFired;
-  const parts = [];
-  for (const t of thresholds) {
-    const passed = (pos != null && pos <= t) || fired.has(t);
-    parts.push(passed ? String(t) : String(t));
   }
   ui.kpiWarnings.textContent = thresholds.join(" · ");
 }
@@ -972,14 +1184,6 @@ function updateTimeEstimates() {
       elapsedSec = Math.max(0, (Date.now() / 1000) - startT);
       ui.kpiElapsed.textContent = formatDuration(elapsedSec);
     }
-  } else if (!running && positionOneReachedAt != null && graphPoints.length >= 1) {
-    elapsedSec = Math.max(0, positionOneReachedAt - graphPoints[0][0]);
-    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
-  } else if (graphPoints.length >= 2) {
-    const startT2 = graphPoints[0][0];
-    const endT = currentPoint ? currentPoint[0] : graphPoints[graphPoints.length - 1][0];
-    elapsedSec = Math.max(0, endT - startT2);
-    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
   } else {
     ui.kpiElapsed.textContent = "—";
   }
@@ -1008,10 +1212,6 @@ function updateTimeEstimates() {
   ui.progressFill.style.width = `${progress.toFixed(1)}%`;
 }
 
-/**
- * @param {number} position
- * @param {number|null} lineEpoch
- */
 function appendGraphPoint(position, lineEpoch) {
   const t = lineEpoch ?? (Date.now() / 1000);
   if (currentPoint && currentPoint[1] === position) return;
@@ -1024,11 +1224,6 @@ function appendGraphPoint(position, lineEpoch) {
   drawGraph();
 }
 
-/**
- * @param {number|null} prevPos
- * @param {number} currPos
- * @returns {{ should: boolean, reason: string }}
- */
 function computeAlert(prevPos, currPos) {
   let thresholds;
   try {
@@ -1055,10 +1250,6 @@ function computeAlert(prevPos, currPos) {
   return { should: true, reason: `crossed threshold(s): ${crossed.join(", ")}` };
 }
 
-/**
- * @param {number} position
- * @param {string} reason
- */
 function raiseAlert(position, reason) {
   const now = Date.now() / 1000;
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
@@ -1072,10 +1263,6 @@ function raiseAlert(position, reason) {
   notify("⚠ Threshold alert", `Position ${position} (${reason}). ETA: ${etaDisplay}`);
 }
 
-/**
- * @param {number} position
- * @param {string} tailText
- */
 function maybeNotifyCompletion(position, tailText) {
   if (position !== 0) return;
   if (!tailHasPostQueueAfterLastQueueLine(tailText)) return;
@@ -1092,9 +1279,6 @@ function maybeNotifyCompletion(position, tailText) {
   notify("🎉 Queue completed", "Past queue wait detected in the log tail (connecting/loading).");
 }
 
-/**
- * @param {string} detail
- */
 function enterInterruptedState(detail) {
   if (interruptedMode) return;
   interruptedMode = true;
@@ -1151,7 +1335,6 @@ async function pollOnce() {
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
 
     if (interruptedMode) {
-      // Minimal: keep interrupted until the queue looks healthy again (new queue lines).
       if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
         interruptedMode = false;
         interruptedElapsedSec = null;
@@ -1218,7 +1401,6 @@ async function pollOnce() {
       if (pos === 0) leftConnectQueueDetected = true;
       else if (pos <= 1) leftConnectQueueDetected = false;
 
-      // New run detection: session counter in tail (best-effort)
       if (lastQueueRunSession != null && session > lastQueueRunSession) {
         thresholdsFired.clear();
         positionOneReachedAt = null;
@@ -1274,7 +1456,7 @@ function startMonitoring() {
   setStatus("Monitoring");
   ui.btnStartStop.textContent = "Stop";
   ui.btnPickLog.disabled = true;
-  ui.btnPickFolder.disabled = true;
+  try { ui.btnPickFolder.disabled = true; } catch {}
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
   interruptedMode = false;
@@ -1294,7 +1476,7 @@ function stopMonitoring() {
   running = false;
   ui.btnStartStop.textContent = "Start";
   ui.btnPickLog.disabled = false;
-  ui.btnPickFolder.disabled = false;
+  try { ui.btnPickFolder.disabled = false; } catch {}
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
@@ -1302,10 +1484,6 @@ function stopMonitoring() {
   setStatus(leftConnectQueueDetected ? "Completed" : "Stopped", false);
   appendHistory("Monitoring stopped.");
 }
-
-// -----------------------------
-// Graph (canvas)
-// -----------------------------
 
 function graphYMap(pos, minP, maxP, h) {
   const padTop = 18;
@@ -1348,7 +1526,6 @@ function drawGraph() {
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  // Range
   const positions = graphPoints.map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
@@ -1358,13 +1535,11 @@ function drawGraph() {
     maxP = maxP + 1;
   }
 
-  // Time range
   const t0 = graphPoints[0][0];
   const t1 = graphPoints[graphPoints.length - 1][0];
   const span = Math.max(60, t1 - t0);
   const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
 
-  // Grid
   ctx.strokeStyle = "rgba(46,55,66,0.7)";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 6; i++) {
@@ -1375,7 +1550,6 @@ function drawGraph() {
     ctx.stroke();
   }
 
-  // Axes labels (simple)
   ctx.fillStyle = "rgba(159,167,179,0.95)";
   ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--mono");
   ctx.textAlign = "right";
@@ -1386,7 +1560,6 @@ function drawGraph() {
     ctx.fillText(String(val), padL - 8, y);
   }
 
-  // Series (step plot)
   ctx.strokeStyle = "rgba(87,148,242,0.95)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -1397,7 +1570,6 @@ function drawGraph() {
     if (i === 0) ctx.moveTo(x, y);
     else {
       const [tPrev, pPrev] = graphPoints[i - 1];
-      const xPrev = xOf(tPrev);
       const yPrev = graphYMap(pPrev, minP, maxP, h);
       ctx.lineTo(x, yPrev);
       ctx.lineTo(x, y);
@@ -1405,7 +1577,6 @@ function drawGraph() {
   }
   ctx.stroke();
 
-  // Current marker
   const last = graphPoints[graphPoints.length - 1];
   const xm = xOf(last[0]);
   const ym = graphYMap(last[1], minP, maxP, h);
@@ -1415,39 +1586,20 @@ function drawGraph() {
   ctx.fill();
 }
 
-// -----------------------------
-// Wire up UI
-// -----------------------------
-
 loadConfig();
 syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
-appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
+appendHistory("VS Queue Monitor ready. Pick your client log and press Start.");
 
-// Hide folder picking when unsupported (common under file:// or non-Chromium).
 try {
   const isFile = String(window.location && window.location.protocol) === "file:";
   if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
-} catch {
-  // ignore
-}
+} catch {}
 
 function focusAndReveal(el) {
-  try {
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
-  } catch {
-    // ignore
-  }
-  try {
-    el.focus({ preventScroll: true });
-  } catch {
-    try {
-      el.focus();
-    } catch {
-      // ignore
-    }
-  }
+  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
+  try { el.focus({ preventScroll: true }); } catch { try { el.focus(); } catch {} }
 }
 
 function flashInput(el) {
@@ -1455,16 +1607,11 @@ function flashInput(el) {
   window.setTimeout(() => el.classList.remove("flash"), 700);
 }
 
-// Inline-edit affordances: click KPI to jump to the relevant setting.
 ui.kpiWarnings.title = "Click to edit warning thresholds";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
   focusAndReveal(ui.inpThresholds);
-  try {
-    ui.inpThresholds.select();
-  } catch {
-    // ignore
-  }
+  try { ui.inpThresholds.select(); } catch {}
   flashInput(ui.inpThresholds);
 });
 
@@ -1472,11 +1619,7 @@ ui.kpiRateLabel.title = "Click to edit rolling window (points)";
 ui.kpiRateLabel.style.cursor = "pointer";
 ui.kpiRateLabel.addEventListener("click", () => {
   focusAndReveal(ui.inpWindowPoints);
-  try {
-    ui.inpWindowPoints.select();
-  } catch {
-    // ignore
-  }
+  try { ui.inpWindowPoints.select(); } catch {}
   flashInput(ui.inpWindowPoints);
 });
 
@@ -1484,31 +1627,19 @@ ui.kpiRate.title = "Click to edit rolling window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
   focusAndReveal(ui.inpWindowPoints);
-  try {
-    ui.inpWindowPoints.select();
-  } catch {
-    // ignore
-  }
+  try { ui.inpWindowPoints.select(); } catch {}
   flashInput(ui.inpWindowPoints);
 });
 
 ui.btnPickLog.addEventListener("click", async () => {
-  try {
-    await pickLogFile();
-  } catch (e) {
-    appendHistory(`Pick log cancelled/failed: ${String(e)}`);
-  }
+  try { await pickLogFile(); } catch (e) { appendHistory(`Pick log cancelled/failed: ${String(e)}`); }
 });
 
 ui.btnPickFolder.addEventListener("click", async () => {
-  try {
-    await pickFolder();
-  } catch (e) {
-    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
-  }
+  try { await pickFolder(); } catch (e) { appendHistory(`Pick folder cancelled/failed: ${String(e)}`); }
 });
 
-ui.btnStartStop.addEventListener("click", async () => {
+ui.btnStartStop.addEventListener("click", () => {
   if (!running) startMonitoring();
   else stopMonitoring();
 });
@@ -1601,12 +1732,10 @@ function bindEnterToSave(input) {
     ui.btnSaveSettings.click();
   });
 }
-
 bindEnterToSave(ui.inpPollSec);
 bindEnterToSave(ui.inpThresholds);
 bindEnterToSave(ui.inpWindowPoints);
 
-// Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [
   ui.inpPollSec,
   ui.inpThresholds,
@@ -1639,7 +1768,6 @@ for (const el of [
   });
 }
 
-// Resize canvas for crisp rendering on HiDPI (keep CSS size fixed)
 function resizeCanvasToDisplaySize() {
   const canvas = ui.graphCanvas;
   const rect = canvas.getBoundingClientRect();
@@ -1655,4 +1783,7 @@ function resizeCanvasToDisplaySize() {
 window.addEventListener("resize", () => resizeCanvasToDisplaySize());
 resizeCanvasToDisplaySize();
 drawGraph();
+    </script>
+  </body>
+</html>
 
