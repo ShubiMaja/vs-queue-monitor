@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.54";
+const APP_VERSION = "2.0.55";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1886,6 +1886,8 @@ let monitorStartEpoch = null;
 let pollTimer = null;
 /** @type {number|null} */
 let estimateTimer = null;
+/** @type {number|null} */
+let graphRealtimeTimer = null;
 /** @type {number} */
 let lastAlertEpoch = 0;
 /** @type {Set<number>} */
@@ -2886,6 +2888,10 @@ function startMonitoring() {
   pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
   if (estimateTimer != null) window.clearInterval(estimateTimer);
   estimateTimer = window.setInterval(() => updateTimeEstimates(), 100);
+  if (graphRealtimeTimer != null) window.clearInterval(graphRealtimeTimer);
+  graphRealtimeTimer = window.setInterval(() => {
+    if (running && graphPoints.length > 0) scheduleDrawGraph();
+  }, 250);
   pollOnce();
 }
 
@@ -2899,6 +2905,8 @@ function stopMonitoring() {
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
   estimateTimer = null;
+  if (graphRealtimeTimer != null) window.clearInterval(graphRealtimeTimer);
+  graphRealtimeTimer = null;
   hideInterruptAdoptModal();
   setStatus(leftConnectQueueDetected ? "Completed" : "Stopped", false);
   appendHistory("Monitoring stopped.");
@@ -3022,8 +3030,18 @@ function drawGraph() {
   const plotH = h - padT - padB;
   const plotBottom = padT + plotH;
 
-  // Range
-  const positions = graphPoints.map((p) => p[1]);
+  // Time range
+  const tLast = graphPoints[graphPoints.length - 1][0];
+  const tNow = Date.now() / 1000;
+  const t1 = running ? Math.max(tLast, tNow) : tLast;
+  // Grafana-like "last N seconds" window so the graph scrolls in real time.
+  const span = Math.max(60, Math.round(config.pollSec * config.windowPoints * 12));
+  const t0 = t1 - span;
+  const xOf = (t) => padL + ((t - t0) / span) * plotW;
+
+  // Range (prefer the visible window so scale matches what you see).
+  const inWindow = graphPoints.filter((p) => p[0] >= t0 - 0.001 && p[0] <= t1 + 0.001);
+  const positions = (inWindow.length ? inWindow : graphPoints).map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
   if (!Number.isFinite(minP) || !Number.isFinite(maxP)) {
@@ -3034,14 +3052,6 @@ function drawGraph() {
     minP = Math.max(0, minP - 1);
     maxP = maxP + 1;
   }
-
-  // Time range
-  const t1 = graphPoints[graphPoints.length - 1][0];
-  // Grafana-like "last N seconds" window so the graph scrolls each tick.
-  const targetSpan = Math.max(60, Math.round(config.pollSec * config.windowPoints * 12));
-  const span = targetSpan;
-  const t0 = t1 - span;
-  const xOf = (t) => padL + ((t - t0) / span) * plotW;
 
   const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "ui-monospace, monospace";
 
@@ -3170,7 +3180,7 @@ function drawGraph() {
   ctx.textBaseline = "top";
   for (let i = 0; i <= xTickCount; i++) {
     const frac = i / xTickCount;
-    const tTick = t1 - span + frac * span;
+    const tTick = t0 + frac * span;
     const x = padL + frac * plotW;
     ctx.fillText(formatGraphXTick(tTick), x, plotBottom + 4);
   }
