@@ -245,6 +245,80 @@ The app is a **single-page dashboard** with a stable mental model:
 
 ## 5. Feature areas (product-level intent)
 
+### 5.0 Feature requests (captured from prompts)
+
+This section turns the project’s ad-hoc prompts into durable **feature requests** and records the **decision** the product adopted. Treat these as the “why” behind recent UX changes.
+
+#### Visualization & graph (Grafana-inspired)
+
+- **FR: Grafana-inspired graph panel polish**
+  - **Request**: Learn what a good graph UI looks like from Grafana and improve this chart.
+  - **Decision**: Adopt a monitoring-panel look: framed plot area, readable grid, compact axes, hover crosshair, and an area-under-line fill.
+  - **Shipped**: Panel frame, horizontal + vertical grid, X time ticks, Y label, gradient fill under the step line, hover crosshair.
+
+- **FR: Show time on the X axis**
+  - **Request**: The axis should show time.
+  - **Decision**: Render compact time ticks (HH:MM:SS) along the bottom so the user can read cadence at a glance.
+  - **Shipped**: Bottom time ticks.
+
+- **FR: Scroll the graph each poll tick (fixed time window)**
+  - **Request**: The graph can move every tick; use the last tick vs current tick.
+  - **Decision**: Prefer a Grafana-like “last \(N\) seconds” window so the plot scrolls forward each tick, rather than constantly rescaling the full session.
+  - **Shipped**: Fixed-span window that scrolls each poll tick; points outside the window naturally compress off-screen.
+
+#### Alerts, sounds, and history verbosity
+
+- **FR: Log every position change by default**
+  - **Request**: Enable logging every position change by default.
+  - **Decision**: Default should favor auditability; users can turn it off to reduce History noise.
+  - **Shipped**: Default on (web config) while preserving user overrides.
+
+- **FR: Sound sources should be visible and configurable**
+  - **Request**: Show which sounds are being used; allow URL or local file; provide nice defaults.
+  - **Decision**: Each alert channel should expose (a) default shipped clip, (b) URL, (c) local file stored in browser, and (d) built-in tones as fallback.
+  - **Shipped**: Settings show active sound source and provide URL/local/built-in/default controls.
+
+- **FR: Sound preview button in Settings**
+  - **Request**: A play button to preview in Settings.
+  - **Decision**: Preview should always play regardless of whether the channel is enabled (to avoid “why didn’t it play?” confusion).
+  - **Shipped**: “Play” preview per channel that ignores enable toggles.
+
+- **FR: Separate disconnected/interrupted alert channel**
+  - **Request**: A separate disconnected or interrupted sound/notification alert.
+  - **Decision**: Treat Interrupted as its own alert channel (popup + sound + desktop notify) distinct from threshold and completion.
+  - **Shipped**: Dedicated Interrupt alert toggles and sound source configuration; fires when the app enters Interrupted.
+
+#### KPI polish and motion discipline
+
+- **FR: Warnings should not slide unless a warning just fired**
+  - **Request**: The warning list marquee should not animate continuously.
+  - **Decision**: Motion is a “just happened” cue. Only marquee briefly after an alert fires (and only if overflow requires it).
+  - **Shipped**: Marquee gate window triggered by threshold alerts.
+
+- **FR: Status should be color-coded**
+  - **Request**: Make Status glanceable with color.
+  - **Decision**: Map status to semantic roles: connecting/info, at-front/warn, completed/done, interrupted/error/danger, monitoring/ok.
+  - **Shipped**: Status KPI class mapping and colors.
+
+#### Tail activity indicator
+
+- **FR: Tail pulse should be subtle and placed near the graph**
+  - **Request**: Make tail pulse less bright and more subtle; maybe on bottom right of the graph.
+  - **Decision**: Keep a quiet “tailing” affordance near the chart, not a bright centerpiece.
+  - **Shipped**: Tail indicator docked to the graph; softer styling.
+
+- **FR: If the graph scrolls each tick, the light doesn’t need to pulse**
+  - **Request**: With per-tick motion, remove the pulse.
+  - **Decision**: Avoid redundant motion; prefer the graph itself as the activity signal.
+  - **Shipped**: Pulse disabled (indicator remains as a subtle “armed” state).
+
+#### Settings as a modal
+
+- **FR: Settings should be a top-right button with a popup dialog**
+  - **Request**: Settings should be a button in the top right with a popup.
+  - **Decision**: Settings is secondary; move it out of the main scroll into a modal overlay (like Help) to keep the dashboard focused.
+  - **Shipped**: Settings modal opened from top-right button.
+
 ### 5.1 Dashboard (main view)
 
 - **At a glance:** Position, status, rate (with rolling-window context where applicable), warnings/thresholds, elapsed time, estimated remaining (when meaningful), and **progress** aligned with “how much of the wait is behind you”—not a fake precision meter.
