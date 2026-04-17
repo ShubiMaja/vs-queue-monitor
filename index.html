@@ -261,7 +261,17 @@
         </div>
         <div class="kpi">
           <div class="kpi__label">STATUS</div>
-          <div id="kpiStatus" class="kpi__value kpi__value--ok">Idle</div>
+          <div id="kpiStatus" class="kpi__value kpi__value--ok">
+            <span
+              id="logActivityWrap"
+              class="logActivity logActivity--status"
+              hidden
+              title="Monitoring is tailing the log (live read)."
+            >
+              <span class="logActivityLed" id="logActivityLed" aria-hidden="true"></span>
+            </span>
+            <span class="statusText" id="kpiStatusText">Idle</span>
+          </div>
         </div>
         <div class="kpi">
           <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
@@ -312,15 +322,6 @@
           </div>
         </div>
         <canvas id="graphCanvas" width="1200" height="360"></canvas>
-        <div
-          id="logActivityWrap"
-          class="logActivity logActivity--graph"
-          hidden
-          title="Pulses when a new line appears in the log tail (live read)."
-        >
-          <span class="logActivityLed" id="logActivityLed" aria-hidden="true"></span>
-          <span class="logActivity__label">tail</span>
-        </div>
         <div class="graph__hint" id="graphHint"></div>
       </section>
 
@@ -375,7 +376,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.59"></script>
+    <script type="module" src="./app.js?v=2.0.60"></script>
   </body>
 </html>
 
