@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.9";
+const APP_VERSION = "2.1.10";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -84,6 +84,7 @@ const ui = {
   btnWarningsAddCancel: $("btnWarningsAddCancel"),
   kpiElapsed: $("kpiElapsed"),
   kpiRemaining: $("kpiRemaining"),
+  kpiProgressLabel: $("kpiProgressLabel"),
   progressBar: $("progressBar"),
   progressFill: $("progressFill"),
 
@@ -1375,6 +1376,19 @@ function parseTailLastQueueLineEpoch(data) {
     lastT = t ?? (Date.now() / 1000);
   }
   return lastT;
+}
+
+/**
+ * @param {string} data
+ * @returns {number|null} epoch seconds for the first queue-position line in `data`
+ */
+function parseFirstQueueLineEpoch(data) {
+  for (const line of data.split(/\r?\n/)) {
+    if (queuePositionFromLine(line) == null) continue;
+    const t = parseLogTimestampEpoch(line);
+    return t ?? (Date.now() / 1000);
+  }
+  return null;
 }
 
 /**
@@ -2671,6 +2685,9 @@ let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
 /** @type {number|null} */
 let lastQueueRunSession = null;
+/** Epoch seconds for the first queue line of the current run (best-effort). */
+/** @type {number|null} */
+let currentQueueRunStartEpoch = null;
 /** @type {number|null} */
 let lastQueueLineEpoch = null;
 /** @type {{ size: number, mtime: number } | null} */
@@ -3078,6 +3095,7 @@ function updateTimeEstimates() {
     ui.progressFill.title = "Progress: 0% (interrupted)";
     ui.progressFill.setAttribute("aria-label", "Progress: 0% (interrupted)");
     if (ui.progressBar) ui.progressBar.title = "Progress: 0% (interrupted)";
+    if (ui.kpiProgressLabel) ui.kpiProgressLabel.textContent = "PROGRESS (0%)";
     return;
   }
 
@@ -3134,6 +3152,7 @@ function updateTimeEstimates() {
   ui.progressFill.title = `Progress: ${pctText}${posText}`;
   ui.progressFill.setAttribute("aria-label", `Progress: ${pctText}${posText}`);
   if (ui.progressBar) ui.progressBar.title = `Progress: ${pctText}${posText}`;
+  if (ui.kpiProgressLabel) ui.kpiProgressLabel.textContent = `PROGRESS (${pctText})`;
 }
 
 /**
@@ -3527,7 +3546,9 @@ async function pollOnce() {
     if (newText) appendToLogBuffer(newText);
     if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
-    const view = logBuffer || "";
+    const viewRaw = logBuffer || "";
+    // Always reason about the current queue run only (avoid spanning multiple reconnect sessions).
+    const view = sliceLoadedLogToCurrentQueueRun(viewRaw);
     const { kind } = classifyTailConnectionState(view);
     const { lastPos, session } = parseTailLastQueueReading(view);
     const lastLineEpoch = parseTailLastQueueLineEpoch(view);
@@ -3594,6 +3615,34 @@ async function pollOnce() {
 
       if (pos <= 1 && left) pos = 0;
 
+      // Ensure we don't span multiple queue runs: if the *start* of the current-run slice moves forward,
+      // treat it as a new run even if the session counter didn't increment.
+      const runStart = parseFirstQueueLineEpoch(view);
+      if (currentQueueRunStartEpoch == null) currentQueueRunStartEpoch = runStart;
+      else if (runStart != null && runStart > currentQueueRunStartEpoch + 1) {
+        thresholdsFired.clear();
+        positionOneReachedAt = null;
+        connectPhaseStartedEpoch = null;
+        progressAtFrontEntry = null;
+        leftConnectQueueDetected = false;
+        completionNotifiedThisRun = false;
+        lastQueuePositionChangeEpoch = now;
+        mppFloorPosition = null;
+        mppFloorValue = null;
+        graphPoints = [];
+        currentPoint = null;
+        lastPosition = null;
+        pendingGraphReplayText = null;
+        appendHistory("New queue run detected — graph and alerts reset for this run.");
+
+        replayQueueGraphFromText(view);
+        lastQueueRunSession = session;
+        currentQueueRunStartEpoch = runStart;
+        refreshWarningsKpi();
+        updateTimeEstimates();
+        return;
+      }
+
       if (pos > 1) {
         leftConnectQueueDetected = false;
         progressAtFrontEntry = null;
@@ -3639,9 +3688,9 @@ async function pollOnce() {
         appendHistory("New queue run (from log) — graph and alerts reset for this run.");
 
         // Reseed the graph from the current run slice so the user sees immediate context.
-        const slice = sliceLoadedLogToCurrentQueueRun(logBuffer);
-        replayQueueGraphFromText(slice);
+        replayQueueGraphFromText(view);
         lastQueueRunSession = session;
+        currentQueueRunStartEpoch = runStart;
         refreshWarningsKpi();
         updateTimeEstimates();
         return;
