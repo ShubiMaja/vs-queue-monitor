@@ -168,6 +168,9 @@ body{
 @media (max-width: 980px){
   .layout{grid-template-columns:1fr;padding:16px}
 }
+@media (max-width: 980px){
+  .settingsSection__grid{grid-template-columns:1fr}
+}
 
 .card{
   background:linear-gradient(165deg, rgba(28,31,38,0.98) 0%, var(--bg-card) 100%);
@@ -192,6 +195,9 @@ body{
   color:var(--muted);
 }
 .card__actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.notifyCtl{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.notifyCtl__hint{max-width:320px;font-size:11px;line-height:1.25;text-align:right}
 
 .btn{
   appearance:none;
@@ -258,6 +264,7 @@ body{
   grid-template-columns: repeat(7, minmax(0, 1fr));
   background:linear-gradient(180deg, rgba(20,23,30,0.5) 0%, rgba(14,16,21,0.35) 100%);
 }
+.card.kpis{overflow:visible}
 @media (max-width: 980px){
   .kpis{grid-template-columns: repeat(2, minmax(0, 1fr))}
 }
@@ -302,26 +309,21 @@ body{
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
 .kpiWarn__threshold{position:relative;display:inline-flex;align-items:center;padding:2px 6px;border-radius:8px}
-.kpiWarn--editMode .kpiWarn__threshold{cursor:pointer}
-.kpiWarn--editMode .kpiWarn__threshold:hover{background:rgba(242,73,92,0.10);color:#ffd0d0}
-.kpiWarn--editMode .kpiWarn__threshold:hover::after{
-  content:"🗑";
-  position:absolute;
-  right:2px;
-  top:-10px;
-  font-size:12px;
-  opacity:0.9;
-  filter:drop-shadow(0 1px 2px rgba(0,0,0,0.45));
-}
+.kpiWarn__threshold{background:rgba(110,179,255,0.06)}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
+.btnWarnEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--warnings:hover .btnWarnEdit,
+.kpi--warnings:focus-within .btnWarnEdit{opacity:1;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
+.kpiWarn{position:relative}
 .kpiWarn__viewport{
   overflow-x:auto;
   overflow-y:hidden;
   width:100%;
   min-width:0;
   border-radius:6px;
+  padding:0 28px;
   scrollbar-width:none; /* Firefox */
   overscroll-behavior:contain;
   position:relative;
@@ -329,7 +331,7 @@ body{
 .kpiWarn__viewport::-webkit-scrollbar{height:0} /* Chromium */
 .kpiWarn__viewport--overflow{cursor:ew-resize}
 .kpiWarn__viewport--overflow::after{
-  content:"⇆";
+  content:"";
   position:absolute;
   right:6px;
   top:50%;
@@ -351,6 +353,33 @@ body{
   opacity:0.45;
 }
 
+.kpiWarn__arrow{
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:3;
+  width:22px;
+  height:22px;
+  border-radius:8px;
+  border:1px solid rgba(62,74,94,0.65);
+  background:rgba(12,14,18,0.55);
+  color:rgba(230,236,242,0.92);
+  font-family:var(--mono);
+  font-weight:900;
+  line-height:1;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  user-select:none;
+}
+.kpiWarn__arrow:hover{background:rgba(22,25,32,0.75)}
+.kpiWarn__arrow:disabled{opacity:0.35;cursor:not-allowed}
+.kpiWarn__arrow--l{left:6px}
+.kpiWarn__arrow--r{right:6px}
+.kpiWarn--overflow:hover .kpiWarn__arrow,
+.kpiWarn--overflow:focus-within .kpiWarn__arrow{display:flex}
+
 /* Small popover used by inline warning editor */
 .kpi--warnings{position:relative}
 .popover{
@@ -370,6 +399,7 @@ body{
 .popover__row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .popover__input{flex:1;min-width:140px;margin-top:0}
 .popover__hint{margin-top:8px;font-size:12px;line-height:1.35}
+
 .kpiWarn__rail{
   display:inline-flex;
   flex-wrap:nowrap;
@@ -410,6 +440,14 @@ body{
 .sound-summary{margin:6px 0 0;font-size:12px;line-height:1.35}
 .sound-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .sound-row--sub{margin-top:6px}
+.sound-row--compact{margin-top:8px}
+.soundAdv{
+  margin-top:8px;
+  padding:10px 10px 8px;
+  border-radius:var(--radius-sm);
+  border:1px solid rgba(55,65,82,0.55);
+  background:rgba(8,10,14,0.28);
+}
 .sound-url{flex:1;min-width:min(100%,220px)}
 
 .graph__hint{
@@ -435,6 +473,25 @@ body{
 .settings .form{padding:0;display:grid;grid-template-columns: repeat(2, minmax(0,1fr));gap:14px}
 .settings--modal .form{padding:0}
 .field--wide{grid-column:1 / -1}
+
+.settingsSection{grid-column:1 / -1}
+.settingsSection__title{
+  font-size:10px;
+  letter-spacing:0.14em;
+  color:rgba(155,165,176,0.92);
+  font-weight:850;
+  text-transform:uppercase;
+  margin:6px 0 10px;
+}
+.settingsSection__grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap:14px;
+  padding:12px 12px 10px;
+  border-radius:12px;
+  border:1px solid rgba(55,65,82,0.55);
+  background:rgba(8,10,14,0.22);
+}
 .label{display:flex;gap:8px;align-items:center;color:var(--muted);font-weight:750;font-size:12px}
 .input{
   width:100%;
@@ -449,6 +506,55 @@ body{
   font-size:13px;
   transition:border-color 0.15s ease, box-shadow 0.15s ease;
 }
+
+/* Inline editing (modern “view → edit” rows) */
+.field[data-inline="1"] .input{display:none}
+.field[data-inline="1"].field--editing .input{display:block}
+.inlineView{
+  margin-top:6px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:var(--radius-sm);
+  border:1px solid rgba(55,65,82,0.65);
+  background:rgba(8,10,14,0.35);
+}
+.inlineView::after{
+  content:"✎";
+  width:18px;
+  text-align:center;
+  opacity:0;
+  color:var(--muted);
+  font-family:var(--mono);
+  font-weight:800;
+  transition:opacity 0.12s ease, color 0.12s ease;
+  pointer-events:none;
+}
+.inlineView:hover::after{
+  opacity:0.8;
+  color:#aab6c2;
+}
+.field--editing .inlineView{display:none}
+.inlineView__value{
+  appearance:none;
+  border:0;
+  background:transparent;
+  color:var(--text);
+  padding:0;
+  margin:0;
+  min-width:0;
+  text-align:left;
+  font-family:var(--mono);
+  font-size:13px;
+  line-height:1.25;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.inlineView__value:hover{color:var(--text-bright)}
 .input:focus{
   border-color:rgba(110,179,255,0.65);
   box-shadow:0 0 0 3px var(--accent-soft);
@@ -527,7 +633,7 @@ body{
 
 .toastHost{
   position:fixed;
-  top:18px;
+  top:84px;
   right:18px;
   z-index:50;
   display:flex;

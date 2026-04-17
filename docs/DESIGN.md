@@ -162,7 +162,7 @@ The app is a **single-page dashboard** with a stable mental model:
 4. **Chart** — **time series** of position for the **current queue session**, so the user sees **trend**, not only a snapshot.
 5. **Info (collapsible)** — **secondary** detail: last changes, global averages, resolved label for the log source—**supporting** the KPIs, not competing with them.
 6. **History (collapsible)** — **narrative log** of app events and optional per-step queue lines (when enabled). For debugging and reassurance, not the primary readout.
-7. **Settings** — thresholds, sounds, polling, estimation window, history verbosity, resets. **Debounced save** with explicit save still available for validation.
+7. **Settings (advanced)** — should trend toward **advanced overrides**, not a primary workflow surface. Prefer **inline customization** where effects are visible (e.g. warning thresholds edited from the WARNINGS KPI via a contextual popover). Keep debounced save; explicit save remains for validation and “I’m done” reassurance.
 
 **Layout:** Dense but readable; **Info** and **History** stay secondary so the **graph and KPIs** remain primary during active monitoring.
 
@@ -304,6 +304,11 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Request**: Warnings is side scrollable; scrolling over it moves it left or right.
   - **Decision**: Prefer direct manipulation over animation: let the user pan the threshold strip horizontally (mouse wheel/trackpad) when it overflows.
   - **Shipped**: Warnings viewport is horizontally scrollable; wheel/trackpad pans left/right on hover.
+
+- **FR: Warning thresholds should be editable inline (without a weird edit mode)**
+  - **Request**: Make thresholds customizable without dumping users into a “settings screen”.
+  - **Decision**: Keep the KPI strip calm: show thresholds as a read-only rail, and open a **small contextual editor** from the WARNINGS label (⚙/✎). In the editor, thresholds are **chips** with remove (×) and an “Add…” input that accepts CSV. No “hover-to-delete” surprises on the main rail.
+  - **Shipped**: WARNINGS opens a popover editor with removable chips + CSV add; the rail remains read-only.
 
 - **FR: Status should be color-coded**
   - **Request**: Make Status glanceable with color.

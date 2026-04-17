@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.66";
+const APP_VERSION = "2.0.88";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -23,7 +23,9 @@ const ui = {
   btnClear: $("btnClear"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
+  notifyHint: $("notifyHint"),
   btnSaveSettings: $("btnSaveSettings"),
+  btnCancelSettings: $("btnCancelSettings"),
   toastHost: $("toastHost"),
   restoreBanner: $("restoreBanner"),
   restoreBannerDetail: $("restoreBannerDetail"),
@@ -36,6 +38,7 @@ const ui = {
   helpOverlay: $("helpOverlay"),
   settingsOverlay: $("settingsOverlay"),
   btnSettingsClose: $("btnSettingsClose"),
+  settingsForm: /** @type {HTMLElement} */ (document.querySelector("#settingsOverlay .form")),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
@@ -52,8 +55,9 @@ const ui = {
   kpiRate: $("kpiRate"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
+  btnWarnScrollL: $("btnWarnScrollL"),
+  btnWarnScrollR: $("btnWarnScrollR"),
   btnWarningsEdit: $("btnWarningsEdit"),
-  btnWarningsAdd: $("btnWarningsAdd"),
   warningsAddPopover: $("warningsAddPopover"),
   inpWarningsAdd: /** @type {HTMLInputElement} */ ($("inpWarningsAdd")),
   btnWarningsAddOk: $("btnWarningsAddOk"),
@@ -69,7 +73,7 @@ const ui = {
   infoGlobalRate: $("infoGlobalRate"),
 
   inpPollSec: /** @type {HTMLInputElement} */ ($("inpPollSec")),
-  inpThresholds: /** @type {HTMLInputElement} */ ($("inpThresholds")),
+  inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement} */ ($("inpWindowPoints")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
@@ -87,6 +91,12 @@ const ui = {
   btnPickWarnSound: $("btnPickWarnSound"),
   btnPickCompletionSound: $("btnPickCompletionSound"),
   btnPickInterruptSound: $("btnPickInterruptSound"),
+  btnWarnSoundAdv: $("btnWarnSoundAdv"),
+  btnCompletionSoundAdv: $("btnCompletionSoundAdv"),
+  btnInterruptSoundAdv: $("btnInterruptSoundAdv"),
+  warnSoundAdv: $("warnSoundAdv"),
+  completionSoundAdv: $("completionSoundAdv"),
+  interruptSoundAdv: $("interruptSoundAdv"),
   btnClearWarnSoundFile: $("btnClearWarnSoundFile"),
   btnClearCompletionSoundFile: $("btnClearCompletionSoundFile"),
   btnClearInterruptSoundFile: $("btnClearInterruptSoundFile"),
@@ -110,6 +120,205 @@ const ui = {
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+function syncNotifyButtonUi() {
+  if (!ui.btnRequestNotify) return;
+  const supported = "Notification" in window;
+  const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+  if (!supported) {
+    ui.btnRequestNotify.disabled = true;
+    ui.btnRequestNotify.title = "This browser does not support desktop notifications.";
+    if (ui.notifyHint) {
+      ui.notifyHint.textContent = "Not supported in this browser.";
+      ui.notifyHint.hidden = false;
+    }
+    return;
+  }
+  if (!secure) {
+    ui.btnRequestNotify.disabled = true;
+    ui.btnRequestNotify.title =
+      "Desktop notifications require https:// or http://localhost. Run `python -m http.server 5173` and open http://localhost:5173.";
+    if (ui.notifyHint) {
+      ui.notifyHint.textContent = "Requires https:// or http://localhost (not file://).";
+      ui.notifyHint.hidden = false;
+    }
+    return;
+  }
+  ui.btnRequestNotify.disabled = false;
+  const p = Notification.permission;
+  ui.btnRequestNotify.textContent = p === "granted" ? "Test notification" : "Enable notifications";
+  if (ui.notifyHint) ui.notifyHint.hidden = true;
+}
+
+syncNotifyButtonUi();
+
+// -----------------------------
+// Inline editing (settings)
+// -----------------------------
+
+let _swReg = /** @type {ServiceWorkerRegistration|null} */ (null);
+async function ensureServiceWorkerReady() {
+  try {
+    if (!("serviceWorker" in navigator)) return null;
+    if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) return null;
+    if (_swReg) return _swReg;
+    // Register once; ignore failures (e.g. file://, blocked contexts).
+    await navigator.serviceWorker.register("./sw.js");
+    _swReg = await navigator.serviceWorker.ready;
+    return _swReg;
+  } catch {
+    return null;
+  }
+}
+
+function formatBool(b) {
+  return b ? "On" : "Off";
+}
+
+function makeInlineField(inputEl, opts) {
+  const field = inputEl.closest(".field");
+  if (!field) return;
+  if (field.getAttribute("data-inline") === "1") return;
+  field.setAttribute("data-inline", "1");
+
+  const view = document.createElement("div");
+  view.className = "inlineView";
+
+  const val = document.createElement("button");
+  val.type = "button";
+  val.className = "inlineView__value";
+
+  view.appendChild(val);
+
+  const label = field.querySelector(".label");
+  if (label && label.nextSibling) field.insertBefore(view, label.nextSibling);
+  else field.appendChild(view);
+
+  let prev = "";
+
+  const render = () => {
+    const mode = opts?.mode || "text";
+    let s = "";
+    if (mode === "checkbox") s = formatBool(/** @type {HTMLInputElement} */ (inputEl).checked);
+    else s = String(/** @type {HTMLInputElement} */ (inputEl).value || "").trim() || "—";
+    if (typeof opts?.format === "function") s = String(opts.format());
+    val.textContent = s;
+    val.title = s;
+  };
+
+  const enterEdit = () => {
+    prev = inputEl.type === "checkbox" ? String(/** @type {HTMLInputElement} */ (inputEl).checked) : String(inputEl.value ?? "");
+    field.classList.add("field--editing");
+    if (inputEl.type !== "checkbox") {
+      try {
+        inputEl.focus();
+        inputEl.select?.();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const commit = () => {
+    field.classList.remove("field--editing");
+    applyFormToConfig();
+    scheduleAutosave("Saved.");
+    refreshWarningsKpi();
+    updateTimeEstimates();
+    if (running) {
+      if (pollTimer != null) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+    }
+    render();
+  };
+
+  const cancel = () => {
+    field.classList.remove("field--editing");
+    if (inputEl.type === "checkbox") /** @type {HTMLInputElement} */ (inputEl).checked = prev === "true";
+    else inputEl.value = prev;
+    applyFormToConfig();
+    render();
+  };
+
+  val.addEventListener("click", () => {
+    if (opts?.mode === "checkbox") {
+      /** @type {HTMLInputElement} */ (inputEl).checked = !/** @type {HTMLInputElement} */ (inputEl).checked;
+      commit();
+      return;
+    }
+    enterEdit();
+  });
+  view.addEventListener("dblclick", () => {
+    if (opts?.mode === "checkbox") return;
+    enterEdit();
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    }
+  });
+  inputEl.addEventListener("blur", () => {
+    if (!field.classList.contains("field--editing")) return;
+    commit();
+  });
+  inputEl.addEventListener("input", () => render());
+  inputEl.addEventListener("change", () => render());
+
+  render();
+}
+
+function wireSettingsInlineEditing() {
+  // Numeric/text fields
+  makeInlineField(ui.inpPollSec);
+  if (ui.inpThresholds) makeInlineField(ui.inpThresholds);
+  makeInlineField(ui.inpWindowPoints);
+
+  // Sound URLs stay editable as-is (power users); show inline view for consistency.
+  makeInlineField(ui.inpWarnSoundUrl, { format: () => ui.warnSoundSummary?.textContent || "—" });
+  makeInlineField(ui.inpCompletionSoundUrl, { format: () => ui.completionSoundSummary?.textContent || "—" });
+  makeInlineField(ui.inpInterruptSoundUrl, { format: () => ui.interruptSoundSummary?.textContent || "—" });
+}
+
+wireSettingsInlineEditing();
+
+function wireSoundAdvancedToggles() {
+  /**
+   * @param {HTMLElement|null} btn
+   * @param {HTMLElement|null} panel
+   * @param {HTMLInputElement|null} focusEl
+   */
+  const wire = (btn, panel, focusEl) => {
+    if (!btn || !panel) return;
+    btn.addEventListener("click", () => {
+      const next = !panel.hidden;
+      panel.hidden = next;
+      try {
+        btn.setAttribute("aria-pressed", (!next).toString());
+      } catch {
+        // ignore
+      }
+      if (!next) {
+        try {
+          focusEl?.focus();
+          focusEl?.select?.();
+        } catch {
+          // ignore
+        }
+      }
+    });
+  };
+
+  wire(ui.btnWarnSoundAdv, ui.warnSoundAdv, ui.inpWarnSoundUrl);
+  wire(ui.btnCompletionSoundAdv, ui.completionSoundAdv, ui.inpCompletionSoundUrl);
+  wire(ui.btnInterruptSoundAdv, ui.interruptSoundAdv, ui.inpInterruptSoundUrl);
+}
+
+wireSoundAdvancedToggles();
 
 const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
 /** @type {"win"|"unix"} */
@@ -926,7 +1135,7 @@ function applyFormToConfig() {
   // Validate thresholds but only throw if the user explicitly saves.
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
-  config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
+  if (ui.inpThresholds) config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
   config.logEveryChange = ui.chkLogEveryChange.checked;
   config.warnNotify = ui.chkWarnNotify.checked;
   config.warnSound = ui.chkWarnSound.checked;
@@ -1008,7 +1217,7 @@ function saveConfig() {
 
 function syncConfigToForm() {
   ui.inpPollSec.value = String(config.pollSec);
-  ui.inpThresholds.value = String(config.thresholdsRaw);
+  if (ui.inpThresholds) ui.inpThresholds.value = String(config.thresholdsRaw);
   ui.inpWindowPoints.value = String(config.windowPoints);
   ui.chkLogEveryChange.checked = !!config.logEveryChange;
   ui.chkWarnNotify.checked = !!config.warnNotify;
@@ -1061,16 +1270,19 @@ function desktopNotifyCapabilityHint() {
       showToast("Desktop notifications unavailable", "This browser does not support system notifications.", "warn", { durationMs: 12000 });
       return;
     }
-    if (typeof location !== "undefined" && location.protocol === "file:") {
+    const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+    if (!secure) {
+      appendNotifyDiagnostics("Notification blocked (origin):");
       showToast(
-        "Desktop notifications may be blocked",
-        "You opened this as a file (file://). For reliable system notifications, run `npm run dev` (http://localhost) and click Enable notifications.",
+        "Desktop notifications are blocked here",
+        "Browsers only allow system notifications on secure pages (https://) or localhost. Open this app via http://localhost (e.g. `python -m http.server 5173`, then visit http://localhost:5173) and click Enable notifications.",
         "warn",
         { durationMs: 16000 },
       );
       return;
     }
     if (Notification.permission === "denied") {
+      appendNotifyDiagnostics("Notification blocked (denied):");
       showToast(
         "Desktop notifications blocked",
         "Unblock notifications in the browser’s site settings (lock icon in the address bar), then click Enable notifications again.",
@@ -1080,9 +1292,10 @@ function desktopNotifyCapabilityHint() {
       return;
     }
     if (Notification.permission !== "granted") {
+      appendNotifyDiagnostics("Notification not enabled:");
       showToast(
-        "Desktop notifications not enabled",
-        "Click Enable notifications in the Info card to allow system notifications (toasts still work without this).",
+        "Desktop notifications not enabled for this page",
+        `Permission for this page is "${Notification.permission}". Click Enable notifications in the Info card to allow system notifications (toasts still work without this).`,
         "info",
         { durationMs: 14000 },
       );
@@ -1102,42 +1315,90 @@ function notifyDesktop(kind, title, body) {
   if (kind === "threshold" && !config.warnNotify) return;
   if (kind === "completion" && !config.completionNotify) return;
   if (kind === "interrupt" && !config.interruptNotify) return;
-  if (!("Notification" in window)) {
-    desktopNotifyCapabilityHint();
-    return;
-  }
-  if (Notification.permission !== "granted") {
-    desktopNotifyCapabilityHint();
-    return;
-  }
+  // Do not spam capability toasts on alerts. We show a one-time hint on page load and keep the UI hint near the button.
+  if (!("Notification" in window)) return;
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) return;
+  if (Notification.permission !== "granted") return;
+  const opts = {
+    body,
+    silent: true,
+    icon: NOTIFICATION_ICON_URL,
+    tag:
+      kind === "threshold"
+        ? "vsqm-threshold"
+        : kind === "completion"
+          ? "vsqm-completion"
+          : "vsqm-interrupt",
+    renotify: true,
+    requireInteraction: true,
+  };
+  (async () => {
+    try {
+      const reg = await ensureServiceWorkerReady();
+      if (reg && typeof reg.showNotification === "function") {
+        // @ts-ignore options include requireInteraction in modern Chromium
+        await reg.showNotification(title, opts);
+        return;
+      }
+      // Fallback
+      // @ts-ignore requireInteraction not in older libdefs.
+      new Notification(title, opts);
+    } catch (e) {
+      appendNotifyDiagnostics("Notification delivery failed:");
+      appendHistory(`Notification delivery failed: ${String(e)}`);
+      showToast(
+        "Desktop notification failed to deliver",
+        "Permission is granted, but the browser/OS suppressed or blocked delivery. Check Windows notification settings for your browser (and Notification Center).",
+        "warn",
+        { durationMs: 16000 },
+      );
+    }
+  })();
+}
+
+// One-time, non-spammy hint on page load (if notifications aren't ready).
+(() => {
+  const kick = () => desktopNotifyCapabilityHint();
+  if (document.readyState === "complete") kick();
+  else window.addEventListener("load", kick, { once: true });
+})();
+
+function appendNotifyDiagnostics(prefix) {
   try {
-    new Notification(title, {
-      body,
-      silent: true,
-      icon: NOTIFICATION_ICON_URL,
-      tag:
-        kind === "threshold"
-          ? "vsqm-threshold"
-          : kind === "completion"
-            ? "vsqm-completion"
-            : "vsqm-interrupt",
-    });
+    const diag = {
+      perm: "Notification" in window ? Notification.permission : "unsupported",
+      secure: typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false,
+      proto: typeof location !== "undefined" ? location.protocol : "",
+      vis: typeof document !== "undefined" ? document.visibilityState : "",
+      focus: typeof document !== "undefined" ? document.hasFocus?.() : null,
+    };
+    appendHistory(`${prefix} ${JSON.stringify(diag)}`);
   } catch {
     // ignore
   }
 }
 
-/** One-shot test so users see that OS notifications work (often suppressed while this tab is focused). */
+/**
+ * Test notifications are frequently suppressed while focused / by Windows settings.
+ * This sends multiple pings spaced out and keeps them visible longer where supported.
+ */
 function showTestDesktopNotification() {
-  try {
-    new Notification("VS Queue Monitor", {
-      body: "Alerts from this app appear here when the tab is in the background and a threshold or completion fires (see Settings).",
-      silent: false,
-      icon: NOTIFICATION_ICON_URL,
-      tag: "vsqm-permission-test",
-    });
-  } catch {
-    // ignore
+  appendNotifyDiagnostics("Notification test:");
+  /** @type {Array<{title:string, body:string, delayMs:number}>} */
+  const msgs = [
+    { title: "VS Queue Monitor", body: "Test notification 1/3. If you don’t see a banner, check Notification Center.", delayMs: 0 },
+    { title: "VS Queue Monitor", body: "Test notification 2/3. Windows may suppress banners while this tab is focused.", delayMs: 900 },
+    { title: "VS Queue Monitor", body: "Test notification 3/3. Ensure Windows notifications for your browser are enabled.", delayMs: 1800 },
+  ];
+
+  const sendOne = (i) => {
+    const m = msgs[i];
+    // Prefer the same codepath as real alerts.
+    notifyDesktop("threshold", m.title, m.body);
+  };
+
+  for (let i = 0; i < msgs.length; i++) {
+    window.setTimeout(() => sendOne(i), msgs[i].delayMs);
   }
 }
 
@@ -1698,7 +1959,7 @@ async function finishRestoreSavedLog(handle) {
 async function tryRestoreLastLogOnLoad() {
   if (!window.showOpenFilePicker) {
     appendHistory(
-      "File System Access API not available (`showOpenFilePicker`). Use Edge/Chrome and open the app from http://localhost (npm run dev) or https:// — not all contexts expose the picker.",
+      "File System Access API not available (`showOpenFilePicker`). Use Edge/Chrome and open the app from https:// or http://localhost (e.g. `python -m http.server 5173`). Some contexts (including file://) do not expose the picker.",
     );
     return;
   }
@@ -1983,7 +2244,7 @@ let lastAlertEpoch = 0;
 let thresholdsFired = new Set();
 /** Only animate warnings marquee briefly after a warning fires. */
 let warningsMarqueeUntilEpoch = 0;
-let warningsEditMode = false;
+// Legacy: warnings used to have an explicit edit mode; now editing is via contextual popover.
 /** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
@@ -2253,6 +2514,7 @@ function syncWarningsMarquee() {
   if (!viewport || !rail) return;
   viewport.classList.remove("kpiWarn__viewport--scroll");
   viewport.classList.remove("kpiWarn__viewport--overflow");
+  ui.kpiWarnings?.classList.remove("kpiWarn--overflow");
   rail.classList.remove("kpiWarn__rail--marquee");
   rail.style.removeProperty("--kpi-warn-shift");
   rail.style.removeProperty("animation");
@@ -2263,6 +2525,8 @@ function syncWarningsMarquee() {
       const rw = rail.scrollWidth;
       if (rw <= vw + 2) return;
       viewport.classList.add("kpiWarn__viewport--overflow");
+      ui.kpiWarnings?.classList.add("kpiWarn--overflow");
+      syncWarningsArrowState();
       const now = Date.now() / 1000;
       if (!(now < warningsMarqueeUntilEpoch)) return;
       if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -2274,8 +2538,18 @@ function syncWarningsMarquee() {
       rail.style.animation = `kpiWarnMarquee ${sec}s ease-in-out infinite alternate`;
       viewport.classList.add("kpiWarn__viewport--scroll");
       rail.classList.add("kpiWarn__rail--marquee");
+      syncWarningsArrowState();
     });
   });
+}
+
+function syncWarningsArrowState() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport || !ui.btnWarnScrollL || !ui.btnWarnScrollR) return;
+  const max = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+  const x = viewport.scrollLeft;
+  ui.btnWarnScrollL.disabled = x <= 1;
+  ui.btnWarnScrollR.disabled = x >= max - 1;
 }
 
 function refreshWarningsKpi() {
@@ -2298,8 +2572,27 @@ function refreshWarningsKpi() {
   if (ui.kpiWarningsRail) {
     ui.kpiWarningsRail.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
   }
-  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
   syncWarningsMarquee();
+}
+
+function focusUpcomingWarningOnLoad() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const rail = ui.kpiWarningsRail;
+  if (!rail) return;
+  // Upcoming = first pending threshold (not yet hit), left-to-right as displayed.
+  const el = rail.querySelector(".kpiWarn--pending");
+  if (!el) {
+    viewport.scrollLeft = 0;
+    syncWarningsArrowState();
+    return;
+  }
+  try {
+    /** @type {HTMLElement} */ (el).scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
+  } catch {
+    // ignore
+  }
+  syncWarningsArrowState();
 }
 
 function estimateSecondsRemaining() {
@@ -3168,14 +3461,56 @@ function drawGraph() {
   const yTickCount = 5;
   const xTickCount = 5;
   ctx.lineWidth = 1;
-  for (let i = 0; i <= yTickCount; i++) {
-    const y = padT + (i / yTickCount) * plotH;
-    ctx.strokeStyle = i === 0 || i === yTickCount ? "rgba(55,65,82,0.62)" : "rgba(55,65,82,0.36)";
+
+  // Horizontal gridlines + Y labels that match the active scale.
+  const yTicks = [];
+  if (config.graphLogScale) {
+    const a = Math.log1p(Math.max(0, minP));
+    const b = Math.log1p(Math.max(0, maxP));
+    for (let i = 0; i <= yTickCount; i++) {
+      const frac = i / yTickCount; // 0 top → 1 bottom
+      const v = Math.expm1(b - frac * (b - a));
+      yTicks.push(Math.max(0, Math.round(v)));
+    }
+  } else {
+    for (let i = 0; i <= yTickCount; i++) {
+      const frac = i / yTickCount; // 0 top → 1 bottom
+      const v = maxP - frac * (maxP - minP);
+      yTicks.push(Math.round(v));
+    }
+  }
+  // De-dupe while keeping order (log rounding can create repeats).
+  const seen = new Set();
+  const yTickVals = yTicks.filter((v) => {
+    if (seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+
+  ctx.strokeStyle = "rgba(55,65,82,0.36)";
+  for (let i = 0; i < yTickVals.length; i++) {
+    const val = yTickVals[i];
+    const y = graphYMap(val, minP, maxP, h);
+    const strong = i === 0 || i === yTickVals.length - 1;
+    ctx.strokeStyle = strong ? "rgba(55,65,82,0.62)" : "rgba(55,65,82,0.36)";
     ctx.beginPath();
     ctx.moveTo(padL, y);
     ctx.lineTo(w - padR, y);
     ctx.stroke();
   }
+
+  // Y-axis tick labels (every other tick, plus ends).
+  ctx.fillStyle = "rgba(155,165,176,0.92)";
+  ctx.font = "12px " + mono;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < yTickVals.length; i++) {
+    if (!(i === 0 || i === yTickVals.length - 1 || i % 2 === 0)) continue;
+    const val = yTickVals[i];
+    const y = graphYMap(val, minP, maxP, h);
+    ctx.fillText(String(val), padL - 8, y);
+  }
+
   for (let i = 0; i <= xTickCount; i++) {
     const x = padL + (i / xTickCount) * plotW;
     ctx.strokeStyle = i === 0 || i === xTickCount ? "rgba(55,65,82,0.42)" : "rgba(55,65,82,0.2)";
@@ -3189,17 +3524,6 @@ function drawGraph() {
   ctx.strokeStyle = "rgba(46,55,66,0.95)";
   ctx.lineWidth = 1;
   ctx.strokeRect(padL - 0.5, padT - 0.5, plotW + 1, plotH + 1);
-
-  // Y-axis tick labels
-  ctx.fillStyle = "rgba(155,165,176,0.92)";
-  ctx.font = "12px " + mono;
-  ctx.textAlign = "right";
-  ctx.textBaseline = "middle";
-  const yLabels = [maxP, Math.round((maxP + minP) / 2), minP];
-  for (const val of yLabels) {
-    const y = graphYMap(val, minP, maxP, h);
-    ctx.fillText(String(val), padL - 8, y);
-  }
 
   // Y-axis title
   ctx.save();
@@ -3322,6 +3646,8 @@ void syncSoundSummaries();
 void warmDefaultSoundsCache();
 setStatus("Idle");
 refreshWarningsKpi();
+// On first paint, center the next upcoming (pending) threshold.
+queueMicrotask(() => requestAnimationFrame(() => focusUpcomingWarningOnLoad()));
 appendHistory(
   "VS Queue Monitor (web) ready. Pick your client log to start monitoring (or use Stop / Start to pause and resume). The last session can restore automatically when permitted.",
 );
@@ -3347,6 +3673,7 @@ startUpdateCheckLoop();
 (() => {
   const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
   if (!viewport) return;
+  viewport.addEventListener("scroll", () => syncWarningsArrowState(), { passive: true });
   viewport.addEventListener(
     "wheel",
     (e) => {
@@ -3356,24 +3683,31 @@ startUpdateCheckLoop();
       const before = viewport.scrollLeft;
       viewport.scrollLeft += dx;
       if (viewport.scrollLeft !== before) e.preventDefault();
+      syncWarningsArrowState();
     },
     { passive: false },
   );
 })();
 
-function setWarningsEditMode(on) {
-  warningsEditMode = !!on;
-  ui.kpiWarnings?.classList.toggle("kpiWarn--editMode", warningsEditMode);
-  try {
-    ui.btnWarningsEdit.textContent = warningsEditMode ? "✓" : "✎";
-    ui.btnWarningsEdit.title = warningsEditMode ? "Done" : "Edit thresholds";
-  } catch {
-    // ignore
-  }
-}
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const step = () => Math.max(80, Math.round(viewport.clientWidth * 0.55));
+  ui.btnWarnScrollL?.addEventListener("click", () => {
+    viewport.scrollBy({ left: -step(), behavior: "smooth" });
+    window.setTimeout(() => syncWarningsArrowState(), 220);
+  });
+  ui.btnWarnScrollR?.addEventListener("click", () => {
+    viewport.scrollBy({ left: step(), behavior: "smooth" });
+    window.setTimeout(() => syncWarningsArrowState(), 220);
+  });
+})();
 
+let _warningsEditorPrev = "";
 function openWarningsAddPopover() {
   if (!ui.warningsAddPopover) return;
+  _warningsEditorPrev = String(config.thresholdsRaw || "");
+  ui.inpWarningsAdd.value = _warningsEditorPrev;
   ui.warningsAddPopover.hidden = false;
   try {
     ui.inpWarningsAdd.focus();
@@ -3388,48 +3722,51 @@ function closeWarningsAddPopover() {
   ui.warningsAddPopover.hidden = true;
 }
 
+// Warnings editor is a simple CSV input popover (see index.html).
+
 function updateThresholdsFromList(list) {
   const uniq = [...new Set(list.filter((n) => Number.isFinite(n) && n >= 1))];
   uniq.sort((a, b) => b - a);
   config.thresholdsRaw = uniq.join(", ");
-  try {
-    ui.inpThresholds.value = config.thresholdsRaw;
-  } catch {
-    // ignore
-  }
+  if (ui.inpThresholds) ui.inpThresholds.value = config.thresholdsRaw;
   saveConfig();
   refreshWarningsKpi();
 }
 
+function normalizeThresholdInput(raw) {
+  const s = String(raw ?? "").replaceAll(",", " ");
+  const parts = s.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+  /** @type {number[]} */
+  const out = [];
+  for (const p of parts) {
+    const n = Number.parseInt(p, 10);
+    if (!Number.isFinite(n)) continue;
+    if (n >= 1) out.push(n);
+  }
+  const uniq = [...new Set(out)];
+  uniq.sort((a, b) => b - a);
+  return { list: uniq, normalized: uniq.join(", ") };
+}
+
 ui.btnWarningsEdit?.addEventListener("click", (e) => {
   e.preventDefault();
-  setWarningsEditMode(!warningsEditMode);
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden ? openWarningsAddPopover() : closeWarningsAddPopover();
+});
+
+ui.btnWarningsAddCancel?.addEventListener("click", () => {
+  ui.inpWarningsAdd.value = _warningsEditorPrev;
   closeWarningsAddPopover();
 });
 
-ui.btnWarningsAdd?.addEventListener("click", (e) => {
-  e.preventDefault();
-  setWarningsEditMode(true);
-  openWarningsAddPopover();
-});
-
-ui.btnWarningsAddCancel?.addEventListener("click", () => closeWarningsAddPopover());
-
 ui.btnWarningsAddOk?.addEventListener("click", () => {
-  let n = Number.parseInt(String(ui.inpWarningsAdd.value || "").trim(), 10);
-  if (!Number.isFinite(n) || n < 1) {
-    showToast("Invalid threshold", "Enter a whole number ≥ 1.", "warn", { durationMs: 7000 });
+  const { list: next, normalized } = normalizeThresholdInput(ui.inpWarningsAdd.value);
+  if (next.length === 0) {
+    showToast("Invalid thresholds", "Enter one or more whole numbers ≥ 1 (comma- or space-separated).", "warn", { durationMs: 8000 });
     return;
   }
-  let cur = [];
-  try {
-    cur = parseAlertThresholds(config.thresholdsRaw);
-  } catch {
-    cur = [];
-  }
-  cur.push(n);
-  updateThresholdsFromList(cur);
-  ui.inpWarningsAdd.value = "";
+  updateThresholdsFromList(next);
+  ui.inpWarningsAdd.value = normalized;
   closeWarningsAddPopover();
 });
 
@@ -3439,27 +3776,15 @@ ui.inpWarningsAdd?.addEventListener("keydown", (e) => {
     ui.btnWarningsAddOk.click();
   } else if (e.key === "Escape") {
     e.preventDefault();
-    closeWarningsAddPopover();
+    ui.btnWarningsAddCancel.click();
   }
 });
 
-ui.kpiWarningsRail?.addEventListener("click", (e) => {
-  if (!warningsEditMode) return;
-  const t = /** @type {HTMLElement|null} */ (e.target);
-  const el = t?.closest?.(".kpiWarn__threshold");
-  if (!el) return;
-  const raw = el.getAttribute("data-threshold") || "";
-  const n = Number.parseInt(raw, 10);
-  if (!Number.isFinite(n)) return;
-  let cur = [];
-  try {
-    cur = parseAlertThresholds(config.thresholdsRaw);
-  } catch {
-    cur = [];
-  }
-  const next = cur.filter((x) => x !== n);
-  updateThresholdsFromList(next);
+ui.inpWarningsAdd?.addEventListener("blur", () => {
+  const { normalized } = normalizeThresholdInput(ui.inpWarningsAdd.value);
+  if (normalized) ui.inpWarningsAdd.value = normalized;
 });
+
 
 ui.btnResumeLastLog.addEventListener("click", async () => {
   const h = pendingRestoreHandle;
@@ -3635,27 +3960,26 @@ ui.btnRequestNotify.addEventListener("click", async () => {
     showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
     return;
   }
-  try {
-    if (typeof location !== "undefined" && location.protocol === "file:") {
-      showToast(
-        "Tip: open via localhost",
-        "Desktop notifications are more reliable when served over http://localhost. Run `npm run dev`, open the localhost URL, then click Enable notifications again.",
-        "info",
-        { durationMs: 16000 },
-      );
-    }
-  } catch {
-    // ignore
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
+    appendHistory("Desktop notifications are blocked in this context (not a secure origin).");
+    showToast(
+      "Open via localhost",
+      "Desktop notifications require a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click Enable notifications again.",
+      "warn",
+      { durationMs: 16000 },
+    );
+    return;
   }
   if (Notification.permission === "granted") {
     showTestDesktopNotification();
     appendHistory("Desktop notifications: permission already granted — sent a test notification.");
     showToast(
       "Test sent",
-      "Check the system notification area (or taskbar). Browsers often hide these while this tab is focused—try another window, then use alerts while monitoring.",
+      "If you don’t see a banner, open Notification Center and check Windows notification settings for your browser. Banners are often suppressed while this tab is focused—try another window and watch for the next ping.",
       "info",
       { durationMs: 14000 },
     );
+    syncNotifyButtonUi();
     return;
   }
   if (Notification.permission === "denied") {
@@ -3674,13 +3998,14 @@ ui.btnRequestNotify.addEventListener("click", async () => {
     showTestDesktopNotification();
     showToast(
       "Notifications enabled",
-      "You should see a system notification now. Real ones fire for threshold/completion when those toggles are on in Settings—often only when this tab is not focused.",
+      "You should see up to 3 test notifications. If not, open Notification Center and ensure Windows allows notifications for your browser.",
       "info",
       { durationMs: 16000 },
     );
   } else {
     showToast("Notifications not granted", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
   }
+  syncNotifyButtonUi();
 });
 
 ui.btnSaveSettings.addEventListener("click", () => {
@@ -3689,11 +4014,11 @@ ui.btnSaveSettings.addEventListener("click", () => {
     if (!(pollSec >= 0.2)) throw new Error("Poll (s) must be >= 0.2.");
     const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
     if (!Number.isFinite(win) || win < 2) throw new Error("Rolling window (points) must be >= 2.");
-    parseAlertThresholds(ui.inpThresholds.value);
+    parseAlertThresholds(config.thresholdsRaw);
 
     config.pollSec = pollSec;
     config.windowPoints = win;
-    config.thresholdsRaw = ui.inpThresholds.value.trim();
+    // thresholdsRaw is edited inline from WARNINGS (not in this dialog)
     applyFormToConfig();
     saveConfig();
     syncConfigToForm();
@@ -3712,6 +4037,17 @@ ui.btnSaveSettings.addEventListener("click", () => {
   }
 });
 
+ui.btnCancelSettings?.addEventListener("click", () => {
+  // Discard in-progress edits (autosave may already have persisted, but this restores the form view).
+  try {
+    syncConfigToForm();
+    void syncSoundSummaries();
+  } catch {
+    // ignore
+  }
+  closeSettings();
+});
+
 function bindEnterToSave(input) {
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
@@ -3721,7 +4057,7 @@ function bindEnterToSave(input) {
 }
 
 bindEnterToSave(ui.inpPollSec);
-bindEnterToSave(ui.inpThresholds);
+if (ui.inpThresholds) bindEnterToSave(ui.inpThresholds);
 bindEnterToSave(ui.inpWindowPoints);
 bindEnterToSave(ui.inpWarnSoundUrl);
 bindEnterToSave(ui.inpCompletionSoundUrl);
@@ -3742,7 +4078,7 @@ for (const el of [
   ui.chkCompletionSound,
   ui.chkInterruptNotify,
   ui.chkInterruptSound,
-]) {
+].filter(Boolean)) {
   el.addEventListener("input", () => {
     applyFormToConfig();
     scheduleAutosave();
