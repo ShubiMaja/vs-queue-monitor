@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.3";
+const APP_VERSION = "2.1.4";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -2331,6 +2331,18 @@ async function finishRestoreSavedLog(handle) {
 }
 
 async function tryRestoreLastLogOnLoad() {
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
+    appendHistory(
+      "File picking is blocked in this context (not a secure origin). Open the app from http://localhost (or https://) so the browser can show the file picker.",
+    );
+    showToast(
+      "Open via localhost",
+      "Pick log requires a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click Pick log file again.",
+      "warn",
+      { durationMs: 16000 },
+    );
+    return;
+  }
   if (!window.showOpenFilePicker) {
     appendHistory(
       "File System Access API not available (`showOpenFilePicker`). Use Edge/Chrome and open the app from https:// or http://localhost (e.g. `python -m http.server 5173`). Some contexts (including file://) do not expose the picker.",
@@ -2405,6 +2417,18 @@ async function tryRestoreLastLogOnLoad() {
 }
 
 async function pickLogFile() {
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
+    appendHistory(
+      "Pick log failed: this page is not a secure origin. Open via http://localhost (or https://) for the browser file picker to work.",
+    );
+    showToast(
+      "Open via localhost",
+      "Pick log requires a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click Pick log file again.",
+      "warn",
+      { durationMs: 16000 },
+    );
+    return;
+  }
   if (!window.showOpenFilePicker) {
     appendHistory("This browser does not support file picking. Use Edge or Chrome.");
     return;
