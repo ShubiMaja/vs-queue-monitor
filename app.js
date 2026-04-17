@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.40";
+const APP_VERSION = "2.0.41";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -88,7 +88,9 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   const host = ui.toastHost;
   if (!host) return;
   const el = document.createElement("div");
-  el.className = `toast ${kind === "error" ? "toast--error" : kind === "warn" ? "toast--warn" : ""}`.trim();
+  const toastMod =
+    kind === "error" ? "toast--error" : kind === "warn" ? "toast--warn" : kind === "ok" ? "toast--ok" : "";
+  el.className = `toast ${toastMod}`.trim();
   const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
   el.innerHTML =
     `<div class="toast__title">${escapeHtml(String(title))}</div>` +
@@ -847,12 +849,14 @@ function appendHistory(msg) {
 }
 
 /**
+ * Desktop notification (optional). Toasts in `raiseAlert` / `maybeNotifyCompletion` work without permission.
+ * @param {"threshold"|"completion"} kind
  * @param {string} title
  * @param {string} body
  */
-function notify(title, body) {
-  if (!config.warnNotify && title.startsWith("⚠")) return;
-  if (!config.completionNotify && title.startsWith("🎉")) return;
+function notifyDesktop(kind, title, body) {
+  if (kind === "threshold" && !config.warnNotify) return;
+  if (kind === "completion" && !config.completionNotify) return;
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   try {
@@ -871,20 +875,27 @@ function beep(kind) {
   try {
     audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
     const ctx = audioCtx;
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
     const now = ctx.currentTime;
-    const base = kind === "completion" ? 880 : 520;
-    o.type = kind === "completion" ? "triangle" : "square";
-    o.frequency.setValueAtTime(base, now);
-    o.frequency.exponentialRampToValueAtTime(base * 1.12, now + 0.12);
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.07, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start(now);
-    o.stop(now + 0.25);
+    const tone = (freq, t0, dur, type, gain) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    };
+    if (kind === "warning") {
+      tone(480, now, 0.1, "square", 0.06);
+      tone(640, now + 0.11, 0.11, "square", 0.065);
+    } else {
+      tone(880, now, 0.16, "triangle", 0.07);
+      tone(990, now + 0.1, 0.18, "triangle", 0.055);
+    }
   } catch {
     // ignore
   }
@@ -917,7 +928,8 @@ let restoreInProgress = false;
 /** @type {string} */
 let logBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
-const ALERT_MIN_INTERVAL_SEC = 12.0;
+/** Min seconds between threshold alerts (debounce duplicate polls; keep low enough to allow distinct milestones). */
+const ALERT_MIN_INTERVAL_SEC = 5.0;
 const COMPLETION_NOTIFY_MIN_INTERVAL_SEC = 2.0;
 const QUEUE_UPDATE_INTERVAL_SEC = 30.0;
 const QUEUE_STALE_TIMEOUT_MULT = 2.0;
@@ -1686,9 +1698,10 @@ function refreshWarningsKpi() {
   const parts = [];
   for (const t of thresholds) {
     const passed = (pos != null && pos <= t) || fired.has(t);
-    parts.push(passed ? String(t) : String(t));
+    const cls = passed ? "kpiWarn--hit" : "kpiWarn--pending";
+    parts.push(`<span class="${cls}">${escapeHtml(String(t))}</span>`);
   }
-  ui.kpiWarnings.textContent = parts.join(" · ");
+  ui.kpiWarnings.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
 }
 
 function estimateSecondsRemaining() {
@@ -1930,7 +1943,7 @@ function computeAlert(prevPos, currPos) {
   }
   if (crossed.length === 0) return { should: false, reason: "" };
   crossed.sort((a, b) => b - a);
-  return { should: true, reason: `crossed threshold(s): ${crossed.join(", ")}` };
+  return { should: true, reason: `reached ${crossed.map((t) => `≤${t}`).join(", ")}` };
 }
 
 /**
@@ -1941,13 +1954,27 @@ function raiseAlert(position, reason) {
   const now = Date.now() / 1000;
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
   lastAlertEpoch = now;
-  ui.infoLastAlert.textContent = nowStamp();
   const secRem = estimateSecondsRemaining();
   const etaDisplay = secRem == null ? "—" : formatDurationRemaining(secRem);
-  const extra = secRem == null ? "" : `; est. remaining ${etaDisplay}`;
-  appendHistory(`Threshold alert: position ${position} (${reason})${extra}`);
+  const etaPart = secRem == null ? "" : ` Est. remaining ${etaDisplay}.`;
+  ui.infoLastAlert.textContent = `${nowStamp()} · pos ${position} · ${reason}`;
+  appendHistory(`Threshold alert: position ${position} (${reason})${secRem == null ? "" : `; est. remaining ${etaDisplay}`}`);
   beep("warning");
-  notify("⚠ Threshold alert", `Position ${position} (${reason}). ETA: ${etaDisplay}`);
+  if (config.warnNotify) {
+    showToast(
+      "Threshold reached",
+      `Position ${position}. ${reason}.${etaPart}`,
+      "warn",
+      { durationMs: 9000 },
+    );
+    notifyDesktop(
+      "threshold",
+      "Threshold reached",
+      secRem == null
+        ? `Position ${position}. ${reason}.`
+        : `Position ${position}. ${reason}. About ${etaDisplay} left.`,
+    );
+  }
 }
 
 /**
@@ -1966,8 +1993,13 @@ function maybeNotifyCompletion(position, tailText) {
   completionNotifiedThisRun = true;
   lastCompletionNotifyEpoch = now;
   appendHistory("Queue completion: past queue wait — connecting (position 0).");
+  ui.infoLastAlert.textContent = `${nowStamp()} · queue complete`;
   beep("completion");
-  notify("🎉 Queue completed", "Past queue wait detected in the log tail (connecting/loading).");
+  if (wantPopup) {
+    const msg = "Past queue wait detected — connecting or loading.";
+    showToast("Queue complete", msg, "ok", { durationMs: 14000 });
+    notifyDesktop("completion", "Queue complete", msg);
+  }
 }
 
 function hideInterruptAdoptModal() {

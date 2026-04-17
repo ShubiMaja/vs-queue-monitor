@@ -139,6 +139,9 @@ body{
 .kpi__value{margin-top:6px;font-size:20px;font-weight:800;color:#f0f4f8;line-height:1.1}
 .kpi__value--mono{font-family:var(--mono);font-weight:750}
 .kpi__value--ok{color:#f0f4f8}
+.kpiWarn--hit{color:var(--ok);font-weight:800}
+.kpiWarn--pending{color:var(--muted);font-weight:650}
+.kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
 .kpi--progress{grid-column: span 1}
 
 .progress{
@@ -272,6 +275,7 @@ body{
 }
 .toast--error{border-color:rgba(242,73,92,0.7)}
 .toast--warn{border-color:rgba(255, 176, 32, 0.75)}
+.toast--ok{border-color:rgba(115, 191, 105, 0.65); background: rgba(20, 28, 22, 0.96)}
 .toast__title{font-weight:800;margin-bottom:4px}
 .toast__body{color:var(--text)}
 .toast__hint{margin-top:6px;color:var(--muted);font-size:12px}

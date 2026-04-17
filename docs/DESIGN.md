@@ -271,7 +271,7 @@ The app is a **single-page dashboard** with a stable mental model:
 
 - **Warnings:** User-configured **milestones** on the way down the queue; fire on **downward crossings**, **once per threshold per run** (idempotent)—not on every poll tick.
 - **Completion:** **Log-backed** end-of-queue-wait—**not** driven by the threshold list; triggers completion UX (notification/sound) in line with the **Completed** state.
-- **Volume:** Sounds and system notifications are **optional** and user-controlled; defaults err toward **informative**, not alarming.
+- **Surface:** **In-page toasts** when alert toggles are on (works without notification permission); **desktop notifications** optional. Sounds are **optional** and user-controlled; defaults err toward **informative**, not alarming.
 
 ### 5.6 Estimation (ETA, rate, progress)
 

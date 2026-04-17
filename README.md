@@ -55,7 +55,7 @@ That uses **`npx`** to run `http-server` (pinned in `package.json`) the first ti
 ## Using it
 
 1. Click **Pick log file…** and select your `client-main.log` (or `client.log`). Monitoring **starts automatically** when a log is opened successfully.
-2. Optional: click **Enable notifications** so threshold/completion popups can appear even when the tab is in the background.
+2. Optional: click **Enable notifications** so threshold/completion alerts can also use **desktop notifications** when the tab is in the background. In-page toasts still work without that permission when alerts are enabled in Settings.
 
 Use **Stop** / **Start** to pause and resume tailing the same file without picking again.
 
@@ -172,7 +172,7 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 ### Graph pane (top)
 
-- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (column title **`RATE (Rolling N)`** — **N** comes from **Settings → Estimation → Rolling window (points)**; the value row is just minutes per position, e.g. `6.20 min/pos`), **Warnings** (configured threshold numbers; each value appears muted once your position is at or below that threshold, or after that alert fired), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
+- **KPI strip (one header row, one value row):** **Position** (queue index from the log, or **0** when a post-queue line shows you are **not** still waiting in queue — e.g. loading mods), **Status** (connection/monitoring state — not the Info panel name), **Rate** (column title **`RATE (Rolling N)`** — **N** comes from **Settings → Estimation → Rolling window (points)**; the value row is just minutes per position, e.g. `6.20 min/pos`), **Warnings** (configured threshold numbers; **muted** until you reach or pass that milestone, then **highlighted** once you’re at or below it or that threshold has alerted), **Elapsed**, **EST. REMAINING** (ETA), **Progress** (thin bar: share of estimated total wait elapsed; **100%** at **position 0**).
 - **Chart:** step plot of queue position vs time (**0** = past queue wait); hover near the line for timestamp and position.
 - **Y → log / Y → linear** toggles **log-scale** vs **linear** vertical axis (helps when position spans a wide range).
 - Graph preferences persist (see **Configuration file**).
@@ -181,7 +181,7 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 - Click the **Info** header bar or chevron to expand or collapse details.
 - When expanded, pane height fits **full content** (path, labels, wrapping text).
-- Shows **Last change**, **Last threshold alert**, **Resolved log path**, and **Global Rate** — average minutes per position over every forward queue step in the **full** graph (all segments), distinct from the KPI **Rate** line which uses the rolling window from **Estimation** and dwell caps.
+- Shows **Last change**, **Last alert** (threshold or completion), **Resolved log path**, and **Global Rate** — average minutes per position over every forward queue step in the **full** graph (all segments), distinct from the KPI **Rate** line which uses the rolling window from **Estimation** and dwell caps.
 
 ### History pane (collapsible)
 
@@ -190,9 +190,9 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 ### Alerts
 
-- **Warning thresholds** — comma-separated positions (default `10, 5, 1`): a warning can fire when you **cross downward** through each value (once per value per queue run).
-- **Completion** — **not threshold-based**: it fires when the log tail shows a **post-queue** line **after** the last queue position line. This maps the UI position to **0** (Completed) and is the trigger for the completion popup/sound.
-- **Browser notifications**: optional; click **Enable notifications** and allow permission. Sounds are simple built-in beeps (browser-safe).
+- **Thresholds** — comma-separated positions (default `10, 5, 1`): an alert can fire when you **cross downward** through each value (once per value per queue run). **Threshold alerts** shows **in-page toasts** (and optional **desktop notifications** if you allow them); **Threshold sound** uses short built-in tones.
+- **Completion** — **not threshold-based**: it fires when the log tail shows a **post-queue** line **after** the last queue position line. This maps the UI position to **0** (Completed) and drives completion toast/sound/desktop notification per Settings.
+- **Desktop notifications** are optional (**Enable notifications** in Info). Toasts work without that permission as long as the corresponding alert toggles are on in Settings.
 
 ### ETA, rate, and progress
 
@@ -219,8 +219,8 @@ The status string reflects tail-of-log classification, for example:
 ### Settings (gear)
 
 - **Polling** — **Poll (s)** between log reads.
-- **Warning Alerts** — comma-separated **thresholds**, **Warning popup** / **Warning sound** / **Warning sound file**.
-- **Completion Alerts** — **on/off only** when the log shows past-queue-wait lines (no threshold list); **Completion popup**, **Completion sound**, **Completion sound file**.
+- **Thresholds** — comma-separated **warning thresholds**; **Threshold alerts** (in-page toast + optional desktop); **Threshold sound** (built-in beep).
+- **Completion** — **Completion alert** (in-page toast + optional desktop) and **Completion sound** when past-queue-wait is detected (no threshold list).
 - **History** — **Log every position change**: when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are). Show or hide the panel from the main window **History** bar (still saved in config).
 - **Estimation** — **Rolling window (points)**: how many recent queue steps to use for rolling rate and ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
