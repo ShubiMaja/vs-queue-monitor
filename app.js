@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.55";
+const APP_VERSION = "2.0.56";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -19,6 +19,7 @@ const ui = {
   btnHelpClose: $("btnHelpClose"),
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
+  btnGraphWindow: $("btnGraphWindow"),
   btnClear: $("btnClear"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
@@ -930,6 +931,7 @@ function applyFormToConfig() {
   config.warnSoundUrl = ui.inpWarnSoundUrl.value.trim();
   config.completionSoundUrl = ui.inpCompletionSoundUrl.value.trim();
   config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
+  // graphLiveWindow is controlled by a button (not a form field).
   ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
 }
 
@@ -951,7 +953,8 @@ function applyFormToConfig() {
  *   completionSoundFileName: string,
  *   interruptSoundUrl: string,
  *   interruptSoundFileName: string,
- *   graphLogScale: boolean
+ *   graphLogScale: boolean,
+ *   graphLiveWindow: boolean
  * }} AppConfig
  */
 
@@ -974,6 +977,7 @@ let config = {
   interruptSoundUrl: "",
   interruptSoundFileName: "",
   graphLogScale: false,
+  graphLiveWindow: false,
 };
 
 function loadConfig() {
@@ -1011,6 +1015,7 @@ function syncConfigToForm() {
   ui.inpCompletionSoundUrl.value = config.completionSoundUrl ?? "";
   ui.inpInterruptSoundUrl.value = config.interruptSoundUrl ?? "";
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
+  if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Window → live" : "Window → full";
   ui.kpiRateLabel.textContent = `RATE (Rolling ${config.windowPoints})`;
 }
 
@@ -2890,7 +2895,7 @@ function startMonitoring() {
   estimateTimer = window.setInterval(() => updateTimeEstimates(), 100);
   if (graphRealtimeTimer != null) window.clearInterval(graphRealtimeTimer);
   graphRealtimeTimer = window.setInterval(() => {
-    if (running && graphPoints.length > 0) scheduleDrawGraph();
+    if (running && config.graphLiveWindow && graphPoints.length > 0) scheduleDrawGraph();
   }, 250);
   pollOnce();
 }
@@ -3033,14 +3038,13 @@ function drawGraph() {
   // Time range
   const tLast = graphPoints[graphPoints.length - 1][0];
   const tNow = Date.now() / 1000;
-  const t1 = running ? Math.max(tLast, tNow) : tLast;
-  // Grafana-like "last N seconds" window so the graph scrolls in real time.
-  const span = Math.max(60, Math.round(config.pollSec * config.windowPoints * 12));
+  const t1 = config.graphLiveWindow && running ? Math.max(tLast, tNow) : tLast;
+  const span = config.graphLiveWindow ? Math.max(60, Math.round(config.pollSec * config.windowPoints * 12)) : Math.max(60, t1 - graphPoints[0][0]);
   const t0 = t1 - span;
   const xOf = (t) => padL + ((t - t0) / span) * plotW;
 
-  // Range (prefer the visible window so scale matches what you see).
-  const inWindow = graphPoints.filter((p) => p[0] >= t0 - 0.001 && p[0] <= t1 + 0.001);
+  // Range: full-history by default; windowed when live-window is enabled.
+  const inWindow = config.graphLiveWindow ? graphPoints.filter((p) => p[0] >= t0 - 0.001 && p[0] <= t1 + 0.001) : [];
   const positions = (inWindow.length ? inWindow : graphPoints).map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
@@ -3359,6 +3363,13 @@ ui.btnStartStop.addEventListener("click", async () => {
 ui.btnYScale.addEventListener("click", () => {
   config.graphLogScale = !config.graphLogScale;
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
+  saveConfig();
+  drawGraph();
+});
+
+ui.btnGraphWindow?.addEventListener("click", () => {
+  config.graphLiveWindow = !config.graphLiveWindow;
+  ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Window → live" : "Window → full";
   saveConfig();
   drawGraph();
 });
