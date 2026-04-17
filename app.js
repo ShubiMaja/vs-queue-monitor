@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.31";
+const APP_VERSION = "2.0.32";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -657,6 +657,38 @@ function parseTailLastQueueLineEpoch(data) {
     lastT = t ?? (Date.now() / 1000);
   }
   return lastT;
+}
+
+/**
+ * Keep only the **current queue run** in a loaded chunk: same session model as {@link parseTailLastQueueReading}
+ * (boundaries: reconnect, disconnect, main menu, new connection attempt, etc.). Works for a full file or a tail slice;
+ * session indices are relative to the start of `data`.
+ * @param {string} data
+ */
+function sliceLoadedLogToCurrentQueueRun(data) {
+  if (!data) return data;
+  const lines = data.split(/\r?\n/);
+  if (lines.length === 0) return data;
+  const sessionBeforeLine = new Array(lines.length);
+  let s = 0;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = s;
+    if (isQueueRunBoundaryLine(lines[i])) s++;
+  }
+  let lastQIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (queuePositionFromLine(lines[i]) != null) lastQIdx = i;
+  }
+  if (lastQIdx < 0) return data;
+  const targetSess = sessionBeforeLine[lastQIdx];
+  let startIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (sessionBeforeLine[i] === targetSess) {
+      startIdx = i;
+      break;
+    }
+  }
+  return lines.slice(startIdx).join("\n");
 }
 
 /**
@@ -1711,14 +1743,15 @@ function appendGraphPoint(position, lineEpoch) {
  * @param {string} fullText
  */
 function replayQueueGraphFromText(fullText) {
-  if (!fullText) {
+  const text = sliceLoadedLogToCurrentQueueRun(fullText);
+  if (!text) {
     graphPoints = [];
     currentPoint = null;
     lastPosition = null;
     drawGraph();
     return;
   }
-  const lines = fullText.split(/\r?\n/);
+  const lines = text.split(/\r?\n/);
   const sessionBeforeLine = new Array(lines.length);
   let s = 0;
   for (let i = 0; i < lines.length; i++) {
@@ -1784,7 +1817,7 @@ function replayQueueGraphFromText(fullText) {
     }
   }
 
-  const { session } = parseTailLastQueueReading(fullText);
+  const { session } = parseTailLastQueueReading(text);
   lastQueueRunSession = session;
   drawGraph();
 }
@@ -1917,6 +1950,11 @@ async function readNewLogText(handle) {
         `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
       );
     }
+    const rawLen = seed.length;
+    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    if (seed.length < rawLen) {
+      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
+    }
     lastReadOffset = size;
     pendingGraphReplayText = seed;
     return seed;
@@ -1931,9 +1969,14 @@ async function readNewLogText(handle) {
       const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
       seed = await readLogRangeText(handle, start, size);
     }
+    appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
+    const rawLenT = seed.length;
+    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    if (seed.length < rawLenT) {
+      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
+    }
     lastReadOffset = size;
     pendingGraphReplayText = seed;
-    appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
     return seed;
   }
 

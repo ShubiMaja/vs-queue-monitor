@@ -160,7 +160,7 @@ This web app currently expects you to pick the log file directly (recommended). 
 ### Monitoring
 
 - **Play / Stop** toggles tailing the log on an interval (**poll**, configurable in Settings).
-- On **Start**, the first read loads **as much of the log as practical** (the whole file when it is under ~12 MB) and **replays queue position history** into the graph, similar to the desktop app — not only the live tail. Larger logs load the **most recent** ~12 MB chunk and note that in History.
+- On **Start**, the first read loads **as much of the log as practical** (the whole file when it is under ~12 MB) and **replays queue position history** into the graph for the **current queue session only** (same reconnect / disconnect / new-connection patterns as the desktop app — earlier runs in the file are dropped). Larger logs load the **most recent** ~12 MB chunk and note that in History.
 - **Elapsed** time is anchored to the log: it uses the first **connecting / connection attempt** line in the current queue session when that line appears in the scanned log, otherwise the first **queue position** line in the graph. Reaching the **front** (position ≤1) freezes elapsed using **log line timestamps**, not the moment you opened the monitor.
 - **Timer (~10 Hz)** refreshes elapsed time, remaining ETA, and rate between log polls so values feel live.
 
