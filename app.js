@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.56";
+const APP_VERSION = "2.0.57";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1045,6 +1045,47 @@ function appendHistory(msg) {
   ui.historyPre.scrollTop = ui.historyPre.scrollHeight;
 }
 
+/** One-time capability warning so users know why OS banners didn't appear. */
+let _desktopNotifyHintShown = false;
+function desktopNotifyCapabilityHint() {
+  if (_desktopNotifyHintShown) return;
+  _desktopNotifyHintShown = true;
+  try {
+    if (!("Notification" in window)) {
+      showToast("Desktop notifications unavailable", "This browser does not support system notifications.", "warn", { durationMs: 12000 });
+      return;
+    }
+    if (typeof location !== "undefined" && location.protocol === "file:") {
+      showToast(
+        "Desktop notifications may be blocked",
+        "You opened this as a file (file://). For reliable system notifications, run `npm run dev` (http://localhost) and click Enable notifications.",
+        "warn",
+        { durationMs: 16000 },
+      );
+      return;
+    }
+    if (Notification.permission === "denied") {
+      showToast(
+        "Desktop notifications blocked",
+        "Unblock notifications in the browser’s site settings (lock icon in the address bar), then click Enable notifications again.",
+        "warn",
+        { durationMs: 16000 },
+      );
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      showToast(
+        "Desktop notifications not enabled",
+        "Click Enable notifications in the Info card to allow system notifications (toasts still work without this).",
+        "info",
+        { durationMs: 14000 },
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Desktop notification (optional). Toasts in `raiseAlert` / `maybeNotifyCompletion` work without permission.
  * @param {"threshold"|"completion"} kind
@@ -1055,8 +1096,14 @@ function notifyDesktop(kind, title, body) {
   if (kind === "threshold" && !config.warnNotify) return;
   if (kind === "completion" && !config.completionNotify) return;
   if (kind === "interrupt" && !config.interruptNotify) return;
-  if (!("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
+  if (!("Notification" in window)) {
+    desktopNotifyCapabilityHint();
+    return;
+  }
+  if (Notification.permission !== "granted") {
+    desktopNotifyCapabilityHint();
+    return;
+  }
   try {
     new Notification(title, {
       body,
@@ -3412,6 +3459,18 @@ ui.btnRequestNotify.addEventListener("click", async () => {
     appendHistory("Notifications are not supported in this browser.");
     showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
     return;
+  }
+  try {
+    if (typeof location !== "undefined" && location.protocol === "file:") {
+      showToast(
+        "Tip: open via localhost",
+        "Desktop notifications are more reliable when served over http://localhost. Run `npm run dev`, open the localhost URL, then click Enable notifications again.",
+        "info",
+        { durationMs: 16000 },
+      );
+    }
+  } catch {
+    // ignore
   }
   if (Notification.permission === "granted") {
     showTestDesktopNotification();
