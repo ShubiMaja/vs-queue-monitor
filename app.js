@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.14";
+const APP_VERSION = "2.1.15";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -3632,9 +3632,9 @@ async function pollOnce() {
     if (newText) appendToLogBuffer(newText);
     if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
-    const viewRaw = logBuffer || "";
-    // Always reason about the current queue run only (avoid spanning multiple reconnect sessions).
-    const view = sliceLoadedLogToCurrentQueueRun(viewRaw);
+    // IMPORTANT: Always parse from the full buffered tail so we never "lose" the newest queue reading
+    // due to boundary/slicing heuristics. Session boundaries are handled by the session counter.
+    const view = logBuffer || "";
     const { kind } = classifyTailConnectionState(view);
     const { lastPos, session } = parseTailLastQueueReading(view);
     const lastLineEpoch = parseTailLastQueueLineEpoch(view);
