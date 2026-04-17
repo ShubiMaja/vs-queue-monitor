@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.35";
+const APP_VERSION = "2.0.37";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -19,6 +19,10 @@ const ui = {
   restoreBannerDetail: $("restoreBannerDetail"),
   btnResumeLastLog: $("btnResumeLastLog"),
   btnDismissRestoreBanner: $("btnDismissRestoreBanner"),
+  interruptAdoptOverlay: $("interruptAdoptOverlay"),
+  interruptAdoptDetail: $("interruptAdoptDetail"),
+  btnInterruptAdoptConfirm: $("btnInterruptAdoptConfirm"),
+  btnInterruptAdoptNotNow: $("btnInterruptAdoptNotNow"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
@@ -1141,6 +1145,7 @@ async function clearSavedLogHandle() {
 async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
   pendingRestoreHandle = null;
   hideRestoreBanner();
+  hideInterruptAdoptModal();
   const historyLine = opts.historyLine;
   logFileHandle = handle;
   sourceLabel = sourceLabel_;
@@ -1473,6 +1478,18 @@ let lastLogStat = null;
 /** @type {number|null} */
 let lastLogGrowthEpoch = null;
 let interruptedMode = false;
+/** Session index (`parseTail`) at the moment we entered interrupted mode; `null` if unknown. */
+/** @type {number|null} */
+let sessionAtInterrupt = null;
+/** User dismissed adopt for this session (suppress repeat prompts until session changes). */
+/** @type {number|null} */
+let interruptAdoptDeclinedSession = null;
+/** @type {boolean} */
+let interruptAdoptModalVisible = false;
+/** @type {number|null} */
+let interruptAdoptPendingSession = null;
+/** @type {number|null} */
+let interruptAdoptPendingPosition = null;
 /** @type {number|null} */
 let interruptedElapsedSec = null;
 /** @type {[string, string] | null} */
@@ -1951,12 +1968,73 @@ function maybeNotifyCompletion(position, tailText) {
   notify("🎉 Queue completed", "Past queue wait detected in the log tail (connecting/loading).");
 }
 
+function hideInterruptAdoptModal() {
+  if (!ui.interruptAdoptOverlay) return;
+  interruptAdoptModalVisible = false;
+  ui.interruptAdoptOverlay.hidden = true;
+}
+
+function showInterruptAdoptModal() {
+  if (!ui.interruptAdoptOverlay || !ui.interruptAdoptDetail) return;
+  interruptAdoptModalVisible = true;
+  const s = interruptAdoptPendingSession;
+  const p = interruptAdoptPendingPosition;
+  ui.interruptAdoptDetail.textContent = `A new connect-queue run appears in the log (session ${s ?? "?"}, position ${p ?? "—"}). Adopt it to clear the graph and reset alerts for this run, or stay interrupted to keep the previous graph until you decide.`;
+  ui.interruptAdoptOverlay.hidden = false;
+}
+
+/**
+ * @param {number} session
+ * @param {number|null} lastPos
+ */
+function offerInterruptAdoptIfNeeded(session, lastPos) {
+  if (interruptAdoptModalVisible) return;
+  if (interruptAdoptDeclinedSession === session) return;
+  interruptAdoptPendingSession = session;
+  interruptAdoptPendingPosition = lastPos;
+  showInterruptAdoptModal();
+}
+
+/**
+ * @param {number} session
+ */
+function applyInterruptAdopt(session) {
+  hideInterruptAdoptModal();
+  interruptedMode = false;
+  interruptedElapsedSec = null;
+  frozenRatesAtInterrupt = null;
+  sessionAtInterrupt = null;
+  interruptAdoptDeclinedSession = null;
+  thresholdsFired.clear();
+  positionOneReachedAt = null;
+  connectPhaseStartedEpoch = null;
+  progressAtFrontEntry = null;
+  leftConnectQueueDetected = false;
+  completionNotifiedThisRun = false;
+  lastQueuePositionChangeEpoch = Date.now() / 1000;
+  mppFloorPosition = null;
+  mppFloorValue = null;
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  pendingGraphReplayText = null;
+  const slice = sliceLoadedLogToCurrentQueueRun(logBuffer);
+  replayQueueGraphFromText(slice);
+  lastQueueRunSession = session;
+  setStatus("Monitoring");
+  appendHistory("Adopted new queue run after interrupt — graph and alerts re-seeded for this run.");
+  drawGraph();
+  refreshWarningsKpi();
+  updateTimeEstimates();
+}
+
 /**
  * @param {string} detail
  */
 function enterInterruptedState(detail) {
   if (interruptedMode) return;
   interruptedMode = true;
+  sessionAtInterrupt = lastQueueRunSession;
   interruptedElapsedSec = snapshotElapsedSecondsAtInterrupt();
   frozenRatesAtInterrupt = [ui.kpiRate.textContent, ui.infoGlobalRate.textContent];
   setStatus("Interrupted", true);
@@ -2083,13 +2161,31 @@ async function pollOnce() {
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
 
     if (interruptedMode) {
-      // Minimal: keep interrupted until the queue looks healthy again (new queue lines).
       if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
-        interruptedMode = false;
-        interruptedElapsedSec = null;
-        frozenRatesAtInterrupt = null;
-        setStatus("Monitoring");
-        appendHistory("Recovered from interrupted state (queue lines resumed).");
+        if (sessionAtInterrupt === null) {
+          interruptedMode = false;
+          interruptedElapsedSec = null;
+          frozenRatesAtInterrupt = null;
+          sessionAtInterrupt = null;
+          interruptAdoptDeclinedSession = null;
+          hideInterruptAdoptModal();
+          setStatus("Monitoring");
+          appendHistory("Recovered from interrupted state (queue lines resumed).");
+        } else if (session > sessionAtInterrupt) {
+          offerInterruptAdoptIfNeeded(session, lastPos);
+          return;
+        } else {
+          interruptedMode = false;
+          interruptedElapsedSec = null;
+          frozenRatesAtInterrupt = null;
+          sessionAtInterrupt = null;
+          interruptAdoptDeclinedSession = null;
+          hideInterruptAdoptModal();
+          setStatus("Monitoring");
+          appendHistory("Recovered from interrupted state (queue lines resumed).");
+        }
+      } else {
+        return;
       }
     }
 
@@ -2114,7 +2210,7 @@ async function pollOnce() {
       return;
     }
 
-    if (lastPos != null && (!logSilent || lastPos <= 1)) {
+    if (!interruptedMode && lastPos != null && (!logSilent || lastPos <= 1)) {
       const prevPos = lastPosition;
       let pos = lastPos;
 
@@ -2217,6 +2313,9 @@ function startMonitoring() {
   interruptedMode = false;
   interruptedElapsedSec = null;
   frozenRatesAtInterrupt = null;
+  sessionAtInterrupt = null;
+  interruptAdoptDeclinedSession = null;
+  hideInterruptAdoptModal();
   lastQueueRunSession = null;
   appendHistory("Monitoring started.");
 
@@ -2236,6 +2335,7 @@ function stopMonitoring() {
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
   estimateTimer = null;
+  hideInterruptAdoptModal();
   setStatus(leftConnectQueueDetected ? "Completed" : "Stopped", false);
   appendHistory("Monitoring stopped.");
 }
@@ -2449,6 +2549,17 @@ ui.btnDismissRestoreBanner.addEventListener("click", () => {
   pendingRestoreHandle = null;
   hideRestoreBanner();
   appendHistory("Resume dismissed — pick the log file or reload to try again.");
+});
+
+ui.btnInterruptAdoptConfirm.addEventListener("click", () => {
+  const s = interruptAdoptPendingSession;
+  if (s == null) return;
+  applyInterruptAdopt(s);
+});
+ui.btnInterruptAdoptNotNow.addEventListener("click", () => {
+  interruptAdoptDeclinedSession = interruptAdoptPendingSession;
+  hideInterruptAdoptModal();
+  appendHistory("Keeping interrupted state — adopt the new run when ready (dialog will show again if the session changes).");
 });
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).

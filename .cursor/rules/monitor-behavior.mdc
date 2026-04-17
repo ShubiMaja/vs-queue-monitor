@@ -57,4 +57,4 @@ Apply when editing `monitor.py`, `README.md`, or related files in this project. 
 ## README
 
 - When behavior, paths, settings, or status text changes in ways users rely on, **update README in the same change set** (see **git-commit** rule).
-- When **product intent**, **user journey**, or **UX principles** change (not only implementation detail), update **`DESIGN.md`** in the same change set when those docs would otherwise drift.
+- When **product intent**, **user journey**, or **UX principles** change (not only implementation detail), update **`docs/DESIGN.md`** in the same change set when those docs would otherwise drift.

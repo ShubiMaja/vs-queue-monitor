@@ -42,6 +42,24 @@
       </div>
     </div>
 
+    <div id="interruptAdoptOverlay" class="overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="interruptAdoptTitle">
+        <div class="modal__header">
+          <div id="interruptAdoptTitle" class="modal__title">New queue run after interrupt</div>
+        </div>
+        <div class="modal__body">
+          <div id="interruptAdoptDetail" class="modal__text"></div>
+          <div class="modal__text muted" style="margin-top: 10px">
+            Adopt resets the chart and threshold state for this run. Not now keeps you in <strong>Interrupted</strong> until you choose again or the session changes.
+          </div>
+          <div class="helpForm__actions" style="margin-top: 14px">
+            <button id="btnInterruptAdoptConfirm" type="button" class="btn btn--primary">Adopt new run</button>
+            <button id="btnInterruptAdoptNotNow" type="button" class="btn btn--secondary">Not now</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="helpOverlay" class="overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <div class="modal__header">
@@ -276,7 +294,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.35"></script>
+    <script type="module" src="./app.js?v=2.0.37"></script>
   </body>
 </html>
 
