@@ -1,10 +1,11 @@
 {
   "name": "vs-queue-monitor",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.3",
   "description": "VS Queue Monitor — one-page web app (no backend).",
   "scripts": {
-    "dev": "http-server -c-1 -p 5173 ."
+    "dev": "http-server -c-1 -p 5173 .",
+    "build": "node scripts/build-dist.mjs"
   },
   "devDependencies": {
     "http-server": "^14.1.1"
