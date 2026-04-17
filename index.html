@@ -14,7 +14,16 @@
         <div class="brand__tagline">Vintage Story client log queue monitor</div>
       </div>
       <div class="topbar__mid">
-        <button id="btnNotifyPill" type="button" class="pill" hidden title="Desktop notifications status"></button>
+        <div class="notifyCtl notifyCtl--top" aria-label="Desktop notifications">
+          <button
+            id="btnRequestNotify"
+            class="btn btn--small btn--secondary"
+            title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
+          >
+            Enable notifications
+          </button>
+          <div id="notifyHint" class="notifyCtl__hint muted" hidden></div>
+        </div>
       </div>
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
@@ -34,6 +43,26 @@
     </header>
 
     <div id="toastHost" class="toastHost" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="tourOverlay" class="tourOverlay" hidden>
+      <div class="tourOverlay__scrim" aria-hidden="true"></div>
+      <div id="tourBubble" class="tourBubble" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <button id="btnTourClose" type="button" class="tourBubble__close" aria-label="Close tour">×</button>
+        <div class="tourBubble__head">
+          <div id="tourTitle" class="tourBubble__title"></div>
+          <div id="tourStep" class="tourBubble__step muted"></div>
+        </div>
+        <div id="tourBody" class="tourBubble__body"></div>
+        <div class="tourBubble__actions">
+          <button id="btnTourPrev" type="button" class="btn btn--secondary btn--small">Prev</button>
+          <button id="btnTourNext" type="button" class="btn btn--primary btn--small">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="btnTourRestart" type="button" class="tourFab" title="Start the guided tour" aria-label="Start guided tour">
+      Tour
+    </button>
 
     <div id="restoreBanner" class="restoreBanner" hidden>
       <div class="restoreBanner__inner">
@@ -66,31 +95,8 @@
       </div>
     </div>
 
-    <div id="tutorialOverlay" class="overlay" hidden>
-      <div class="modal tutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
-        <div class="modal__header">
-          <div class="modal__title">
-            <span id="tutorialTitle">Welcome</span>
-            <span id="tutorialStep" class="tutorial__step muted"></span>
-          </div>
-          <button id="btnTutorialSkip" class="btn btn--secondary btn--small" type="button" title="Skip tutorial">
-            Skip
-          </button>
-        </div>
-        <div class="modal__body">
-          <div id="tutorialBody" class="tutorial__body"></div>
-          <div class="helpForm__actions" style="margin-top: 14px; justify-content: space-between">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <button id="btnTutorialBack" type="button" class="btn btn--secondary">Back</button>
-              <button id="btnTutorialNext" type="button" class="btn btn--primary">Next</button>
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <button id="btnTutorialHelp" type="button" class="btn btn--secondary">Open help</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Legacy first-run tutorial modal (replaced by guided tour popups). Kept hidden for compatibility. -->
+    <div id="tutorialOverlay" class="overlay" hidden></div>
 
     <div id="helpOverlay" class="overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -284,13 +290,10 @@
             <div class="settingsSection">
               <div class="settingsSection__title">Advanced</div>
               <div class="settingsSection__grid">
-                <div class="field">
-                  <label class="label" for="inpPollSec">Refresh (s)</label>
-                  <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
-                </div>
-                <div class="field">
-                  <label class="label" for="inpWindowPoints">AVG window (points)</label>
-                  <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
+                <div class="field field--wide">
+                  <div class="muted" style="margin-top:6px;line-height:1.35">
+                    Advanced controls are edited inline on the dashboard: <strong>STATUS</strong> (refresh seconds), <strong>RATE</strong> (AVG window), and <strong>WARNINGS</strong> (thresholds).
+                  </div>
                 </div>
               </div>
             </div>
@@ -486,49 +489,41 @@
         <div class="graph__hint" id="graphHint"></div>
       </section>
 
-      <section class="card twoCol">
-        <div class="card__header">
-          <div class="card__title">Info</div>
-          <div class="card__actions">
-            <div class="notifyCtl" aria-label="Desktop notifications">
-              <button
-                id="btnRequestNotify"
-                class="btn btn--small btn--secondary"
-                title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
-              >
-                Enable notifications
-              </button>
-              <div id="notifyHint" class="notifyCtl__hint muted" hidden></div>
+      <div class="lowerSplit" id="lowerSplit">
+        <section class="card twoCol lowerSplit__info">
+          <div class="card__header">
+            <div class="card__title">Info</div>
+          </div>
+          <div class="infoGrid infoGrid--compact">
+            <div class="infoGrid__label">Logs folder</div>
+            <div id="infoSource" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Resolved log</div>
+            <div id="infoResolved" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Last change</div>
+            <div id="infoLastChange" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Last alert</div>
+            <div id="infoLastAlert" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Global rate</div>
+            <div id="infoGlobalRate" class="infoGrid__value">—</div>
+          </div>
+        </section>
+
+        <div class="lowerSplit__bar" id="lowerSplitBar" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
+
+        <section class="card history lowerSplit__history">
+          <div class="card__header">
+            <div class="card__title">History</div>
+            <div class="card__actions">
+              <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
+                <input id="chkLogEveryChangeHistory" type="checkbox" />
+                Log every change
+              </label>
+              <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
             </div>
           </div>
-        </div>
-        <div class="infoGrid">
-          <div class="infoGrid__label">Logs folder</div>
-          <div id="infoSource" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Resolved log</div>
-          <div id="infoResolved" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Last change</div>
-          <div id="infoLastChange" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Last alert</div>
-          <div id="infoLastAlert" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Global rate</div>
-          <div id="infoGlobalRate" class="infoGrid__value">—</div>
-        </div>
-      </section>
-
-      <section class="card history">
-        <div class="card__header">
-          <div class="card__title">History</div>
-          <div class="card__actions">
-            <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
-              <input id="chkLogEveryChangeHistory" type="checkbox" />
-              Log every change
-            </label>
-            <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
-          </div>
-        </div>
-        <pre id="historyPre" class="history__pre"></pre>
-      </section>
+          <pre id="historyPre" class="history__pre"></pre>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">
@@ -544,7 +539,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.1.15"></script>
+    <script type="module" src="./app.js?v=2.1.17"></script>
   </body>
 </html>
 

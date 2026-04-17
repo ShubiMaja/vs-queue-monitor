@@ -341,15 +341,26 @@ body{
 .kpiWarn__threshold{background:rgba(110,179,255,0.06)}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
-.btnWarnEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
+.btnWarnEdit,
+.btnRateEdit,
+.btnStatusRefreshEdit{
+  opacity:0.18;
+  pointer-events:auto;
+  border-color:transparent !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  transition:opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
 .kpi--warnings:hover .btnWarnEdit,
-.kpi--warnings:focus-within .btnWarnEdit{opacity:1;visibility:visible;pointer-events:auto}
-.btnRateEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--warnings:focus-within .btnWarnEdit,
 .kpi--rate:hover .btnRateEdit,
-.kpi--rate:focus-within .btnRateEdit{opacity:1;visibility:visible;pointer-events:auto}
-.btnStatusRefreshEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--rate:focus-within .btnRateEdit,
 .kpi--status:hover .btnStatusRefreshEdit,
-.kpi--status:focus-within .btnStatusRefreshEdit{opacity:1;visibility:visible;pointer-events:auto}
+.kpi--status:focus-within .btnStatusRefreshEdit{
+  opacity:1;
+  border-color:rgba(62,74,94,0.65) !important;
+  background:linear-gradient(180deg, rgba(52,61,77,0.95), rgba(38,45,58,0.9)) !important;
+}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
@@ -525,6 +536,41 @@ body{
   grid-template-columns: 140px 1fr;
   gap:12px 14px;
 }
+.infoGrid--compact{padding:10px 12px}
+.infoGrid--compact .infoGrid__label{font-size:10px}
+.infoGrid--compact .infoGrid__value{font-size:12px;line-height:1.35}
+
+.notifyCtl--top{display:flex;align-items:center;gap:10px}
+.notifyCtl--top .notifyCtl__hint{max-width:280px}
+
+.lowerSplit{
+  grid-column:1 / -1;
+  display:grid;
+  grid-template-columns: var(--split-info, 320px) 8px 1fr;
+  gap:0;
+  align-items:stretch;
+}
+.lowerSplit__info{min-width:260px}
+.lowerSplit__history{min-width:320px}
+.lowerSplit__bar{
+  cursor:col-resize;
+  position:relative;
+  background:transparent;
+}
+.lowerSplit__bar::before{
+  content:"";
+  position:absolute;
+  inset:10px 2px;
+  border-radius:999px;
+  background:rgba(55,65,82,0.35);
+}
+.lowerSplit__bar:hover::before,
+.lowerSplit__bar:focus-visible::before{
+  background:rgba(110,179,255,0.45);
+}
+.lowerSplit__bar:focus-visible{
+  outline:none;
+}
 .infoGrid__label{color:var(--muted);font-weight:750;font-size:11px;letter-spacing:0.04em}
 .infoGrid__value{font-family:var(--mono);font-size:12px;color:var(--text);overflow-wrap:anywhere;line-height:1.45}
 
@@ -693,7 +739,8 @@ body{
   position:fixed;
   top:84px;
   right:18px;
-  z-index:50;
+  /* Must sit above tour overlay so errors (e.g. picker blocked) are visible. */
+  z-index:80;
   display:flex;
   flex-direction:column;
   gap:12px;
@@ -773,6 +820,77 @@ body{
   transition:background 0.12s ease;
 }
 .toast__btn:hover{background:var(--btn-active)}
+
+.tourFab{
+  position:fixed;
+  right:18px;
+  bottom:18px;
+  z-index:55;
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid rgba(62,74,94,0.7);
+  background:linear-gradient(180deg, rgba(52,61,77,0.95), rgba(38,45,58,0.9));
+  color:var(--text-bright);
+  font-weight:800;
+  letter-spacing:0.02em;
+  cursor:pointer;
+  box-shadow:var(--shadow-float);
+}
+.tourFab:hover{background:linear-gradient(180deg, var(--btn-active) 0%, #3d4a5c 100%)}
+
+.tourOverlay{
+  position:fixed;
+  inset:0;
+  z-index:70;
+  /* Let users interact with the app while the tour is visible. */
+  pointer-events:none;
+}
+.tourOverlay[hidden]{display:none !important}
+.tourOverlay__scrim{
+  position:absolute;
+  inset:0;
+  background:rgba(4,6,10,0.55);
+  backdrop-filter:blur(2px);
+  pointer-events:none;
+}
+.tourBubble{
+  position:absolute;
+  width:min(420px, calc(100vw - 24px));
+  border-radius:14px;
+  border:1px solid rgba(55,65,82,0.9);
+  background:linear-gradient(165deg, rgba(28,31,38,0.98), rgba(18,21,27,0.98));
+  box-shadow:var(--shadow-float);
+  padding:12px 14px 12px;
+  color:var(--text);
+  pointer-events:auto;
+}
+.tourBubble__close{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.04);
+  color:rgba(255,255,255,0.82);
+  cursor:pointer;
+  font-size:16px;
+  font-weight:800;
+  line-height:1;
+}
+.tourBubble__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-right:34px}
+.tourBubble__title{font-weight:850;color:var(--text-bright);font-size:13px;letter-spacing:0.02em}
+.tourBubble__step{font-size:12px;white-space:nowrap}
+.tourBubble__body{margin-top:8px;font-size:13px;line-height:1.45;color:var(--text)}
+.tourBubble__actions{margin-top:10px;display:flex;justify-content:space-between;gap:10px}
+
+.tourTarget{
+  position:relative;
+  z-index:71;
+  box-shadow:0 0 0 3px rgba(91,156,247,0.22), 0 0 0 1px rgba(91,156,247,0.45);
+  border-radius:10px;
+}
 
 .overlay{
   position:fixed;
@@ -880,7 +998,16 @@ body{
         <div class="brand__tagline">Vintage Story client log queue monitor</div>
       </div>
       <div class="topbar__mid">
-        <button id="btnNotifyPill" type="button" class="pill" hidden title="Desktop notifications status"></button>
+        <div class="notifyCtl notifyCtl--top" aria-label="Desktop notifications">
+          <button
+            id="btnRequestNotify"
+            class="btn btn--small btn--secondary"
+            title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
+          >
+            Enable notifications
+          </button>
+          <div id="notifyHint" class="notifyCtl__hint muted" hidden></div>
+        </div>
       </div>
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
@@ -900,6 +1027,26 @@ body{
     </header>
 
     <div id="toastHost" class="toastHost" aria-live="polite" aria-atomic="true"></div>
+
+    <div id="tourOverlay" class="tourOverlay" hidden>
+      <div class="tourOverlay__scrim" aria-hidden="true"></div>
+      <div id="tourBubble" class="tourBubble" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <button id="btnTourClose" type="button" class="tourBubble__close" aria-label="Close tour">×</button>
+        <div class="tourBubble__head">
+          <div id="tourTitle" class="tourBubble__title"></div>
+          <div id="tourStep" class="tourBubble__step muted"></div>
+        </div>
+        <div id="tourBody" class="tourBubble__body"></div>
+        <div class="tourBubble__actions">
+          <button id="btnTourPrev" type="button" class="btn btn--secondary btn--small">Prev</button>
+          <button id="btnTourNext" type="button" class="btn btn--primary btn--small">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <button id="btnTourRestart" type="button" class="tourFab" title="Start the guided tour" aria-label="Start guided tour">
+      Tour
+    </button>
 
     <div id="restoreBanner" class="restoreBanner" hidden>
       <div class="restoreBanner__inner">
@@ -932,31 +1079,8 @@ body{
       </div>
     </div>
 
-    <div id="tutorialOverlay" class="overlay" hidden>
-      <div class="modal tutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
-        <div class="modal__header">
-          <div class="modal__title">
-            <span id="tutorialTitle">Welcome</span>
-            <span id="tutorialStep" class="tutorial__step muted"></span>
-          </div>
-          <button id="btnTutorialSkip" class="btn btn--secondary btn--small" type="button" title="Skip tutorial">
-            Skip
-          </button>
-        </div>
-        <div class="modal__body">
-          <div id="tutorialBody" class="tutorial__body"></div>
-          <div class="helpForm__actions" style="margin-top: 14px; justify-content: space-between">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <button id="btnTutorialBack" type="button" class="btn btn--secondary">Back</button>
-              <button id="btnTutorialNext" type="button" class="btn btn--primary">Next</button>
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap">
-              <button id="btnTutorialHelp" type="button" class="btn btn--secondary">Open help</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Legacy first-run tutorial modal (replaced by guided tour popups). Kept hidden for compatibility. -->
+    <div id="tutorialOverlay" class="overlay" hidden></div>
 
     <div id="helpOverlay" class="overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -1150,13 +1274,10 @@ body{
             <div class="settingsSection">
               <div class="settingsSection__title">Advanced</div>
               <div class="settingsSection__grid">
-                <div class="field">
-                  <label class="label" for="inpPollSec">Refresh (s)</label>
-                  <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
-                </div>
-                <div class="field">
-                  <label class="label" for="inpWindowPoints">AVG window (points)</label>
-                  <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
+                <div class="field field--wide">
+                  <div class="muted" style="margin-top:6px;line-height:1.35">
+                    Advanced controls are edited inline on the dashboard: <strong>STATUS</strong> (refresh seconds), <strong>RATE</strong> (AVG window), and <strong>WARNINGS</strong> (thresholds).
+                  </div>
                 </div>
               </div>
             </div>
@@ -1352,49 +1473,41 @@ body{
         <div class="graph__hint" id="graphHint"></div>
       </section>
 
-      <section class="card twoCol">
-        <div class="card__header">
-          <div class="card__title">Info</div>
-          <div class="card__actions">
-            <div class="notifyCtl" aria-label="Desktop notifications">
-              <button
-                id="btnRequestNotify"
-                class="btn btn--small btn--secondary"
-                title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
-              >
-                Enable notifications
-              </button>
-              <div id="notifyHint" class="notifyCtl__hint muted" hidden></div>
+      <div class="lowerSplit" id="lowerSplit">
+        <section class="card twoCol lowerSplit__info">
+          <div class="card__header">
+            <div class="card__title">Info</div>
+          </div>
+          <div class="infoGrid infoGrid--compact">
+            <div class="infoGrid__label">Logs folder</div>
+            <div id="infoSource" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Resolved log</div>
+            <div id="infoResolved" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Last change</div>
+            <div id="infoLastChange" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Last alert</div>
+            <div id="infoLastAlert" class="infoGrid__value">—</div>
+            <div class="infoGrid__label">Global rate</div>
+            <div id="infoGlobalRate" class="infoGrid__value">—</div>
+          </div>
+        </section>
+
+        <div class="lowerSplit__bar" id="lowerSplitBar" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
+
+        <section class="card history lowerSplit__history">
+          <div class="card__header">
+            <div class="card__title">History</div>
+            <div class="card__actions">
+              <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
+                <input id="chkLogEveryChangeHistory" type="checkbox" />
+                Log every change
+              </label>
+              <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
             </div>
           </div>
-        </div>
-        <div class="infoGrid">
-          <div class="infoGrid__label">Logs folder</div>
-          <div id="infoSource" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Resolved log</div>
-          <div id="infoResolved" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Last change</div>
-          <div id="infoLastChange" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Last alert</div>
-          <div id="infoLastAlert" class="infoGrid__value">—</div>
-          <div class="infoGrid__label">Global rate</div>
-          <div id="infoGlobalRate" class="infoGrid__value">—</div>
-        </div>
-      </section>
-
-      <section class="card history">
-        <div class="card__header">
-          <div class="card__title">History</div>
-          <div class="card__actions">
-            <label class="label" style="display:flex;align-items:center;gap:8px;margin-right:10px">
-              <input id="chkLogEveryChangeHistory" type="checkbox" />
-              Log every change
-            </label>
-            <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
-          </div>
-        </div>
-        <pre id="historyPre" class="history__pre"></pre>
-      </section>
+          <pre id="historyPre" class="history__pre"></pre>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">
@@ -1414,7 +1527,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.16";
+const APP_VERSION = "2.1.17";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1431,14 +1544,7 @@ const ui = {
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
-  tutorialOverlay: $("tutorialOverlay"),
-  tutorialTitle: $("tutorialTitle"),
-  tutorialStep: $("tutorialStep"),
-  tutorialBody: $("tutorialBody"),
-  btnTutorialSkip: $("btnTutorialSkip"),
-  btnTutorialBack: $("btnTutorialBack"),
-  btnTutorialNext: $("btnTutorialNext"),
-  btnTutorialHelp: $("btnTutorialHelp"),
+  // Legacy tutorial modal elements removed (replaced by guided tour).
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnGraphWindow: $("btnGraphWindow"),
@@ -1446,8 +1552,9 @@ const ui = {
   btnCopyGraph: $("btnCopyGraph"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
-  btnNotifyPill: $("btnNotifyPill"),
   notifyHint: $("notifyHint"),
+  lowerSplit: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplit")),
+  lowerSplitBar: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplitBar")),
   btnSaveSettings: $("btnSaveSettings"),
   btnCancelSettings: $("btnCancelSettings"),
   toastHost: $("toastHost"),
@@ -1559,211 +1666,190 @@ const ui = {
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
+// If the page was reloaded due to a code update, notify the user and avoid false "Interrupted"
+// based on stale tail content from a previous run.
+const STORAGE_LAST_APP_VERSION_KEY = "vsqm_last_app_version_v1";
+/** @type {number} */
+let suppressInterruptedUntilEpoch = 0;
+try {
+  const prevVer = localStorage.getItem(STORAGE_LAST_APP_VERSION_KEY) || "";
+  if (prevVer && prevVer !== APP_VERSION) {
+    showToast("Updated", `Web page updated to v${APP_VERSION}.`, "update", { durationMs: 12000 });
+    suppressInterruptedUntilEpoch = Date.now() / 1000 + 12;
+  }
+  localStorage.setItem(STORAGE_LAST_APP_VERSION_KEY, APP_VERSION);
+} catch {
+  // ignore
+}
+
 // -----------------------------
-// Tutorial (first-run onboarding)
+// Split pane (Info ↔ History)
 // -----------------------------
 
-const STORAGE_TUTORIAL_DONE_KEY = "vsqm_tutorial_done_v1";
-let tutorialActive = false;
-let tutorialMinimized = false;
-let tutorialStepIdx = 0;
-let tutorialPickedDuringRun = false;
-
-function isTutorialDone() {
+const STORAGE_SPLIT_INFO_PX = "vsqm_split_info_px_v1";
+function applySplitInfoPx(px) {
+  if (!ui.lowerSplit) return;
+  const v = Math.max(260, Math.min(720, Math.round(px)));
+  ui.lowerSplit.style.setProperty("--split-info", `${v}px`);
   try {
-    return localStorage.getItem(STORAGE_TUTORIAL_DONE_KEY) === "1";
+    localStorage.setItem(STORAGE_SPLIT_INFO_PX, String(v));
+  } catch {
+    // ignore
+  }
+}
+try {
+  const saved = Number.parseInt(localStorage.getItem(STORAGE_SPLIT_INFO_PX) || "", 10);
+  if (Number.isFinite(saved) && saved > 0) applySplitInfoPx(saved);
+} catch {
+  // ignore
+}
+
+ui.lowerSplitBar?.addEventListener("pointerdown", (e) => {
+  if (!ui.lowerSplit || !ui.lowerSplitBar) return;
+  e.preventDefault();
+  ui.lowerSplitBar.setPointerCapture(e.pointerId);
+  const rect = ui.lowerSplit.getBoundingClientRect();
+  const onMove = (ev) => {
+    const x = ev.clientX - rect.left;
+    applySplitInfoPx(x);
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+});
+
+// -----------------------------
+// Guided tour (first-run onboarding)
+// -----------------------------
+
+const STORAGE_TOUR_DONE_KEY = "vsqm_tour_done_v1";
+let tourActive = false;
+let tourStepIdx = 0;
+let _tourTargetEl = /** @type {HTMLElement|null} */ (null);
+
+const TOUR_STEPS = [
+  {
+    selector: "#btnPickLog",
+    title: "Pick your log file",
+    body: "Start here. Choose client-main.log so the app can tail it.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnWarningsEdit",
+    title: "Edit WARNINGS",
+    body: "Warnings are milestone alerts (e.g. 10, 5, 1). Click ✎ to edit thresholds.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnRateEdit",
+    title: "Tune rolling RATE",
+    body: "RATE uses a rolling window of points. Click ✎ to change AVG window size.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnRequestNotify",
+    title: "Enable notifications (optional)",
+    body: "Desktop notifications are optional. In-page toasts work without this.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnStartStop",
+    title: "Start / Stop monitoring",
+    body: "Start tailing the log to update the graph live. Stop pauses monitoring.",
+    nextLabel: "Done",
+  },
+];
+
+function isTourDone() {
+  try {
+    return localStorage.getItem(STORAGE_TOUR_DONE_KEY) === "1";
   } catch {
     return false;
   }
 }
 
-function setTutorialDone() {
+function setTourDone() {
   try {
-    localStorage.setItem(STORAGE_TUTORIAL_DONE_KEY, "1");
+    localStorage.setItem(STORAGE_TOUR_DONE_KEY, "1");
   } catch {
     // ignore
   }
 }
 
-function openTutorial(reset = true) {
-  if (!ui.tutorialOverlay) return;
-  if (!tutorialActive) {
-    tutorialActive = true;
-    tutorialPickedDuringRun = false;
-    tutorialStepIdx = 0;
-  } else if (reset) {
-    tutorialPickedDuringRun = false;
-    tutorialStepIdx = 0;
+function clearTourTarget() {
+  if (_tourTargetEl) {
+    _tourTargetEl.classList.remove("tourTarget");
+    _tourTargetEl = null;
   }
-  tutorialMinimized = false;
-  ui.tutorialOverlay.hidden = false;
-  renderTutorial();
 }
 
-function closeTutorial(markDone) {
-  if (!ui.tutorialOverlay) return;
-  tutorialActive = false;
-  tutorialMinimized = false;
-  ui.tutorialOverlay.hidden = true;
-  if (markDone) setTutorialDone();
+function closeTour(markDone = false) {
+  const overlay = document.getElementById("tourOverlay");
+  if (!overlay) return;
+  tourActive = false;
+  overlay.hidden = true;
+  clearTourTarget();
+  if (markDone) setTourDone();
 }
 
-function minimizeTutorial() {
-  if (!ui.tutorialOverlay) return;
-  if (!tutorialActive) return;
-  tutorialMinimized = true;
-  ui.tutorialOverlay.hidden = true;
+function openTour(reset = true) {
+  const overlay = document.getElementById("tourOverlay");
+  if (!overlay) return;
+  tourActive = true;
+  if (reset) tourStepIdx = 0;
+  overlay.hidden = false;
+  renderTour();
 }
 
-function tutorialHasLogSelected() {
-  return !!logFileHandle;
+function clamp(v, a, b) {
+  return Math.max(a, Math.min(b, v));
 }
 
-function tutorialSetStep(next) {
-  tutorialStepIdx = Math.max(0, Math.min(4, next | 0));
-  renderTutorial();
-}
+function renderTour() {
+  if (!tourActive) return;
+  const overlay = /** @type {HTMLElement|null} */ (document.getElementById("tourOverlay"));
+  const bubble = /** @type {HTMLElement|null} */ (document.getElementById("tourBubble"));
+  const titleEl = /** @type {HTMLElement|null} */ (document.getElementById("tourTitle"));
+  const stepEl = /** @type {HTMLElement|null} */ (document.getElementById("tourStep"));
+  const bodyEl = /** @type {HTMLElement|null} */ (document.getElementById("tourBody"));
+  const btnPrev = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourPrev"));
+  const btnNext = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourNext"));
+  if (!overlay || !bubble || !titleEl || !stepEl || !bodyEl || !btnPrev || !btnNext) return;
 
-function renderTutorial() {
-  if (!tutorialActive) return;
-  if (!ui.tutorialTitle || !ui.tutorialBody || !ui.tutorialStep || !ui.btnTutorialBack || !ui.btnTutorialNext) return;
+  const total = TOUR_STEPS.length;
+  tourStepIdx = clamp(tourStepIdx, 0, total - 1);
+  const s = TOUR_STEPS[tourStepIdx];
+  titleEl.textContent = s.title;
+  bodyEl.textContent = s.body;
+  stepEl.textContent = `Step ${tourStepIdx + 1}/${total}`;
+  btnPrev.disabled = tourStepIdx === 0;
+  btnNext.textContent = s.nextLabel || (tourStepIdx === total - 1 ? "Done" : "Next");
 
-  const stepN = tutorialStepIdx + 1;
-  const total = 5;
-  ui.tutorialStep.textContent = `Step ${stepN}/${total}`;
-
-  const hasLog = tutorialHasLogSelected();
-  ui.btnTutorialBack.disabled = tutorialStepIdx === 0;
-
-  /** @type {{title:string, html:string, nextLabel?:string, nextDisabled?:boolean}} */
-  let s = { title: "Welcome", html: "" };
-
-  if (tutorialStepIdx === 0) {
-    s = {
-      title: "Welcome",
-      html:
-        `<div class="tutorial__lead"><strong>Let’s get you monitoring in ~2 minutes.</strong> We’ll pick your log file, tune warnings, tune the rolling rate window, then start monitoring.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><span class="tutorial__k">Pick log file…</span> is required (the browser can’t read logs without you choosing one).</li>` +
-        `<li>Warnings default to <span class="tutorial__k">10, 5, 1</span> (alerts fire when you cross downward through each threshold).</li>` +
-        `<li>Rolling rate defaults to <span class="tutorial__k">10</span> points (more points = smoother but slower to react).</li>` +
-        `</ul>` +
-        `<div class="tutorial__hint">You can skip this tutorial, but it’s recommended the first time.</div>`,
-      nextLabel: "Pick a log",
-    };
-  } else if (tutorialStepIdx === 1) {
-    s = {
-      title: "Pick your log file",
-      html:
-        `<div class="tutorial__lead">Choose <span class="tutorial__k">client-main.log</span> (or <span class="tutorial__k">client.log</span>).</div>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--primary" id="btnTutorialPickNow">Pick log file…</button>` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">File Picker Guide</button>` +
-        `</div>` +
-        `<div class="tutorial__hint"><strong>Common paths</strong> (you don’t need to paste these, just a guide):</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><strong>macOS</strong>: <span class="tutorial__k">~/Library/Application Support/VintagestoryData/Logs/client-main.log</span></li>` +
-        `<li><strong>Linux</strong>: <span class="tutorial__k">~/.config/VintagestoryData/Logs/client-main.log</span></li>` +
-        `</ul>` +
-        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> (protected folders like AppData), open the <strong>File Picker Guide</strong> to generate a safe workaround (<span class="tutorial__k">mklink /H</span> on Windows or <span class="tutorial__k">ln -s</span> on Mac/Linux).</div>` +
-        (hasLog
-          ? `<div class="tutorial__hint"><strong>Selected:</strong> ${escapeHtml(String(ui.infoResolved?.textContent || "log"))}</div>`
-          : `<div class="tutorial__hint"><strong>Not selected yet.</strong> Pick a log to continue.</div>`),
-      nextLabel: "Next",
-      nextDisabled: !hasLog,
-    };
-  } else if (tutorialStepIdx === 2) {
-    s = {
-      title: "Configure warnings",
-      html:
-        `<div class="tutorial__lead">Warnings are the milestones that trigger alerts as you move toward the front of the queue.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li>Defaults: <span class="tutorial__k">10, 5, 1</span></li>` +
-        `<li>Alerts fire on <strong>downward crossings</strong> (e.g. 6 → 5 triggers ≤5).</li>` +
-        `</ul>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialEditWarnings">Edit WARNINGS…</button>` +
-        `</div>` +
-        `<div class="tutorial__hint">Tip: keep <span class="tutorial__k">1</span> so you get a “front of queue” warning.</div>`,
-      nextLabel: "Next",
-    };
-  } else if (tutorialStepIdx === 3) {
-    s = {
-      title: "Configure rolling rate",
-      html:
-        `<div class="tutorial__lead">Rolling rate estimates how fast you’re moving. The window is measured in <strong>points</strong> (updates).</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><strong>10 points</strong>: a good default balance.</li>` +
-        `<li><strong>5</strong>: more responsive but noisier.</li>` +
-        `<li><strong>20</strong>: smoother but slower to react.</li>` +
-        `</ul>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialEditRate">Edit rolling window…</button>` +
-        `</div>`,
-      nextLabel: "Next",
-    };
+  clearTourTarget();
+  const target = /** @type {HTMLElement|null} */ (document.querySelector(s.selector));
+  if (target) {
+    _tourTargetEl = target;
+    target.classList.add("tourTarget");
+    const r = target.getBoundingClientRect();
+    const pad = 10;
+    const x = clamp(r.left + r.width / 2 - bubble.offsetWidth / 2, pad, window.innerWidth - bubble.offsetWidth - pad);
+    const yPreferBelow = r.bottom + 12;
+    const yPreferAbove = r.top - bubble.offsetHeight - 12;
+    const y = yPreferBelow + bubble.offsetHeight + pad <= window.innerHeight ? yPreferBelow : Math.max(pad, yPreferAbove);
+    bubble.style.left = `${Math.round(x)}px`;
+    bubble.style.top = `${Math.round(y)}px`;
   } else {
-    s = {
-      title: "Start monitoring",
-      html:
-        `<div class="tutorial__lead">All set. When you finish, the app will start tailing your selected log and updating the graph live.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li>You can stop/resume anytime with <span class="tutorial__k">Start/Stop</span>.</li>` +
-        `<li>Desktop notifications are optional (Info → Enable notifications).</li>` +
-        `</ul>`,
-      nextLabel: "Start monitoring",
-      nextDisabled: !hasLog,
-    };
+    bubble.style.left = "18px";
+    bubble.style.top = "96px";
   }
+}
 
-  ui.tutorialTitle.textContent = s.title;
-  ui.tutorialBody.innerHTML = s.html;
-  ui.btnTutorialNext.textContent = s.nextLabel || "Next";
-  ui.btnTutorialNext.disabled = !!s.nextDisabled;
-
-  // Wire per-step buttons (rebuilt each render).
-  const pickNow = document.getElementById("btnTutorialPickNow");
-  pickNow?.addEventListener("click", async () => {
-    try {
-      await pickLogFile();
-      tutorialPickedDuringRun = tutorialHasLogSelected();
-      renderTutorial();
-    } catch {
-      renderTutorial();
-    }
-  });
-  const openH = document.getElementById("btnTutorialOpenHelp");
-  openH?.addEventListener("click", () => openPickerFixGuide());
-
-  const editWarn = document.getElementById("btnTutorialEditWarnings");
-  editWarn?.addEventListener("click", () => {
-    try {
-      minimizeTutorial();
-      ui.btnWarningsEdit?.click();
-      showToast("Tutorial", "Edit thresholds, then return to the tutorial to continue.", "info", {
-        actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(false),
-        durationMs: Infinity,
-      });
-    } catch {
-      // ignore
-    }
-  });
-
-  const editRate = document.getElementById("btnTutorialEditRate");
-  editRate?.addEventListener("click", () => {
-    try {
-      minimizeTutorial();
-      openSettingsAndEditRollingWindow();
-      showToast("Tutorial", "Adjust Rolling window (points), then return to the tutorial to continue.", "info", {
-        actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(false),
-        durationMs: Infinity,
-      });
-    } catch {
-      // ignore
-    }
-  });
+// Backward-compatible entry point used by older code paths.
+function openTutorial(reset = true) {
+  openTour(reset);
 }
 
 function syncNotifyButtonUi() {
@@ -3891,7 +3977,7 @@ async function finishRestoreSavedLog(handle) {
     await applyPickedLogHandle(handle, label, {
       historyLine: `Restored last log: ${name} (${label}).`,
     });
-    if (!tutorialActive) startMonitoring();
+    if (!tourActive) startMonitoring();
   } finally {
     restoreInProgress = false;
   }
@@ -4109,12 +4195,8 @@ async function pickLogFile() {
   await applyPickedLogHandle(handle, "Picked file", {
     historyLine: `Selected log file: ${pickedName}`,
   });
-  // During the tutorial we require completing onboarding before monitoring starts.
-  if (tutorialActive) {
-    tutorialPickedDuringRun = true;
-  } else {
-    startMonitoringAfterSuccessfulPick();
-  }
+  // During the guided tour we don't auto-start; user can start when ready.
+  if (!tourActive) startMonitoringAfterSuccessfulPick();
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -5216,6 +5298,13 @@ async function pollOnce() {
     }
 
     if (!interruptedMode && kind === "disconnected") {
+      const now2 = Date.now() / 1000;
+      const canSuppress = now2 < suppressInterruptedUntilEpoch && (graphPoints.length < 2 || lastQueueLineEpoch == null);
+      if (canSuppress) {
+        setStatus("Monitoring");
+        appendHistory("Page updated — ignoring stale disconnect tail until new queue lines appear.");
+        return;
+      }
       enterInterruptedState("Connection lost (final teardown).");
       leftConnectQueueDetected = false;
       positionOneReachedAt = null;
@@ -5288,6 +5377,12 @@ async function pollOnce() {
         }
 
         if (lastQueueLineEpoch == null || now - lastQueueLineEpoch > staleLimit) {
+          const canSuppress = now < suppressInterruptedUntilEpoch && graphPoints.length < 2;
+          if (canSuppress) {
+            setStatus("Monitoring");
+            appendHistory("Page updated — ignoring stale queue timeout until new queue lines appear.");
+            return;
+          }
           enterInterruptedState(`No new queue log lines for ~${staleLimit.toFixed(0)}s (stale).`);
           return;
         }
@@ -5835,30 +5930,35 @@ wireHelpOverlay();
 wireSettingsOverlay();
 startUpdateCheckLoop();
 
-// Tutorial wiring (first run).
+// Guided tour wiring.
 (() => {
-  ui.btnTutorialHelp?.addEventListener("click", () => openPickerFixGuide());
-  ui.btnTutorialSkip?.addEventListener("click", () => closeTutorial(true));
-  ui.btnTutorialBack?.addEventListener("click", () => tutorialSetStep(tutorialStepIdx - 1));
-  ui.btnTutorialNext?.addEventListener("click", () => {
-    if (tutorialStepIdx === 4) {
-      // Complete tutorial: start monitoring now (if a log was selected).
-      if (tutorialHasLogSelected()) startMonitoringAfterSuccessfulPick();
-      closeTutorial(true);
-      showToast("Tutorial complete", "Monitoring started. You can adjust WARNINGS and RATE any time.", "ok", { durationMs: 8000 });
+  const btnRestart = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourRestart"));
+  const btnClose = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourClose"));
+  const btnPrev = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourPrev"));
+  const btnNext = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourNext"));
+  const overlay = /** @type {HTMLElement|null} */ (document.getElementById("tourOverlay"));
+
+  btnRestart?.addEventListener("click", () => openTour(true));
+  btnClose?.addEventListener("click", () => closeTour(true));
+  // Tour overlay is non-blocking (pointer-events: none); close via the × button.
+  btnPrev?.addEventListener("click", () => {
+    tourStepIdx = Math.max(0, tourStepIdx - 1);
+    renderTour();
+  });
+  btnNext?.addEventListener("click", () => {
+    if (tourStepIdx >= TOUR_STEPS.length - 1) {
+      closeTour(true);
       return;
     }
-    tutorialSetStep(tutorialStepIdx + 1);
+    tourStepIdx = Math.min(TOUR_STEPS.length - 1, tourStepIdx + 1);
+    renderTour();
   });
 
-  // Auto-open on first run.
-  try {
-    if (!isTutorialDone()) {
-      // If a log is already restored automatically (rare), still show tutorial but allow skipping.
-      openTutorial(true);
-    }
-  } catch {
-    // ignore
+  // Auto-open once for first-time users.
+  if (!isTourDone()) {
+    window.setTimeout(() => {
+      if (!isTourDone()) openTour(true);
+    }, 700);
   }
 })();
 

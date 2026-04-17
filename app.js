@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.16";
+const APP_VERSION = "2.1.17";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -16,14 +16,7 @@ const ui = {
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
-  tutorialOverlay: $("tutorialOverlay"),
-  tutorialTitle: $("tutorialTitle"),
-  tutorialStep: $("tutorialStep"),
-  tutorialBody: $("tutorialBody"),
-  btnTutorialSkip: $("btnTutorialSkip"),
-  btnTutorialBack: $("btnTutorialBack"),
-  btnTutorialNext: $("btnTutorialNext"),
-  btnTutorialHelp: $("btnTutorialHelp"),
+  // Legacy tutorial modal elements removed (replaced by guided tour).
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnGraphWindow: $("btnGraphWindow"),
@@ -31,8 +24,9 @@ const ui = {
   btnCopyGraph: $("btnCopyGraph"),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
-  btnNotifyPill: $("btnNotifyPill"),
   notifyHint: $("notifyHint"),
+  lowerSplit: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplit")),
+  lowerSplitBar: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplitBar")),
   btnSaveSettings: $("btnSaveSettings"),
   btnCancelSettings: $("btnCancelSettings"),
   toastHost: $("toastHost"),
@@ -144,211 +138,190 @@ const ui = {
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
+// If the page was reloaded due to a code update, notify the user and avoid false "Interrupted"
+// based on stale tail content from a previous run.
+const STORAGE_LAST_APP_VERSION_KEY = "vsqm_last_app_version_v1";
+/** @type {number} */
+let suppressInterruptedUntilEpoch = 0;
+try {
+  const prevVer = localStorage.getItem(STORAGE_LAST_APP_VERSION_KEY) || "";
+  if (prevVer && prevVer !== APP_VERSION) {
+    showToast("Updated", `Web page updated to v${APP_VERSION}.`, "update", { durationMs: 12000 });
+    suppressInterruptedUntilEpoch = Date.now() / 1000 + 12;
+  }
+  localStorage.setItem(STORAGE_LAST_APP_VERSION_KEY, APP_VERSION);
+} catch {
+  // ignore
+}
+
 // -----------------------------
-// Tutorial (first-run onboarding)
+// Split pane (Info ↔ History)
 // -----------------------------
 
-const STORAGE_TUTORIAL_DONE_KEY = "vsqm_tutorial_done_v1";
-let tutorialActive = false;
-let tutorialMinimized = false;
-let tutorialStepIdx = 0;
-let tutorialPickedDuringRun = false;
-
-function isTutorialDone() {
+const STORAGE_SPLIT_INFO_PX = "vsqm_split_info_px_v1";
+function applySplitInfoPx(px) {
+  if (!ui.lowerSplit) return;
+  const v = Math.max(260, Math.min(720, Math.round(px)));
+  ui.lowerSplit.style.setProperty("--split-info", `${v}px`);
   try {
-    return localStorage.getItem(STORAGE_TUTORIAL_DONE_KEY) === "1";
+    localStorage.setItem(STORAGE_SPLIT_INFO_PX, String(v));
+  } catch {
+    // ignore
+  }
+}
+try {
+  const saved = Number.parseInt(localStorage.getItem(STORAGE_SPLIT_INFO_PX) || "", 10);
+  if (Number.isFinite(saved) && saved > 0) applySplitInfoPx(saved);
+} catch {
+  // ignore
+}
+
+ui.lowerSplitBar?.addEventListener("pointerdown", (e) => {
+  if (!ui.lowerSplit || !ui.lowerSplitBar) return;
+  e.preventDefault();
+  ui.lowerSplitBar.setPointerCapture(e.pointerId);
+  const rect = ui.lowerSplit.getBoundingClientRect();
+  const onMove = (ev) => {
+    const x = ev.clientX - rect.left;
+    applySplitInfoPx(x);
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+});
+
+// -----------------------------
+// Guided tour (first-run onboarding)
+// -----------------------------
+
+const STORAGE_TOUR_DONE_KEY = "vsqm_tour_done_v1";
+let tourActive = false;
+let tourStepIdx = 0;
+let _tourTargetEl = /** @type {HTMLElement|null} */ (null);
+
+const TOUR_STEPS = [
+  {
+    selector: "#btnPickLog",
+    title: "Pick your log file",
+    body: "Start here. Choose client-main.log so the app can tail it.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnWarningsEdit",
+    title: "Edit WARNINGS",
+    body: "Warnings are milestone alerts (e.g. 10, 5, 1). Click ✎ to edit thresholds.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnRateEdit",
+    title: "Tune rolling RATE",
+    body: "RATE uses a rolling window of points. Click ✎ to change AVG window size.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnRequestNotify",
+    title: "Enable notifications (optional)",
+    body: "Desktop notifications are optional. In-page toasts work without this.",
+    nextLabel: "Next",
+  },
+  {
+    selector: "#btnStartStop",
+    title: "Start / Stop monitoring",
+    body: "Start tailing the log to update the graph live. Stop pauses monitoring.",
+    nextLabel: "Done",
+  },
+];
+
+function isTourDone() {
+  try {
+    return localStorage.getItem(STORAGE_TOUR_DONE_KEY) === "1";
   } catch {
     return false;
   }
 }
 
-function setTutorialDone() {
+function setTourDone() {
   try {
-    localStorage.setItem(STORAGE_TUTORIAL_DONE_KEY, "1");
+    localStorage.setItem(STORAGE_TOUR_DONE_KEY, "1");
   } catch {
     // ignore
   }
 }
 
-function openTutorial(reset = true) {
-  if (!ui.tutorialOverlay) return;
-  if (!tutorialActive) {
-    tutorialActive = true;
-    tutorialPickedDuringRun = false;
-    tutorialStepIdx = 0;
-  } else if (reset) {
-    tutorialPickedDuringRun = false;
-    tutorialStepIdx = 0;
+function clearTourTarget() {
+  if (_tourTargetEl) {
+    _tourTargetEl.classList.remove("tourTarget");
+    _tourTargetEl = null;
   }
-  tutorialMinimized = false;
-  ui.tutorialOverlay.hidden = false;
-  renderTutorial();
 }
 
-function closeTutorial(markDone) {
-  if (!ui.tutorialOverlay) return;
-  tutorialActive = false;
-  tutorialMinimized = false;
-  ui.tutorialOverlay.hidden = true;
-  if (markDone) setTutorialDone();
+function closeTour(markDone = false) {
+  const overlay = document.getElementById("tourOverlay");
+  if (!overlay) return;
+  tourActive = false;
+  overlay.hidden = true;
+  clearTourTarget();
+  if (markDone) setTourDone();
 }
 
-function minimizeTutorial() {
-  if (!ui.tutorialOverlay) return;
-  if (!tutorialActive) return;
-  tutorialMinimized = true;
-  ui.tutorialOverlay.hidden = true;
+function openTour(reset = true) {
+  const overlay = document.getElementById("tourOverlay");
+  if (!overlay) return;
+  tourActive = true;
+  if (reset) tourStepIdx = 0;
+  overlay.hidden = false;
+  renderTour();
 }
 
-function tutorialHasLogSelected() {
-  return !!logFileHandle;
+function clamp(v, a, b) {
+  return Math.max(a, Math.min(b, v));
 }
 
-function tutorialSetStep(next) {
-  tutorialStepIdx = Math.max(0, Math.min(4, next | 0));
-  renderTutorial();
-}
+function renderTour() {
+  if (!tourActive) return;
+  const overlay = /** @type {HTMLElement|null} */ (document.getElementById("tourOverlay"));
+  const bubble = /** @type {HTMLElement|null} */ (document.getElementById("tourBubble"));
+  const titleEl = /** @type {HTMLElement|null} */ (document.getElementById("tourTitle"));
+  const stepEl = /** @type {HTMLElement|null} */ (document.getElementById("tourStep"));
+  const bodyEl = /** @type {HTMLElement|null} */ (document.getElementById("tourBody"));
+  const btnPrev = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourPrev"));
+  const btnNext = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourNext"));
+  if (!overlay || !bubble || !titleEl || !stepEl || !bodyEl || !btnPrev || !btnNext) return;
 
-function renderTutorial() {
-  if (!tutorialActive) return;
-  if (!ui.tutorialTitle || !ui.tutorialBody || !ui.tutorialStep || !ui.btnTutorialBack || !ui.btnTutorialNext) return;
+  const total = TOUR_STEPS.length;
+  tourStepIdx = clamp(tourStepIdx, 0, total - 1);
+  const s = TOUR_STEPS[tourStepIdx];
+  titleEl.textContent = s.title;
+  bodyEl.textContent = s.body;
+  stepEl.textContent = `Step ${tourStepIdx + 1}/${total}`;
+  btnPrev.disabled = tourStepIdx === 0;
+  btnNext.textContent = s.nextLabel || (tourStepIdx === total - 1 ? "Done" : "Next");
 
-  const stepN = tutorialStepIdx + 1;
-  const total = 5;
-  ui.tutorialStep.textContent = `Step ${stepN}/${total}`;
-
-  const hasLog = tutorialHasLogSelected();
-  ui.btnTutorialBack.disabled = tutorialStepIdx === 0;
-
-  /** @type {{title:string, html:string, nextLabel?:string, nextDisabled?:boolean}} */
-  let s = { title: "Welcome", html: "" };
-
-  if (tutorialStepIdx === 0) {
-    s = {
-      title: "Welcome",
-      html:
-        `<div class="tutorial__lead"><strong>Let’s get you monitoring in ~2 minutes.</strong> We’ll pick your log file, tune warnings, tune the rolling rate window, then start monitoring.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><span class="tutorial__k">Pick log file…</span> is required (the browser can’t read logs without you choosing one).</li>` +
-        `<li>Warnings default to <span class="tutorial__k">10, 5, 1</span> (alerts fire when you cross downward through each threshold).</li>` +
-        `<li>Rolling rate defaults to <span class="tutorial__k">10</span> points (more points = smoother but slower to react).</li>` +
-        `</ul>` +
-        `<div class="tutorial__hint">You can skip this tutorial, but it’s recommended the first time.</div>`,
-      nextLabel: "Pick a log",
-    };
-  } else if (tutorialStepIdx === 1) {
-    s = {
-      title: "Pick your log file",
-      html:
-        `<div class="tutorial__lead">Choose <span class="tutorial__k">client-main.log</span> (or <span class="tutorial__k">client.log</span>).</div>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--primary" id="btnTutorialPickNow">Pick log file…</button>` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">File Picker Guide</button>` +
-        `</div>` +
-        `<div class="tutorial__hint"><strong>Common paths</strong> (you don’t need to paste these, just a guide):</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><strong>macOS</strong>: <span class="tutorial__k">~/Library/Application Support/VintagestoryData/Logs/client-main.log</span></li>` +
-        `<li><strong>Linux</strong>: <span class="tutorial__k">~/.config/VintagestoryData/Logs/client-main.log</span></li>` +
-        `</ul>` +
-        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> (protected folders like AppData), open the <strong>File Picker Guide</strong> to generate a safe workaround (<span class="tutorial__k">mklink /H</span> on Windows or <span class="tutorial__k">ln -s</span> on Mac/Linux).</div>` +
-        (hasLog
-          ? `<div class="tutorial__hint"><strong>Selected:</strong> ${escapeHtml(String(ui.infoResolved?.textContent || "log"))}</div>`
-          : `<div class="tutorial__hint"><strong>Not selected yet.</strong> Pick a log to continue.</div>`),
-      nextLabel: "Next",
-      nextDisabled: !hasLog,
-    };
-  } else if (tutorialStepIdx === 2) {
-    s = {
-      title: "Configure warnings",
-      html:
-        `<div class="tutorial__lead">Warnings are the milestones that trigger alerts as you move toward the front of the queue.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li>Defaults: <span class="tutorial__k">10, 5, 1</span></li>` +
-        `<li>Alerts fire on <strong>downward crossings</strong> (e.g. 6 → 5 triggers ≤5).</li>` +
-        `</ul>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialEditWarnings">Edit WARNINGS…</button>` +
-        `</div>` +
-        `<div class="tutorial__hint">Tip: keep <span class="tutorial__k">1</span> so you get a “front of queue” warning.</div>`,
-      nextLabel: "Next",
-    };
-  } else if (tutorialStepIdx === 3) {
-    s = {
-      title: "Configure rolling rate",
-      html:
-        `<div class="tutorial__lead">Rolling rate estimates how fast you’re moving. The window is measured in <strong>points</strong> (updates).</div>` +
-        `<ul class="tutorial__list">` +
-        `<li><strong>10 points</strong>: a good default balance.</li>` +
-        `<li><strong>5</strong>: more responsive but noisier.</li>` +
-        `<li><strong>20</strong>: smoother but slower to react.</li>` +
-        `</ul>` +
-        `<div class="tutorial__actions">` +
-        `<button type="button" class="btn btn--secondary" id="btnTutorialEditRate">Edit rolling window…</button>` +
-        `</div>`,
-      nextLabel: "Next",
-    };
+  clearTourTarget();
+  const target = /** @type {HTMLElement|null} */ (document.querySelector(s.selector));
+  if (target) {
+    _tourTargetEl = target;
+    target.classList.add("tourTarget");
+    const r = target.getBoundingClientRect();
+    const pad = 10;
+    const x = clamp(r.left + r.width / 2 - bubble.offsetWidth / 2, pad, window.innerWidth - bubble.offsetWidth - pad);
+    const yPreferBelow = r.bottom + 12;
+    const yPreferAbove = r.top - bubble.offsetHeight - 12;
+    const y = yPreferBelow + bubble.offsetHeight + pad <= window.innerHeight ? yPreferBelow : Math.max(pad, yPreferAbove);
+    bubble.style.left = `${Math.round(x)}px`;
+    bubble.style.top = `${Math.round(y)}px`;
   } else {
-    s = {
-      title: "Start monitoring",
-      html:
-        `<div class="tutorial__lead">All set. When you finish, the app will start tailing your selected log and updating the graph live.</div>` +
-        `<ul class="tutorial__list">` +
-        `<li>You can stop/resume anytime with <span class="tutorial__k">Start/Stop</span>.</li>` +
-        `<li>Desktop notifications are optional (Info → Enable notifications).</li>` +
-        `</ul>`,
-      nextLabel: "Start monitoring",
-      nextDisabled: !hasLog,
-    };
+    bubble.style.left = "18px";
+    bubble.style.top = "96px";
   }
+}
 
-  ui.tutorialTitle.textContent = s.title;
-  ui.tutorialBody.innerHTML = s.html;
-  ui.btnTutorialNext.textContent = s.nextLabel || "Next";
-  ui.btnTutorialNext.disabled = !!s.nextDisabled;
-
-  // Wire per-step buttons (rebuilt each render).
-  const pickNow = document.getElementById("btnTutorialPickNow");
-  pickNow?.addEventListener("click", async () => {
-    try {
-      await pickLogFile();
-      tutorialPickedDuringRun = tutorialHasLogSelected();
-      renderTutorial();
-    } catch {
-      renderTutorial();
-    }
-  });
-  const openH = document.getElementById("btnTutorialOpenHelp");
-  openH?.addEventListener("click", () => openPickerFixGuide());
-
-  const editWarn = document.getElementById("btnTutorialEditWarnings");
-  editWarn?.addEventListener("click", () => {
-    try {
-      minimizeTutorial();
-      ui.btnWarningsEdit?.click();
-      showToast("Tutorial", "Edit thresholds, then return to the tutorial to continue.", "info", {
-        actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(false),
-        durationMs: Infinity,
-      });
-    } catch {
-      // ignore
-    }
-  });
-
-  const editRate = document.getElementById("btnTutorialEditRate");
-  editRate?.addEventListener("click", () => {
-    try {
-      minimizeTutorial();
-      openSettingsAndEditRollingWindow();
-      showToast("Tutorial", "Adjust Rolling window (points), then return to the tutorial to continue.", "info", {
-        actionLabel: "Resume tutorial",
-        onAction: () => openTutorial(false),
-        durationMs: Infinity,
-      });
-    } catch {
-      // ignore
-    }
-  });
+// Backward-compatible entry point used by older code paths.
+function openTutorial(reset = true) {
+  openTour(reset);
 }
 
 function syncNotifyButtonUi() {
@@ -2476,7 +2449,7 @@ async function finishRestoreSavedLog(handle) {
     await applyPickedLogHandle(handle, label, {
       historyLine: `Restored last log: ${name} (${label}).`,
     });
-    if (!tutorialActive) startMonitoring();
+    if (!tourActive) startMonitoring();
   } finally {
     restoreInProgress = false;
   }
@@ -2694,12 +2667,8 @@ async function pickLogFile() {
   await applyPickedLogHandle(handle, "Picked file", {
     historyLine: `Selected log file: ${pickedName}`,
   });
-  // During the tutorial we require completing onboarding before monitoring starts.
-  if (tutorialActive) {
-    tutorialPickedDuringRun = true;
-  } else {
-    startMonitoringAfterSuccessfulPick();
-  }
+  // During the guided tour we don't auto-start; user can start when ready.
+  if (!tourActive) startMonitoringAfterSuccessfulPick();
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -3801,6 +3770,13 @@ async function pollOnce() {
     }
 
     if (!interruptedMode && kind === "disconnected") {
+      const now2 = Date.now() / 1000;
+      const canSuppress = now2 < suppressInterruptedUntilEpoch && (graphPoints.length < 2 || lastQueueLineEpoch == null);
+      if (canSuppress) {
+        setStatus("Monitoring");
+        appendHistory("Page updated — ignoring stale disconnect tail until new queue lines appear.");
+        return;
+      }
       enterInterruptedState("Connection lost (final teardown).");
       leftConnectQueueDetected = false;
       positionOneReachedAt = null;
@@ -3873,6 +3849,12 @@ async function pollOnce() {
         }
 
         if (lastQueueLineEpoch == null || now - lastQueueLineEpoch > staleLimit) {
+          const canSuppress = now < suppressInterruptedUntilEpoch && graphPoints.length < 2;
+          if (canSuppress) {
+            setStatus("Monitoring");
+            appendHistory("Page updated — ignoring stale queue timeout until new queue lines appear.");
+            return;
+          }
           enterInterruptedState(`No new queue log lines for ~${staleLimit.toFixed(0)}s (stale).`);
           return;
         }
@@ -4420,30 +4402,35 @@ wireHelpOverlay();
 wireSettingsOverlay();
 startUpdateCheckLoop();
 
-// Tutorial wiring (first run).
+// Guided tour wiring.
 (() => {
-  ui.btnTutorialHelp?.addEventListener("click", () => openPickerFixGuide());
-  ui.btnTutorialSkip?.addEventListener("click", () => closeTutorial(true));
-  ui.btnTutorialBack?.addEventListener("click", () => tutorialSetStep(tutorialStepIdx - 1));
-  ui.btnTutorialNext?.addEventListener("click", () => {
-    if (tutorialStepIdx === 4) {
-      // Complete tutorial: start monitoring now (if a log was selected).
-      if (tutorialHasLogSelected()) startMonitoringAfterSuccessfulPick();
-      closeTutorial(true);
-      showToast("Tutorial complete", "Monitoring started. You can adjust WARNINGS and RATE any time.", "ok", { durationMs: 8000 });
+  const btnRestart = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourRestart"));
+  const btnClose = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourClose"));
+  const btnPrev = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourPrev"));
+  const btnNext = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnTourNext"));
+  const overlay = /** @type {HTMLElement|null} */ (document.getElementById("tourOverlay"));
+
+  btnRestart?.addEventListener("click", () => openTour(true));
+  btnClose?.addEventListener("click", () => closeTour(true));
+  // Tour overlay is non-blocking (pointer-events: none); close via the × button.
+  btnPrev?.addEventListener("click", () => {
+    tourStepIdx = Math.max(0, tourStepIdx - 1);
+    renderTour();
+  });
+  btnNext?.addEventListener("click", () => {
+    if (tourStepIdx >= TOUR_STEPS.length - 1) {
+      closeTour(true);
       return;
     }
-    tutorialSetStep(tutorialStepIdx + 1);
+    tourStepIdx = Math.min(TOUR_STEPS.length - 1, tourStepIdx + 1);
+    renderTour();
   });
 
-  // Auto-open on first run.
-  try {
-    if (!isTutorialDone()) {
-      // If a log is already restored automatically (rare), still show tutorial but allow skipping.
-      openTutorial(true);
-    }
-  } catch {
-    // ignore
+  // Auto-open once for first-time users.
+  if (!isTourDone()) {
+    window.setTimeout(() => {
+      if (!isTourDone()) openTour(true);
+    }, 700);
   }
 })();
 
