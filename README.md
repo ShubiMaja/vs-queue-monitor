@@ -30,10 +30,11 @@ Open the built one-page app:
 
 The build also writes **`version.json`** next to `index.html` (repo root and `dist/`) with the same semver as **`APP_VERSION`** in `app.js`. When you serve the app over **http(s)**, the client **polls** `./version.json` and shows a **quiet toast** if a **newer** version is deployed (with **Reload**). This does **not** run on `file://` opens.
 
-Build with Python (no Node.js required):
+Build with Node:
 
 ```bash
-python scripts/build-dist.py
+npm install
+npm run build
 ```
 
 This also copies `assets/` into `dist/assets/` and copies `sw.js` into `dist/sw.js` (used for more reliable desktop notifications on localhost/https).
@@ -41,7 +42,7 @@ This also copies `assets/` into `dist/assets/` and copies `sw.js` into `dist/sw.
 Optional — serve locally (recommended for desktop notifications):
 
 ```bash
-python -m http.server 5173
+npm run dev
 ```
 
 Then open `http://localhost:5173/dist/`.
