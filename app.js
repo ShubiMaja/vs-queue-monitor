@@ -1,3 +1,4 @@
+// Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
 const APP_VERSION = "2.0.28";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
