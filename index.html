@@ -305,8 +305,13 @@
             <span class="statusText" id="kpiStatusText">Idle</span>
           </div>
         </div>
-        <div class="kpi">
-          <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
+        <div class="kpi kpi--rate">
+          <div class="kpi__label kpi__labelRow">
+            <span id="kpiRateLabel">RATE (Rolling 10)</span>
+            <span class="kpi__labelActions" aria-label="Edit rolling window">
+              <button id="btnRateEdit" type="button" class="btn btn--secondary btn--small btn--icon btnRateEdit" title="Edit rolling window">✎</button>
+            </span>
+          </div>
           <div id="kpiRate" class="kpi__value">—</div>
         </div>
         <div class="kpi kpi--warnings">
@@ -427,7 +432,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.90"></script>
+    <script type="module" src="./app.js?v=2.0.91"></script>
   </body>
 </html>
 

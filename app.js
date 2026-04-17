@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.90";
+const APP_VERSION = "2.0.91";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -53,6 +53,7 @@ const ui = {
   kpiStatus: $("kpiStatus"),
   kpiRateLabel: $("kpiRateLabel"),
   kpiRate: $("kpiRate"),
+  btnRateEdit: $("btnRateEdit"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
   btnWarnScrollL: $("btnWarnScrollL"),
@@ -3880,6 +3881,17 @@ ui.kpiRateLabel.addEventListener("click", () => {
 ui.kpiRate.title = "Click to edit rolling window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.btnRateEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
   focusAndReveal(ui.inpWindowPoints);
   try {
     ui.inpWindowPoints.select();

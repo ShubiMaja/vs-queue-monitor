@@ -327,6 +327,9 @@ body{
 .btnWarnEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--warnings:hover .btnWarnEdit,
 .kpi--warnings:focus-within .btnWarnEdit{opacity:1;pointer-events:auto}
+.btnRateEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--rate:hover .btnRateEdit,
+.kpi--rate:focus-within .btnRateEdit{opacity:1;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
@@ -1081,8 +1084,13 @@ body{
             <span class="statusText" id="kpiStatusText">Idle</span>
           </div>
         </div>
-        <div class="kpi">
-          <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
+        <div class="kpi kpi--rate">
+          <div class="kpi__label kpi__labelRow">
+            <span id="kpiRateLabel">RATE (Rolling 10)</span>
+            <span class="kpi__labelActions" aria-label="Edit rolling window">
+              <button id="btnRateEdit" type="button" class="btn btn--secondary btn--small btn--icon btnRateEdit" title="Edit rolling window">✎</button>
+            </span>
+          </div>
           <div id="kpiRate" class="kpi__value">—</div>
         </div>
         <div class="kpi kpi--warnings">
@@ -1207,7 +1215,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.90";
+const APP_VERSION = "2.0.91";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1261,6 +1269,7 @@ const ui = {
   kpiStatus: $("kpiStatus"),
   kpiRateLabel: $("kpiRateLabel"),
   kpiRate: $("kpiRate"),
+  btnRateEdit: $("btnRateEdit"),
   kpiWarnings: $("kpiWarnings"),
   kpiWarningsRail: $("kpiWarningsRail"),
   btnWarnScrollL: $("btnWarnScrollL"),
@@ -5088,6 +5097,17 @@ ui.kpiRateLabel.addEventListener("click", () => {
 ui.kpiRate.title = "Click to edit rolling window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.btnRateEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
   focusAndReveal(ui.inpWindowPoints);
   try {
     ui.inpWindowPoints.select();
