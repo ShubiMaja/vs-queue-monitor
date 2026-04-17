@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.32";
+const APP_VERSION = "2.0.33";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1153,6 +1153,7 @@ async function finishRestoreSavedLog(handle) {
   await applyPickedLogHandle(handle, label, {
     historyLine: `Restored last log: ${name} (${label}).`,
   });
+  startMonitoring();
 }
 
 async function tryRestoreLastLogOnLoad() {
@@ -1184,8 +1185,9 @@ async function tryRestoreLastLogOnLoad() {
             onAction: async () => {
               try {
                 const p2 = await handle.requestPermission({ mode: "read" });
-                if (p2 === "granted") await finishRestoreSavedLog(handle);
-                else appendHistory("Last log not restored (permission denied).");
+                if (p2 === "granted") {
+                  await finishRestoreSavedLog(handle);
+                } else appendHistory("Last log not restored (permission denied).");
               } catch (e) {
                 appendHistory(`Could not restore last log: ${String(e)}`);
               }
@@ -2358,7 +2360,7 @@ loadConfig();
 syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
-appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
+appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start, or restore the last session automatically.");
 void tryRestoreLastLogOnLoad();
 wireHelpOverlay();
 
