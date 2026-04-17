@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.17";
+const APP_VERSION = "2.0.18";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -268,12 +268,12 @@ function renderHelpCommandPreview() {
     const looksLikeLogsFolder =
       looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
 
-    // Folder junction (mklink /J): works without Developer Mode; exposes Logs so you pick client-main.log inside.
+    // Folder junction (mklink /J): creates the leaf name; only mkdir the parent folder (not the junction path).
     if (looksLikeLogsFolder) {
       const leaf = linkFolderName("logs", srcDir);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
-        `mkdir "${dest}"\n` +
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
         `mklink /J "${dest}" "${srcDir}"`;
       setPick(`${dest}\\${logName}`);
       return;
@@ -282,7 +282,7 @@ function renderHelpCommandPreview() {
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
-      `mkdir "${dest}"\n` +
+      `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
       `mklink /J "${dest}" "${srcDir}"`;
     setPick(`${dest}\\Logs\\${logName}`);
     return;
