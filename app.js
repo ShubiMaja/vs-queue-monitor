@@ -5702,10 +5702,6 @@ ui.btnRateEdit?.addEventListener("click", (e) => {
 });
 
 ui.btnRateWindowOk?.addEventListener("click", () => commitRateWindowPopover());
-ui.btnRateWindowCancel?.addEventListener("click", () => {
-  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
-  closeRateWindowPopover();
-});
 ui.inpRateWindowPoints?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -5724,6 +5720,8 @@ document.addEventListener("click", (e) => {
   const t = /** @type {any} */ (e.target);
   if (pop && (pop === t || pop.contains(t))) return;
   if (host && (host === t || host.contains(t))) return;
+  // Clicking out cancels: revert the draft value.
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
   closeRateWindowPopover();
 });
 
@@ -5737,10 +5735,6 @@ ui.btnStatusRefreshEdit?.addEventListener("click", (e) => {
   else openStatusRefreshPopover();
 });
 ui.btnStatusRefreshOk?.addEventListener("click", () => commitStatusRefreshPopover());
-ui.btnStatusRefreshCancel?.addEventListener("click", () => {
-  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
-  closeStatusRefreshPopover();
-});
 ui.inpStatusRefreshSec?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -5758,6 +5752,8 @@ document.addEventListener("click", (e) => {
   const t = /** @type {any} */ (e.target);
   if (pop && (pop === t || pop.contains(t))) return;
   if (host && (host === t || host.contains(t))) return;
+  // Clicking out cancels: revert the draft value.
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
   closeStatusRefreshPopover();
 });
 

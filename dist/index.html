@@ -524,6 +524,12 @@ body{
 .popover__row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .popover__input{flex:1;min-width:140px;margin-top:0}
 .popover__hint{margin-top:8px;font-size:12px;line-height:1.35}
+/* Inline KPI popovers: keep inputs narrow so +/- + ✓ don't overflow. */
+#statusRefreshPopover .popover__input,
+#rateWindowPopover .popover__input{
+  flex:0 0 90px;
+  min-width:90px;
+}
 
 .kpiWarn__rail{
   display:inline-flex;
@@ -1489,15 +1495,6 @@ body{
                 +
               </button>
               <button
-                id="btnStatusRefreshCancel"
-                type="button"
-                class="btn btn--secondary btn--small btn--icon"
-                title="Cancel"
-                aria-label="Cancel"
-              >
-                ×
-              </button>
-              <button
                 id="btnStatusRefreshOk"
                 type="button"
                 class="btn btn--secondary btn--small btn--icon"
@@ -1539,15 +1536,6 @@ body{
                 aria-label="Increase AVG window points"
               >
                 +
-              </button>
-              <button
-                id="btnRateWindowCancel"
-                type="button"
-                class="btn btn--secondary btn--small btn--icon"
-                title="Cancel"
-                aria-label="Cancel"
-              >
-                ×
               </button>
               <button
                 id="btnRateWindowOk"
@@ -7491,6 +7479,8 @@ document.addEventListener("click", (e) => {
   const t = /** @type {any} */ (e.target);
   if (pop && (pop === t || pop.contains(t))) return;
   if (host && (host === t || host.contains(t))) return;
+  // Clicking out cancels: revert the draft value.
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
   closeRateWindowPopover();
 });
 
@@ -7504,10 +7494,6 @@ ui.btnStatusRefreshEdit?.addEventListener("click", (e) => {
   else openStatusRefreshPopover();
 });
 ui.btnStatusRefreshOk?.addEventListener("click", () => commitStatusRefreshPopover());
-ui.btnStatusRefreshCancel?.addEventListener("click", () => {
-  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
-  closeStatusRefreshPopover();
-});
 ui.inpStatusRefreshSec?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -7540,6 +7526,8 @@ document.addEventListener("click", (e) => {
   const t = /** @type {any} */ (e.target);
   if (pop && (pop === t || pop.contains(t))) return;
   if (host && (host === t || host.contains(t))) return;
+  // Clicking out cancels: revert the draft value.
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = statusRefreshPrev;
   closeStatusRefreshPopover();
 });
 

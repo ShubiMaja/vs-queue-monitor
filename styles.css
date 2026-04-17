@@ -516,6 +516,12 @@ body{
 .popover__row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .popover__input{flex:1;min-width:140px;margin-top:0}
 .popover__hint{margin-top:8px;font-size:12px;line-height:1.35}
+/* Inline KPI popovers: keep inputs narrow so +/- + ✓ don't overflow. */
+#statusRefreshPopover .popover__input,
+#rateWindowPopover .popover__input{
+  flex:0 0 90px;
+  min-width:90px;
+}
 
 .kpiWarn__rail{
   display:inline-flex;
