@@ -159,6 +159,11 @@ body{
   height:9px;
   opacity:0.35;
 }
+.logActivity--status .logActivityLed--armed{
+  opacity:0.92;
+  box-shadow:0 0 0 1px rgba(80,140,90,0.35), 0 0 10px rgba(125,206,115,0.18);
+  filter:saturate(1.15) brightness(1.05);
+}
 
 @media (max-width: 980px){
   .layout{grid-template-columns:1fr;padding:16px}
