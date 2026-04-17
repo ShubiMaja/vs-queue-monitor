@@ -155,7 +155,7 @@ This web app currently expects you to pick the log file directly (recommended). 
 
 - **Pick log file…** is required for **live tail**.
 - **Pick folder…** is optional and may be hidden/unsupported depending on your browser context.
-- After you successfully open a log, the app **remembers** it for the next visit: the **file handle** is stored in **IndexedDB** (same origin as the page), and **localStorage** holds the **file name** plus how it was chosen (e.g. “Picked file”). Browsers do **not** expose real filesystem paths to web pages, so there is no full path string to save. On reload, if permission is still **granted**, the same log is **restored** and **monitoring starts** automatically; if the browser asks again, use the **Allow** action in the toast (then it starts too) or pick the file once more.
+- After you successfully open a log, the app **remembers** it for the next visit: the **file handle** is stored in **IndexedDB** (same origin as the page), and **localStorage** holds the **file name** plus how it was chosen (e.g. “Picked file”). Browsers do **not** expose real filesystem paths to web pages, so there is no full path string to save. On reload, the app calls **`requestPermission`** on that handle (not only `queryPermission`). If access is **granted**, the log is **restored** and **monitoring starts** immediately. If the browser still needs a **user gesture**, click or tap **anywhere** on the page once, or use the toast **Allow** — then monitoring starts the same way.
 
 ### Monitoring
 

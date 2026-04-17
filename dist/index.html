@@ -587,7 +587,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.33";
+const APP_VERSION = "2.0.34";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1489,6 +1489,11 @@ const BUFFER_MAX_CHARS = 400_000;
 let lastReadOffset = null;
 /** @type {string|null} */
 let pendingGraphReplayText = null;
+/** Saved handle when read permission is still "prompt" after reload (browsers often require a user gesture). */
+/** @type {FileSystemFileHandle|null} */
+let pendingRestoreHandle = null;
+/** @type {boolean} */
+let restoreInProgress = false;
 /** @type {string} */
 let logBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
@@ -1687,6 +1692,7 @@ async function saveLastLogToStorage(handle, sourceLabel_, meta) {
 }
 
 async function clearSavedLogHandle() {
+  pendingRestoreHandle = null;
   await idbDeleteLogFileHandle();
   try {
     localStorage.removeItem(STORAGE_LAST_LOG_META_KEY);
@@ -1701,6 +1707,7 @@ async function clearSavedLogHandle() {
  * @param {{ historyLine?: string|null }} opts
  */
 async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
+  pendingRestoreHandle = null;
   const historyLine = opts.historyLine;
   logFileHandle = handle;
   sourceLabel = sourceLabel_;
@@ -1729,19 +1736,47 @@ async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
  * @param {FileSystemFileHandle} handle
  */
 async function finishRestoreSavedLog(handle) {
-  let meta = null;
+  if (restoreInProgress) return;
+  restoreInProgress = true;
   try {
-    const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
-    if (raw) meta = JSON.parse(raw);
-  } catch {
-    // ignore
+    pendingRestoreHandle = null;
+    let meta = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
+      if (raw) meta = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    const label = meta && typeof meta.sourceLabel === "string" ? meta.sourceLabel : "Saved log";
+    const name = meta && typeof meta.name === "string" ? meta.name : (await handle.getFile()).name;
+    await applyPickedLogHandle(handle, label, {
+      historyLine: `Restored last log: ${name} (${label}).`,
+    });
+    startMonitoring();
+  } finally {
+    restoreInProgress = false;
   }
-  const label = meta && typeof meta.sourceLabel === "string" ? meta.sourceLabel : "Saved log";
-  const name = meta && typeof meta.name === "string" ? meta.name : (await handle.getFile()).name;
-  await applyPickedLogHandle(handle, label, {
-    historyLine: `Restored last log: ${name} (${label}).`,
-  });
-  startMonitoring();
+}
+
+/**
+ * After reload, read permission is often "prompt" until there is a user gesture; the first
+ * pointerdown anywhere can satisfy that so we can reopen the saved handle and autostart.
+ */
+function registerPendingRestoreOnFirstPointerDown() {
+  if (pendingRestoreHandle == null) return;
+  const onPointer = async () => {
+    window.removeEventListener("pointerdown", onPointer, true);
+    const h = pendingRestoreHandle;
+    if (!h || running) return;
+    try {
+      const p = await h.requestPermission({ mode: "read" });
+      if (p !== "granted") return;
+      await finishRestoreSavedLog(h);
+    } catch {
+      // ignore
+    }
+  };
+  window.addEventListener("pointerdown", onPointer, { capture: true });
 }
 
 async function tryRestoreLastLogOnLoad() {
@@ -1761,33 +1796,38 @@ async function tryRestoreLastLogOnLoad() {
       await clearSavedLogHandle();
       return;
     }
-    if (perm === "prompt") {
-      const p = await handle.requestPermission({ mode: "read" });
-      if (p !== "granted") {
-        showToast(
-          "Reopen last log",
-          "Allow access to restore the log file you used last time, or pick the file again.",
-          "info",
-          {
-            actionLabel: "Allow",
-            onAction: async () => {
-              try {
-                const p2 = await handle.requestPermission({ mode: "read" });
-                if (p2 === "granted") {
-                  await finishRestoreSavedLog(handle);
-                } else appendHistory("Last log not restored (permission denied).");
-              } catch (e) {
-                appendHistory(`Could not restore last log: ${String(e)}`);
-              }
-            },
-            durationMs: 45000,
-          },
-        );
-        appendHistory("Last log is saved — use “Allow” in the toast to reopen it, or pick the log again.");
-        return;
-      }
+    // One explicit request fixes many Chromium cases where query is "prompt" until this runs.
+    const p = await handle.requestPermission({ mode: "read" });
+    if (p === "granted") {
+      await finishRestoreSavedLog(handle);
+      return;
     }
-    await finishRestoreSavedLog(handle);
+    // Still not granted: need a user gesture (first click/tap on the page, or toast button).
+    pendingRestoreHandle = handle;
+    showToast(
+      "Reopen last log",
+      "Click or tap anywhere on the page, or press Allow, to grant access to your saved log file.",
+      "info",
+      {
+        actionLabel: "Allow",
+        onAction: async () => {
+          try {
+            const h = pendingRestoreHandle;
+            if (!h) return;
+            const p2 = await h.requestPermission({ mode: "read" });
+            if (p2 === "granted") await finishRestoreSavedLog(h);
+            else appendHistory("Last log not restored (permission denied).");
+          } catch (e) {
+            appendHistory(`Could not restore last log: ${String(e)}`);
+          }
+        },
+        durationMs: 60000,
+      },
+    );
+    appendHistory(
+      "Saved log is waiting — click/tap anywhere or use Allow in the toast to restore and start monitoring.",
+    );
+    registerPendingRestoreOnFirstPointerDown();
   } catch (e) {
     appendHistory(`Could not restore last log: ${String(e)}`);
     await clearSavedLogHandle();
@@ -2734,6 +2774,7 @@ async function pollOnce() {
 
 function startMonitoring() {
   if (!logFileHandle) return;
+  if (running) return;
   running = true;
   monitorStartEpoch = Date.now() / 1000;
   setStatus("Monitoring");
@@ -2949,7 +2990,13 @@ syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start, or restore the last session automatically.");
-void tryRestoreLastLogOnLoad();
+window.addEventListener(
+  "load",
+  () => {
+    queueMicrotask(() => void tryRestoreLastLogOnLoad());
+  },
+  { once: true },
+);
 wireHelpOverlay();
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).
