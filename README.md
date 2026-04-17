@@ -190,7 +190,7 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 ### Alerts
 
-- **Thresholds** — comma-separated positions (default `10, 5, 1`): an alert can fire when you **cross downward** through each value (once per value per queue run). **Threshold alerts** shows **in-page toasts** (and optional **desktop notifications** if you allow them); **Threshold sound** uses short built-in tones.
+- **Thresholds** — comma-separated positions (default `10, 5, 1`): an alert can fire when you **cross downward** through each value (once per value per queue run). **Threshold alerts** shows **in-page toasts** (and optional **desktop notifications** if you allow them); **Threshold sound** uses short synthesized sine chimes (no external files).
 - **Completion** — **not threshold-based**: it fires when the log tail shows a **post-queue** line **after** the last queue position line. This maps the UI position to **0** (Completed) and drives completion toast/sound/desktop notification per Settings.
 - **Desktop notifications** are optional (**Enable notifications** in Info). Toasts work without that permission as long as the corresponding alert toggles are on in Settings.
 
@@ -219,8 +219,8 @@ The status string reflects tail-of-log classification, for example:
 ### Settings (gear)
 
 - **Polling** — **Poll (s)** between log reads.
-- **Thresholds** — comma-separated **warning thresholds**; **Threshold alerts** (in-page toast + optional desktop); **Threshold sound** (built-in beep).
-- **Completion** — **Completion alert** (in-page toast + optional desktop) and **Completion sound** when past-queue-wait is detected (no threshold list).
+- **Thresholds** — comma-separated **warning thresholds**; **Threshold alerts** (in-page toast + optional desktop); **Threshold sound** (soft two-note chime).
+- **Completion** — **Completion alert** (in-page toast + optional desktop) and **Completion sound** (short major arpeggio) when past-queue-wait is detected (no threshold list).
 - **History** — **Log every position change**: when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are). Show or hide the panel from the main window **History** bar (still saved in config).
 - **Estimation** — **Rolling window (points)**: how many recent queue steps to use for rolling rate and ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
