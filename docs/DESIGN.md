@@ -307,6 +307,7 @@ The app is a **single-page dashboard** with a stable mental model:
 - **No server:** all state is **local** (storage APIs in the browser).
 - **Security:** file access **requires user gestures** where the platform demands it; flows must **teach** that, not fight it silently.
 - **Privacy:** logs stay on device; the README disclaimer remains the legal/expectation anchor.
+- **Deploys:** Optional **static** `version.json` (same semver as the bundle) lets the client **compare** against a fetched copy and **nudge** reloads without a backend—**non-blocking** toast only.
 
 ---
 
