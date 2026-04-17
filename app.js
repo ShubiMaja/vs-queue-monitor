@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.0.7";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -16,6 +16,8 @@ const ui = {
   toastHost: $("toastHost"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
+  btnHelpPlatWin: $("btnHelpPlatWin"),
+  btnHelpPlatUnix: $("btnHelpPlatUnix"),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
   preHelpCmd: $("preHelpCmd"),
   spanHelpPickPath: $("spanHelpPickPath"),
@@ -52,6 +54,26 @@ const ui = {
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
+const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
+/** @type {"win"|"unix"} */
+let helpPlat = "win";
+
+function setHelpPlat(next) {
+  helpPlat = next === "unix" ? "unix" : "win";
+  try {
+    localStorage.setItem(STORAGE_HELP_PLAT_KEY, helpPlat);
+  } catch {
+    // ignore
+  }
+  updateHelpPlatUi();
+  renderHelpCommandPreview();
+}
+
+function updateHelpPlatUi() {
+  ui.btnHelpPlatWin?.setAttribute("aria-pressed", helpPlat === "win" ? "true" : "false");
+  ui.btnHelpPlatUnix?.setAttribute("aria-pressed", helpPlat === "unix" ? "true" : "false");
+}
+
 function showToast(title, body = "", kind = "info", opts = undefined) {
   const host = ui.toastHost;
   if (!host) return;
@@ -80,13 +102,27 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   }
 
   const durationMs = opts && Number.isFinite(opts.durationMs) ? Math.max(800, opts.durationMs) : 2400;
-  window.setTimeout(() => {
-    try {
-      el.remove();
-    } catch {
-      // ignore
-    }
-  }, durationMs);
+  let timer = null;
+  if (durationMs !== Infinity) {
+    timer = window.setTimeout(() => {
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
+    }, durationMs);
+  }
+
+  return {
+    remove: () => {
+      if (timer != null) window.clearTimeout(timer);
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
+    },
+  };
 }
 
 function escapeHtml(s) {
@@ -102,11 +138,23 @@ function openHelp() {
   if (!ui.helpOverlay) return;
   ui.helpOverlay.hidden = false;
   try {
+    // Load persisted selection or infer once from platform.
+    try {
+      const saved = localStorage.getItem(STORAGE_HELP_PLAT_KEY);
+      if (saved === "win" || saved === "unix") helpPlat = saved;
+    } catch {
+      // ignore
+    }
+    if (helpPlat !== "win" && helpPlat !== "unix") {
+      const plat = String(navigator.platform || "").toLowerCase();
+      helpPlat = plat.includes("win") ? "win" : "unix";
+    }
+    updateHelpPlatUi();
+
     // Set a sensible default in the generator if empty.
     if (ui.inpHelpSourcePath && !ui.inpHelpSourcePath.value) {
-      const plat = String(navigator.platform || "").toLowerCase();
-      if (plat.includes("win")) ui.inpHelpSourcePath.value = "%APPDATA%\\VintagestoryData";
-      else if (plat.includes("linux")) ui.inpHelpSourcePath.value = "~/.config/VintagestoryData/Logs/client-main.log";
+      if (helpPlat === "win") ui.inpHelpSourcePath.value = "%APPDATA%\\VintagestoryData";
+      else ui.inpHelpSourcePath.value = "~/.config/VintagestoryData/Logs/client-main.log";
     }
     renderHelpCommandPreview();
   } catch {
@@ -140,6 +188,8 @@ function wireHelpOverlay() {
   });
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
+  ui.btnHelpPlatWin?.addEventListener("click", () => setHelpPlat("win"));
+  ui.btnHelpPlatUnix?.addEventListener("click", () => setHelpPlat("unix"));
   ui.btnHelpCopyCmd?.addEventListener("click", async () => {
     const txt = String(ui.preHelpCmd?.textContent || "");
     if (!txt.trim()) return;
@@ -159,9 +209,8 @@ function normalizeSlashes(s) {
 function renderHelpCommandPreview() {
   if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
   const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
-  const plat = String(navigator.platform || "").toLowerCase();
-  const isWin = plat.includes("win");
-  const isLinux = plat.includes("linux");
+  const isWin = helpPlat === "win";
+  const isUnix = helpPlat === "unix";
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
   const logName = /client\.log$/i.test(raw) ? "client.log" : "client-main.log";
   const setPick = (p) => {
@@ -191,7 +240,7 @@ function renderHelpCommandPreview() {
     return;
   }
 
-  if (isLinux) {
+  if (isUnix) {
     if (wantsFile) {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
       ui.preHelpCmd.textContent =
@@ -766,6 +815,8 @@ async function pickLogFile() {
     return;
   }
   // Proactive guidance: the picker UI can block “system” folders before we get a rejection.
+  /** @type {{remove: ()=>void}|null} */
+  let tipToast = null;
   try {
     const isFile = String(window.location && window.location.protocol) === "file:";
     const plat = String(navigator.platform || "").toLowerCase();
@@ -773,10 +824,10 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
-      showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
+      tipToast = showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
         actionLabel: "Guide",
         onAction: () => openHelp(),
-        durationMs: 7000,
+        durationMs: Infinity,
       });
       if (isWin) {
         appendHistory("Windows workaround (junction via Documents):");
@@ -819,6 +870,7 @@ async function pickLogFile() {
       ],
     });
   } catch (e) {
+    tipToast?.remove();
     const msg = String(e && (e.message || e.name || e));
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
@@ -862,6 +914,7 @@ async function pickLogFile() {
     showToast("Pick failed", msg, "error");
     return;
   }
+  tipToast?.remove();
   logFileHandle = handle ?? null;
   sourceLabel = "Picked file";
   ui.infoSource.textContent = sourceLabel ?? "—";
