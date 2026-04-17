@@ -30,10 +30,11 @@ Open the built one-page app:
 
 The build also writes **`version.json`** next to `index.html` (repo root and `dist/`) with the same semver as **`APP_VERSION`** in `app.js`. When you serve the app over **http(s)**, the client **polls** `./version.json` and shows a **quiet toast** if a **newer** version is deployed (with **Reload**). This does **not** run on `file://` opens.
 
-Build with Python (no Node.js required):
+Build with Node:
 
 ```bash
-python scripts/build-dist.py
+npm install
+npm run build
 ```
 
 This also copies `assets/` into `dist/assets/` and copies `sw.js` into `dist/sw.js` (used for more reliable desktop notifications on localhost/https).
@@ -41,7 +42,7 @@ This also copies `assets/` into `dist/assets/` and copies `sw.js` into `dist/sw.
 Optional — serve locally (recommended for desktop notifications):
 
 ```bash
-python -m http.server 5173
+npm run dev
 ```
 
 Then open `http://localhost:5173/dist/`.
@@ -52,6 +53,7 @@ Then open `http://localhost:5173/dist/`.
 2. Optional: click **Enable notifications** so threshold/completion can use **OS / desktop notifications**.
    - Desktop notifications are most reliable when the app is opened from **`http://localhost`** (or `https://`), not `file://`.
    - Use **Test notification** after enabling to validate your OS/browser settings. In-page toasts work regardless.
+   - If desktop notifications are off/blocked, a small **top-bar pill** shows the reason and acts as a shortcut to enable/test. Alerts also add a temporary **tab title badge** when the page isn’t focused.
 
 Use **Stop** / **Start** to pause and resume tailing the same file without picking again.
 
