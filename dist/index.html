@@ -681,7 +681,7 @@ body{
             <button
               id="btnRequestNotify"
               class="btn btn--small btn--secondary"
-              title="Allow desktop notifications (optional). Threshold and completion toasts work without this."
+              title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
             >
               Enable notifications
             </button>
@@ -785,7 +785,10 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.44";
+const APP_VERSION = "2.0.45";
+
+/** Same as favicon; desktop notifications need HTTPS or localhost. */
+const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1740,7 +1743,26 @@ function notifyDesktop(kind, title, body) {
   if (!("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   try {
-    new Notification(title, { body, silent: true });
+    new Notification(title, {
+      body,
+      silent: true,
+      icon: NOTIFICATION_ICON_URL,
+      tag: kind === "threshold" ? "vsqm-threshold" : "vsqm-completion",
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/** One-shot test so users see that OS notifications work (often suppressed while this tab is focused). */
+function showTestDesktopNotification() {
+  try {
+    new Notification("VS Queue Monitor", {
+      body: "Alerts from this app appear here when the tab is in the background and a threshold or completion fires (see Settings).",
+      silent: false,
+      icon: NOTIFICATION_ICON_URL,
+      tag: "vsqm-permission-test",
+    });
   } catch {
     // ignore
   }
@@ -3651,10 +3673,43 @@ ui.btnCopyHistory.addEventListener("click", async () => {
 ui.btnRequestNotify.addEventListener("click", async () => {
   if (!("Notification" in window)) {
     appendHistory("Notifications are not supported in this browser.");
+    showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
+    return;
+  }
+  if (Notification.permission === "granted") {
+    showTestDesktopNotification();
+    appendHistory("Desktop notifications: permission already granted — sent a test notification.");
+    showToast(
+      "Test sent",
+      "Check the system notification area (or taskbar). Browsers often hide these while this tab is focused—try another window, then use alerts while monitoring.",
+      "info",
+      { durationMs: 14000 },
+    );
+    return;
+  }
+  if (Notification.permission === "denied") {
+    appendHistory("Notifications are blocked for this site — change the permission in the browser (lock icon / site settings).");
+    showToast(
+      "Notifications blocked",
+      "Unblock this site in the browser’s site settings (address bar) if you want desktop alerts.",
+      "warn",
+      { durationMs: 12000 },
+    );
     return;
   }
   const p = await Notification.requestPermission();
   appendHistory(`Notification permission: ${p}`);
+  if (p === "granted") {
+    showTestDesktopNotification();
+    showToast(
+      "Notifications enabled",
+      "You should see a system notification now. Real ones fire for threshold/completion when those toggles are on in Settings—often only when this tab is not focused.",
+      "info",
+      { durationMs: 16000 },
+    );
+  } else {
+    showToast("Notifications not granted", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
+  }
 });
 
 ui.btnSaveSettings.addEventListener("click", () => {
