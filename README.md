@@ -79,6 +79,8 @@ mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\Vi
 
 Only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that name first or the link step fails.
 
+**`vs-queue-monitor` looks empty:** until `mklink` succeeds, there will be no `data-…` / `logs-…` folder there. Run the two lines in **Command Prompt (`cmd.exe`)** — in **PowerShell**, `mklink` is not available (use `cmd /c "mklink /J …"` or `New-Item -ItemType Junction -Path … -Target …`). **A junction folder that exists but shows no files** mirrors the source: if the real `Logs` directory is empty or you pointed at the wrong install path, the junction will look empty too.
+
 Then pick: `Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log` (use the exact folder name from **Generate an exact command** for your path).
 
 **Linux / macOS (file symlink into ~/vs-queue-monitor):**

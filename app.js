@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.18";
+const APP_VERSION = "2.0.19";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 

@@ -50,6 +50,9 @@
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
           <div class="modal__text">Do not <span class="mono">mkdir</span> the <span class="mono">data-…</span> / <span class="mono">logs-…</span> name first — <span class="mono">mklink /J</span> creates it. Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
+          <div class="modal__text muted">
+            <strong>Empty folder?</strong> <span class="mono">Documents\vs-queue-monitor</span> stays empty until a junction is created successfully. Run the commands in <strong>Command Prompt</strong> (<span class="mono">cmd</span>) — <span class="mono">mklink</span> is not a PowerShell command. If <span class="mono">logs-…</span> / <span class="mono">data-…</span> exists but has no files, the real Vintage Story <span class="mono">Logs</span> folder is empty or the source path is wrong — open that path in Explorer first.
+          </div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
           <pre class="code">mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
