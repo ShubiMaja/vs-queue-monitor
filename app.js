@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.51";
+const APP_VERSION = "2.0.52";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -2816,12 +2816,7 @@ function setLogActivityMonitoring(on) {
 function pulseLogActivityLed() {
   const el = ui.logActivityLed;
   if (!el || !running) return;
-  el.classList.remove("logActivityLed--pulse");
-  void el.offsetWidth;
-  el.classList.add("logActivityLed--pulse");
-  window.setTimeout(() => {
-    el.classList.remove("logActivityLed--pulse");
-  }, 600);
+  // The graph scrolls each tick; keep the indicator subtle (no pulse).
 }
 
 function setStartStopButtonLook(isRunning) {
@@ -2948,7 +2943,7 @@ function hitTestGraphPoint(clientX, clientY) {
 
 function graphYMap(pos, minP, maxP, h) {
   const padTop = 22;
-  const padBot = 34;
+  const padBot = 46;
   const plotH = h - padTop - padBot;
   const clamp = (v) => Math.max(0, Math.min(1, v));
   if (config.graphLogScale) {
@@ -2988,7 +2983,7 @@ function drawGraph() {
   const padL = 56;
   const padR = 20;
   const padT = 22;
-  const padB = 34;
+  const padB = 46;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
   const plotBottom = padT + plotH;
@@ -3008,8 +3003,11 @@ function drawGraph() {
 
   // Time range
   const t1 = graphPoints[graphPoints.length - 1][0];
-  const span = Math.max(60, t1 - graphPoints[0][0]);
-  const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
+  // Grafana-like "last N seconds" window so the graph scrolls each tick.
+  const targetSpan = Math.max(60, Math.round(config.pollSec * config.windowPoints * 12));
+  const span = targetSpan;
+  const t0 = t1 - span;
+  const xOf = (t) => padL + ((t - t0) / span) * plotW;
 
   const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "ui-monospace, monospace";
 
