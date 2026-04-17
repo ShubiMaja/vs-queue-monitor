@@ -3345,6 +3345,12 @@ function setStatus(text, danger = false) {
   else if (t.includes("completed")) state = "done";
   else if (t.includes("monitoring")) state = "ok";
 
+  // Keep the "live read" indicator semantically aligned with Status:
+  // if we're interrupted (or otherwise not healthy), don't show a green "armed" indicator.
+  // This avoids "Interrupted" + green-light at the same time.
+  if (state === "danger") setLogActivityMonitoring(false);
+  else if (running) setLogActivityMonitoring(true);
+
   el.classList.add(
     state === "ok"
       ? "kpi__value--ok"
