@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.53";
+const APP_VERSION = "2.0.54";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -3206,6 +3206,24 @@ startUpdateCheckLoop();
   if (!viewport || typeof ResizeObserver === "undefined") return;
   const ro = new ResizeObserver(() => syncWarningsMarquee());
   ro.observe(viewport);
+})();
+
+// Warnings: allow side-scroll on wheel/trackpad when hovered.
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  viewport.addEventListener(
+    "wheel",
+    (e) => {
+      // Prefer explicit horizontal deltas when present; otherwise map vertical wheel to horizontal pan.
+      const dx = Math.abs(e.deltaX) > 0.5 ? e.deltaX : e.deltaY;
+      if (!dx) return;
+      const before = viewport.scrollLeft;
+      viewport.scrollLeft += dx;
+      if (viewport.scrollLeft !== before) e.preventDefault();
+    },
+    { passive: false },
+  );
 })();
 
 ui.btnResumeLastLog.addEventListener("click", async () => {
