@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.62";
+const APP_VERSION = "2.0.63";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1941,6 +1941,8 @@ let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: numb
 let graphCanvasHovering = false;
 /** Canvas-space X for hover crosshair (null when pointer leaves). */
 let graphHoverCanvasX = /** @type {number|null} */ (null);
+/** Hover-snapped graph point (null when not hovering a point). */
+let graphHoverPoint = /** @type {GraphPoint|null} */ (null);
 let graphDrawRaf = 0;
 function scheduleDrawGraph() {
   if (graphDrawRaf) return;
@@ -3083,38 +3085,6 @@ function hitTestGraphPoint(clientX, clientY) {
   return best;
 }
 
-/**
- * Like `hitTestGraphPoint`, but also returns the snapped canvas X for crosshair.
- * @param {number} clientX
- * @param {number} clientY
- * @returns {{ pt: GraphPoint, xCanvas: number } | null}
- */
-function hitTestGraphPointSnap(clientX, clientY) {
-  const layout = lastGraphLayout;
-  if (!layout || graphPoints.length < 1) return null;
-  const canvas = ui.graphCanvas;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  const mx = (clientX - rect.left) * scaleX;
-  const my = (clientY - rect.top) * scaleY;
-  const { padL, padR, padT, padB, plotW, w, h, t1, span } = layout;
-  if (mx < padL || mx > w - padR || my < padT || my > h - padB) return null;
-  const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
-  /** @type {GraphPoint|null} */
-  let best = null;
-  let bestD = Infinity;
-  for (let i = 0; i < graphPoints.length; i++) {
-    const d = Math.abs(xOf(graphPoints[i][0]) - mx);
-    if (d < bestD) {
-      bestD = d;
-      best = graphPoints[i];
-    }
-  }
-  if (!best) return null;
-  return { pt: best, xCanvas: xOf(best[0]) };
-}
-
 function graphYMap(pos, minP, maxP, h) {
   const padTop = 22;
   const padBot = 46;
@@ -3290,6 +3260,21 @@ function drawGraph() {
   ctx.beginPath();
   ctx.arc(xm, ym, 4.5, 0, Math.PI * 2);
   ctx.fill();
+
+  // Hover marker (snaps to nearest point)
+  if (graphCanvasHovering && graphHoverPoint) {
+    const xh = xOf(graphHoverPoint[0]);
+    const yh = graphYMap(graphHoverPoint[1], minP, maxP, h);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(xh, yh, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100,168,255,0.85)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(xh, yh, 5.2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   // Hover crosshair (vertical, scoped to plot)
   if (graphCanvasHovering && graphHoverCanvasX != null) {
@@ -3814,6 +3799,7 @@ ui.graphCanvas.addEventListener("mouseenter", () => {
 ui.graphCanvas.addEventListener("mouseleave", () => {
   graphCanvasHovering = false;
   graphHoverCanvasX = null;
+  graphHoverPoint = null;
   ui.graphHint.textContent = graphHintDefaultText();
   scheduleDrawGraph();
 });
@@ -3821,14 +3807,11 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
   const canvas = ui.graphCanvas;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
-  const snapped = hitTestGraphPointSnap(e.clientX, e.clientY);
-  if (snapped) {
-    graphHoverCanvasX = snapped.xCanvas;
-    ui.graphHint.textContent = `${formatGraphHoverTime(snapped.pt[0])} — position ${snapped.pt[1]}`;
-  } else {
-    graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
-    ui.graphHint.textContent = graphHintDefaultText();
-  }
+  graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
+  const pt = hitTestGraphPoint(e.clientX, e.clientY);
+  graphHoverPoint = pt;
+  if (pt) ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
+  else ui.graphHint.textContent = graphHintDefaultText();
   scheduleDrawGraph();
 });
 
