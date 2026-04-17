@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.23";
+const APP_VERSION = "2.0.24";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -928,6 +928,52 @@ async function tryGetFirstExistingFile(dir, names) {
   return null;
 }
 
+/** Shell Link (.lnk) header: first DWORD is header size 0x0000004C. */
+function fileHeadLooksLikeWindowsLnk(headBytes) {
+  if (!headBytes || headBytes.byteLength < 4) return false;
+  const u8 = new Uint8Array(headBytes);
+  return u8[0] === 0x4c && u8[1] === 0 && u8[2] === 0 && u8[3] === 0;
+}
+
+/**
+ * Windows "Create shortcut" makes a .lnk shell file, not a second path to the log bytes.
+ * The File System Access API reads that tiny binary — queue detection sees garbage. Warn clearly.
+ * @param {FileSystemFileHandle|null} handle
+ */
+async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
+  if (!handle) return;
+  try {
+    const file = await handle.getFile();
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".lnk")) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This is a Windows .lnk shell shortcut, not the log. The app would read link metadata, not client-main.log. Delete it and use Copy, or run the ? command that uses mklink /H (hard link) in cmd.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: .lnk shortcuts do not work — use a hard link (mklink /H from Help) or copy client-main.log.",
+      );
+      return;
+    }
+    const head = await file.slice(0, 64).arrayBuffer();
+    if (fileHeadLooksLikeWindowsLnk(head)) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This file is a Windows shell link (.lnk), even if renamed. Browsers cannot follow .lnk to the real log. Use mklink /H from ? (cmd) or copy the file.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: file header looks like .lnk — not plain log text. Use mklink /H or a file copy under Documents.",
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
 async function pickLogFile() {
   if (!window.showOpenFilePicker) {
     appendHistory("This browser does not support file picking. Use Edge or Chrome.");
@@ -1039,6 +1085,7 @@ async function pickLogFile() {
   ui.infoSource.textContent = sourceLabel ?? "—";
   ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
   ui.btnStartStop.disabled = !logFileHandle;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
   logBuffer = "";
@@ -1091,6 +1138,7 @@ async function pickFolder() {
   ui.infoSource.textContent = sourceLabel;
   ui.infoResolved.textContent = (await logFileHandle.getFile()).name;
   ui.btnStartStop.disabled = false;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
   logBuffer = "";

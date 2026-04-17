@@ -51,6 +51,11 @@
 mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\client-main-1a2b3c4d.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
           <div class="modal__text">One file directly under <span class="mono">vs-queue-monitor</span> (name includes an 8-char hash — filled in by the generator). Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder.</div>
 
+          <div class="modal__sectionTitle">Windows: “shortcut” vs real link</div>
+          <div class="modal__text">
+            <strong>Send to → Desktop (create shortcut)</strong> or <strong>right‑click → Create shortcut</strong> produces a <span class="mono">.lnk</span> file. That is a <em>shell</em> shortcut (tiny binary), not a second path to the log bytes. Edge/Chrome will read the <span class="mono">.lnk</span> itself — monitoring will not see your queue lines. <strong>Copy</strong> the log or use <span class="mono">mklink /H</span> from <strong>Generate an exact command</strong> (Command Prompt). <span class="mono">mklink /H</span> creates a <strong>hard link</strong>: same file data as the original, which behaves like a copy for reading.
+          </div>
+
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
