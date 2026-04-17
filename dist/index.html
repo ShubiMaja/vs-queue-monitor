@@ -368,6 +368,11 @@ body{
 mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\client-main-1a2b3c4d.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
           <div class="modal__text">One file directly under <span class="mono">vs-queue-monitor</span> (name includes an 8-char hash — filled in by the generator). Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder.</div>
 
+          <div class="modal__sectionTitle">Windows: “shortcut” vs real link</div>
+          <div class="modal__text">
+            <strong>Send to → Desktop (create shortcut)</strong> or <strong>right‑click → Create shortcut</strong> produces a <span class="mono">.lnk</span> file. That is a <em>shell</em> shortcut (tiny binary), not a second path to the log bytes. Edge/Chrome will read the <span class="mono">.lnk</span> itself — monitoring will not see your queue lines. <strong>Copy</strong> the log or use <span class="mono">mklink /H</span> from <strong>Generate an exact command</strong> (Command Prompt). <span class="mono">mklink /H</span> creates a <strong>hard link</strong>: same file data as the original, which behaves like a copy for reading.
+          </div>
+
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
           <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
@@ -575,7 +580,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.23";
+const APP_VERSION = "2.0.24";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1329,6 +1334,44 @@ async function tryGetFirstExistingFile(dir, names) {
   return null;
 }
 
+function fileHeadLooksLikeWindowsLnk(headBytes) {
+  if (!headBytes || headBytes.byteLength < 4) return false;
+  const u8 = new Uint8Array(headBytes);
+  return u8[0] === 0x4c && u8[1] === 0 && u8[2] === 0 && u8[3] === 0;
+}
+
+async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
+  if (!handle) return;
+  try {
+    const file = await handle.getFile();
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".lnk")) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This is a Windows .lnk shell shortcut, not the log. The app would read link metadata, not client-main.log. Delete it and use Copy, or run the ? command that uses mklink /H (hard link) in cmd.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: .lnk shortcuts do not work — use a hard link (mklink /H from Help) or copy client-main.log.",
+      );
+      return;
+    }
+    const head = await file.slice(0, 64).arrayBuffer();
+    if (fileHeadLooksLikeWindowsLnk(head)) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This file is a Windows shell link (.lnk), even if renamed. Browsers cannot follow .lnk to the real log. Use mklink /H from ? (cmd) or copy the file.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: file header looks like .lnk — not plain log text. Use mklink /H or a file copy under Documents.",
+      );
+    }
+  } catch {}
+}
+
 async function pickLogFile() {
   if (!window.showOpenFilePicker) {
     appendHistory("Live tail requires Edge/Chrome with File System Access API (showOpenFilePicker).");
@@ -1430,6 +1473,7 @@ async function pickLogFile() {
   ui.infoSource.textContent = sourceLabel ?? "—";
   ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
   ui.btnStartStop.disabled = !logFileHandle;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
   logBuffer = "";
@@ -1475,6 +1519,7 @@ async function pickFolder() {
   ui.infoSource.textContent = sourceLabel;
   ui.infoResolved.textContent = (await logFileHandle.getFile()).name;
   ui.btnStartStop.disabled = false;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
   logBuffer = "";
