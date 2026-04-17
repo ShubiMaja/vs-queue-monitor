@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.4";
+const APP_VERSION = "2.0.5";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -18,6 +18,7 @@ const ui = {
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpCopyCmd: $("btnHelpCopyCmd"),
   preHelpCmd: $("preHelpCmd"),
+  spanHelpPickPath: $("spanHelpPickPath"),
   graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
   graphHint: $("graphHint"),
 
@@ -163,6 +164,9 @@ function renderHelpCommandPreview() {
   const isLinux = plat.includes("linux");
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
   const logName = /client\.log$/i.test(raw) ? "client.log" : "client-main.log";
+  const setPick = (p) => {
+    if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
+  };
 
   if (isWin) {
     const srcIn = raw || "%APPDATA%\\VintagestoryData";
@@ -174,16 +178,16 @@ function renderHelpCommandPreview() {
       const dest = "%USERPROFILE%\\Documents\\VSLogs";
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
-        `mklink /J "${dest}" "${srcDir}"\n` +
-        `\nThen pick: ${dest}\\${logName}`;
+        `mklink /J "${dest}" "${srcDir}"`;
+      setPick(`${dest}\\${logName}`);
       return;
     }
 
     const dest = "%USERPROFILE%\\Documents\\VintagestoryData";
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
-      `mklink /J "${dest}" "${srcDir}"\n` +
-      `\nThen pick: ${dest}\\Logs\\${logName}`;
+      `mklink /J "${dest}" "${srcDir}"`;
+    setPick(`${dest}\\Logs\\${logName}`);
     return;
   }
 
@@ -192,21 +196,22 @@ function renderHelpCommandPreview() {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
       ui.preHelpCmd.textContent =
         `mkdir -p ~/VSLogs\n` +
-        `ln -s ${srcFile} ~/VSLogs/${logName}\n` +
-        `\nThen pick: ~/VSLogs/${logName}`;
+        `ln -s ${srcFile} ~/VSLogs/${logName}`;
+      setPick(`~/VSLogs/${logName}`);
       return;
     }
     const srcDir = raw || "~/.config/VintagestoryData";
     ui.preHelpCmd.textContent =
       `mkdir -p ~/VSLogs\n` +
-      `ln -s ${srcDir}/Logs/${logName} ~/VSLogs/${logName}\n` +
-      `\nThen pick: ~/VSLogs/${logName}`;
+      `ln -s ${srcDir}/Logs/${logName} ~/VSLogs/${logName}`;
+    setPick(`~/VSLogs/${logName}`);
     return;
   }
 
   ui.preHelpCmd.textContent =
     "Open this app in Edge/Chrome.\n" +
     "If the picker is blocked, paste your real VS data/log path above to generate a junction/symlink command.";
+  setPick("");
 }
 
 // -----------------------------
