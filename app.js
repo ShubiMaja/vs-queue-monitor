@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.98";
+const APP_VERSION = "2.0.99";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -3881,6 +3881,20 @@ function flashInput(el) {
   window.setTimeout(() => el.classList.remove("flash"), 700);
 }
 
+function openSettingsAndEditRollingWindow() {
+  openSettings();
+  // Wait a frame so the modal is visible before scrolling/focusing.
+  requestAnimationFrame(() => {
+    focusAndReveal(ui.inpWindowPoints);
+    try {
+      ui.inpWindowPoints.select();
+    } catch {
+      // ignore
+    }
+    flashInput(ui.inpWindowPoints);
+  });
+}
+
 // Inline-edit affordances: click KPI to jump to the relevant setting.
 ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
 ui.kpiWarnings.style.cursor = "pointer";
@@ -3898,36 +3912,18 @@ ui.kpiWarnings.addEventListener("click", () => {
 ui.kpiRateLabel.title = "Click to edit rolling window (points)";
 ui.kpiRateLabel.style.cursor = "pointer";
 ui.kpiRateLabel.addEventListener("click", () => {
-  focusAndReveal(ui.inpWindowPoints);
-  try {
-    ui.inpWindowPoints.select();
-  } catch {
-    // ignore
-  }
-  flashInput(ui.inpWindowPoints);
+  openSettingsAndEditRollingWindow();
 });
 
 ui.kpiRate.title = "Click to edit rolling window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
-  focusAndReveal(ui.inpWindowPoints);
-  try {
-    ui.inpWindowPoints.select();
-  } catch {
-    // ignore
-  }
-  flashInput(ui.inpWindowPoints);
+  openSettingsAndEditRollingWindow();
 });
 
 ui.btnRateEdit?.addEventListener("click", (e) => {
   e.preventDefault();
-  focusAndReveal(ui.inpWindowPoints);
-  try {
-    ui.inpWindowPoints.select();
-  } catch {
-    // ignore
-  }
-  flashInput(ui.inpWindowPoints);
+  openSettingsAndEditRollingWindow();
 });
 
 ui.btnPickLog.addEventListener("click", async () => {
