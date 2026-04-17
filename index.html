@@ -172,6 +172,24 @@
                     Tip: refresh and AVG window are edited inline from the KPI strip (STATUS and RATE).
                   </div>
                 </div>
+                <div class="field field--wide">
+                  <div class="label">Status refresh (seconds)</div>
+                  <div class="popover__row">
+                    <button id="btnPollSecMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease refresh seconds">−</button>
+                    <input id="inpPollSec" class="input popover__input" inputmode="decimal" placeholder="e.g. 2" />
+                    <button id="btnPollSecPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase refresh seconds">+</button>
+                  </div>
+                  <div class="muted popover__hint">Seconds ≥ 0.2. Lower = more responsive, higher = less CPU.</div>
+                </div>
+                <div class="field field--wide">
+                  <div class="label">Rate AVG window (points)</div>
+                  <div class="popover__row">
+                    <button id="btnWindowPointsMinus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Decrease AVG window points">−</button>
+                    <input id="inpWindowPoints" class="input popover__input" inputmode="numeric" placeholder="e.g. 10" />
+                    <button id="btnWindowPointsPlus" type="button" class="btn btn--secondary btn--small btn--icon" aria-label="Increase AVG window points">+</button>
+                  </div>
+                  <div class="muted popover__hint">Whole number ≥ 2. Higher = smoother, lower = more responsive.</div>
+                </div>
               </div>
             </div>
 
@@ -514,8 +532,13 @@
             >
               ⤓
             </button>
-            <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
-              Clear
+            <button
+              id="btnClear"
+              class="btn btn--small btn--secondary btn--icon"
+              title="Clear graph + history"
+              aria-label="Clear graph and history"
+            >
+              ⦸
             </button>
           </div>
         </div>

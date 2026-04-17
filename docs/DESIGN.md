@@ -58,41 +58,9 @@ This repo implements the **web** client only. If alternate UIs exist in forks or
 
 ---
 
-## Regression log (prevent repeat debugging)
+## Regressions & lessons learned
 
-This section exists to avoid re-discovering the same failures. When a bug/regression is found and fixed, add an entry with the **symptom**, the **root cause**, the **fix**, and a **verification recipe** (what to do / what to look for). Keep entries short and actionable.
-
-### Entry template (copy/paste)
-
-- **Title**: \<short name\>
-- **Symptom**: \<what the user sees\>
-- **Trigger**: \<when it happens / log conditions / browser conditions\>
-- **Root cause**: \<the actual bug, not the visible effect\>
-- **Fix**: \<what code changed and why\>
-- **Verify**:
-  - **Steps**: \<repro steps\>
-  - **Expected**: \<the correct outcome\>
-- **Notes**: \<gotchas, follow-ups, links to commits/PRs\>
-
-### Entries
-
-- **Title**: Latest session selection breaks graph/UI
-- **Symptom**: Graph appears not to load or stops updating; user reports “nothing works” after refresh.
-- **Trigger**: `selectedSessionKey` persisted as `"latest"` and `replayQueueGraphFromText()` takes the session-override path.
-- **Root cause**: The “use dropdown-selected session points” branch ran for **any** truthy `selectedSessionKey`, including `"latest"`, bypassing the reliable live current-run replay.
-- **Fix**: Only override the graph when `selectedSessionKey !== "latest"`; keep `"latest"` on the normal current-run replay path.
-- **Verify**:
-  - **Steps**: Load page → pick log → confirm graph updates; switch to an older session (graph should freeze) → switch back to Latest (graph resumes live).
-  - **Expected**: Latest keeps updating; past session renders historical points and does not mutate during polling.
-- **Notes**: If a “dead UI” happens again, first check DevTools Console for a startup exception caused by a missing DOM id (one throw prevents all listeners from wiring).
-
-### What to prioritize logging
-
-- **Session boundaries** (graph spans multiple sessions, “new run” not detected, stale values after reconnect)
-- **Seeding/replay** (initial load shows wrong start/current, missing timestamps causing insane rates, duplicate points)
-- **Live view / time axis** (empty runaway, frozen axis, jumpy scaling)
-- **Interrupted/stale detection** (false interruptions, stuck status, recovery behavior)
-- **History verbosity/perf** (too many points/lines, UI stalls, logEveryChange behavior)
+Operational notes, regressions, and verification recipes live in [`docs/REGRESSIONS.md`](./REGRESSIONS.md) to keep this document focused on product/UX design intent.
 
 ### Must stay aligned (behavioral parity)
 

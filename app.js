@@ -100,6 +100,10 @@ const ui = {
   inpPollSec: /** @type {HTMLInputElement|null} */ (document.getElementById("inpPollSec")),
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
   inpWindowPoints: /** @type {HTMLInputElement|null} */ (document.getElementById("inpWindowPoints")),
+  btnPollSecMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecMinus")),
+  btnPollSecPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnPollSecPlus")),
+  btnWindowPointsMinus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsMinus")),
+  btnWindowPointsPlus: /** @type {HTMLButtonElement|null} */ (document.getElementById("btnWindowPointsPlus")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
   chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
@@ -380,14 +384,18 @@ function syncNotifyButtonUi() {
   }
   // Bell icon toggles whether we *use* desktop notifications.
   ui.btnRequestNotify.disabled = false;
-  if (icoOn) icoOn.hidden = !config.desktopNotifyEnabled;
-  if (icoOff) icoOff.hidden = !!config.desktopNotifyEnabled;
-  ui.btnRequestNotify.title = config.desktopNotifyEnabled ? "Notifications: on" : "Notifications: off";
+  const enabled = !!config.desktopNotifyEnabled;
+  if (icoOn) icoOn.hidden = !enabled;
+  if (icoOff) icoOff.hidden = enabled;
+  ui.btnRequestNotify.setAttribute("aria-pressed", String(enabled));
+  ui.btnRequestNotify.title = enabled
+    ? (secure ? "Notifications: on" : "Notifications: on (requires localhost/https to grant permission)")
+    : "Notifications: off";
   if (ui.notifyHint) ui.notifyHint.hidden = true;
 }
 
-syncNotifyButtonUi();
-syncNotifyNagToast();
+// NOTE: do not call syncNotify* here. `config` is initialized later in the file, and
+// calling these before `loadConfig()` will trigger a TDZ ReferenceError ("Cannot access 'config' before initialization").
 
 let _notifyNagDismissed = false;
 /** @type {HTMLElement|null} */
@@ -1869,7 +1877,9 @@ function getSelectedSessionPoints() {
         null;
     }
   }
-  return s ? s.points.slice() : (latest ? latest.points.slice() : []);
+  // Important: if a user picks a session that doesn't match the current index keys, do NOT silently
+  // fall back to "latest" (it makes the dropdown feel broken). Show an empty graph instead.
+  return s ? s.points.slice() : [];
 }
 
 function applySessionSelectionToGraph() {
@@ -5195,6 +5205,8 @@ function drawGraph() {
 
 loadConfig();
 syncConfigToForm();
+syncNotifyButtonUi();
+syncNotifyNagToast();
 void syncSoundSummaries();
 void warmDefaultSoundsCache();
 setStatus("Idle");
@@ -5483,6 +5495,16 @@ function commitRateWindowPopover() {
   closeRateWindowPopover();
 }
 
+function applyWindowPoints(n) {
+  const v = Math.max(2, Math.round(n));
+  if (!Number.isFinite(v)) return;
+  config.windowPoints = v;
+  saveConfig();
+  syncConfigToForm();
+  updateTimeEstimates();
+  scheduleAutosave();
+}
+
 let statusRefreshEditOpen = false;
 let statusRefreshPrev = "";
 function openStatusRefreshPopover() {
@@ -5517,21 +5539,28 @@ function commitStatusRefreshPopover() {
     }
     return;
   }
-  config.pollSec = n;
+  applyPollSec(n);
+  closeStatusRefreshPopover();
+}
+
+function applyPollSec(n) {
+  const v = Math.max(0.2, Math.round(n * 10) / 10);
+  if (!Number.isFinite(v)) return;
+  config.pollSec = v;
   saveConfig();
   syncConfigToForm();
+  scheduleAutosave();
   if (running) {
     if (pollTimer != null) window.clearInterval(pollTimer);
     pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
     appendHistory(`Updated poll interval: ${config.pollSec}s`);
   }
-  closeStatusRefreshPopover();
 }
 
 // Inline-edit affordances: click KPI to jump to the relevant setting.
-ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
-ui.kpiWarnings.style.cursor = "pointer";
-ui.kpiWarnings.addEventListener("click", () => {
+ui.kpiWarnings && (ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.");
+ui.kpiWarnings && (ui.kpiWarnings.style.cursor = "pointer");
+ui.kpiWarnings?.addEventListener("click", () => {
   if (warningsEditMode) return;
   focusAndReveal(ui.inpThresholds);
   try {
@@ -5542,16 +5571,16 @@ ui.kpiWarnings.addEventListener("click", () => {
   flashInput(ui.inpThresholds);
 });
 
-ui.kpiRateLabel.title = "Click to edit AVG window (points)";
-ui.kpiRateLabel.style.cursor = "pointer";
-ui.kpiRateLabel.addEventListener("click", () => {
+ui.kpiRateLabel && (ui.kpiRateLabel.title = "Click to edit AVG window (points)");
+ui.kpiRateLabel && (ui.kpiRateLabel.style.cursor = "pointer");
+ui.kpiRateLabel?.addEventListener("click", () => {
   if (rateWindowEditOpen) return;
   openRateWindowPopover();
 });
 
-ui.kpiRate.title = "Click to edit AVG window (points)";
-ui.kpiRate.style.cursor = "pointer";
-ui.kpiRate.addEventListener("click", () => {
+ui.kpiRate && (ui.kpiRate.title = "Click to edit AVG window (points)");
+ui.kpiRate && (ui.kpiRate.style.cursor = "pointer");
+ui.kpiRate?.addEventListener("click", () => {
   if (rateWindowEditOpen) return;
   openRateWindowPopover();
 });
@@ -5622,7 +5651,7 @@ document.addEventListener("click", (e) => {
   closeStatusRefreshPopover();
 });
 
-ui.btnPickLog.addEventListener("click", async () => {
+ui.btnPickLog?.addEventListener("click", async () => {
   try {
     await pickLogFile();
   } catch (e) {
@@ -5630,14 +5659,14 @@ ui.btnPickLog.addEventListener("click", async () => {
   }
 });
 
-ui.btnStartStop.addEventListener("click", async () => {
+ui.btnStartStop?.addEventListener("click", async () => {
   if (!running) startMonitoring();
   else stopMonitoring();
 });
 
-ui.btnYScale.addEventListener("click", () => {
+ui.btnYScale?.addEventListener("click", () => {
   config.graphLogScale = !config.graphLogScale;
-  ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
+  if (ui.btnYScale) ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
   saveConfig();
   drawGraph();
 });
@@ -5670,7 +5699,7 @@ ui.selSession?.addEventListener("change", () => {
   applySessionSelectionToGraph();
 });
 
-ui.btnClear.addEventListener("click", () => {
+ui.btnClear?.addEventListener("click", () => {
   graphPoints = [];
   currentPoint = null;
   lastPosition = null;
@@ -5680,23 +5709,23 @@ ui.btnClear.addEventListener("click", () => {
   leftConnectQueueDetected = false;
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
-  ui.infoLastChange.textContent = "—";
-  ui.infoLastAlert.textContent = "—";
+  if (ui.infoLastChange) ui.infoLastChange.textContent = "—";
+  if (ui.infoLastAlert) ui.infoLastAlert.textContent = "—";
   setPositionDisplay(null);
-  ui.kpiElapsed.textContent = "—";
-  ui.kpiRemaining.textContent = "—";
-  ui.kpiRate.textContent = "—";
-  ui.infoGlobalRate.textContent = "—";
-  ui.progressFill.style.width = "0%";
+  if (ui.kpiElapsed) ui.kpiElapsed.textContent = "—";
+  if (ui.kpiRemaining) ui.kpiRemaining.textContent = "—";
+  if (ui.kpiRate) ui.kpiRate.textContent = "—";
+  if (ui.infoGlobalRate) ui.infoGlobalRate.textContent = "—";
+  if (ui.progressFill) ui.progressFill.style.width = "0%";
   history = [];
-  ui.historyPre.textContent = "";
+  if (ui.historyPre) ui.historyPre.textContent = "";
   appendHistory("Cleared.");
   drawGraph();
 });
 
-ui.btnCopyHistory.addEventListener("click", async () => {
+ui.btnCopyHistory?.addEventListener("click", async () => {
   try {
-    await navigator.clipboard.writeText(ui.historyPre.textContent || "");
+    await navigator.clipboard.writeText(ui.historyPre?.textContent || "");
     appendHistory("History copied to clipboard.");
   } catch {
     appendHistory("Could not copy history (clipboard permission).");
@@ -5809,6 +5838,12 @@ if (ui.inpWindowPoints) bindEnterToSave(ui.inpWindowPoints);
 bindEnterToSave(ui.inpWarnSoundUrl);
 bindEnterToSave(ui.inpCompletionSoundUrl);
 bindEnterToSave(ui.inpInterruptSoundUrl);
+
+// Settings modal steppers (Status refresh + Rate AVG window)
+ui.btnPollSecMinus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) - 0.2));
+ui.btnPollSecPlus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) + 0.2));
+ui.btnWindowPointsMinus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) - 1));
+ui.btnWindowPointsPlus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) + 1));
 
 // Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [
