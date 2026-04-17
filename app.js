@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.12";
+const APP_VERSION = "2.0.13";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1007,6 +1007,12 @@ async function pickFolder() {
 
 /** @type {GraphPoint[]} */
 let graphPoints = [];
+
+/** Last draw layout for canvas hit-testing (queue graph). */
+let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: number; padB: number; plotW: number; plotH: number; w: number; h: number; t1: number; span: number; minP: number; maxP: number }} */ (
+  null
+);
+let graphCanvasHovering = false;
 /** @type {GraphPoint|null} */
 let currentPoint = null;
 /** @type {number|null} */
@@ -1695,6 +1701,60 @@ function stopMonitoring() {
 // Graph (canvas)
 // -----------------------------
 
+function graphHintDefaultText() {
+  if (graphPoints.length < 1) {
+    return "Pick a log and press Start. The graph will fill as queue positions change.";
+  }
+  return config.graphLogScale ? "Y scale: log" : "Y scale: linear";
+}
+
+/**
+ * @param {number} tSec
+ */
+function formatGraphHoverTime(tSec) {
+  try {
+    return new Date(tSec * 1000).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return String(tSec);
+  }
+}
+
+/**
+ * @param {number} clientX
+ * @param {number} clientY
+ * @returns {GraphPoint|null}
+ */
+function hitTestGraphPoint(clientX, clientY) {
+  const layout = lastGraphLayout;
+  if (!layout || graphPoints.length < 1) return null;
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (clientX - rect.left) * scaleX;
+  const my = (clientY - rect.top) * scaleY;
+  const { padL, padR, padT, padB, plotW, plotH, w, h, t1, span } = layout;
+  if (mx < padL || mx > w - padR || my < padT || my > h - padB) return null;
+  const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
+  /** @type {GraphPoint|null} */
+  let best = null;
+  let bestD = Infinity;
+  for (let i = 0; i < graphPoints.length; i++) {
+    const d = Math.abs(xOf(graphPoints[i][0]) - mx);
+    if (d < bestD) {
+      bestD = d;
+      best = graphPoints[i];
+    }
+  }
+  return best;
+}
+
 function graphYMap(pos, minP, maxP, h) {
   const padTop = 18;
   const padBot = 26;
@@ -1724,10 +1784,11 @@ function drawGraph() {
   ctx.fillRect(0, 0, w, h);
 
   if (graphPoints.length < 1) {
-    ui.graphHint.textContent = "Pick a log and press Start. The graph will fill as queue positions change.";
+    lastGraphLayout = null;
+    ui.graphHint.textContent = graphHintDefaultText();
     return;
   }
-  ui.graphHint.textContent = config.graphLogScale ? "Y scale: log" : "Y scale: linear";
+  if (!graphCanvasHovering) ui.graphHint.textContent = graphHintDefaultText();
 
   const padL = 54;
   const padR = 20;
@@ -1740,7 +1801,10 @@ function drawGraph() {
   const positions = graphPoints.map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
-  if (!Number.isFinite(minP) || !Number.isFinite(maxP)) return;
+  if (!Number.isFinite(minP) || !Number.isFinite(maxP)) {
+    lastGraphLayout = null;
+    return;
+  }
   if (minP === maxP) {
     minP = Math.max(0, minP - 1);
     maxP = maxP + 1;
@@ -1801,6 +1865,8 @@ function drawGraph() {
   ctx.beginPath();
   ctx.arc(xm, ym, 4.5, 0, Math.PI * 2);
   ctx.fill();
+
+  lastGraphLayout = { padL, padR, padT, padB, plotW, plotH, w, h, t1, span, minP, maxP };
 }
 
 // -----------------------------
@@ -2043,5 +2109,22 @@ function resizeCanvasToDisplaySize() {
 }
 window.addEventListener("resize", () => resizeCanvasToDisplaySize());
 resizeCanvasToDisplaySize();
+
+ui.graphCanvas.addEventListener("mouseenter", () => {
+  graphCanvasHovering = true;
+});
+ui.graphCanvas.addEventListener("mouseleave", () => {
+  graphCanvasHovering = false;
+  ui.graphHint.textContent = graphHintDefaultText();
+});
+ui.graphCanvas.addEventListener("mousemove", (e) => {
+  const pt = hitTestGraphPoint(e.clientX, e.clientY);
+  if (pt) {
+    ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
+  } else {
+    ui.graphHint.textContent = graphHintDefaultText();
+  }
+});
+
 drawGraph();
 
