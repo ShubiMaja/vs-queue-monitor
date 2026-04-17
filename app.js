@@ -370,12 +370,21 @@ function syncNotifyButtonUi() {
   const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
   const icoOn = /** @type {HTMLElement|null} */ (document.getElementById("icoNotifyOn"));
   const icoOff = /** @type {HTMLElement|null} */ (document.getElementById("icoNotifyOff"));
+
+  const showIcon = (el, show) => {
+    if (!el) return;
+    // Be robust to any CSS fighting `hidden` by also forcing display.
+    el.hidden = !show;
+    el.style.display = show ? "inline-block" : "none";
+  };
+
   if (!supported) {
     // Keep clickable so we can explain the limitation via toast/history.
     ui.btnRequestNotify.disabled = false;
-    if (icoOn) icoOn.hidden = true;
-    if (icoOff) icoOff.hidden = false;
+    showIcon(icoOn, false);
+    showIcon(icoOff, true);
     ui.btnRequestNotify.title = "This browser does not support desktop notifications.";
+    ui.btnRequestNotify.classList.add("notifyBtn--off");
     if (ui.notifyHint) {
       ui.notifyHint.textContent = "Not supported in this browser.";
       ui.notifyHint.hidden = false;
@@ -385,8 +394,9 @@ function syncNotifyButtonUi() {
   // Bell icon toggles whether we *use* desktop notifications.
   ui.btnRequestNotify.disabled = false;
   const enabled = !!config.desktopNotifyEnabled;
-  if (icoOn) icoOn.hidden = !enabled;
-  if (icoOff) icoOff.hidden = enabled;
+  showIcon(icoOn, enabled);
+  showIcon(icoOff, !enabled);
+  ui.btnRequestNotify.classList.toggle("notifyBtn--off", !enabled);
   ui.btnRequestNotify.setAttribute("aria-pressed", String(enabled));
   ui.btnRequestNotify.title = enabled
     ? (secure ? "Notifications: on" : "Notifications: on (requires localhost/https to grant permission)")
