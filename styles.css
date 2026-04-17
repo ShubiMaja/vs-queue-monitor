@@ -293,6 +293,7 @@ body{
   overflow:auto;
 }
 .mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
 
 .helpForm{margin-top:10px;display:grid;grid-template-columns:1fr;gap:8px}
 .helpForm__label{font-size:12px;color:var(--muted);font-weight:800;letter-spacing:0.4px}
