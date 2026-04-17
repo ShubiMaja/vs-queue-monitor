@@ -1883,8 +1883,9 @@ function getSelectedSessionPoints() {
 }
 
 function applySessionSelectionToGraph() {
-  // Always rebuild sessions from the stable index buffer first so dropdown selection maps to the same session list.
-  rebuildSessionsFromText(sessionsIndexBuffer || logBuffer || "");
+  // Do NOT rebuild sessions here: dropdown selections use keys from the *current* `queueSessions`.
+  // Rebuilding on every selection can regenerate keys (especially for timestamp-less segments) and make the
+  // selection appear to do nothing.
   graphPoints = getSelectedSessionPoints();
   currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
   lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
