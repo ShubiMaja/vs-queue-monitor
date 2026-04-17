@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.34";
+const APP_VERSION = "2.0.35";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -15,6 +15,10 @@ const ui = {
   btnRequestNotify: $("btnRequestNotify"),
   btnSaveSettings: $("btnSaveSettings"),
   toastHost: $("toastHost"),
+  restoreBanner: $("restoreBanner"),
+  restoreBannerDetail: $("restoreBannerDetail"),
+  btnResumeLastLog: $("btnResumeLastLog"),
+  btnDismissRestoreBanner: $("btnDismissRestoreBanner"),
   helpOverlay: $("helpOverlay"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
@@ -1103,8 +1107,24 @@ async function saveLastLogToStorage(handle, sourceLabel_, meta) {
   }
 }
 
+function hideRestoreBanner() {
+  if (ui.restoreBanner) ui.restoreBanner.hidden = true;
+}
+
+/**
+ * @param {string} [fileNameHint]
+ */
+function showRestoreBanner(fileNameHint) {
+  if (!ui.restoreBanner || !ui.restoreBannerDetail) return;
+  const extra = fileNameHint && String(fileNameHint).trim() ? ` (${String(fileNameHint).trim()})` : "";
+  ui.restoreBannerDetail.textContent =
+    `Chromium needs a click to allow reading the saved file again${extra}. The File System Access API does not grant read access from a page-load task without a user gesture.`;
+  ui.restoreBanner.hidden = false;
+}
+
 async function clearSavedLogHandle() {
   pendingRestoreHandle = null;
+  hideRestoreBanner();
   await idbDeleteLogFileHandle();
   try {
     localStorage.removeItem(STORAGE_LAST_LOG_META_KEY);
@@ -1120,6 +1140,7 @@ async function clearSavedLogHandle() {
  */
 async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
   pendingRestoreHandle = null;
+  hideRestoreBanner();
   const historyLine = opts.historyLine;
   logFileHandle = handle;
   sourceLabel = sourceLabel_;
@@ -1170,29 +1191,13 @@ async function finishRestoreSavedLog(handle) {
   }
 }
 
-/**
- * After reload, read permission is often "prompt" until there is a user gesture; the first
- * pointerdown anywhere can satisfy that so we can reopen the saved handle and autostart.
- */
-function registerPendingRestoreOnFirstPointerDown() {
-  if (pendingRestoreHandle == null) return;
-  const onPointer = async () => {
-    window.removeEventListener("pointerdown", onPointer, true);
-    const h = pendingRestoreHandle;
-    if (!h || running) return;
-    try {
-      const p = await h.requestPermission({ mode: "read" });
-      if (p !== "granted") return;
-      await finishRestoreSavedLog(h);
-    } catch {
-      // ignore
-    }
-  };
-  window.addEventListener("pointerdown", onPointer, { capture: true });
-}
-
 async function tryRestoreLastLogOnLoad() {
-  if (!window.showOpenFilePicker) return;
+  if (!window.showOpenFilePicker) {
+    appendHistory(
+      "File System Access API not available (`showOpenFilePicker`). Use Edge/Chrome and open the app from http://localhost (npm run dev) or https:// — not all contexts expose the picker.",
+    );
+    return;
+  }
   /** @type {FileSystemFileHandle|undefined} */
   let handle;
   try {
@@ -1208,17 +1213,28 @@ async function tryRestoreLastLogOnLoad() {
       await clearSavedLogHandle();
       return;
     }
-    // One explicit request fixes many Chromium cases where query is "prompt" until this runs.
-    const p = await handle.requestPermission({ mode: "read" });
-    if (p === "granted") {
+    // If the browser already persisted read access for this handle, restore without a click.
+    if (perm === "granted") {
       await finishRestoreSavedLog(handle);
       return;
     }
-    // Still not granted: need a user gesture (first click/tap on the page, or toast button).
+    // "prompt": do NOT call requestPermission() from the load task — Chromium ignores it without
+    // a user activation. Show the bar + toast; the button/Allow run requestPermission in a click handler.
     pendingRestoreHandle = handle;
+    let metaName = "";
+    try {
+      const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
+      if (raw) {
+        const m = JSON.parse(raw);
+        if (m && typeof m.name === "string") metaName = m.name;
+      }
+    } catch {
+      // ignore
+    }
+    showRestoreBanner(metaName);
     showToast(
-      "Reopen last log",
-      "Click or tap anywhere on the page, or press Allow, to grant access to your saved log file.",
+      "Resume last session",
+      "Use Grant access & start in the green bar (or Allow here). The browser requires a click to reopen the file.",
       "info",
       {
         actionLabel: "Allow",
@@ -1227,8 +1243,12 @@ async function tryRestoreLastLogOnLoad() {
             const h = pendingRestoreHandle;
             if (!h) return;
             const p2 = await h.requestPermission({ mode: "read" });
-            if (p2 === "granted") await finishRestoreSavedLog(h);
-            else appendHistory("Last log not restored (permission denied).");
+            if (p2 !== "granted") {
+              appendHistory("Last log not restored (permission denied).");
+              return;
+            }
+            hideRestoreBanner();
+            await finishRestoreSavedLog(h);
           } catch (e) {
             appendHistory(`Could not restore last log: ${String(e)}`);
           }
@@ -1237,9 +1257,8 @@ async function tryRestoreLastLogOnLoad() {
       },
     );
     appendHistory(
-      "Saved log is waiting — click/tap anywhere or use Allow in the toast to restore and start monitoring.",
+      "Saved log found — click **Grant access & start** (or Allow) so the browser can read the file again; then monitoring starts automatically.",
     );
-    registerPendingRestoreOnFirstPointerDown();
   } catch (e) {
     appendHistory(`Could not restore last log: ${String(e)}`);
     await clearSavedLogHandle();
@@ -2410,6 +2429,27 @@ window.addEventListener(
   { once: true },
 );
 wireHelpOverlay();
+
+ui.btnResumeLastLog.addEventListener("click", async () => {
+  const h = pendingRestoreHandle;
+  if (!h) return;
+  try {
+    const p = await h.requestPermission({ mode: "read" });
+    if (p !== "granted") {
+      appendHistory("Permission not granted.");
+      return;
+    }
+    hideRestoreBanner();
+    await finishRestoreSavedLog(h);
+  } catch (e) {
+    appendHistory(`Resume failed: ${String(e)}`);
+  }
+});
+ui.btnDismissRestoreBanner.addEventListener("click", () => {
+  pendingRestoreHandle = null;
+  hideRestoreBanner();
+  appendHistory("Resume dismissed — pick the log file or reload to try again.");
+});
 
 // Hide folder picking when unsupported (common under file:// or non-Chromium).
 try {
