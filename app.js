@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.57";
+const APP_VERSION = "2.0.58";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1464,6 +1464,35 @@ async function idbDeleteSoundBlob(key) {
     // ignore
   }
 }
+
+/**
+ * Best-effort: cache shipped default sounds in IndexedDB so they play reliably even
+ * after reloads and in offline-ish scenarios. This does NOT autoplay audio.
+ */
+async function warmDefaultSoundsCache() {
+  /**
+   * @param {"warn"|"completion"|"interrupt"} key
+   * @param {string} url
+   */
+  const ensure = async (key, url) => {
+    const existing = await idbGetSoundBlob(key);
+    if (existing) return;
+    try {
+      const r = await fetch(url, { cache: "force-cache" });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      if (!blob || blob.size < 16) return;
+      await idbPutSoundBlob(key, blob);
+    } catch {
+      // ignore
+    }
+  };
+  await Promise.all([
+    ensure("warn", DEFAULT_WARN_SOUND_URL),
+    ensure("completion", DEFAULT_COMPLETION_SOUND_URL),
+    ensure("interrupt", DEFAULT_INTERRUPT_SOUND_URL),
+  ]);
+};
 
 /**
  * @param {string} s
@@ -3246,6 +3275,7 @@ function drawGraph() {
 loadConfig();
 syncConfigToForm();
 void syncSoundSummaries();
+void warmDefaultSoundsCache();
 setStatus("Idle");
 refreshWarningsKpi();
 appendHistory(
