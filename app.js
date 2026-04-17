@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.26";
+const APP_VERSION = "2.0.27";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -998,10 +998,9 @@ async function pickLogFile() {
         durationMs: Infinity,
       });
       if (isWin) {
-        appendHistory("Windows workaround (junction via Documents):");
-        appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
-        appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
-        appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
+        appendHistory("Windows: prefer a hard link to the log file — open ?, paste the full path to client-main.log, run the generated mklink /H in cmd.");
+        appendHistory("Folder junctions to AppData often still fail in the picker; /H on the file under Documents usually works.");
+        appendHistory("Older fallback (junction): mkdir + mklink /J from ? when you paste a folder path, or see README.");
       } else if (isLinux) {
         appendHistory("Linux workaround (symlink into ~/VSLogs):");
         appendHistory("  mkdir -p ~/VSLogs");
@@ -1065,11 +1064,11 @@ async function pickLogFile() {
         durationMs: 9000,
       });
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
-      appendHistory('Tip: click "?" and paste your real VS data/log path to generate an exact junction/symlink command.');
-      appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
+      appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
+      appendHistory("Windows fallback (junction; may still be blocked by the picker):");
       appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
       appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
-      appendHistory("Explanation: this exposes %APPDATA%\\VintagestoryData under Documents so the browser picker can access it.");
+      appendHistory("Explanation: exposes VintagestoryData under Documents; Edge/Chrome may still treat it as a system path.");
       appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
       appendHistory("Linux workaround (symlink; source is the usual VS data dir under ~/.config):");
       appendHistory("  mkdir -p ~/VSLogs");
