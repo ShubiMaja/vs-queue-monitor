@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -146,11 +146,24 @@ function renderHelpCommandPreview() {
   const logName = /client\.log$/i.test(raw) ? "client.log" : "client-main.log";
 
   if (isWin) {
-    const src = raw || "%APPDATA%\\VintagestoryData";
-    const dest = '%USERPROFILE%\\Documents\\VintagestoryData';
+    const srcIn = raw || "%APPDATA%\\VintagestoryData";
+    const looksLikeLogsDir = /[\\/]Logs[\\/]?$/i.test(srcIn);
+    const looksLikeLogFile = /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
+    const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
+
+    if (looksLikeLogsDir) {
+      const dest = "%USERPROFILE%\\Documents\\VSLogs";
+      ui.preHelpCmd.textContent =
+        `mkdir "${dest}"\n` +
+        `mklink /J "${dest}" "${srcDir}"\n` +
+        `\nThen pick: ${dest}\\${logName}`;
+      return;
+    }
+
+    const dest = "%USERPROFILE%\\Documents\\VintagestoryData";
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
-      `mklink /J "${dest}" "${src}"\n` +
+      `mklink /J "${dest}" "${srcDir}"\n` +
       `\nThen pick: ${dest}\\Logs\\${logName}`;
     return;
   }
