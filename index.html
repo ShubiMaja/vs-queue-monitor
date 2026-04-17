@@ -4,11 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>VS Queue Monitor</title>
-    <link
-      rel="icon"
-      href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg"
-      type="image/svg+xml"
-    />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -23,9 +19,6 @@
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
-        <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
-          Pick folder…
-        </button>
         <button id="btnSettings" class="btn btn--secondary btn--icon" title="Settings">⚙</button>
         <button
           id="btnStartStop"
@@ -369,7 +362,7 @@
               Y → linear
             </button>
             <button id="btnGraphWindow" class="btn btn--small btn--secondary" title="Toggle live view (constant motion vs update-only)">
-              Live view: off
+              Live view: on
             </button>
             <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
               Clear
@@ -434,7 +427,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.92"></script>
+    <script type="module" src="./app.js?v=2.0.98"></script>
   </body>
 </html>
 

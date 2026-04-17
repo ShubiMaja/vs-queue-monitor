@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.92";
+const APP_VERSION = "2.0.98";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -13,7 +13,6 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
 const ui = {
   btnPickLog: $("btnPickLog"),
-  btnPickFolder: $("btnPickFolder"),
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
@@ -589,6 +588,18 @@ function openHelp() {
   }
   try {
     ui.btnHelpClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function openPickerFixGuide() {
+  openHelp();
+  try {
+    // Make the “solution” obvious: scroll + focus the generator input.
+    ui.inpHelpSourcePath?.scrollIntoView({ block: "center", inline: "nearest" });
+    ui.inpHelpSourcePath?.focus();
+    ui.inpHelpSourcePath?.select?.();
   } catch {
     // ignore
   }
@@ -1252,7 +1263,7 @@ let config = {
   interruptSoundUrl: "",
   interruptSoundFileName: "",
   graphLogScale: false,
-  graphLiveWindow: false,
+  graphLiveWindow: true,
 };
 
 function loadConfig() {
@@ -1440,26 +1451,15 @@ function appendNotifyDiagnostics(prefix) {
 
 /**
  * Test notifications are frequently suppressed while focused / by Windows settings.
- * This sends multiple pings spaced out and keeps them visible longer where supported.
+ * Keep it minimal: send a single ping (same codepath as real alerts).
  */
 function showTestDesktopNotification() {
   appendNotifyDiagnostics("Notification test:");
-  /** @type {Array<{title:string, body:string, delayMs:number}>} */
-  const msgs = [
-    { title: "VS Queue Monitor", body: "Test notification 1/3. If you don’t see a banner, check Notification Center.", delayMs: 0 },
-    { title: "VS Queue Monitor", body: "Test notification 2/3. Windows may suppress banners while this tab is focused.", delayMs: 900 },
-    { title: "VS Queue Monitor", body: "Test notification 3/3. Ensure Windows notifications for your browser are enabled.", delayMs: 1800 },
-  ];
-
-  const sendOne = (i) => {
-    const m = msgs[i];
-    // Prefer the same codepath as real alerts.
-    notifyDesktop("threshold", m.title, m.body);
-  };
-
-  for (let i = 0; i < msgs.length; i++) {
-    window.setTimeout(() => sendOne(i), msgs[i].delayMs);
-  }
+  notifyDesktop(
+    "threshold",
+    "VS Queue Monitor",
+    "Test notification. If you don’t see a banner, open Notification Center and check Windows notification settings for your browser.",
+  );
 }
 
 /** @type {AudioContext|null} */
@@ -2105,9 +2105,9 @@ async function pickLogFile() {
     const isLinux = plat.includes("linux");
     if (isFile && (isWin || isLinux)) {
       appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
-      tipToast = showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
+      tipToast = showToast("Picker tip", "If you hit “system files” / protected folders, use the fix guide (mklink/ln -s).", "info", {
+        actionLabel: "Open fix guide",
+        onAction: () => openPickerFixGuide(),
         durationMs: Infinity,
       });
       if (isWin) {
@@ -2155,11 +2155,16 @@ async function pickLogFile() {
     const low = msg.toLowerCase();
     if (low.includes("abort") || low.includes("cancel")) {
       appendHistory("Pick log cancelled.");
-      showToast("Pick cancelled", "No file was selected.", "warn", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 7000,
-      });
+      showToast(
+        "Pick cancelled",
+        "No file was selected. If you were trying to pick from AppData/protected folders and saw “system files”, the browser blocked it — use the fix guide.",
+        "warn",
+        {
+          actionLabel: "Open fix guide",
+          onAction: () => openPickerFixGuide(),
+          durationMs: 12000,
+        },
+      );
       return;
     }
     const looksBlocked =
@@ -2171,11 +2176,16 @@ async function pickLogFile() {
       low.includes("permission");
     if (looksBlocked) {
       appendHistory("Browser blocked access to that folder/file (protected/system location).");
-      showToast("Picker blocked", "Browser denied access (protected/system location).", "error", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 9000,
-      });
+      showToast(
+        "Picker blocked",
+        "Browser denied access (protected/system location). Use the fix guide to expose the log under Documents/Home (mklink /H or ln -s).",
+        "error",
+        {
+          actionLabel: "Open fix guide",
+          onAction: () => openPickerFixGuide(),
+          durationMs: 16000,
+        },
+      );
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
       appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
       appendHistory("Windows fallback (junction; may still be blocked by the picker):");
@@ -2209,47 +2219,6 @@ async function pickLogFile() {
   } catch {
     // ignore
   }
-}
-
-async function pickFolder() {
-  if (!window.showDirectoryPicker) {
-    appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
-    return;
-  }
-  let dir;
-  try {
-    dir = await window.showDirectoryPicker({ mode: "read" });
-  } catch (e) {
-    // Chrome/Edge can block protected folders (and users can cancel).
-    const msg = String(e && (e.message || e.name || e));
-    if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
-      appendHistory("Pick folder cancelled.");
-      showToast("Pick cancelled", "No folder was selected.", "warn", {
-        actionLabel: "Guide",
-        onAction: () => openHelp(),
-        durationMs: 7000,
-      });
-      return;
-    }
-    appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
-    showToast("Pick failed", "Folder access was blocked. Pick the log file instead.", "error");
-    return;
-  }
-  const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
-  if (!file) {
-    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
-    sourceLabel = "Picked folder (no log yet)";
-    ui.infoSource.textContent = sourceLabel;
-    ui.infoResolved.textContent = "—";
-    logFileHandle = null;
-    ui.btnStartStop.disabled = true;
-    return;
-  }
-  const pickedName = (await file.getFile()).name;
-  await applyPickedLogHandle(file, "Picked folder", {
-    historyLine: `Selected folder; resolved log file: ${pickedName}`,
-  });
-  startMonitoringAfterSuccessfulPick();
 }
 
 // -----------------------------
@@ -2771,8 +2740,12 @@ function updateTimeEstimates() {
  * @param {number|null} lineEpoch
  */
 function appendGraphPoint(position, lineEpoch) {
-  const t = lineEpoch ?? (Date.now() / 1000);
-  if (currentPoint && currentPoint[1] === position) return;
+  let t = lineEpoch ?? (Date.now() / 1000);
+  // Store every queue reading (even if position didn't change) so hover can snap to “minor” updates.
+  // Ensure time is strictly increasing to avoid zero-width segments when logs repeat timestamps.
+  const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+  if (lastT != null && t <= lastT) t = lastT + 0.001;
+
   currentPoint = [t, position];
   lastPosition = position;
   predSpeedScale = 1.0;
@@ -2852,13 +2825,15 @@ function replayQueueGraphFromText(fullText) {
 
     const t = lastQueueEpoch ?? Date.now() / 1000;
 
-    if (!currentPoint || currentPoint[1] !== pos) {
-      currentPoint = [t, pos];
-      graphPoints.push(currentPoint);
-      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
-      lastPosition = pos;
-      sessionAtLastEmit = sess;
-    }
+    // Store every queue reading (even if position didn't change), matching live appendGraphPoint().
+    let tt = t;
+    const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+    if (lastT != null && tt <= lastT) tt = lastT + 0.001;
+    currentPoint = [tt, pos];
+    graphPoints.push(currentPoint);
+    if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+    lastPosition = pos;
+    sessionAtLastEmit = sess;
   }
 
   const { session } = parseTailLastQueueReading(text);
@@ -3337,7 +3312,6 @@ function startMonitoring() {
   setStatus("Monitoring");
   setStartStopButtonLook(true);
   ui.btnPickLog.disabled = true;
-  ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
   interruptedMode = false;
@@ -3366,7 +3340,6 @@ function stopMonitoring() {
   setLogActivityMonitoring(false);
   setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
-  ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
@@ -3884,13 +3857,7 @@ ui.btnInterruptAdoptNotNow.addEventListener("click", () => {
   appendHistory("Keeping interrupted state — adopt the new run when ready (dialog will show again if the session changes).");
 });
 
-// Hide folder picking when unsupported (common under file:// or non-Chromium).
-try {
-  const isFile = String(window.location && window.location.protocol) === "file:";
-  if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
-} catch {
-  // ignore
-}
+// Folder picking removed (confusing UX). Keep only “Pick log file…”.
 
 function focusAndReveal(el) {
   try {
@@ -3968,14 +3935,6 @@ ui.btnPickLog.addEventListener("click", async () => {
     await pickLogFile();
   } catch (e) {
     appendHistory(`Pick log cancelled/failed: ${String(e)}`);
-  }
-});
-
-ui.btnPickFolder.addEventListener("click", async () => {
-  try {
-    await pickFolder();
-  } catch (e) {
-    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
   }
 });
 
