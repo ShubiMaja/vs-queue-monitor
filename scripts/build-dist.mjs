@@ -1,3 +1,4 @@
+// Run after editing app.js, styles.css, or index.html: npm run build
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";

@@ -205,6 +205,25 @@ body{
 
 .danger{color:var(--danger)!important}
 
+.restoreBanner{
+  border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg, rgba(31,136,61,0.22), rgba(17,18,23,0.96));
+  padding:10px 18px;
+  z-index:12;
+}
+.restoreBanner__inner{
+  max-width:1280px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.restoreBanner__msg{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.restoreBanner__detail{color:var(--muted);font-size:12px;line-height:1.35;max-width:720px}
+.restoreBanner__actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
 .toastHost{
   position:fixed;
   top:14px;

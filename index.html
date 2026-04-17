@@ -29,6 +29,19 @@
 
     <div id="toastHost" class="toastHost" aria-live="polite" aria-atomic="true"></div>
 
+    <div id="restoreBanner" class="restoreBanner" hidden>
+      <div class="restoreBanner__inner">
+        <div class="restoreBanner__msg">
+          <strong>Resume last session</strong>
+          <span id="restoreBannerDetail" class="restoreBanner__detail"></span>
+        </div>
+        <div class="restoreBanner__actions">
+          <button id="btnResumeLastLog" type="button" class="btn btn--primary">Grant access &amp; start</button>
+          <button id="btnDismissRestoreBanner" type="button" class="btn btn--secondary btn--small">Not now</button>
+        </div>
+      </div>
+    </div>
+
     <div id="helpOverlay" class="overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <div class="modal__header">
@@ -263,7 +276,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.34"></script>
+    <script type="module" src="./app.js?v=2.0.35"></script>
   </body>
 </html>
 
