@@ -3654,9 +3654,20 @@ function getSelectedSessionPoints() {
 }
 
 function applySessionSelectionToGraph() {
-  // Do NOT rebuild sessions here: dropdown selections use keys from the *current* `queueSessions`.
-  // Rebuilding on every selection can regenerate keys (especially for timestamp-less segments) and make the
-  // selection appear to do nothing.
+  // Ensure the session index we apply against matches the dropdown.
+  // We rebuild from the stable sessions buffer, but we preserve the user's chosen key so it can't be
+  // silently rewritten to "latest" during rebuild.
+  const wantedKey = selectedSessionKey;
+  try {
+    rebuildSessionsFromText(sessionsIndexBuffer || logBuffer || "");
+  } finally {
+    selectedSessionKey = wantedKey;
+    try {
+      if (ui.selSession) ui.selSession.value = wantedKey;
+    } catch {
+      // ignore
+    }
+  }
   graphPoints = getSelectedSessionPoints();
   currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
   lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
