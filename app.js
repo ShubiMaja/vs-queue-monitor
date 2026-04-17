@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.5";
+const APP_VERSION = "2.1.6";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -3781,7 +3781,9 @@ function hitTestGraphPoint(clientX, clientY) {
     }
   }
   // No snapping: only “pick up” a point when the cursor is actually near a real update.
-  const HIT_PX = 8;
+  // `bestD` is in *canvas* pixels; use a CSS-pixel radius and scale it so hover works on HiDPI.
+  const HIT_CSS_PX = 8;
+  const HIT_PX = HIT_CSS_PX * Math.max(1, Math.min(scaleX, scaleY));
   if (best && bestD <= HIT_PX) return best;
   return null;
 }
