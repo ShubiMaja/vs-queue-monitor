@@ -79,7 +79,11 @@ mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\Vi
 
 Only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that name first or the link step fails.
 
-**`vs-queue-monitor` looks empty:** until `mklink` succeeds, there will be no `data-…` / `logs-…` folder there. Run the two lines in **Command Prompt (`cmd.exe`)** — in **PowerShell**, `mklink` is not available (use `cmd /c "mklink /J …"` or `New-Item -ItemType Junction -Path … -Target …`). **If the junction exists but shows nothing while the real `Logs` folder has files,** remove that junction and regenerate from **`?`** — you may have used an older command that pointed at the wrong folder (common when the log path was under a subfolder of `Logs`).
+**`vs-queue-monitor` looks empty:** until `mklink` succeeds, there will be no `data-…` / `logs-…` entry there. Run the two lines in **Command Prompt (`cmd.exe`)** — in **PowerShell**, `mklink` is not available (use `cmd /c "mklink /J …"` or `New-Item -ItemType Junction -Path … -Target …`).
+
+**Plain empty directory (not a junction):** if you see a normal empty folder with the right `logs-…` / `data-…` name, `mklink` probably did not run — commonly because **`mkdir` created that name first** (then `mklink` fails: “cannot create … already exists”) or the command was run in PowerShell. Delete the empty leaf with `rmdir`, then run the generator’s commands from **`cmd`**. Check with `dir`: a real junction is listed as `<JUNCTION>`; a failed attempt is just `<DIR>`.
+
+**If the junction exists but shows nothing while the real `Logs` folder has files,** remove that junction and regenerate from **`?`** — you may have used an older command that pointed at the wrong folder (common when the log path was under a subfolder of `Logs`).
 
 Then pick: `Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log` (use the exact folder name from **Generate an exact command** for your path).
 
