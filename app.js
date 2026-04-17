@@ -156,23 +156,34 @@ ui.footerVersion.textContent = `v${APP_VERSION} (${BUILD_FINGERPRINT})`;
 // If the page was reloaded due to a code update, notify the user and avoid false "Interrupted"
 // based on stale tail content from a previous run.
 const STORAGE_LAST_APP_VERSION_KEY = "vsqm_last_app_version_v1";
+const STORAGE_LAST_BUILD_FP_KEY = "vsqm_last_build_fingerprint_v1";
 /** @type {number} */
 let suppressInterruptedUntilEpoch = 0;
 let _updateSuppressNoted = false;
 let suppressInterruptedUntilFreshQueue = true;
+let _sawFreshQueueSinceReload = false;
 try {
   // Any reload (including hot reload / dev refresh / cache bust without version bump)
   // can momentarily make the tail look stale/disconnected. Suppress "Interrupted" briefly on startup.
   suppressInterruptedUntilEpoch = Date.now() / 1000 + 8;
   suppressInterruptedUntilFreshQueue = true;
   const prevVer = localStorage.getItem(STORAGE_LAST_APP_VERSION_KEY) || "";
+  const prevFp = localStorage.getItem(STORAGE_LAST_BUILD_FP_KEY) || "";
   if (prevVer && prevVer !== APP_VERSION) {
     showToast("Updated", `Web page updated to v${APP_VERSION}.`, "update", { durationMs: 12000 });
     suppressInterruptedUntilEpoch = Date.now() / 1000 + 15;
     _updateSuppressNoted = false;
     suppressInterruptedUntilFreshQueue = true;
   }
+  // Even if version didn't bump, a rebuild/hot refresh should still be visible.
+  if (prevFp && prevFp !== BUILD_FINGERPRINT) {
+    showToast("Updated", `Web page updated (${prevFp} → ${BUILD_FINGERPRINT}).`, "update", { durationMs: 12000 });
+    suppressInterruptedUntilEpoch = Math.max(suppressInterruptedUntilEpoch, Date.now() / 1000 + 15);
+    _updateSuppressNoted = false;
+    suppressInterruptedUntilFreshQueue = true;
+  }
   localStorage.setItem(STORAGE_LAST_APP_VERSION_KEY, APP_VERSION);
+  localStorage.setItem(STORAGE_LAST_BUILD_FP_KEY, BUILD_FINGERPRINT);
 } catch {
   // ignore
 }
@@ -4505,6 +4516,15 @@ async function pollOnce() {
     if (newText) {
       appendToLogBuffer(newText);
       appendToSessionsIndexBuffer(newText);
+      // After a page update/reload, only clear suppression once we observe *fresh* queue lines
+      // coming in after startup (not just old lines sitting in the buffer).
+      if (suppressInterruptedUntilFreshQueue) {
+        try {
+          if (extractQueueReadingsFromText(newText).length > 0) _sawFreshQueueSinceReload = true;
+        } catch {
+          // ignore
+        }
+      }
     }
     if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
@@ -4521,12 +4541,10 @@ async function pollOnce() {
     const logSilent = lastLogGrowthEpoch != null && now - lastLogGrowthEpoch >= LOG_SILENCE_RECONNECT_SEC;
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
 
-    // Clear "updated/reload" suppression once we see fresh queue lines again.
-    if (suppressInterruptedUntilFreshQueue) {
-      if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
-        suppressInterruptedUntilFreshQueue = false;
-        _updateSuppressNoted = false;
-      }
+    // Clear "updated/reload" suppression once we see *new* queue lines after reload.
+    if (suppressInterruptedUntilFreshQueue && _sawFreshQueueSinceReload && kind === "queue" && lastPos != null) {
+      suppressInterruptedUntilFreshQueue = false;
+      _updateSuppressNoted = false;
     }
 
     if (interruptedMode) {
