@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.50";
+const APP_VERSION = "2.0.51";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1897,7 +1897,41 @@ let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
   ui.kpiStatus.textContent = text;
+  // legacy flag (still used by some callers)
   ui.kpiStatus.classList.toggle("danger", danger);
+
+  const el = ui.kpiStatus;
+  const cls = [
+    "kpi__value--neutral",
+    "kpi__value--info",
+    "kpi__value--warn",
+    "kpi__value--danger",
+    "kpi__value--done",
+    "kpi__value--ok",
+  ];
+  for (const c of cls) el.classList.remove(c);
+
+  const t = String(text || "").toLowerCase();
+  let state = "neutral";
+  if (danger || t === "error" || t.includes("warning:") || t.includes("interrupted")) state = "danger";
+  else if (t.includes("reconnecting") || t.includes("connecting") || t.includes("waiting for log")) state = "info";
+  else if (t.includes("at front")) state = "warn";
+  else if (t.includes("completed")) state = "done";
+  else if (t.includes("monitoring")) state = "ok";
+
+  el.classList.add(
+    state === "ok"
+      ? "kpi__value--ok"
+      : state === "done"
+        ? "kpi__value--done"
+        : state === "warn"
+          ? "kpi__value--warn"
+          : state === "info"
+            ? "kpi__value--info"
+            : state === "danger"
+              ? "kpi__value--danger"
+              : "kpi__value--neutral",
+  );
 }
 
 /**

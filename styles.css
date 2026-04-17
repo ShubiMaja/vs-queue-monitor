@@ -278,6 +278,11 @@ body{
 }
 .kpi__value--mono{font-family:var(--mono);font-weight:750}
 .kpi__value--ok{color:var(--text-bright)}
+.kpi__value--neutral{color:rgba(155,165,176,0.95)}
+.kpi__value--info{color:rgba(140,185,255,0.98)}
+.kpi__value--warn{color:#ffd28a}
+.kpi__value--danger{color:#ff8b8b}
+.kpi__value--done{color:#7ee8ff}
 .kpiWarn--hit{color:var(--ok);font-weight:800}
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
