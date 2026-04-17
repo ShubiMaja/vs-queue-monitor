@@ -66,6 +66,32 @@
       </div>
     </div>
 
+    <div id="tutorialOverlay" class="overlay" hidden>
+      <div class="modal tutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+        <div class="modal__header">
+          <div class="modal__title">
+            <span id="tutorialTitle">Welcome</span>
+            <span id="tutorialStep" class="tutorial__step muted"></span>
+          </div>
+          <button id="btnTutorialSkip" class="btn btn--secondary btn--small" type="button" title="Skip tutorial">
+            Skip
+          </button>
+        </div>
+        <div class="modal__body">
+          <div id="tutorialBody" class="tutorial__body"></div>
+          <div class="helpForm__actions" style="margin-top: 14px; justify-content: space-between">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button id="btnTutorialBack" type="button" class="btn btn--secondary">Back</button>
+              <button id="btnTutorialNext" type="button" class="btn btn--primary">Next</button>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button id="btnTutorialHelp" type="button" class="btn btn--secondary">Open help</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="helpOverlay" class="overlay" hidden>
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <div class="modal__header">
@@ -427,7 +453,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.99"></script>
+    <script type="module" src="./app.js?v=2.1.0"></script>
   </body>
 </html>
 
