@@ -1,0 +1,30 @@
+---
+description: UX philosophy — prioritize seamless, low-friction user flows
+alwaysApply: true
+---
+
+# UX philosophy: seamless flow first
+
+When making UI/UX changes in this repo, bias toward the most **seamless** user flow.
+
+## Principles (apply broadly)
+
+- **Minimize steps**: fewer clicks, fewer context switches, fewer places to look.
+- **Guide in-context**: show the help/next action *where the user already is* (toast + button, inline hint, overlay).
+- **Make actions actionable**: messages should include a direct **button** that does the next step (e.g. “Guide”, “Load file”).
+- **Prefer “do it for me” over “tell me”**: if we can trigger the correct workflow safely (gesture-safe), provide a button that does it.
+- **Keep the happy path fast**: no modal detours or extra confirmations for normal usage.
+- **Handle expected failures gracefully**: cancellation, permission blocks, missing files should be clear, non-scary, and immediately recoverable.
+- **Don’t dead-end**: every error/cancel state should offer an obvious way forward (retry, guide, copy command, load).
+
+## Patterns we prefer (examples)
+
+- **Toasts with actions**: a toast that explains + offers a **Guide** button beats a static history line.
+- **Persistent guidance during OS dialogs**: if we show a “picker tip”, keep it visible until the picker closes.
+- **Help overlay as a working surface**: include the relevant actions inside the guide (e.g. “Load file”, copyable commands).
+- **Cross-platform toggle**: if platform-specific instructions exist, provide a UI switch (Windows vs Mac/Linux) so users don’t have to infer.
+
+## Guardrails
+
+- **No backend**: keep everything browser-only; any “seamless” feature must still respect web security/gesture requirements.
+- **Don’t fake certainty**: if the browser can’t reveal something (e.g. blocked path), say so, then provide a best-next-step UI.
