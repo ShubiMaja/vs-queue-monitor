@@ -368,7 +368,7 @@ body{
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
           <div class="modal__text">Do not <span class="mono">mkdir</span> the <span class="mono">data-…</span> / <span class="mono">logs-…</span> name first — <span class="mono">mklink /J</span> creates it. Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
           <div class="modal__text muted">
-            <strong>Empty folder?</strong> <span class="mono">Documents\vs-queue-monitor</span> stays empty until a junction is created successfully. Run the commands in <strong>Command Prompt</strong> (<span class="mono">cmd</span>) — <span class="mono">mklink</span> is not a PowerShell command. If the junction opens but looks empty while your real <span class="mono">Logs</span> folder is not, delete the junction and copy a fresh command — older builds could mis-handle log paths under a subfolder of <span class="mono">Logs</span>.
+            <strong>Empty folder?</strong> A <strong>normal</strong> empty <span class="mono">logs-…</span> / <span class="mono">data-…</span> is usually <strong>not</strong> a junction — often <span class="mono">mkdir</span> created that name first (then <span class="mono">mklink</span> could not run), or <span class="mono">mklink</span> was never run (e.g. PowerShell). Delete that folder if empty (<span class="mono">rmdir</span>), then run only the generator lines in <strong>cmd</strong>. In <span class="mono">cmd</span>, <span class="mono">dir</span> shows real junctions with type <span class="mono">&lt;JUNCTION&gt;</span>, not <span class="mono">&lt;DIR&gt;</span> alone. If the link works but files are missing, regenerate — older builds could mis-handle paths under a subfolder of <span class="mono">Logs</span>.
           </div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
@@ -570,7 +570,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.20";
+const APP_VERSION = "2.0.21";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
