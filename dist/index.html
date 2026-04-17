@@ -25,6 +25,11 @@
   --btn-active:#384556;
   --btn-primary:#1f883d;
   --btn-primary-active:#2ea043;
+  --btn-stop-top:#3a3528;
+  --btn-stop-bottom:#26231c;
+  --btn-stop-hover-top:#463f30;
+  --btn-stop-hover-bottom:#302a20;
+  --btn-stop-border:rgba(210, 164, 60, 0.55);
   --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --sans:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
 }
@@ -113,6 +118,24 @@ body{
   border-color:rgba(31,136,61,0.65);
 }
 .btn--primary:hover{background:var(--btn-primary-active)}
+/* Stop = monitoring active; distinct from green Start so “pause” isn’t read as another “go”. */
+.btn--stop{
+  background: linear-gradient(180deg, var(--btn-stop-top), var(--btn-stop-bottom));
+  border-color: var(--btn-stop-border);
+  color: #f4eeda;
+}
+.btn--stop:hover{
+  background: linear-gradient(180deg, var(--btn-stop-hover-top), var(--btn-stop-hover-bottom));
+  border-color: rgba(230, 180, 90, 0.7);
+}
+.btn--stop:focus-visible{
+  outline: 2px solid rgba(230, 180, 90, 0.55);
+  outline-offset: 2px;
+}
+.btn--primary:focus-visible{
+  outline: 2px solid rgba(46, 160, 90, 0.65);
+  outline-offset: 2px;
+}
 
 .kpis{
   grid-column:1 / -1;
@@ -362,7 +385,16 @@ body{
           Pick folder…
         </button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
-        <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
+        <button
+          id="btnStartStop"
+          type="button"
+          class="btn btn--primary"
+          disabled
+          aria-pressed="false"
+          title="Start tailing the log"
+        >
+          Start
+        </button>
       </div>
     </header>
 
@@ -637,7 +669,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.38";
+const APP_VERSION = "2.0.39";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -2945,13 +2977,22 @@ function startMonitoringAfterSuccessfulPick() {
   startMonitoring();
 }
 
+/** @param {boolean} isRunning */
+function setStartStopButtonLook(isRunning) {
+  ui.btnStartStop.textContent = isRunning ? "Stop" : "Start";
+  ui.btnStartStop.classList.toggle("btn--primary", !isRunning);
+  ui.btnStartStop.classList.toggle("btn--stop", isRunning);
+  ui.btnStartStop.setAttribute("aria-pressed", isRunning ? "true" : "false");
+  ui.btnStartStop.title = isRunning ? "Stop tailing the log" : "Start tailing the log";
+}
+
 function startMonitoring() {
   if (!logFileHandle) return;
   if (running) return;
   running = true;
   monitorStartEpoch = Date.now() / 1000;
   setStatus("Monitoring");
-  ui.btnStartStop.textContent = "Stop";
+  setStartStopButtonLook(true);
   ui.btnPickLog.disabled = true;
   ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
@@ -2974,7 +3015,7 @@ function startMonitoring() {
 
 function stopMonitoring() {
   running = false;
-  ui.btnStartStop.textContent = "Start";
+  setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
   ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);
