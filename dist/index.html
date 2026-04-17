@@ -1387,7 +1387,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.15";
+const APP_VERSION = "2.1.16";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -4257,6 +4257,42 @@ function windowRecentPoints() {
   return graphPoints.slice(-(n + 1));
 }
 
+/**
+ * For rate/ETA/progress estimation, heartbeat (no-change) points add noise and can drown out
+ * the meaningful "position decreased" segments. Keep the full `graphPoints` for rendering/hover,
+ * but compute estimates from a compressed series that only keeps position changes (plus endpoints).
+ * @returns {GraphPoint[]}
+ */
+function estimationPoints() {
+  const pts = graphPoints;
+  if (pts.length <= 1) return pts.slice();
+  /** @type {GraphPoint[]} */
+  const out = [];
+  let lastPos = /** @type {number|null} */ (null);
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    if (i === 0 || i === pts.length - 1) {
+      out.push(p);
+      lastPos = p[1];
+      continue;
+    }
+    if (lastPos == null || p[1] !== lastPos) {
+      out.push(p);
+      lastPos = p[1];
+    }
+  }
+  // Ensure at least 2 points if we had any movement.
+  if (out.length === 1 && pts.length >= 2) out.push(pts[pts.length - 1]);
+  return out;
+}
+
+function windowRecentEstimationPoints() {
+  const pts = estimationPoints();
+  if (pts.length < 2) return [];
+  const n = rollingWindowPoints();
+  return pts.slice(-(n + 1));
+}
+
 function currentQueuePosition() {
   return lastPosition ?? (currentPoint ? currentPoint[1] : null);
 }
@@ -4268,7 +4304,7 @@ function queueElapsedStartEpoch() {
 }
 
 function computeMovingAverageSpeedPosPerSec() {
-  const pts = graphPoints;
+  const pts = estimationPoints();
   if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
@@ -4291,7 +4327,7 @@ function computeMovingAverageSpeedPosPerSec() {
 }
 
 function computeWeightedSpeedPosPerSec() {
-  const pts = graphPoints;
+  const pts = estimationPoints();
   if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
@@ -4322,7 +4358,7 @@ function computeWeightedSpeedPosPerSec() {
 }
 
 function computeEmpiricalPosPerSec() {
-  const recent = windowRecentPoints();
+  const recent = windowRecentEstimationPoints();
   if (recent.length < 2) return null;
   const [t0, p0] = recent[0];
   const [t1, p1] = recent[recent.length - 1];
@@ -4355,12 +4391,13 @@ function minutesPerPositionCappedForDwell(mppRaw, pos) {
 }
 
 function globalAvgMinutesPerPosition() {
-  if (graphPoints.length < 2) return null;
+  const pts = estimationPoints();
+  if (pts.length < 2) return null;
   /** @type {number[]} */
   const mpps = [];
-  for (let i = 0; i < graphPoints.length - 1; i++) {
-    const [t0, p0] = graphPoints[i];
-    const [t1, p1] = graphPoints[i + 1];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [t0, p0] = pts[i];
+    const [t1, p1] = pts[i + 1];
     const dt = t1 - t0;
     if (dt <= 0) continue;
     const improvement = p0 - p1;
@@ -4579,13 +4616,31 @@ function updateTimeEstimates() {
 
   const mppRaw = minutesPerPositionFromWindow();
   const mpp = minutesPerPositionCappedForDwell(mppRaw, pos);
-  ui.kpiRate.textContent = formatQueueRate(mpp);
+  // Fallback: if window-based speed can't be inferred (flat points / reseed),
+  // estimate minutes-per-position from run start → current (coarse but stable).
+  /** @type {number|null} */
+  let mppFallback = null;
+  if ((mpp == null || !(mpp > 0)) && elapsedSec != null && pos != null && pos > 1) {
+    let startPos = /** @type {number|null} */ (null);
+    for (let i = 0; i < graphPoints.length; i++) {
+      if (graphPoints[i][1] > 1) {
+        startPos = graphPoints[i][1];
+        break;
+      }
+    }
+    if (startPos != null && startPos > pos) {
+      const drop = startPos - pos;
+      if (drop > 0 && elapsedSec > 1) mppFallback = (elapsedSec / 60) / drop;
+    }
+  }
+  ui.kpiRate.textContent = formatQueueRate(mppFallback ?? mpp);
   ui.infoGlobalRate.textContent = formatQueueRate(globalAvgMinutesPerPosition());
 
   let secRem = estimateSecondsRemaining();
-  if (secRem == null && pos != null && mpp != null && mpp > 0) {
-    if (pos > 1) secRem = Math.max(0, (pos - 1) * mpp * 60);
-    else if (pos === 1) secRem = Math.max(0, mpp * 60);
+  const mppForRemain = mppFallback ?? mpp;
+  if (secRem == null && pos != null && mppForRemain != null && mppForRemain > 0) {
+    if (pos > 1) secRem = Math.max(0, (pos - 1) * mppForRemain * 60);
+    else if (pos === 1) secRem = Math.max(0, mppForRemain * 60);
   }
   ui.kpiRemaining.textContent = secRem == null ? "—" : formatDurationRemaining(secRem);
 
@@ -4595,6 +4650,23 @@ function updateTimeEstimates() {
   } else if (elapsedSec != null && secRem != null) {
     const total = elapsedSec + Math.max(0, secRem);
     progress = total > 1e-6 ? Math.min(100, Math.max(0, (100 * elapsedSec) / total)) : 0;
+  } else if (pos != null && pos > 1) {
+    // Fallback progress: position-based (startPos → pos), stable even when ETA is unknown.
+    let startPos = /** @type {number|null} */ (null);
+    for (let i = 0; i < graphPoints.length; i++) {
+      if (graphPoints[i][1] > 1) {
+        startPos = graphPoints[i][1];
+        break;
+      }
+    }
+    if (startPos != null && startPos > 1 && startPos >= pos) {
+      const denom = Math.max(1, startPos - 1);
+      const numer = Math.max(0, startPos - pos);
+      const pct = (100 * numer) / denom;
+      progress = Math.min(99, Math.max(0, pct));
+    } else {
+      progress = 0;
+    }
   } else {
     progress = 0;
   }
@@ -4639,6 +4711,7 @@ function replayQueueGraphFromText(fullText) {
     graphPoints = [];
     currentPoint = null;
     lastPosition = null;
+    currentQueueRunStartEpoch = null;
     drawGraph();
     return;
   }
@@ -4651,6 +4724,23 @@ function replayQueueGraphFromText(fullText) {
   /** @type {number|null} */
   let sessionAtLastEmit = null;
 
+  const REPLAY_MAX_POINTS = 5000;
+
+  /** @type {number[]} */
+  const queueIdxs = [];
+  let realLastQueueIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isQueueRunBoundaryLine(line)) continue;
+    if (queuePositionFromLine(line) == null) continue;
+    queueIdxs.push(i);
+    realLastQueueIdx = i;
+  }
+
+  // If there are many queue readings (often repeated same-position lines),
+  // downsample so we keep the true run start while avoiding huge point loads.
+  const stride = Math.max(1, Math.ceil(queueIdxs.length / REPLAY_MAX_POINTS));
+
   let lastQueueIdx = -1;
   /** @type {number|null} */
   let lastQueuePos = null;
@@ -4659,16 +4749,26 @@ function replayQueueGraphFromText(fullText) {
   /** @type {number|null} */
   let lastQueueSess = null;
 
-  for (let i = 0; i < lines.length; i++) {
+  let lastIncludedPos = /** @type {number|null} */ (null);
+  for (let k = 0; k < queueIdxs.length; k++) {
+    const i = queueIdxs[k];
     const line = lines[i];
-    if (isQueueRunBoundaryLine(line)) continue;
-
     const rawPos = queuePositionFromLine(line);
-    if (rawPos == null) continue;
+    if (rawPos == null) continue; // defensive
+
+    const mustKeep = k === 0 || k === queueIdxs.length - 1;
+    const keepByStride = stride <= 1 || k % stride === 0;
+    const keepByChange = lastIncludedPos == null || rawPos !== lastIncludedPos;
+    if (!mustKeep && !keepByStride && !keepByChange) continue;
 
     lastQueueIdx = i;
     lastQueuePos = rawPos;
-    lastQueueEpoch = parseLogTimestampEpoch(line);
+    const parsedEpoch = parseLogTimestampEpoch(line);
+    // Some logs omit timestamps on queue lines. If we replay those with near-identical times,
+    // rate/ETA can become absurdly fast. Spread unknown timestamps by the expected update interval.
+    if (parsedEpoch != null) lastQueueEpoch = parsedEpoch;
+    else if (lastQueueEpoch != null) lastQueueEpoch = lastQueueEpoch + QUEUE_UPDATE_INTERVAL_SEC;
+    else lastQueueEpoch = Date.now() / 1000;
     lastQueueSess = sessionBeforeLine[i] ?? lastQueueSess;
 
     const sess = lastQueueSess;
@@ -4683,7 +4783,12 @@ function replayQueueGraphFromText(fullText) {
       pos > prevPos &&
       pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD
     ) {
-      pos = prevPos;
+      // Large jump up while replaying a single session: treat as a new run segment, not a glitch clamp.
+      // Clamping here can freeze the live monitor into repeated "reset detected" loops.
+      graphPoints = [];
+      currentPoint = null;
+      lastPosition = null;
+      sessionAtLastEmit = sess;
     }
 
     const t = lastQueueEpoch ?? Date.now() / 1000;
@@ -4694,13 +4799,14 @@ function replayQueueGraphFromText(fullText) {
     graphPoints.push(currentPoint);
     if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
     lastPosition = pos;
+    lastIncludedPos = rawPos;
     sessionAtLastEmit = sess;
   }
 
   // If the tail indicates we left the queue after the last queue reading, append a final "0" point once.
-  if (lastQueueIdx >= 0 && lastQueuePos != null && lastQueuePos <= 1) {
+  if (realLastQueueIdx >= 0 && lastQueuePos != null && lastQueuePos <= 1) {
     let postIdx = -1;
-    for (let i = lastQueueIdx + 1; i < lines.length; i++) {
+    for (let i = realLastQueueIdx + 1; i < lines.length; i++) {
       if (isPostQueueProgressLine(lines[i])) {
         postIdx = i;
         break;
@@ -4720,6 +4826,7 @@ function replayQueueGraphFromText(fullText) {
 
   const { session } = parseTailLastQueueReading(text);
   lastQueueRunSession = session;
+  currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : parseFirstQueueLineEpoch(text);
   drawGraph();
 }
 
@@ -4946,7 +5053,7 @@ async function readNewLogText(handle) {
       );
       // If the current run slice begins at the chunk start, we likely missed earlier lines for this run.
       // Walk back (up to a cap) to capture the beginning of the active run.
-      for (let attempts = 0; attempts < 3; attempts++) {
+      for (let attempts = 0; attempts < 8; attempts++) {
         const meta = sliceLoadedLogToCurrentQueueRunMeta(seed);
         if (meta.lastQIdx < 0) break;
         if (meta.startIdx > 0) break;
@@ -5016,16 +5123,18 @@ async function pollOnce() {
     await bumpLogActivityIfChanged();
     const newText = await readNewLogText(logFileHandle);
     const replayChunk = pendingGraphReplayText;
+    const didReplayThisTick = replayChunk != null;
     pendingGraphReplayText = null;
     if (newText) appendToLogBuffer(newText);
     if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
-    // IMPORTANT: Always parse from the full buffered tail so we never "lose" the newest queue reading
-    // due to boundary/slicing heuristics. Session boundaries are handled by the session counter.
-    const view = logBuffer || "";
-    const { kind } = classifyTailConnectionState(view);
-    const { lastPos, session } = parseTailLastQueueReading(view);
-    const lastLineEpoch = parseTailLastQueueLineEpoch(view);
+    // Use the full buffered tail for session tracking (session counter is relative to the buffer),
+    // but use a sliced "current run" view for graph/left-queue semantics.
+    const viewRaw = logBuffer || "";
+    const view = sliceLoadedLogToCurrentQueueRun(viewRaw);
+    const { kind } = classifyTailConnectionState(viewRaw);
+    const { lastPos, session } = parseTailLastQueueReading(viewRaw);
+    const lastLineEpoch = parseTailLastQueueLineEpoch(viewRaw);
     if (lastLineEpoch != null) lastQueueLineEpoch = lastLineEpoch;
     const left = tailHasPostQueueAfterLastQueueLine(view);
     const now = Date.now() / 1000;
@@ -5075,7 +5184,9 @@ async function pollOnce() {
       // Do not wipe rate/progress history just because the tail is temporarily in a connecting/reconnecting phase.
       // We still want ETA/rate/progress to remain stable using existing graphPoints until we truly detect a new run or a disconnect.
       setStatus(logSilent || kind === "grace" ? "Reconnecting…" : "Connecting…");
-      setPositionDisplay(lastPosition);
+      // Even while connecting/reconnecting, show the freshest observed queue position from the tail.
+      setPositionDisplay(lastPos ?? lastPosition);
+      if (lastPos != null) lastPosition = lastPos;
       return;
     }
 
@@ -5083,39 +5194,43 @@ async function pollOnce() {
       const prevPos = lastPosition;
       let pos = lastPos;
 
+      // Large jump *up* (worse position) usually indicates a new queue run/reconnect.
+      // Do not clamp and freeze; reset and re-seed to the new run instead.
       if (prevPos != null && pos > prevPos && pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD) {
-        pos = prevPos;
+        const marginalSpikeFromFront = prevPos <= 1 && (pos - prevPos) === QUEUE_RESET_JUMP_THRESHOLD;
+        if (!marginalSpikeFromFront) {
+          thresholdsFired.clear();
+          positionOneReachedAt = null;
+          connectPhaseStartedEpoch = null;
+          progressAtFrontEntry = null;
+          leftConnectQueueDetected = false;
+          completionNotifiedThisRun = false;
+          lastQueuePositionChangeEpoch = now;
+          mppFloorPosition = null;
+          mppFloorValue = null;
+          graphPoints = [];
+          currentPoint = null;
+          lastPosition = null;
+          pendingGraphReplayText = null;
+          appendHistory(`Queue run reset detected (jump up ${prevPos} → ${pos}) — graph and alerts re-seeded.`);
+
+          replayQueueGraphFromText(view);
+          lastQueueRunSession = session;
+          currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : parseFirstQueueLineEpoch(view);
+          // Ensure we don't immediately retrigger the same reset on the next tick.
+          if (lastPos != null) lastPosition = lastPos;
+          refreshWarningsKpi();
+          updateTimeEstimates();
+          return;
+        } else {
+          pos = prevPos;
+        }
       }
 
       if (pos <= 1 && left) pos = 0;
 
-      // Ensure we don't span multiple queue runs: if the *start* of the current-run slice moves forward,
-      // treat it as a new run even if the session counter didn't increment.
-      const runStart = parseFirstQueueLineEpoch(view);
-      if (currentQueueRunStartEpoch == null) currentQueueRunStartEpoch = runStart;
-      else if (runStart != null && runStart > currentQueueRunStartEpoch + 1) {
-        thresholdsFired.clear();
-        positionOneReachedAt = null;
-        connectPhaseStartedEpoch = null;
-        progressAtFrontEntry = null;
-        leftConnectQueueDetected = false;
-        completionNotifiedThisRun = false;
-        lastQueuePositionChangeEpoch = now;
-        mppFloorPosition = null;
-        mppFloorValue = null;
-        graphPoints = [];
-        currentPoint = null;
-        lastPosition = null;
-        pendingGraphReplayText = null;
-        appendHistory("New queue run detected — graph and alerts reset for this run.");
-
-        replayQueueGraphFromText(view);
-        lastQueueRunSession = session;
-        currentQueueRunStartEpoch = runStart;
-        refreshWarningsKpi();
-        updateTimeEstimates();
-        return;
-      }
+      // Note: do NOT treat buffer trimming as a "new run". The in-memory buffer can drop early lines,
+      // which would move the slice start forward without implying a new queue session.
 
       if (pos > 1) {
         leftConnectQueueDetected = false;
@@ -5164,7 +5279,7 @@ async function pollOnce() {
         // Reseed the graph from the current run slice so the user sees immediate context.
         replayQueueGraphFromText(view);
         lastQueueRunSession = session;
-        currentQueueRunStartEpoch = runStart;
+        currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : parseFirstQueueLineEpoch(view);
         refreshWarningsKpi();
         updateTimeEstimates();
         return;
@@ -5179,7 +5294,9 @@ async function pollOnce() {
       if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
 
       // If multiple queue readings arrived since the last poll, append them all so the graph doesn't "jump".
-      const deltaReadings = newText ? extractQueueReadingsFromText(newText) : [];
+      // If we just replayed a seed chunk this tick, it already built the full graph for that chunk;
+      // do not append the same readings again (that distorts the run start/current values).
+      const deltaReadings = !didReplayThisTick && newText ? extractQueueReadingsFromText(newText) : [];
       if (deltaReadings.length >= 2) {
         let lastEpoch = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
         let lastAppendedPos = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
@@ -5441,8 +5558,14 @@ function drawGraph() {
   // Time range
   const tLast = graphPoints[graphPoints.length - 1][0];
   const tNow = Date.now() / 1000;
-  // Live view = keep the X-axis advancing so the full-history timeline keeps stretching (constant motion).
-  const t1 = config.graphLiveWindow && running ? Math.max(tLast, tNow) : tLast;
+  // Live view = advance the X-axis only while the log is actively changing.
+  // Otherwise, "now" can run away and fill the panel with empty space.
+  const liveActive =
+    config.graphLiveWindow &&
+    running &&
+    lastLogGrowthEpoch != null &&
+    tNow - lastLogGrowthEpoch < Math.max(4, (config.pollSec || 2) * 2.5);
+  const t1 = liveActive ? Math.max(tLast, tNow) : tLast;
   const span = Math.max(60, t1 - graphPoints[0][0]);
   const t0 = t1 - span;
   const xOf = (t) => padL + ((t - t0) / span) * plotW;

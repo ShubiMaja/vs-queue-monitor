@@ -56,6 +56,32 @@ Design must assume File System Access constraints (picker availability, secure o
 
 This repo implements the **web** client only. If alternate UIs exist in forks or future work, parity is defined as **behavior + language**, not pixels.
 
+---
+
+## Regression log (prevent repeat debugging)
+
+This section exists to avoid re-discovering the same failures. When a bug/regression is found and fixed, add an entry with the **symptom**, the **root cause**, the **fix**, and a **verification recipe** (what to do / what to look for). Keep entries short and actionable.
+
+### Entry template (copy/paste)
+
+- **Title**: \<short name\>
+- **Symptom**: \<what the user sees\>
+- **Trigger**: \<when it happens / log conditions / browser conditions\>
+- **Root cause**: \<the actual bug, not the visible effect\>
+- **Fix**: \<what code changed and why\>
+- **Verify**:
+  - **Steps**: \<repro steps\>
+  - **Expected**: \<the correct outcome\>
+- **Notes**: \<gotchas, follow-ups, links to commits/PRs\>
+
+### What to prioritize logging
+
+- **Session boundaries** (graph spans multiple sessions, “new run” not detected, stale values after reconnect)
+- **Seeding/replay** (initial load shows wrong start/current, missing timestamps causing insane rates, duplicate points)
+- **Live view / time axis** (empty runaway, frozen axis, jumpy scaling)
+- **Interrupted/stale detection** (false interruptions, stuck status, recovery behavior)
+- **History verbosity/perf** (too many points/lines, UI stalls, logEveryChange behavior)
+
 ### Must stay aligned (behavioral parity)
 
 - **Queue semantics:** Position, “at front,” **completed** (past queue wait), **interrupted**, and **no queue detected** mean the same thing.

@@ -1,11 +1,15 @@
 {
   "name": "vs-queue-monitor",
   "private": true,
-  "version": "2.0.3",
+  "version": "2.1.16",
   "description": "VS Queue Monitor — one-page web app (no backend).",
   "scripts": {
     "dev": "npx --yes http-server@14.1.1 -c-1 -p 5173 .",
-    "build": "node scripts/build-dist.mjs"
+    "build": "node scripts/build-dist.mjs",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }
 
