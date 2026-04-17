@@ -54,9 +54,10 @@ That uses **`npx`** to run `http-server` (pinned in `package.json`) the first ti
 
 ## Using it
 
-1. Click **Pick log file…** and select your `client-main.log` (or `client.log`).
-2. Click **Start**.
-3. Optional: click **Enable notifications** so threshold/completion popups can appear even when the tab is in the background.
+1. Click **Pick log file…** and select your `client-main.log` (or `client.log`). Monitoring **starts automatically** when a log is opened successfully.
+2. Optional: click **Enable notifications** so threshold/completion popups can appear even when the tab is in the background.
+
+Use **Stop** / **Start** to pause and resume tailing the same file without picking again.
 
 The app stores settings in **`localStorage`** (on your machine in the browser profile). It does not upload your log anywhere.
 
@@ -164,8 +165,8 @@ Detailed behavior reference. For **intent** (why the UI is shaped this way), see
 
 ### Monitoring
 
-- **Play / Stop** toggles tailing the log on an interval (**poll**, configurable in Settings).
-- On **Start**, the first read loads **as much of the log as practical** (the whole file when it is under ~12 MB) and **replays queue position history** into the graph for the **current queue session only** (same reconnect / disconnect / new-connection patterns as the desktop app — earlier runs in the file are dropped). Larger logs load the **most recent** ~12 MB chunk and note that in History.
+- **Stop** / **Start** toggles tailing the log on an interval (**poll**, configurable in Settings). Picking a log file (or a folder that resolves to one) **starts** monitoring automatically; **Stop** / **Start** is for pause and resume on the same handle.
+- When monitoring **starts** (after pick, **Start**, or automatic restore), the first read loads **as much of the log as practical** (the whole file when it is under ~12 MB) and **replays queue position history** into the graph for the **current queue session only** (same reconnect / disconnect / new-connection patterns as the desktop app — earlier runs in the file are dropped). Larger logs load the **most recent** ~12 MB chunk and note that in History.
 - **Elapsed** time is anchored to the log: it uses the first **connecting / connection attempt** line in the current queue session when that line appears in the scanned log, otherwise the first **queue position** line in the graph. Reaching the **front** (position ≤1) freezes elapsed using **log line timestamps**, not the moment you opened the monitor.
 - **Timer (~10 Hz)** refreshes elapsed time, remaining ETA, and rate between log polls so values feel live.
 

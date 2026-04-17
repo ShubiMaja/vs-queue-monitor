@@ -63,7 +63,7 @@ Behavior should assume **File System Access** constraints (picker, permissions, 
 
 1. **Glanceable truth (within limits):** One screen answers: *Where am I? Is the queue moving? Roughly how long? Anything I should react to?*
 2. **Trust:** No hidden upload; **honest** copy about estimates and log-derived inference.
-3. **Low ceremony:** Happy path is *open → pick log → Start*; depth (Info, History, settings) is **optional**, not mandatory reading.
+3. **Low ceremony:** Happy path is *open → pick log* (monitoring starts automatically); **Stop** / **Start** pauses and resumes; depth (Info, History, settings) is **optional**, not mandatory reading.
 4. **Resilience:** Picker cancel, permission denial, and “system file” blocks are **expected**; the UI always offers a **next step** (retry, Help, copyable commands), not a dead end.
 
 **Success looks like**
@@ -174,8 +174,8 @@ The app is a **single-page dashboard** with a stable mental model:
 
 | Phase | What the user should experience |
 |--------|----------------------------------|
-| **First open** | Clear primary path: **Pick log file** (or equivalent). **Start** is only sensible when a file is selected and monitoring can run. |
-| **After pick** | Path/state is visible enough that the user knows *what* is being watched. **Start** begins tail/poll behavior; status reflects reality (idle → monitoring, errors explained). |
+| **First open** | Clear primary path: **Pick log file** (or equivalent). Monitoring **starts** when a log is chosen successfully; **Stop** / **Start** controls pause and resume. |
+| **After pick** | Path/state is visible enough that the user knows *what* is being watched. Tail/poll behavior begins automatically; status reflects reality (idle → monitoring, errors explained). |
 | **While monitoring** | KPIs and graph update on a **sensible cadence**; **status** vocabulary matches log-derived states (e.g. in queue, at front, completed, interrupted, waiting for file, error). |
 | **Alerts** | Threshold and completion signals are **noticeable** (optional sound / system notification where enabled) but **not hostile**; History records what happened in plain language. |
 | **Return visit** | If the browser still allows access to the same file, **resume** should be low-friction; if a new grant is needed, the UI says so explicitly (**no** silent failure). |
@@ -184,9 +184,9 @@ The app is a **single-page dashboard** with a stable mental model:
 ### 4.1 First-time setup
 
 1. User opens the app (file or dev server).
-2. User chooses **Pick log file** and selects `client-main.log` (or equivalent).
+2. User chooses **Pick log file** and selects `client-main.log` (or equivalent); monitoring **starts** when the pick succeeds.
 3. If the browser requires **permission** or a **gesture** to resume after reload, the UI shows a **clear bar or toast** with **one obvious action** (e.g. grant / allow)—not a silent failure.
-4. User starts monitoring; KPIs and chart **populate** from the **current queue session** in the log.
+4. KPIs and chart **populate** from the **current queue session** in the log (same seeding rules as any monitoring start).
 
 **Desired emotion:** *I know what to click; nothing scary happened.*
 
@@ -261,9 +261,9 @@ The app is a **single-page dashboard** with a stable mental model:
 
 ### 5.4 Monitoring lifecycle
 
-- **Start** begins reading/tailing the log on a **user-configurable poll interval** (within sensible bounds).
+- Monitoring **starts** when the user successfully **picks** a log (or restores/grants access), or when they press **Start** after **Stop**; it begins reading/tailing the log on a **user-configurable poll interval** (within sensible bounds).
 - **Stop** ends polling; state settles to a clear **stopped** (or **completed** when log semantics say so)—not an ambiguous limbo.
-- **Start** should seed enough recent context for a **meaningful graph and timers** for the **current queue session** (session boundaries as documented in the README).
+- The first read after any **start** should seed enough recent context for a **meaningful graph and timers** for the **current queue session** (session boundaries as documented in the README).
 - **Interrupted / stale / reconnecting** states must be **visible** in status (and reflected in estimates where the design freezes or dampens values)—**no** silent pretense that the queue is still advancing.
 
 ### 5.5 Alerts: warnings vs completion

@@ -637,7 +637,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.37";
+const APP_VERSION = "2.0.38";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -2018,6 +2018,7 @@ async function pickLogFile() {
   await applyPickedLogHandle(handle, "Picked file", {
     historyLine: `Selected log file: ${pickedName}`,
   });
+  startMonitoringAfterSuccessfulPick();
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -2066,6 +2067,7 @@ async function pickFolder() {
   await applyPickedLogHandle(file, "Picked folder", {
     historyLine: `Selected folder; resolved log file: ${pickedName}`,
   });
+  startMonitoringAfterSuccessfulPick();
 }
 
 // -----------------------------
@@ -2937,6 +2939,12 @@ async function pollOnce() {
   }
 }
 
+/** After a successful file/folder pick: begin (or restart) tailing the new handle. */
+function startMonitoringAfterSuccessfulPick() {
+  if (running) stopMonitoring();
+  startMonitoring();
+}
+
 function startMonitoring() {
   if (!logFileHandle) return;
   if (running) return;
@@ -2984,7 +2992,7 @@ function stopMonitoring() {
 
 function graphHintDefaultText() {
   if (graphPoints.length < 1) {
-    return "Pick a log and press Start. The graph will fill as queue positions change.";
+    return "Pick a log file to start monitoring. The graph will fill as queue positions change.";
   }
   return config.graphLogScale ? "Y scale: log" : "Y scale: linear";
 }
@@ -3158,7 +3166,9 @@ loadConfig();
 syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
-appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start, or restore the last session automatically.");
+appendHistory(
+  "VS Queue Monitor (web) ready. Pick your client log to start monitoring (or use Stop / Start to pause and resume). The last session can restore automatically when permitted.",
+);
 window.addEventListener(
   "load",
   () => {
