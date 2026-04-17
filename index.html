@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>VS Queue Monitor</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">VS Queue Monitor</div>
+        <div class="brand__tagline">Vintage Story client log queue monitor</div>
+      </div>
+      <div class="topbar__actions">
+        <button id="btnPickLog" class="btn">Pick log file…</button>
+        <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
+          Pick folder…
+        </button>
+        <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="card kpis">
+        <div class="kpi">
+          <div class="kpi__label">POSITION</div>
+          <div id="kpiPosition" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">STATUS</div>
+          <div id="kpiStatus" class="kpi__value kpi__value--ok">Idle</div>
+        </div>
+        <div class="kpi">
+          <div id="kpiRateLabel" class="kpi__label">RATE (Rolling 10)</div>
+          <div id="kpiRate" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">WARNINGS</div>
+          <div id="kpiWarnings" class="kpi__value kpi__value--mono">10 · 5 · 1</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">ELAPSED</div>
+          <div id="kpiElapsed" class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi__label">EST. REMAINING</div>
+          <div id="kpiRemaining" class="kpi__value">—</div>
+        </div>
+        <div class="kpi kpi--progress">
+          <div class="kpi__label">PROGRESS</div>
+          <div class="progress">
+            <div id="progressFill" class="progress__fill" style="width: 0%"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card graph">
+        <div class="card__header">
+          <div class="card__title">Queue graph</div>
+          <div class="card__actions">
+            <button id="btnYScale" class="btn btn--small btn--secondary" title="Toggle Y scale (log/linear)">
+              Y → log
+            </button>
+            <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
+              Clear
+            </button>
+          </div>
+        </div>
+        <canvas id="graphCanvas" width="1200" height="360"></canvas>
+        <div class="graph__hint" id="graphHint"></div>
+      </section>
+
+      <section class="card twoCol">
+        <div class="card__header">
+          <div class="card__title">Info</div>
+          <div class="card__actions">
+            <button id="btnRequestNotify" class="btn btn--small btn--secondary" title="Enable browser notifications">
+              Enable notifications
+            </button>
+          </div>
+        </div>
+        <div class="infoGrid">
+          <div class="infoGrid__label">Logs folder</div>
+          <div id="infoSource" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Resolved log</div>
+          <div id="infoResolved" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Last change</div>
+          <div id="infoLastChange" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Last alert</div>
+          <div id="infoLastAlert" class="infoGrid__value">—</div>
+          <div class="infoGrid__label">Global rate</div>
+          <div id="infoGlobalRate" class="infoGrid__value">—</div>
+        </div>
+      </section>
+
+      <section class="card settings">
+        <div class="card__header">
+          <div class="card__title">Settings</div>
+        </div>
+        <div class="form">
+          <div class="field">
+            <label class="label" for="inpPollSec">Poll (s)</label>
+            <input id="inpPollSec" class="input" inputmode="decimal" value="2" />
+          </div>
+          <div class="field">
+            <label class="label" for="inpThresholds">Warning thresholds</label>
+            <input id="inpThresholds" class="input" value="10, 5, 1" />
+          </div>
+          <div class="field">
+            <label class="label" for="inpWindowPoints">Rolling window (points)</label>
+            <input id="inpWindowPoints" class="input" inputmode="numeric" value="10" />
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkLogEveryChange">
+              <input id="chkLogEveryChange" type="checkbox" />
+              Log every position change
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkWarnNotify">
+              <input id="chkWarnNotify" type="checkbox" checked />
+              Warning popups (threshold notifications)
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkWarnSound">
+              <input id="chkWarnSound" type="checkbox" checked />
+              Warning sound
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkCompletionNotify">
+              <input id="chkCompletionNotify" type="checkbox" checked />
+              Completion popup (post-queue detected)
+            </label>
+          </div>
+          <div class="field field--wide">
+            <label class="label" for="chkCompletionSound">
+              <input id="chkCompletionSound" type="checkbox" checked />
+              Completion sound
+            </label>
+          </div>
+        </div>
+        <div class="settings__footer">
+          <div class="settings__note" id="settingsNote"></div>
+          <div class="settings__buttons">
+            <button id="btnSaveSettings" class="btn btn--secondary">Save</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card history">
+        <div class="card__header">
+          <div class="card__title">History</div>
+          <div class="card__actions">
+            <button id="btnCopyHistory" class="btn btn--small btn--secondary">Copy</button>
+          </div>
+        </div>
+        <pre id="historyPre" class="history__pre"></pre>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__left">
+        <span id="footerVersion">vweb-1</span>
+        <span class="footer__sep">·</span>
+        <span>Browser-only (no backend)</span>
+      </div>
+      <div class="footer__right">
+        <a class="link" href="https://www.vintagestory.at/" target="_blank" rel="noreferrer">Vintage Story</a>
+        <span class="footer__sep">·</span>
+        <a class="link" href="https://github.com/ShubiMaja/vs-queue-monitor" target="_blank" rel="noreferrer">Repo</a>
+      </div>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
+

@@ -1,8 +1,6 @@
-# VS Queue Monitor
+# VS Queue Monitor (Web)
 
-Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises **warning** alerts at **configurable thresholds**, plus optional **queue completion** notices when the log suggests you are **past the connect queue** (connecting / loading — on/off only — not threshold-based). Config and sources use the short id **`vs-queue-monitor`**.
-
-<img width="1916" height="1072" alt="image" src="https://github.com/user-attachments/assets/648649c3-264c-4880-9e80-7a46efc4d746" />
+One-page **web app** that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds — all **in your browser** (no backend).
 
 ## Disclaimer (read this)
 
@@ -14,202 +12,30 @@ Desktop app (Python + Tkinter) that tails the **Vintage Story** client log, trac
 
 ## Requirements
 
-- **Python 3.10+** (any recent 3.x with Tkinter)
-- **Tkinter** — see [Install Python and Tkinter](#install-python-and-tkinter) below
-- **Textual** (pip) — for the **terminal UI** path (`pip install -r requirements.txt`). The **desktop GUI** uses Tk only; Textual is not loaded when you run the GUI.
-
-### Project layout
-
-| Path | Role |
-|------|------|
-| `vs_queue_monitor/core.py` | Parsing, config, log I/O — **no UI** |
-| `vs_queue_monitor/engine.py` | Shared queue monitor logic (`QueueMonitorEngine`) — **no Tk** |
-| `vs_queue_monitor/gui.py` | Tk desktop UI (`QueueMonitorApp` + engine) |
-| `vs_queue_monitor/cli.py` | CLI (`--gui` / `--tui`) and startup |
-| `vs_queue_monitor/tui.py` | Textual terminal UI (engine only — **SSH-safe**, no Tk) |
-| `monitor.py` | Thin entrypoint; same as `python -m vs_queue_monitor` |
-| `tools/` | `build_engine.py` regenerates `engine.py` from `_engine_raw.py`; `strip_gui.py` is an optional AST helper for refactors |
-| `_engine_raw.py` | Input for `tools/build_engine.py` — keep in sync if you use the generator |
-| `docs/GUI-TUI-PARITY.md` | Design reference: Tk GUI behavior vs Textual TUI target (layout, graph, alerts, settings) |
-| `docs/UI-UX-PARITY.md` | Product UI/UX parity spec (includes mockups) |
-| `docs/TUI-LIMITATIONS.md` | Forced differences due to terminal/SSH limitations |
-
-**Cursor / VS Code:** In this workspace, `.vscode/launch.json` runs `monitor.py` with `--gui` and `VS_QUEUE_MONITOR_UI=gui`, and `.vscode/settings.json` sets the same for the **integrated terminal** so the GUI is the default when you use **Run and Debug** (pick **VS Queue Monitor: Run GUI**) or run `python monitor.py` in the editor terminal. On a headless machine where you want the TUI instead, use `python monitor.py --tui` or clear `VS_QUEUE_MONITOR_UI` in that shell.
-
-**Note:** `vs_queue_monitor/engine.py` is a package module and is not meant to be executed directly. Use `monitor.py` / `python -m vs_queue_monitor`.
-
-The terminal UI drives the **same** `QueueMonitorEngine` as the GUI (Textual + headless hooks). No Tk or `DISPLAY` is required for `--tui`, so it works over **SSH** when Textual can render in your terminal. The **o** shortcut opens a **Settings** modal (poll interval, thresholds, rolling window, graph/log scale, alert toggles, and completion toggles); values are saved to `config.json` like the GUI. See `docs/GUI-TUI-PARITY.md` for how the TUI maps to the desktop UI.
+- **A modern Chromium browser** (Microsoft **Edge** or **Chrome**) is recommended.
+  - Folder picking uses the **File System Access API** and may not be available in Firefox/Safari.
+- **A local web server** (required for folder-pick + consistent file access; `file://` is not reliable).
 
 ## Quick start
 
-Two steps (once to install deps, then run any time):
+From the repo root:
 
 ```bash
-pip install -r requirements.txt
-python3 monitor.py
+npm install
+npm run dev
 ```
 
-Equivalent: `python3 -m vs_queue_monitor`. On Windows use `python` or `py` instead of `python3` if needed.
+Then open `http://localhost:5173` in your browser.
 
-### Run the GUI (Tk window)
+If you don’t want `npm`, you can use any static server you like (VS Code “Live Server”, `npx http-server . -p 5173`, etc.).
 
-- **Windows** (default):
+## Using it
 
-```bash
-python monitor.py
-```
+1. Click **Pick log file…** and select your `client-main.log` (or `client.log`).
+2. Click **Start**.
+3. Optional: click **Enable notifications** so threshold/completion popups can appear even when the tab is in the background.
 
-- **macOS / Linux**:
-
-```bash
-python3 monitor.py --gui
-```
-
-- **Cursor / VS Code**: Run and Debug → **VS Queue Monitor: Run GUI**
-
-**UI choice:** By default, **Windows** opens the **graphical** window. On **Linux/macOS**, if there is **no** `DISPLAY`, the app uses the **terminal UI** (Textual). Override anytime: `python3 monitor.py --gui` or `python3 monitor.py --tui` (alias `--text`). Environment: `VS_QUEUE_MONITOR_UI=gui` or `tui` (also `text`, `terminal`).
-
-Same flags as before: `--path`, `--no-start`. In the terminal UI: **Space** toggles monitoring, **h**/**l** toggles History/Logs (collapsed by default so the graph gets the space), **g** toggles Graph, **m** toggles Metrics, **p** toggles the Path row, **i** toggles the **Info** pane (last change, last alert, resolved path, global rate), **o** opens settings, **q** quits. Legacy: `python monitor-tui.py` is equivalent to `python monitor.py --tui` (and `main-tui.py` is kept only for backward compatibility).
-
-The **graphical** window needs [Python 3.10+ with Tkinter](#install-python-and-tkinter). The **terminal UI** only needs Python 3.10+ and Textual from `requirements.txt` (no Tk).
-
-### Without Git
-
-Fetches **latest `main`** as a GitHub source archive into **Downloads**; unpacked folder: `vs-queue-monitor-main`.
-
-**macOS, Linux, Git Bash**
-
-```bash
-cd "$HOME/Downloads" && curl -L https://github.com/ShubiMaja/vs-queue-monitor/archive/refs/heads/main.tar.gz | tar xz
-```
-
-```bash
-cd "$HOME/Downloads/vs-queue-monitor-main" && pip install -r requirements.txt && python3 monitor.py
-```
-
-**Windows PowerShell** (Windows 10+, built-in `tar`)
-
-```powershell
-Set-Location $env:USERPROFILE\Downloads; Invoke-WebRequest -Uri "https://github.com/ShubiMaja/vs-queue-monitor/archive/refs/heads/main.tar.gz" -OutFile "vsqm.tar.gz"; tar -xf vsqm.tar.gz
-```
-
-```powershell
-Set-Location $env:USERPROFILE\Downloads\vs-queue-monitor-main; pip install -r requirements.txt; python monitor.py
-```
-
-On Windows, use `py` instead of `python` if needed. For a **tagged release**, use that tag in the archive URL, e.g. `https://github.com/ShubiMaja/vs-queue-monitor/archive/v1.0.0.tar.gz`.
-
-**No terminal:** GitHub → **Code → Download ZIP** → extract the folder that contains `monitor.py` (often `vs-queue-monitor-main`) → open a terminal in that folder → `pip install -r requirements.txt` then `python3 monitor.py` or `python monitor.py`.
-
-### With Git
-
-```bash
-git clone https://github.com/ShubiMaja/vs-queue-monitor.git && cd vs-queue-monitor && pip install -r requirements.txt && python3 monitor.py
-```
-
-On Windows use `python` or `py` instead of `python3`. With SSH: `git@github.com:ShubiMaja/vs-queue-monitor.git`.
-
-### Maintainers: distribution without Git
-
-GitHub serves **source archives** for public repos; no separate host.
-
-- Keep **owner/repo**, **default branch**, and any **tag** URLs in this README accurate; update if the default branch is renamed.
-- **Public repo** is required for anonymous `curl`/browser downloads without tokens.
-- **Releases:** tag `vX.Y.Z`, publish a [Release](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository), tarball `https://github.com/ShubiMaja/vs-queue-monitor/archive/vX.Y.Z.tar.gz`. Optional: attach ZIP/installers or CI artifacts.
-- **PyPI** or **frozen binaries** (PyInstaller, Nuitka, …) are optional extras.
-
-**Default:** document **archive URLs** + **tagged Releases**; add PyPI or frozen builds only if we want them.
-
-## Install Python and Tkinter
-
-### Windows
-
-1. Install **Python** from [python.org](https://www.python.org/downloads/) (64-bit is fine).
-2. In the installer, enable **“Add python.exe to PATH”** and use the default options so **tcl/tk** (needed for the GUI) is included.
-3. Open **Command Prompt** or **PowerShell**, go to the folder that contains `monitor.py`, and run:
-
-   ```powershell
-   pip install -r requirements.txt
-   python monitor.py
-   ```
-
-   If `python` is not found, try `py monitor.py` (Windows Python launcher).
-
-### macOS
-
-1. Install **Python 3** from [python.org](https://www.python.org/downloads/macos/) **or** with Homebrew (`brew install python`).
-2. The python.org macOS build normally includes **Tkinter**. If you use Homebrew-only Python and the window fails to open, install a Tk-enabled build (for example `brew install python-tk` where available, or prefer the official installer).
-3. In **Terminal**:
-
-   ```bash
-   cd /path/to/vs-queue-monitor
-   pip install -r requirements.txt
-   python3 monitor.py
-   ```
-
-### Linux (Debian / Ubuntu / derivatives)
-
-1. Install Python and Tk:
-
-   ```bash
-   sudo apt update
-   sudo apt install python3 python3-tk
-   ```
-
-2. Run:
-
-   ```bash
-   cd /path/to/vs-queue-monitor
-   pip install -r requirements.txt
-   python3 monitor.py
-   ```
-
-### Linux (Fedora / RHEL-like)
-
-```bash
-sudo dnf install python3 python3-tkinter
-cd /path/to/vs-queue-monitor
-pip install -r requirements.txt
-python3 monitor.py
-```
-
-(Package names may differ slightly; search your package manager for **python** + **tk**.)
-
-## Run (all platforms)
-
-From the directory that contains `monitor.py`:
-
-| Platform   | Typical command   |
-|-----------|-------------------|
-| Windows   | `pip install -r requirements.txt` then `python monitor.py` or `py monitor.py` |
-| macOS/Linux | `pip install -r requirements.txt` then `python3 monitor.py` |
-
-By default the app **starts monitoring** when it opens (if the **Logs folder** path exists). If no client log file is there yet, status stays **Waiting for log file** until it appears. To open the UI **without** auto-start:
-
-```bash
-python3 monitor.py --no-start
-```
-
-(On Windows, use `python` instead of `python3` if that is what works on your machine.)
-
-### Pointing at the log
-
-Pass a **folder** (Vintage Story data directory, or a folder that contains the client log). The app resolves the correct log **filename** inside that tree (e.g. `client-main.log`) — you do not pick a `.log` file in the UI.
-
-**Windows (Command Prompt / PowerShell)**
-
-```powershell
-python monitor.py --path "%APPDATA%\VintagestoryData"
-```
-
-**macOS / Linux (bash)**
-
-```bash
-python3 monitor.py --path "$HOME/Library/Application Support/VintagestoryData"
-python3 monitor.py --path "$HOME/.config/VintagestoryData"
-```
-
-Exact Vintage Story data locations depend on your install; use **Browse…** on **Logs folder** in the app if unsure. The default is a **folder** path (`%APPDATA%/VintagestoryData` on Windows), not a `.log` file. If an older saved setting still pointed at a **file**, the app rewrites it to that file’s **parent folder** in the field (and config) on startup. Resolution **prefers `client-main.log`** when present, then other matching names.
+The app stores settings in **`localStorage`** (on your machine in the browser profile). It does not upload your log anywhere.
 
 ## Log file
 
@@ -218,7 +44,7 @@ The game writes queue lines similar to:
 - `Client is in connect queue at position: N`
 - `Your position in the queue is: N`
 
-The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). On macOS or Linux, browse or paste your Vintage Story **data** folder. The app searches for `client-main.log` (and a few fallbacks) under common layouts.
+This web app currently expects you to pick the log file directly (recommended). Folder picking only checks the top-level for `client-main.log` / `client.log`.
 
 ## Features
 
@@ -228,11 +54,10 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 - **Info** and **History** can be **collapsed** to a thin header bar (chevron + title); the app refits pane heights so empty bands do not linger.
 - Dark, **tooltip-heavy** UI (hover for control explanations).
 
-### Logs folder and resolution
+### Picking the log
 
-- **Logs folder** field plus **Browse…** (folder picker only). The folder must **exist**; it does **not** need to contain a log file yet (e.g. before the first Vintage Story run). Paths support environment tokens (e.g. `%APPDATA%` on Windows, `~` / `$HOME`).
-- When you **Play**, the app **searches** under that folder for `client-main.log` / `client.log` in common locations (`Logs/`, `logs/`, etc.), then filenames matching `*client-main*.log` or `*client*.log`. It does **not** pick unrelated `*.log` files. If none exist yet, monitoring still starts and status shows **Waiting for log file** until one appears.
-- **Resolved path** (the actual log file opened) appears in the **Info** section once a file is found (along with timing and rate details below).
+- **Pick log file…** is the most reliable way to point at the right `client-main.log`.
+- **Pick folder…** exists for convenience when supported, but is intentionally conservative (top-level only).
 
 ### Monitoring
 
@@ -261,13 +86,9 @@ The default path hint in the UI targets Windows (`%APPDATA%/VintagestoryData`). 
 
 ### Alerts
 
-- **Warning thresholds** — comma-separated positions (default `10, 5, 1`): **warning** popup/sound can fire when you **cross downward** through each value. **Once per value per queue run** until the run resets (log boundary / new session / segmentation rules).
-- **Completion** — **not** threshold-based: it fires when a **post-queue** line appears **after** the last **connect queue position** line in the log tail (e.g. *Loading and pre-starting client side mods*, download — **not** only full “connected”; and not when you first hit position `1`, which can still mean a long wait). You only choose **on/off** for completion **popup** and/or **sound** (plus optional completion **sound file**). There is no comma-separated completion threshold list. If your client build does not log matching lines, completion may not fire. Opening the monitor when the log **already** shows that past-queue state (a finished wait) does **not** fire completion again — only a **new** transition to that state while monitoring does.
-- **Minimum interval** between **warning** popup/sound alerts to reduce duplicate fires from noisy logs.
-- **Warning popup** (optional): always-on-top window for **threshold crossings**; auto-closes after a timeout.
-- **Completion popup** (optional): distinct window when the log shows connect phase after the queue, with **Get ready to connect!** copy; **enable/disable only** — same trigger every time.
-- **Warning sound** (optional): plays on **warning** thresholds; built-in default is one file per OS (e.g. `Windows Background.wav`, `Basso.aiff`, `dialog-warning.oga`), resolved like other system media paths, then registry/`MessageBeep`/bell. Custom path in Settings.
-- **Completion sound** (optional): **on/off** for the same post-queue trigger; one default per OS (e.g. `tada.wav`, `Hero.aiff`, `complete.oga`). Custom path in Settings.
+- **Warning thresholds** — comma-separated positions (default `10, 5, 1`): a warning can fire when you **cross downward** through each value (once per value per queue run).
+- **Completion** — **not threshold-based**: it fires when the log tail shows a **post-queue** line **after** the last queue position line. This maps the UI position to **0** (Completed) and is the trigger for the completion popup/sound.
+- **Browser notifications**: optional; click **Enable notifications** and allow permission. Sounds are simple built-in beeps (browser-safe).
 
 ### ETA, rate, and progress
 
@@ -317,45 +138,9 @@ The status string reflects tail-of-log classification, for example:
 
 - Most controls on the main window have **hover tooltips** (short explanations).
 
-## Configuration file
+## Settings storage
 
-Saved automatically (debounced, ~450 ms after a change) when you change options, path text, or window geometry:
-
-| OS | Path |
-|----|------|
-| Windows | `%APPDATA%\vs-queue-monitor\config.json` |
-| Linux/macOS | `$XDG_CONFIG_HOME/vs-queue-monitor/config.json` or `~/.config/vs-queue-monitor/config.json` |
-
-If you used an older build, settings may load once from `%APPDATA%\vs-q-monitor\` (Windows) or `~/.config/vs-q-monitor/` (Unix) and are then saved under the new folder name.
-
-Typical keys:
-
-| Key | Purpose |
-|-----|---------|
-| `source_path` | Logs folder path string |
-| `alert_thresholds` | Warning thresholds only, comma-separated (default `10, 5, 1`); not used for completion |
-| `poll_sec` | Poll interval in seconds |
-| `avg_window_points` | Rolling window size in points (Estimation) |
-| `show_log` | History pane expanded (content visible); toggled from the main window, not Settings |
-| `show_status` | Info pane expanded (content visible); key name unchanged for compatibility |
-| `graph_log_scale` | Graph Y axis: log vs linear |
-| `popup_enabled` | Warning (threshold) popup |
-| `completion_popup_enabled` | Queue completion (post-queue log signal) popup |
-| `sound_enabled` | Warning (threshold) sound enabled |
-| `alert_sound_path` | Warning sound file path |
-| `completion_sound_enabled` | Queue completion (post-queue log signal) sound enabled |
-| `completion_sound_path` | Completion sound file path |
-| `show_every_change` | When true, log each queue position change to History; when false, skip routine position lines |
-| `window_geometry` | Last main window size/position |
-| `version` | App version string written at save time |
-
-## Development
-
-```bash
-python -m compileall monitor.py vs_queue_monitor
-```
-
-**AI / Cursor:** This repo’s `.cursor/rules/git-commit.mdc` expects **README updates in the same commit** whenever a change affects user-facing behavior, CLI, configuration, or docs — before committing.
+Settings are saved in your browser’s **`localStorage`** under the key `vsqm_web_config_v1`.
 
 ## License / game
 
