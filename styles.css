@@ -303,8 +303,32 @@ body{
   border-radius:6px;
   scrollbar-width:none; /* Firefox */
   overscroll-behavior:contain;
+  position:relative;
 }
 .kpiWarn__viewport::-webkit-scrollbar{height:0} /* Chromium */
+.kpiWarn__viewport--overflow{cursor:ew-resize}
+.kpiWarn__viewport--overflow::after{
+  content:"⇆";
+  position:absolute;
+  right:6px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:12px;
+  color:rgba(155,165,176,0.75);
+  pointer-events:none;
+  opacity:0.75;
+  text-shadow:0 1px 1px rgba(0,0,0,0.35);
+}
+.kpiWarn__viewport--overflow::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg, rgba(28,31,38,0.95) 0%, rgba(28,31,38,0) 12%),
+    linear-gradient(270deg, rgba(28,31,38,0.95) 0%, rgba(28,31,38,0) 12%);
+  opacity:0.45;
+}
 .kpiWarn__rail{
   display:inline-flex;
   flex-wrap:nowrap;
