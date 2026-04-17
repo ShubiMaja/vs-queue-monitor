@@ -310,8 +310,11 @@ body{
   font-weight:800;
   text-transform:uppercase;
   opacity:0.95;
+  white-space:nowrap;
 }
-.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;min-width:0}
+.kpi__labelRow > *{min-width:0}
+.kpi__labelRow > :first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kpi__labelActions{display:inline-flex;gap:6px;align-items:center}
 .kpi__labelActions .btn{padding:4px 8px;font-size:12px;border-radius:8px;line-height:1}
 .kpi__labelActions .btn--icon{width:auto}
@@ -1155,7 +1158,7 @@ body{
         </div>
         <div class="kpi kpi--status">
           <div class="kpi__label kpi__labelRow">
-            <span id="kpiStatusLabel">STATUS (2s REFRESH)</span>
+            <span id="kpiStatusLabel">STATUS (2s ⟳)</span>
             <span class="kpi__labelActions" aria-label="Edit refresh interval">
               <button
                 id="btnStatusRefreshEdit"
@@ -1384,7 +1387,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.12";
+const APP_VERSION = "2.1.13";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -2914,7 +2917,7 @@ function applyFormToConfig() {
   config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
   // graphLiveWindow is controlled by a button (not a form field).
   ui.kpiRateLabel.textContent = `RATE (AVG ${rollingWindowPoints()})`;
-  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s ⟳)`;
 }
 
 /**
@@ -2999,7 +3002,7 @@ function syncConfigToForm() {
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
   if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
   ui.kpiRateLabel.textContent = `RATE (AVG ${config.windowPoints})`;
-  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s ⟳)`;
 }
 
 function showSettingsNote(text, isError = false) {
