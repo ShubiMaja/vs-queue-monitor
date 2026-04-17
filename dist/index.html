@@ -3710,17 +3710,39 @@ function applySessionSelectionToGraph() {
   currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
   lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
   currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
+
+  // Reset derived "live" state so progress/ETA are computed from the selected session.
+  connectPhaseStartedEpoch = null;
+  progressAtFrontEntry = null;
+  leftConnectQueueDetected = lastPosition === 0;
+  positionOneReachedAt = null;
+  if (graphPoints.length) {
+    // If the session reaches the front, capture the first time it did for elapsed/ETA stability.
+    for (const [t, p] of graphPoints) {
+      if (p <= 1) {
+        positionOneReachedAt = t;
+        break;
+      }
+    }
+  }
+
   renderSelectedSessionStats();
   drawGraph();
   syncPastSessionUi();
 
   try {
+    const pts = graphPoints;
+    const t0 = pts.length ? pts[0][0] : null;
+    const t1 = pts.length ? pts[pts.length - 1][0] : null;
+    const p0 = pts.length ? pts[0][1] : null;
+    const p1 = pts.length ? pts[pts.length - 1][1] : null;
+    const when = (t) => (t == null ? "—" : formatGraphHoverTime(t));
     appendHistory(
       wantedKey === "latest"
-        ? "Session applied: latest"
+        ? `Session applied: latest · sessions ${queueSessions.length} · points ${pts.length}`
         : s
-          ? `Session applied: ${wantedKey} · points ${s.points ? s.points.length : graphPoints.length}`
-          : `Session not found in indexed log window: ${wantedKey}`,
+          ? `Session applied: ${wantedKey}\n- sessions indexed: ${queueSessions.length}\n- points: ${pts.length}\n- start: ${when(t0)} (pos ${p0 == null ? "—" : p0})\n- end: ${when(t1)} (pos ${p1 == null ? "—" : p1})`
+          : `Session not found in indexed log window: ${wantedKey}\n- sessions indexed: ${queueSessions.length}\n- tip: pick a bigger log window (large log indexing cap)`,
     );
   } catch {
     // ignore
