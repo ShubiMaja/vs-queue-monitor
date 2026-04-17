@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.13";
+const APP_VERSION = "2.1.14";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1143,6 +1143,9 @@ const QUEUE_RUN_SOFT_BOUNDARY_RES = [
   /\binitialized\s+server\s+connection\b/i,
   /\btrying\s+to\s+connect\b/i,
 ];
+// If we already saw queue lines, only treat "connecting/reconnecting" as a new session when there's a real time gap.
+// This prevents merging multiple runs (hours apart) into one giant timeline while still ignoring noisy mid-queue connect lines.
+const SOFT_BOUNDARY_AFTER_QUEUE_GAP_SEC = 120;
 
 /**
  * Build a session counter (relative to this chunk) that does not split a single queue wait
@@ -1153,6 +1156,8 @@ function queueRunSessionBeforeLine(lines) {
   const sessionBeforeLine = new Array(lines.length);
   let session = 0;
   let sawQueueInSession = false;
+  /** @type {number|null} */
+  let lastQueueEpoch = null;
   for (let i = 0; i < lines.length; i++) {
     sessionBeforeLine[i] = session;
     const s = String(lines[i] || "").trim();
@@ -1160,17 +1165,30 @@ function queueRunSessionBeforeLine(lines) {
     const pos = queuePositionFromLine(s);
     if (pos != null) {
       sawQueueInSession = true;
+      const t = parseLogTimestampEpoch(s);
+      if (t != null) lastQueueEpoch = t;
       continue;
     }
     if (QUEUE_RUN_HARD_BOUNDARY_RES.some((r) => r.test(s))) {
       session += 1;
       sawQueueInSession = false;
+      lastQueueEpoch = null;
       continue;
     }
-    if (!sawQueueInSession && QUEUE_RUN_SOFT_BOUNDARY_RES.some((r) => r.test(s))) {
-      session += 1;
-      sawQueueInSession = false;
-      continue;
+    if (QUEUE_RUN_SOFT_BOUNDARY_RES.some((r) => r.test(s))) {
+      if (!sawQueueInSession) {
+        session += 1;
+        sawQueueInSession = false;
+        lastQueueEpoch = null;
+        continue;
+      }
+      const t = parseLogTimestampEpoch(s);
+      if (t != null && lastQueueEpoch != null && t - lastQueueEpoch >= SOFT_BOUNDARY_AFTER_QUEUE_GAP_SEC) {
+        session += 1;
+        sawQueueInSession = false;
+        lastQueueEpoch = null;
+        continue;
+      }
     }
   }
   return sessionBeforeLine;
