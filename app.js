@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.27";
+const APP_VERSION = "2.0.28";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -1796,7 +1796,7 @@ async function pollOnce() {
 
       const { should, reason } = computeAlert(prevPos, pos);
       if (should) raiseAlert(pos, reason);
-      maybeNotifyCompletion(pos, tail);
+      maybeNotifyCompletion(pos, view);
       refreshWarningsKpi();
       return;
     }

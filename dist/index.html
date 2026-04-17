@@ -583,7 +583,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.27";
+const APP_VERSION = "2.0.28";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -2093,7 +2093,7 @@ async function pollOnce() {
 
       const { should, reason } = computeAlert(prevPos, pos);
       if (should) raiseAlert(pos, reason);
-      maybeNotifyCompletion(pos, tail);
+      maybeNotifyCompletion(pos, view);
       refreshWarningsKpi();
       return;
     }
