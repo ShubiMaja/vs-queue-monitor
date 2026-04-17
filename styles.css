@@ -336,6 +336,9 @@ body{
 .btnRateEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--rate:hover .btnRateEdit,
 .kpi--rate:focus-within .btnRateEdit{opacity:1;pointer-events:auto}
+.btnStatusRefreshEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--status:hover .btnStatusRefreshEdit,
+.kpi--status:focus-within .btnStatusRefreshEdit{opacity:1;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
@@ -405,6 +408,8 @@ body{
 .kpi--warnings{position:relative}
 .kpi--rate{position:relative}
 .kpi--status{position:relative}
+.kpi--status .kpi__labelRow{position:relative;padding-right:22px}
+.kpi--status .kpi__labelActions{position:absolute;right:0;top:0}
 .popover{
   position:absolute;
   top:24px;
