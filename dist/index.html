@@ -364,9 +364,9 @@ body{
           </div>
 
           <div class="modal__sectionTitle">Windows (folder junction example)</div>
-          <pre class="code">mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d"
+          <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
-          <div class="modal__text">Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
+          <div class="modal__text">Do not <span class="mono">mkdir</span> the <span class="mono">data-…</span> / <span class="mono">logs-…</span> name first — <span class="mono">mklink /J</span> creates it. Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">the <span class="mono">data-xxxxxxxx</span> suffix is a hash of your pasted path (filled in by “Generate an exact command”).</span></div>
 
           <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
           <pre class="code">mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
@@ -567,7 +567,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.17";
+const APP_VERSION = "2.0.18";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -791,11 +791,12 @@ function renderHelpCommandPreview() {
     const looksLikeLogsFolder =
       looksLikeLogsDir || (looksLikeLogFile && /[\\/]Logs$/i.test(srcDir));
 
+    // Folder junction (mklink /J): creates the leaf name; only mkdir the parent folder (not the junction path).
     if (looksLikeLogsFolder) {
       const leaf = linkFolderName("logs", srcDir);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
       ui.preHelpCmd.textContent =
-        `mkdir "${dest}"\n` +
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
         `mklink /J "${dest}" "${srcDir}"`;
       setPick(`${dest}\\${logName}`);
       return;
@@ -804,7 +805,7 @@ function renderHelpCommandPreview() {
     const leaf = linkFolderName("data", srcDir);
     const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
     ui.preHelpCmd.textContent =
-      `mkdir "${dest}"\n` +
+      `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
       `mklink /J "${dest}" "${srcDir}"`;
     setPick(`${dest}\\Logs\\${logName}`);
     return;

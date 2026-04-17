@@ -73,9 +73,11 @@ Chrome/Edge can refuse access to some protected “system” folders. If the fil
 **Windows (folder junction via Documents):** a **directory junction** (`mklink /J`) under `Documents\vs-queue-monitor` avoids symlink privileges and matches what the in-app **`?`** command generator produces. If you paste a path to a **log file** under a `Logs` folder, the generator junctions that **Logs** folder (not the whole data tree). Destination folders are named **`data-xxxxxxxx`** / **`logs-xxxxxxxx`** (8 hex characters from a hash of the **source path** you paste), so different paths never collide and the same path always gets the same name.
 
 ```bat
-mkdir "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d"
+if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
 mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"
 ```
+
+Only ensure the parent folder `Documents\vs-queue-monitor` exists; **`mklink /J` creates the `data-…` / `logs-…` junction** — do not `mkdir` that name first or the link step fails.
 
 Then pick: `Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log` (use the exact folder name from **Generate an exact command** for your path).
 
