@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.96";
+const APP_VERSION = "2.0.97";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1263,7 +1263,7 @@ let config = {
   interruptSoundUrl: "",
   interruptSoundFileName: "",
   graphLogScale: false,
-  graphLiveWindow: false,
+  graphLiveWindow: true,
 };
 
 function loadConfig() {
