@@ -2,7 +2,7 @@
 
 One-page **web app** that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds — all **in your browser** (no backend).
 
-**Product & UX (high level):** [`DESIGN.md`](DESIGN.md) describes the intended user journey, goals, and UX principles. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
+**Product & UX (high level):** [`docs/DESIGN.md`](docs/DESIGN.md) describes intended user journeys, product goals, information architecture, UX principles, **visual design** (colors, typography, layout), and **§1.1** — how a hypothetical terminal UI should stay **behaviorally** aligned with this web app while allowing justified presentation differences. This repository ships **only** the web client. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
 
 ## Disclaimer (read this)
 
@@ -148,6 +148,8 @@ The game writes queue lines similar to:
 This web app currently expects you to pick the log file directly (recommended). Folder picking only checks the top-level for `client-main.log` / `client.log`.
 
 ## Features
+
+Detailed behavior reference. For **intent** (why the UI is shaped this way), see [`docs/DESIGN.md`](docs/DESIGN.md).
 
 ### Window layout
 
