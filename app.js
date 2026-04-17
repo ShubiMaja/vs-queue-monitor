@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.8";
+const APP_VERSION = "2.1.9";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1260,6 +1260,25 @@ function tailHasPostQueueAfterLastQueueLine(data) {
     if (isPostQueueProgressLine(line)) return true;
   }
   return false;
+}
+
+/**
+ * @param {string} data
+ * @returns {number|null} epoch seconds for the first post-queue progress line after the last queue line
+ */
+function parseFirstPostQueueEpochAfterLastQueueLine(data) {
+  const lines = data.split(/\r?\n/);
+  let lastQ = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (queuePositionFromLine(lines[i]) != null) lastQ = i;
+  }
+  if (lastQ < 0) return null;
+  for (let i = lastQ + 1; i < lines.length; i++) {
+    if (!isPostQueueProgressLine(lines[i])) continue;
+    const t = parseLogTimestampEpoch(lines[i]);
+    return t ?? (Date.now() / 1000);
+  }
+  return null;
 }
 
 /**
@@ -3160,38 +3179,34 @@ function replayQueueGraphFromText(fullText) {
   /** @type {number|null} */
   let sessionAtLastEmit = null;
 
-  let lastQIdx = -1;
-  let lastQueuePos = /** @type {number|null} */ (null);
-  let lastQueueEpoch = /** @type {number|null} */ (null);
+  let lastQueueIdx = -1;
+  /** @type {number|null} */
+  let lastQueuePos = null;
+  /** @type {number|null} */
+  let lastQueueEpoch = null;
+  /** @type {number|null} */
+  let lastQueueSess = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (isQueueRunBoundaryLine(line)) continue;
 
     const rawPos = queuePositionFromLine(line);
-    if (rawPos != null) {
-      lastQIdx = i;
-      lastQueuePos = rawPos;
-      lastQueueEpoch = parseLogTimestampEpoch(line);
-    }
+    if (rawPos == null) continue;
 
-    if (lastQIdx < 0 || lastQueuePos == null) continue;
+    lastQueueIdx = i;
+    lastQueuePos = rawPos;
+    lastQueueEpoch = parseLogTimestampEpoch(line);
+    lastQueueSess = sessionBeforeLine[i] ?? lastQueueSess;
 
-    const sess = sessionBeforeLine[lastQIdx];
-    let pos = lastQueuePos;
-
-    let left = false;
-    for (let j = lastQIdx + 1; j <= i; j++) {
-      if (isPostQueueProgressLine(lines[j])) {
-        left = true;
-        break;
-      }
-    }
+    const sess = lastQueueSess;
+    let pos = rawPos;
 
     const prevPos = lastPosition;
     if (
       prevPos != null &&
       sessionAtLastEmit != null &&
+      sess != null &&
       sess === sessionAtLastEmit &&
       pos > prevPos &&
       pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD
@@ -3199,11 +3214,7 @@ function replayQueueGraphFromText(fullText) {
       pos = prevPos;
     }
 
-    if (pos <= 1 && left) pos = 0;
-
     const t = lastQueueEpoch ?? Date.now() / 1000;
-
-    // Store every queue reading (even if position didn't change), matching live appendGraphPoint().
     let tt = t;
     const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
     if (lastT != null && tt <= lastT) tt = lastT + 0.001;
@@ -3212,6 +3223,27 @@ function replayQueueGraphFromText(fullText) {
     if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
     lastPosition = pos;
     sessionAtLastEmit = sess;
+  }
+
+  // If the tail indicates we left the queue after the last queue reading, append a final "0" point once.
+  if (lastQueueIdx >= 0 && lastQueuePos != null && lastQueuePos <= 1) {
+    let postIdx = -1;
+    for (let i = lastQueueIdx + 1; i < lines.length; i++) {
+      if (isPostQueueProgressLine(lines[i])) {
+        postIdx = i;
+        break;
+      }
+    }
+    if (postIdx >= 0) {
+      let t0 = parseLogTimestampEpoch(lines[postIdx]);
+      if (t0 == null) t0 = (lastQueueEpoch ?? Date.now() / 1000) + 0.25;
+      const lastT = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+      if (lastT != null && t0 <= lastT) t0 = lastT + 0.001;
+      currentPoint = [t0, 0];
+      graphPoints.push(currentPoint);
+      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+      lastPosition = 0;
+    }
   }
 
   const { session } = parseTailLastQueueReading(text);
@@ -3599,7 +3631,20 @@ async function pollOnce() {
         lastQueuePositionChangeEpoch = now;
         mppFloorPosition = null;
         mppFloorValue = null;
-        appendHistory("New queue run (from log).");
+        // Clear graph/rate history so window-based metrics don't span runs.
+        graphPoints = [];
+        currentPoint = null;
+        lastPosition = null;
+        pendingGraphReplayText = null;
+        appendHistory("New queue run (from log) — graph and alerts reset for this run.");
+
+        // Reseed the graph from the current run slice so the user sees immediate context.
+        const slice = sliceLoadedLogToCurrentQueueRun(logBuffer);
+        replayQueueGraphFromText(slice);
+        lastQueueRunSession = session;
+        refreshWarningsKpi();
+        updateTimeEstimates();
+        return;
       }
       lastQueueRunSession = session;
 
@@ -3614,6 +3659,7 @@ async function pollOnce() {
       const deltaReadings = newText ? extractQueueReadingsFromText(newText) : [];
       if (deltaReadings.length >= 2) {
         let lastEpoch = graphPoints.length ? graphPoints[graphPoints.length - 1][0] : null;
+        let lastAppendedPos = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
         for (const r of deltaReadings) {
           let t = r.epoch;
           if (t == null) t = (lastEpoch != null ? lastEpoch + 0.25 : Date.now() / 1000);
@@ -3621,6 +3667,16 @@ async function pollOnce() {
           if (lastEpoch != null && t <= lastEpoch) t = lastEpoch + 0.001;
           appendGraphPoint(r.pos, t);
           lastEpoch = t;
+          lastAppendedPos = r.pos;
+        }
+
+        // Ensure the *final* point matches the computed current position (e.g. 0 when post-queue is detected).
+        if (pos !== lastAppendedPos) {
+          const tFinal =
+            pos === 0
+              ? (parseFirstPostQueueEpochAfterLastQueueLine(view) ?? lastLineEpoch ?? now)
+              : (lastLineEpoch ?? now);
+          appendGraphPoint(pos, tFinal);
         }
       } else {
         appendGraphPoint(pos, lastLineEpoch);
