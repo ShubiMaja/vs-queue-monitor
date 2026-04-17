@@ -34,7 +34,8 @@ Apply when editing `monitor.py`, `README.md`, or related files in this project. 
 ## Settings must match code
 
 - **“Log every position change”**: When **off**, **omit** routine queue lines from History entirely — not just a different message. When **on**, log each transition.
-- Default **`show_every_change`** is **false**.
+- **Web (`app.js`):** Default **`logEveryChange`** is **true** (each position transition is appended to History when the client emits queue lines).
+- **Python:** Default **`show_every_change`** is **false** unless configured otherwise.
 
 ## Interrupted mode
 

@@ -221,9 +221,17 @@ The status string reflects tail-of-log classification, for example:
 ### Settings (gear)
 
 - **Polling** — **Poll (s)** between log reads.
-- **Thresholds** — comma-separated **warning thresholds**; **Threshold alerts** (in-page toast + optional desktop); **Threshold sound** (soft two-note chime).
-- **Completion** — **Completion alert** (in-page toast + optional desktop) and **Completion sound** (short major arpeggio) when past-queue-wait is detected (no threshold list).
-- **History** — **Log every position change**: when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are). Show or hide the panel from the main window **History** bar (still saved in config).
+- **Thresholds** — comma-separated **warning thresholds** (default `10, 5, 1`).
+- **History** — **Log every position change** (default **on**): when **off**, routine queue steps are **not** written to History (alerts, completion, start/stop, and errors still are).
+- **Alert channels** (each has popup + sound + desktop-notify toggles):
+  - **Threshold** — fires when you cross downward through a configured threshold.
+  - **Completion** — fires when post‑queue activity is detected (maps UI position to **0**).
+  - **Disconnected / Interrupted** — fires when the monitor enters **Interrupted** (disconnect or stale queue).
+- **Sound sources (all channels)**:
+  - **Default clip**: ships WAVs under `assets/sounds/` (works offline / `file://`).
+  - **URL**: optional `https://…` or relative path (browser CORS rules apply).
+  - **Local file**: stored in the browser (IndexedDB) and played in preference to the URL.
+  - **Built‑in tone**: synthesized sine tones (fallback if URL/file playback fails).
 - **Estimation** — **Rolling window (points)**: how many recent queue steps to use for rolling rate and ETA.
 - **Reset defaults** — restores built-in defaults and clears local session state tied to that flow.
 - **Close** or **Escape** saves config (same debounced persistence as the rest of the app).
