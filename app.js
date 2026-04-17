@@ -1,0 +1,4279 @@
+// Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
+const APP_VERSION = "2.0.91";
+
+/** Same as favicon; desktop notifications need HTTPS or localhost. */
+const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
+
+/** Shipped WAV clips (same-origin). Empty URL field in settings = use these. */
+const DEFAULT_WARN_SOUND_URL = "./assets/sounds/warning.wav";
+const DEFAULT_COMPLETION_SOUND_URL = "./assets/sounds/completion.wav";
+const DEFAULT_INTERRUPT_SOUND_URL = "./assets/sounds/disconnected.wav";
+
+const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
+
+const ui = {
+  btnPickLog: $("btnPickLog"),
+  btnPickFolder: $("btnPickFolder"),
+  btnSettings: $("btnSettings"),
+  btnHelp: $("btnHelp"),
+  btnHelpClose: $("btnHelpClose"),
+  btnStartStop: $("btnStartStop"),
+  btnYScale: $("btnYScale"),
+  btnGraphWindow: $("btnGraphWindow"),
+  btnClear: $("btnClear"),
+  btnCopyHistory: $("btnCopyHistory"),
+  btnRequestNotify: $("btnRequestNotify"),
+  notifyHint: $("notifyHint"),
+  btnSaveSettings: $("btnSaveSettings"),
+  btnCancelSettings: $("btnCancelSettings"),
+  toastHost: $("toastHost"),
+  restoreBanner: $("restoreBanner"),
+  restoreBannerDetail: $("restoreBannerDetail"),
+  btnResumeLastLog: $("btnResumeLastLog"),
+  btnDismissRestoreBanner: $("btnDismissRestoreBanner"),
+  interruptAdoptOverlay: $("interruptAdoptOverlay"),
+  interruptAdoptDetail: $("interruptAdoptDetail"),
+  btnInterruptAdoptConfirm: $("btnInterruptAdoptConfirm"),
+  btnInterruptAdoptNotNow: $("btnInterruptAdoptNotNow"),
+  helpOverlay: $("helpOverlay"),
+  settingsOverlay: $("settingsOverlay"),
+  btnSettingsClose: $("btnSettingsClose"),
+  settingsForm: /** @type {HTMLElement} */ (document.querySelector("#settingsOverlay .form")),
+  inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
+  btnHelpLoadFile: $("btnHelpLoadFile"),
+  btnHelpPlatWin: $("btnHelpPlatWin"),
+  btnHelpPlatUnix: $("btnHelpPlatUnix"),
+  btnHelpCopyCmd: $("btnHelpCopyCmd"),
+  preHelpCmd: $("preHelpCmd"),
+  spanHelpPickPath: $("spanHelpPickPath"),
+  graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
+  graphHint: $("graphHint"),
+
+  kpiPosition: $("kpiPosition"),
+  kpiStatus: $("kpiStatus"),
+  kpiRateLabel: $("kpiRateLabel"),
+  kpiRate: $("kpiRate"),
+  btnRateEdit: $("btnRateEdit"),
+  kpiWarnings: $("kpiWarnings"),
+  kpiWarningsRail: $("kpiWarningsRail"),
+  btnWarnScrollL: $("btnWarnScrollL"),
+  btnWarnScrollR: $("btnWarnScrollR"),
+  btnWarningsEdit: $("btnWarningsEdit"),
+  warningsAddPopover: $("warningsAddPopover"),
+  inpWarningsAdd: /** @type {HTMLInputElement} */ ($("inpWarningsAdd")),
+  btnWarningsAddOk: $("btnWarningsAddOk"),
+  btnWarningsAddCancel: $("btnWarningsAddCancel"),
+  kpiElapsed: $("kpiElapsed"),
+  kpiRemaining: $("kpiRemaining"),
+  progressFill: $("progressFill"),
+
+  infoSource: $("infoSource"),
+  infoResolved: $("infoResolved"),
+  infoLastChange: $("infoLastChange"),
+  infoLastAlert: $("infoLastAlert"),
+  infoGlobalRate: $("infoGlobalRate"),
+
+  inpPollSec: /** @type {HTMLInputElement} */ ($("inpPollSec")),
+  inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
+  inpWindowPoints: /** @type {HTMLInputElement} */ ($("inpWindowPoints")),
+  chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
+  chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
+  chkWarnSound: /** @type {HTMLInputElement} */ ($("chkWarnSound")),
+  chkCompletionNotify: /** @type {HTMLInputElement} */ ($("chkCompletionNotify")),
+  chkCompletionSound: /** @type {HTMLInputElement} */ ($("chkCompletionSound")),
+  chkInterruptNotify: /** @type {HTMLInputElement} */ ($("chkInterruptNotify")),
+  chkInterruptSound: /** @type {HTMLInputElement} */ ($("chkInterruptSound")),
+  inpWarnSoundUrl: /** @type {HTMLInputElement} */ ($("inpWarnSoundUrl")),
+  inpCompletionSoundUrl: /** @type {HTMLInputElement} */ ($("inpCompletionSoundUrl")),
+  inpInterruptSoundUrl: /** @type {HTMLInputElement} */ ($("inpInterruptSoundUrl")),
+  fileWarnSound: /** @type {HTMLInputElement} */ ($("fileWarnSound")),
+  fileCompletionSound: /** @type {HTMLInputElement} */ ($("fileCompletionSound")),
+  fileInterruptSound: /** @type {HTMLInputElement} */ ($("fileInterruptSound")),
+  btnPickWarnSound: $("btnPickWarnSound"),
+  btnPickCompletionSound: $("btnPickCompletionSound"),
+  btnPickInterruptSound: $("btnPickInterruptSound"),
+  btnWarnSoundAdv: $("btnWarnSoundAdv"),
+  btnCompletionSoundAdv: $("btnCompletionSoundAdv"),
+  btnInterruptSoundAdv: $("btnInterruptSoundAdv"),
+  warnSoundAdv: $("warnSoundAdv"),
+  completionSoundAdv: $("completionSoundAdv"),
+  interruptSoundAdv: $("interruptSoundAdv"),
+  btnClearWarnSoundFile: $("btnClearWarnSoundFile"),
+  btnClearCompletionSoundFile: $("btnClearCompletionSoundFile"),
+  btnClearInterruptSoundFile: $("btnClearInterruptSoundFile"),
+  btnTestWarnSound: $("btnTestWarnSound"),
+  btnTestCompletionSound: $("btnTestCompletionSound"),
+  btnTestInterruptSound: $("btnTestInterruptSound"),
+  btnWarnBuiltin: $("btnWarnBuiltin"),
+  btnWarnDefaultUrl: $("btnWarnDefaultUrl"),
+  btnCompletionBuiltin: $("btnCompletionBuiltin"),
+  btnCompletionDefaultUrl: $("btnCompletionDefaultUrl"),
+  btnInterruptBuiltin: $("btnInterruptBuiltin"),
+  btnInterruptDefaultUrl: $("btnInterruptDefaultUrl"),
+  warnSoundSummary: $("warnSoundSummary"),
+  completionSoundSummary: $("completionSoundSummary"),
+  interruptSoundSummary: $("interruptSoundSummary"),
+  settingsNote: $("settingsNote"),
+  historyPre: $("historyPre"),
+  footerVersion: $("footerVersion"),
+  logActivityWrap: $("logActivityWrap"),
+  logActivityLed: $("logActivityLed"),
+};
+
+ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+function syncNotifyButtonUi() {
+  if (!ui.btnRequestNotify) return;
+  const supported = "Notification" in window;
+  const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+  if (!supported) {
+    ui.btnRequestNotify.disabled = true;
+    ui.btnRequestNotify.title = "This browser does not support desktop notifications.";
+    if (ui.notifyHint) {
+      ui.notifyHint.textContent = "Not supported in this browser.";
+      ui.notifyHint.hidden = false;
+    }
+    return;
+  }
+  if (!secure) {
+    ui.btnRequestNotify.disabled = true;
+    ui.btnRequestNotify.title =
+      "Desktop notifications require https:// or http://localhost. Run `python -m http.server 5173` and open http://localhost:5173.";
+    if (ui.notifyHint) {
+      ui.notifyHint.textContent = "Requires https:// or http://localhost (not file://).";
+      ui.notifyHint.hidden = false;
+    }
+    return;
+  }
+  ui.btnRequestNotify.disabled = false;
+  const p = Notification.permission;
+  ui.btnRequestNotify.textContent = p === "granted" ? "Test notification" : "Enable notifications";
+  if (ui.notifyHint) ui.notifyHint.hidden = true;
+}
+
+syncNotifyButtonUi();
+
+// -----------------------------
+// Inline editing (settings)
+// -----------------------------
+
+let _swReg = /** @type {ServiceWorkerRegistration|null} */ (null);
+async function ensureServiceWorkerReady() {
+  try {
+    if (!("serviceWorker" in navigator)) return null;
+    if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) return null;
+    if (_swReg) return _swReg;
+    // Register once; ignore failures (e.g. file://, blocked contexts).
+    await navigator.serviceWorker.register("./sw.js");
+    _swReg = await navigator.serviceWorker.ready;
+    return _swReg;
+  } catch {
+    return null;
+  }
+}
+
+function formatBool(b) {
+  return b ? "On" : "Off";
+}
+
+function makeInlineField(inputEl, opts) {
+  const field = inputEl.closest(".field");
+  if (!field) return;
+  if (field.getAttribute("data-inline") === "1") return;
+  field.setAttribute("data-inline", "1");
+
+  const view = document.createElement("div");
+  view.className = "inlineView";
+
+  const val = document.createElement("button");
+  val.type = "button";
+  val.className = "inlineView__value";
+
+  view.appendChild(val);
+
+  const label = field.querySelector(".label");
+  if (label && label.nextSibling) field.insertBefore(view, label.nextSibling);
+  else field.appendChild(view);
+
+  let prev = "";
+
+  const render = () => {
+    const mode = opts?.mode || "text";
+    let s = "";
+    if (mode === "checkbox") s = formatBool(/** @type {HTMLInputElement} */ (inputEl).checked);
+    else s = String(/** @type {HTMLInputElement} */ (inputEl).value || "").trim() || "—";
+    if (typeof opts?.format === "function") s = String(opts.format());
+    val.textContent = s;
+    val.title = s;
+  };
+
+  const enterEdit = () => {
+    prev = inputEl.type === "checkbox" ? String(/** @type {HTMLInputElement} */ (inputEl).checked) : String(inputEl.value ?? "");
+    field.classList.add("field--editing");
+    if (inputEl.type !== "checkbox") {
+      try {
+        inputEl.focus();
+        inputEl.select?.();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const commit = () => {
+    field.classList.remove("field--editing");
+    applyFormToConfig();
+    scheduleAutosave("Saved.");
+    refreshWarningsKpi();
+    updateTimeEstimates();
+    if (running) {
+      if (pollTimer != null) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+    }
+    render();
+  };
+
+  const cancel = () => {
+    field.classList.remove("field--editing");
+    if (inputEl.type === "checkbox") /** @type {HTMLInputElement} */ (inputEl).checked = prev === "true";
+    else inputEl.value = prev;
+    applyFormToConfig();
+    render();
+  };
+
+  val.addEventListener("click", () => {
+    if (opts?.mode === "checkbox") {
+      /** @type {HTMLInputElement} */ (inputEl).checked = !/** @type {HTMLInputElement} */ (inputEl).checked;
+      commit();
+      return;
+    }
+    enterEdit();
+  });
+  view.addEventListener("dblclick", () => {
+    if (opts?.mode === "checkbox") return;
+    enterEdit();
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cancel();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    }
+  });
+  inputEl.addEventListener("blur", () => {
+    if (!field.classList.contains("field--editing")) return;
+    commit();
+  });
+  inputEl.addEventListener("input", () => render());
+  inputEl.addEventListener("change", () => render());
+
+  render();
+}
+
+function wireSettingsInlineEditing() {
+  // Numeric/text fields
+  makeInlineField(ui.inpPollSec);
+  if (ui.inpThresholds) makeInlineField(ui.inpThresholds);
+  makeInlineField(ui.inpWindowPoints);
+
+  // Sound URLs stay editable as-is (power users); show inline view for consistency.
+  makeInlineField(ui.inpWarnSoundUrl, { format: () => ui.warnSoundSummary?.textContent || "—" });
+  makeInlineField(ui.inpCompletionSoundUrl, { format: () => ui.completionSoundSummary?.textContent || "—" });
+  makeInlineField(ui.inpInterruptSoundUrl, { format: () => ui.interruptSoundSummary?.textContent || "—" });
+}
+
+wireSettingsInlineEditing();
+
+function wireSoundAdvancedToggles() {
+  /**
+   * @param {HTMLElement|null} btn
+   * @param {HTMLElement|null} panel
+   * @param {HTMLInputElement|null} focusEl
+   */
+  const wire = (btn, panel, focusEl) => {
+    if (!btn || !panel) return;
+    btn.addEventListener("click", () => {
+      const next = !panel.hidden;
+      panel.hidden = next;
+      try {
+        btn.setAttribute("aria-pressed", (!next).toString());
+      } catch {
+        // ignore
+      }
+      if (!next) {
+        try {
+          focusEl?.focus();
+          focusEl?.select?.();
+        } catch {
+          // ignore
+        }
+      }
+    });
+  };
+
+  wire(ui.btnWarnSoundAdv, ui.warnSoundAdv, ui.inpWarnSoundUrl);
+  wire(ui.btnCompletionSoundAdv, ui.completionSoundAdv, ui.inpCompletionSoundUrl);
+  wire(ui.btnInterruptSoundAdv, ui.interruptSoundAdv, ui.inpInterruptSoundUrl);
+}
+
+wireSoundAdvancedToggles();
+
+const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
+/** @type {"win"|"unix"} */
+let helpPlat = "win";
+
+function setHelpPlat(next) {
+  helpPlat = next === "unix" ? "unix" : "win";
+  try {
+    localStorage.setItem(STORAGE_HELP_PLAT_KEY, helpPlat);
+  } catch {
+    // ignore
+  }
+  updateHelpPlatUi();
+  renderHelpCommandPreview();
+}
+
+function updateHelpPlatUi() {
+  ui.btnHelpPlatWin?.setAttribute("aria-pressed", helpPlat === "win" ? "true" : "false");
+  ui.btnHelpPlatUnix?.setAttribute("aria-pressed", helpPlat === "unix" ? "true" : "false");
+}
+
+function showToast(title, body = "", kind = "info", opts = undefined) {
+  const host = ui.toastHost;
+  if (!host) return;
+  const el = document.createElement("div");
+  const toastMod =
+    kind === "error"
+      ? "toast--error"
+      : kind === "warn"
+        ? "toast--warn"
+        : kind === "ok"
+          ? "toast--ok"
+          : kind === "update"
+            ? "toast--update"
+            : "";
+  el.className = `toast ${toastMod}`.trim();
+  const actionLabel = opts && typeof opts.actionLabel === "string" ? opts.actionLabel : "";
+  el.innerHTML =
+    `<div class="toast__title">${escapeHtml(String(title))}</div>` +
+    (body ? `<div class="toast__body">${escapeHtml(String(body))}</div>` : "") +
+    (actionLabel ? `<div class="toast__actions"><button type="button" class="toast__btn">${escapeHtml(actionLabel)}</button></div>` : "");
+  host.appendChild(el);
+
+  if (actionLabel && opts && typeof opts.onAction === "function") {
+    const btn = el.querySelector(".toast__btn");
+    btn?.addEventListener("click", () => {
+      try {
+        opts.onAction();
+      } finally {
+        try {
+          el.remove();
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }
+
+  const durationMs =
+    opts && opts.durationMs === Infinity
+      ? Infinity
+      : opts && Number.isFinite(opts.durationMs)
+        ? Math.max(800, opts.durationMs)
+        : 2400;
+  let timer = null;
+  if (durationMs !== Infinity) {
+    timer = window.setTimeout(() => {
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
+    }, durationMs);
+  }
+
+  return {
+    remove: () => {
+      if (timer != null) window.clearTimeout(timer);
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
+    },
+  };
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+// -----------------------------
+// App update (same-origin version.json; no backend)
+// -----------------------------
+
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000;
+const UPDATE_CHECK_FIRST_DELAY_MS = 45 * 1000;
+const UPDATE_PROMPT_KEY = "vsqm_update_prompt_version";
+
+/** @returns {null | [number, number, number]} */
+function parseSemver(s) {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(s).trim());
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function isRemoteNewer(remote, local) {
+  const a = parseSemver(remote);
+  const b = parseSemver(local);
+  if (!a || !b) return String(remote) !== String(local);
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
+let updateCheckInFlight = false;
+/** @type {ReturnType<typeof setInterval> | null} */
+let updateIntervalTimer = null;
+let lastVisibilityCheckAt = 0;
+
+async function checkForRemoteUpdate() {
+  if (updateCheckInFlight) return;
+  if (typeof location === "undefined" || location.protocol === "file:") return;
+  updateCheckInFlight = true;
+  try {
+    const url = new URL("./version.json", import.meta.url);
+    url.searchParams.set("_", String(Date.now()));
+    const r = await fetch(url.href, { cache: "no-store" });
+    if (!r.ok) return;
+    const j = await r.json();
+    const remote = j && typeof j.version === "string" ? j.version.trim() : "";
+    if (!remote) return;
+    if (!isRemoteNewer(remote, APP_VERSION)) return;
+    if (sessionStorage.getItem(UPDATE_PROMPT_KEY) === remote) return;
+    sessionStorage.setItem(UPDATE_PROMPT_KEY, remote);
+    showToast(
+      "New version available",
+      `You are on v${APP_VERSION}. The site is serving v${remote}. Reload when convenient.`,
+      "update",
+      {
+        durationMs: 120000,
+        actionLabel: "Reload",
+        onAction: () => location.reload(),
+      },
+    );
+  } catch {
+    // ignore (offline, missing version.json, etc.)
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+
+function startUpdateCheckLoop() {
+  try {
+    if (typeof location === "undefined" || location.protocol === "file:") return;
+  } catch {
+    return;
+  }
+  const kick = () => {
+    window.setTimeout(() => void checkForRemoteUpdate(), UPDATE_CHECK_FIRST_DELAY_MS);
+    if (updateIntervalTimer != null) window.clearInterval(updateIntervalTimer);
+    updateIntervalTimer = window.setInterval(() => void checkForRemoteUpdate(), UPDATE_CHECK_INTERVAL_MS);
+  };
+  if (document.readyState === "complete") kick();
+  else window.addEventListener("load", kick, { once: true });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    const t = Date.now();
+    if (t - lastVisibilityCheckAt < 60_000) return;
+    lastVisibilityCheckAt = t;
+    void checkForRemoteUpdate();
+  });
+}
+
+function openHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = false;
+  try {
+    // Load persisted selection or infer once from platform.
+    try {
+      const saved = localStorage.getItem(STORAGE_HELP_PLAT_KEY);
+      if (saved === "win" || saved === "unix") helpPlat = saved;
+    } catch {
+      // ignore
+    }
+    if (helpPlat !== "win" && helpPlat !== "unix") {
+      const plat = String(navigator.platform || "").toLowerCase();
+      helpPlat = plat.includes("win") ? "win" : "unix";
+    }
+    updateHelpPlatUi();
+
+    // Set a sensible default in the generator if empty.
+    if (ui.inpHelpSourcePath && !ui.inpHelpSourcePath.value) {
+      if (helpPlat === "win") ui.inpHelpSourcePath.value = "%APPDATA%\\VintagestoryData";
+      else ui.inpHelpSourcePath.value = "~/.config/VintagestoryData/Logs/client-main.log";
+    }
+    renderHelpCommandPreview();
+  } catch {
+    // ignore
+  }
+  try {
+    ui.btnHelpClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function closeHelp() {
+  if (!ui.helpOverlay) return;
+  ui.helpOverlay.hidden = true;
+  try {
+    ui.btnHelp?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function openSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = false;
+  try {
+    ui.btnSettingsClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function closeSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = true;
+  try {
+    ui.btnSettings?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function wireHelpOverlay() {
+  ui.btnHelp?.addEventListener("click", () => openHelp());
+  ui.btnHelpClose?.addEventListener("click", () => closeHelp());
+  ui.helpOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.helpOverlay) closeHelp();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
+  });
+
+  ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
+  ui.btnHelpLoadFile?.addEventListener("click", async () => {
+    const expected = String(ui.spanHelpPickPath?.textContent || "").trim();
+    if (expected) {
+      showToast("Load file", `In the picker, select: ${expected}`, "info", { durationMs: 9000 });
+      appendHistory(`Help: expected log path: ${expected}`);
+    }
+    try {
+      await pickLogFile();
+    } catch (e) {
+      appendHistory(`Pick log cancelled/failed: ${String(e)}`);
+    }
+  });
+  ui.btnHelpPlatWin?.addEventListener("click", () => setHelpPlat("win"));
+  ui.btnHelpPlatUnix?.addEventListener("click", () => setHelpPlat("unix"));
+  ui.btnHelpCopyCmd?.addEventListener("click", async () => {
+    const txt = String(ui.preHelpCmd?.textContent || "");
+    if (!txt.trim()) return;
+    try {
+      await navigator.clipboard.writeText(txt);
+      showToast("Copied", "Command copied to clipboard.");
+    } catch {
+      showToast("Copy failed", "Clipboard access was blocked by the browser.", "error");
+    }
+  });
+}
+
+function wireSettingsOverlay() {
+  ui.btnSettings?.addEventListener("click", () => openSettings());
+  ui.btnSettingsClose?.addEventListener("click", () => closeSettings());
+  ui.settingsOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.settingsOverlay) closeSettings();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.settingsOverlay && !ui.settingsOverlay.hidden) closeSettings();
+  });
+}
+
+function normalizeSlashes(s) {
+  return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
+}
+
+/**
+ * Stable 8-char hex id from the pasted source path + kind (same path → same folder name).
+ * @param {string} seedPath
+ * @param {"logs"|"data"|"file"} kind
+ */
+function hashSourcePathForLinkFolder(seedPath, kind) {
+  const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
+  let h = 0x811c9dc5;
+  const str = `${kind}|${p}`;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * @param {"logs"|"data"|"file"} kind
+ * @param {string} seedPath
+ */
+function linkFolderName(kind, seedPath) {
+  return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
+}
+
+/**
+ * Path to the Vintage Story `Logs` folder if `p` contains `\\Logs\\` or ends with `\\Logs`.
+ * @param {string} p
+ * @returns {string|null}
+ */
+function findWindowsLogsFolderRoot(p) {
+  const n = normalizeSlashes(p).replaceAll("/", "\\");
+  if (!n) return null;
+  const lower = n.toLowerCase();
+  const needle = "\\logs\\";
+  const i = lower.lastIndexOf(needle);
+  if (i >= 0) return n.slice(0, i + "\\logs".length);
+  if (lower.endsWith("\\logs")) return n;
+  return null;
+}
+
+/**
+ * Path under `Logs\\` for a file or folder under that logs root, or "" if `fullPath` is exactly `logsRoot`.
+ * @param {string} fullPath
+ * @param {string} logsRoot
+ * @returns {string|null}
+ */
+function winPathRelativeBelowLogs(fullPath, logsRoot) {
+  const f = normalizeSlashes(fullPath).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const lr = normalizeSlashes(logsRoot).replaceAll("/", "\\").replace(/\\+$/g, "");
+  const fl = f.toLowerCase();
+  const lrl = lr.toLowerCase();
+  if (fl === lrl) return "";
+  const root = lr + "\\";
+  if (!fl.startsWith(root.toLowerCase())) return null;
+  return f.slice(root.length).replace(/^\\+/, "");
+}
+
+/**
+ * Destination path for `mklink /H` — one file directly under Documents\vs-queue-monitor (no subfolder).
+ * @param {string} srcLogPath
+ */
+function winHardLinkExposedLogPath(srcLogPath) {
+  const base = srcLogPath.replace(/^.*[\\/]/, "") || "client-main.log";
+  const dot = base.lastIndexOf(".");
+  const stem = dot >= 0 ? base.slice(0, dot) : base;
+  const ext = dot >= 0 ? base.slice(dot) : ".log";
+  const hex = hashSourcePathForLinkFolder(srcLogPath, "file");
+  return `%USERPROFILE%\\Documents\\vs-queue-monitor\\${stem}-${hex}${ext}`;
+}
+
+function renderHelpCommandPreview() {
+  if (!ui.preHelpCmd || !ui.inpHelpSourcePath) return;
+  const raw = normalizeSlashes(ui.inpHelpSourcePath.value);
+  const isWin = helpPlat === "win";
+  const isUnix = helpPlat === "unix";
+  const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
+  // For guidance, always prefer the canonical client log name.
+  const logName = "client-main.log";
+  const setPick = (p) => {
+    if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
+  };
+
+  if (isWin) {
+    const srcIn = raw || "%APPDATA%\\VintagestoryData";
+    const looksLikeLogFile =
+      /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
+    const logsRoot = findWindowsLogsFolderRoot(srcIn);
+
+    // Hard link the log file into Documents (no admin on same volume). Single file under vs-queue-monitor — no subfolder.
+    if (looksLikeLogFile) {
+      const destFile = winHardLinkExposedLogPath(srcIn);
+      let txt =
+        `REM mklink /H is for FILES only (not folders). Second path must be your real client-main.log file.\n` +
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mklink /H "${destFile}" "${srcIn}"`;
+      if (logsRoot) {
+        const leafJ = linkFolderName("logs", logsRoot);
+        const destJ = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leafJ}`;
+        let pickSuffix = logName;
+        const rel = winPathRelativeBelowLogs(srcIn, logsRoot);
+        if (rel !== null && rel.length > 0) pickSuffix = rel;
+        txt +=
+          `\n\n` +
+          `REM If mklink /H fails (file must exist; same drive as Documents), use a folder junction — /J for folders, not /H:\n` +
+          `REM if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+          `REM mklink /J "${destJ}" "${logsRoot}"\n` +
+          `REM Then pick: ${destJ}\\${pickSuffix}`;
+      }
+      ui.preHelpCmd.textContent = txt;
+      setPick(destFile);
+      return;
+    }
+
+    // Folder junction: Logs directory or data root (no .log file pasted).
+    if (logsRoot) {
+      const leaf = linkFolderName("logs", logsRoot);
+      const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+      ui.preHelpCmd.textContent =
+        `REM Folders: use mklink /J only. Do not use mklink /H on a directory (that causes an error).\n` +
+        `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+        `mklink /J "${dest}" "${logsRoot}"`;
+      setPick(`${dest}\\${logName}`);
+      return;
+    }
+
+    const srcDir = srcIn;
+    const leaf = linkFolderName("data", srcDir);
+    const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
+    ui.preHelpCmd.textContent =
+      `REM Folders: mklink /J only. For a single log file under Documents, paste the .log path to get mklink /H instead.\n` +
+      `if not exist "%USERPROFILE%\\Documents\\vs-queue-monitor" mkdir "%USERPROFILE%\\Documents\\vs-queue-monitor"\n` +
+      `mklink /J "${dest}" "${srcDir}"`;
+    setPick(`${dest}\\Logs\\${logName}`);
+    return;
+  }
+
+  if (isUnix) {
+    if (wantsFile) {
+      const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
+      const leaf = linkFolderName("logs", srcFile);
+      ui.preHelpCmd.textContent =
+        `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
+        `ln -s ${srcFile} ~/vs-queue-monitor/${leaf}/${logName}`;
+      setPick(`~/vs-queue-monitor/${leaf}/${logName}`);
+      return;
+    }
+    const srcDir = raw || "~/.config/VintagestoryData";
+    const leaf = linkFolderName("data", srcDir);
+    ui.preHelpCmd.textContent =
+      `mkdir -p ~/vs-queue-monitor/${leaf}\n` +
+      `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/${leaf}/${logName}`;
+    setPick(`~/vs-queue-monitor/${leaf}/${logName}`);
+    return;
+  }
+
+  ui.preHelpCmd.textContent =
+    "Open this app in Edge/Chrome.\n" +
+    "If the picker is blocked, paste your real VS data/log path above to generate a junction/symlink command.";
+  setPick("");
+}
+
+// -----------------------------
+// Parsing (ported from core.py)
+// -----------------------------
+
+const QUEUE_RE = new RegExp(
+  "(?:" +
+    "client\\s+is\\s+in\\s+connect\\s+queue\\s+at\\s+position" +
+    "|your\\s+position\\s+in\\s+the\\s+queue\\s+is" +
+    ")\\D*(\\d+)",
+  "gi",
+);
+
+/**
+ * @param {string} line
+ * @returns {number|null}
+ */
+function queuePositionFromLine(line) {
+  const matches = [...line.matchAll(QUEUE_RE)];
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const m = matches[i];
+    const after = line.slice(m.index + m[0].length).trimStart();
+    if (after.startsWith("%")) continue;
+    const n = Number.parseInt(m[1] ?? "", 10);
+    if (Number.isFinite(n)) return n;
+    return null;
+  }
+  return null;
+}
+
+const DISCONNECTED_LINE_RES = [
+  /\bdisconnected\s+by\s+the\s+server\b/i,
+  /\bexiting\s+current\s+game\s+to\s+disconnected\s+screen\b/i,
+  /\bconnection\s+closed\s+unexpectedly\b/i,
+  /\bforcibly\s+closed\s+by\s+the\s+remote\s+host\b/i,
+  /\b(?:connection|connect)\s+(?:to\s+(?:the\s+)?)?(?:server\s+)?(?:lost|closed|failed|aborted|reset|refused|timed\s*out)\b/i,
+  /\b(?:lost|closed)\s+connection\b/i,
+  /\bdisconnect(?:ed|ing)?\b/i,
+  /\bconnection\s+kicked\b/i,
+  /\bkicked\s+from\b/i,
+  /\b(?:was|been)\s+disconnected\b/i,
+];
+
+const GRACE_DISCONNECT_LINE_RES = [
+  /\bconnection\s+closed\s+unexpectedly\b/i,
+  /\bforcibly\s+closed\s+by\s+the\s+remote\s+host\b/i,
+  /\b(?:lost|closed)\s+connection\b/i,
+  /\b(?:connection|connect)\s+(?:to\s+(?:the\s+)?)?(?:server\s+)?(?:lost|closed|failed|aborted|reset|refused|timed\s*out)\b/i,
+];
+
+const FINAL_CRASH_LINE_RES = [
+  /destroying\s+game\s+session/i,
+  /waiting\s+up\s+to\s+\d+\s*ms\s+for\s+client\s+threads\s+to\s+exit/i,
+];
+
+const RECONNECTING_LINE_RES = [
+  /\bconnecting\s+to\s+/i,
+  /\binitialized\s+server\s+connection\b/i,
+  /\bopening\s+connection\b/i,
+  /\btrying\s+to\s+connect\b/i,
+];
+
+const POST_QUEUE_PROGRESS_LINE_RES = [
+  /loading\s+and\s+pre-starting\s+client\s*-?\s*side\s+mods/i,
+  /\bpre-starting\s+client\s*-?\s*side\s+mods\b/i,
+  /\bloading\s+client\s*-?\s*side\s+mods\b/i,
+  /connected\s+to\s+server.*download/i,
+  /\bdownloading\s+(?:data|assets|world|chunks|map|mod)\b/i,
+  /\b(?:world|game)\s+loaded\b/i,
+  /\bentering\s+(?:the\s+)?(?:world|game)\b/i,
+  /\bjoined\s+(?:the\s+)?(?:world|game|server)\b/i,
+  /\b(?:ok|okay),?\s+spawn/i,
+  /\bspawn(?:ed|ing)?\s+(?:at|in|near)\b/i,
+];
+
+const QUEUE_RUN_BOUNDARY_RES = [
+  /\breconnect(?:ing|ed)?\b/i,
+  /\b(?:connection|connect)\s+(?:to\s+(?:the\s+)?)?(?:server\s+)?(?:lost|closed|failed|aborted|reset|refused|timed\s*out)\b/i,
+  /\b(?:lost|closed)\s+connection\b/i,
+  /\bdisconnect(?:ed|ing)?\b/i,
+  /\bopening\s+connection\b/i,
+  /\bconnecting\s+to\s+/i,
+  /\binitialized\s+server\s+connection\b/i,
+  /\btrying\s+to\s+connect\b/i,
+  /\breturned\s+to\s+(?:the\s+)?main\s+menu\b/i,
+  /\b(?:server|client)\s+shut\s+down\b/i,
+];
+
+/**
+ * @param {string} line
+ */
+function isQueueRunBoundaryLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  return QUEUE_RUN_BOUNDARY_RES.some((r) => r.test(s));
+}
+
+/**
+ * @param {string} line
+ */
+function isGraceDisconnectLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  return GRACE_DISCONNECT_LINE_RES.some((r) => r.test(s));
+}
+
+/**
+ * @param {string} line
+ */
+function isFinalCrashLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  return FINAL_CRASH_LINE_RES.some((r) => r.test(s));
+}
+
+/**
+ * @param {string} line
+ */
+function isReconnectingLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  return RECONNECTING_LINE_RES.some((r) => r.test(s));
+}
+
+/**
+ * @param {string} line
+ */
+function isDisconnectedLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  return DISCONNECTED_LINE_RES.some((r) => r.test(s));
+}
+
+/**
+ * @param {string} line
+ */
+function isHardDisconnectLine(line) {
+  const s = line.trim();
+  if (!s) return false;
+  if (queuePositionFromLine(s) != null) return false;
+  if (isGraceDisconnectLine(s) || isFinalCrashLine(s)) return false;
+  return isDisconnectedLine(s);
+}
+
+/**
+ * @param {string} s
+ */
+function isPostQueueProgressLine(s) {
+  const t = s.trim();
+  if (!t) return false;
+  if (queuePositionFromLine(t) != null) return false;
+  return POST_QUEUE_PROGRESS_LINE_RES.some((r) => r.test(t));
+}
+
+/**
+ * @param {string} data
+ */
+function tailHasPostQueueAfterLastQueueLine(data) {
+  const lines = data.split(/\r?\n/);
+  let lastQ = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (queuePositionFromLine(lines[i]) != null) lastQ = i;
+  }
+  if (lastQ < 0) return false;
+  for (const line of lines.slice(lastQ + 1)) {
+    if (isPostQueueProgressLine(line)) return true;
+  }
+  return false;
+}
+
+/**
+ * @param {string} data
+ * @returns {{ kind: "disconnected"|"reconnecting"|"grace"|"queue"|"unknown", lastPos: number|null }}
+ */
+function classifyTailConnectionState(data) {
+  /** @type {"disconnected"|"reconnecting"|"grace"|"queue"|"unknown"} */
+  let lastKind = "unknown";
+  /** @type {number|null} */
+  let lastPos = null;
+
+  for (const line of data.split(/\r?\n/)) {
+    const s = line.trim();
+    if (!s) continue;
+    const pos = queuePositionFromLine(s);
+    if (pos != null) {
+      lastPos = pos;
+      lastKind = "queue";
+      continue;
+    }
+    if (isReconnectingLine(s)) {
+      lastKind = "reconnecting";
+      continue;
+    }
+    if (isFinalCrashLine(s)) {
+      lastKind = "disconnected";
+      continue;
+    }
+    if (isGraceDisconnectLine(s)) {
+      lastKind = "grace";
+      continue;
+    }
+    if (isHardDisconnectLine(s)) {
+      lastKind = "disconnected";
+      continue;
+    }
+  }
+
+  return { kind: lastKind, lastPos };
+}
+
+/**
+ * @param {string} data
+ * @returns {{ lastPos: number|null, session: number }}
+ */
+function parseTailLastQueueReading(data) {
+  /** @type {number|null} */
+  let lastPos = null;
+  let session = 0;
+  let lastSess = 0;
+  for (const line of data.split(/\r?\n/)) {
+    if (isQueueRunBoundaryLine(line)) {
+      session += 1;
+      continue;
+    }
+    const pos = queuePositionFromLine(line);
+    if (pos == null) continue;
+    lastPos = pos;
+    lastSess = session;
+  }
+  return { lastPos, session: lastSess };
+}
+
+const TS_RE = /^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\b/;
+
+/**
+ * @param {string} line
+ * @returns {number|null} epoch seconds
+ */
+function parseLogTimestampEpoch(line) {
+  const m = TS_RE.exec(line);
+  if (!m) return null;
+  const d = Number.parseInt(m[1], 10);
+  const mo = Number.parseInt(m[2], 10);
+  const y = Number.parseInt(m[3], 10);
+  const hh = Number.parseInt(m[4], 10);
+  const mm = Number.parseInt(m[5], 10);
+  const ss = Number.parseInt(m[6], 10);
+  if (![d, mo, y, hh, mm, ss].every(Number.isFinite)) return null;
+  const dt = new Date(y, mo - 1, d, hh, mm, ss);
+  const t = dt.getTime() / 1000;
+  if (!Number.isFinite(t)) return null;
+  return t;
+}
+
+/**
+ * @param {string} data
+ * @returns {number|null}
+ */
+function parseTailLastQueueLineEpoch(data) {
+  /** @type {number|null} */
+  let lastT = null;
+  for (const line of data.split(/\r?\n/)) {
+    if (queuePositionFromLine(line) == null) continue;
+    const t = parseLogTimestampEpoch(line);
+    lastT = t ?? (Date.now() / 1000);
+  }
+  return lastT;
+}
+
+/**
+ * Keep only the **current queue run** in a loaded chunk: same session model as {@link parseTailLastQueueReading}
+ * (boundaries: reconnect, disconnect, main menu, new connection attempt, etc.). Works for a full file or a tail slice;
+ * session indices are relative to the start of `data`.
+ * @param {string} data
+ */
+function sliceLoadedLogToCurrentQueueRun(data) {
+  if (!data) return data;
+  const lines = data.split(/\r?\n/);
+  if (lines.length === 0) return data;
+  const sessionBeforeLine = new Array(lines.length);
+  let s = 0;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = s;
+    if (isQueueRunBoundaryLine(lines[i])) s++;
+  }
+  let lastQIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (queuePositionFromLine(lines[i]) != null) lastQIdx = i;
+  }
+  if (lastQIdx < 0) return data;
+  const targetSess = sessionBeforeLine[lastQIdx];
+  let startIdx = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (sessionBeforeLine[i] === targetSess) {
+      startIdx = i;
+      break;
+    }
+  }
+  return lines.slice(startIdx).join("\n");
+}
+
+/**
+ * @param {string} raw
+ * @returns {number[]}
+ */
+function parseAlertThresholds(raw) {
+  const parts = raw.replaceAll(",", " ").split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {
+    const n = Number.parseInt(p, 10);
+    if (!Number.isFinite(n)) throw new Error("Warning thresholds must be numbers (e.g. 10, 5, 1).");
+    if (n < 1) throw new Error(`Warning threshold ${n} must be >= 1.`);
+    out.push(n);
+  }
+  if (out.length === 0) throw new Error("Add at least one warning threshold (e.g. 10, 5, 1).");
+  const uniq = [...new Set(out)];
+  uniq.sort((a, b) => b - a);
+  return uniq;
+}
+
+// -----------------------------
+// State + config
+// -----------------------------
+
+const STORAGE_KEY = "vsqm_web_config_v1";
+const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
+/** Display metadata for the last successfully opened log (name + how it was chosen). Browsers do not expose real paths to pages. */
+const STORAGE_LAST_LOG_META_KEY = "vsqm_last_log_meta_v1";
+const IDB_HANDLES_NAME = "vsqm_handles_v1";
+const IDB_HANDLES_STORE = "handles";
+const IDB_LOG_FILE_KEY = "logFile";
+
+// Debounced auto-save (mirrors the old app’s “save shortly after change” feel).
+let _autosaveTimer = /** @type {number|null} */ (null);
+function scheduleAutosave(note = "") {
+  if (_autosaveTimer != null) window.clearTimeout(_autosaveTimer);
+  _autosaveTimer = window.setTimeout(() => {
+    _autosaveTimer = null;
+    try {
+      saveConfig();
+      void syncSoundSummaries();
+      if (note) showSettingsNote(note);
+    } catch {
+      // ignore
+    }
+  }, 450);
+}
+
+function applyFormToConfig() {
+  const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
+  const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
+  // Validate thresholds but only throw if the user explicitly saves.
+  config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
+  config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
+  if (ui.inpThresholds) config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
+  config.logEveryChange = ui.chkLogEveryChange.checked;
+  config.warnNotify = ui.chkWarnNotify.checked;
+  config.warnSound = ui.chkWarnSound.checked;
+  config.completionNotify = ui.chkCompletionNotify.checked;
+  config.completionSound = ui.chkCompletionSound.checked;
+  config.interruptNotify = ui.chkInterruptNotify.checked;
+  config.interruptSound = ui.chkInterruptSound.checked;
+  config.warnSoundUrl = ui.inpWarnSoundUrl.value.trim();
+  config.completionSoundUrl = ui.inpCompletionSoundUrl.value.trim();
+  config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
+  // graphLiveWindow is controlled by a button (not a form field).
+  ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
+}
+
+/**
+ * @typedef {{
+ *   pollSec: number,
+ *   thresholdsRaw: string,
+ *   windowPoints: number,
+ *   logEveryChange: boolean,
+ *   warnNotify: boolean,
+ *   warnSound: boolean,
+ *   completionNotify: boolean,
+ *   completionSound: boolean,
+ *   interruptNotify: boolean,
+ *   interruptSound: boolean,
+ *   warnSoundUrl: string,
+ *   warnSoundFileName: string,
+ *   completionSoundUrl: string,
+ *   completionSoundFileName: string,
+ *   interruptSoundUrl: string,
+ *   interruptSoundFileName: string,
+ *   graphLogScale: boolean,
+ *   graphLiveWindow: boolean
+ * }} AppConfig
+ */
+
+/** @type {AppConfig} */
+let config = {
+  pollSec: 2,
+  thresholdsRaw: "10, 5, 1",
+  windowPoints: 10,
+  logEveryChange: true,
+  warnNotify: true,
+  warnSound: true,
+  completionNotify: true,
+  completionSound: true,
+  interruptNotify: true,
+  interruptSound: true,
+  warnSoundUrl: "",
+  warnSoundFileName: "",
+  completionSoundUrl: "",
+  completionSoundFileName: "",
+  interruptSoundUrl: "",
+  interruptSoundFileName: "",
+  graphLogScale: false,
+  graphLiveWindow: false,
+};
+
+function loadConfig() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      config = {
+        ...config,
+        ...obj,
+      };
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveConfig() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+function syncConfigToForm() {
+  ui.inpPollSec.value = String(config.pollSec);
+  if (ui.inpThresholds) ui.inpThresholds.value = String(config.thresholdsRaw);
+  ui.inpWindowPoints.value = String(config.windowPoints);
+  ui.chkLogEveryChange.checked = !!config.logEveryChange;
+  ui.chkWarnNotify.checked = !!config.warnNotify;
+  ui.chkWarnSound.checked = !!config.warnSound;
+  ui.chkCompletionNotify.checked = !!config.completionNotify;
+  ui.chkCompletionSound.checked = !!config.completionSound;
+  ui.chkInterruptNotify.checked = !!config.interruptNotify;
+  ui.chkInterruptSound.checked = !!config.interruptSound;
+  ui.inpWarnSoundUrl.value = config.warnSoundUrl ?? "";
+  ui.inpCompletionSoundUrl.value = config.completionSoundUrl ?? "";
+  ui.inpInterruptSoundUrl.value = config.interruptSoundUrl ?? "";
+  ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
+  if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
+  ui.kpiRateLabel.textContent = `RATE (Rolling ${config.windowPoints})`;
+}
+
+function showSettingsNote(text, isError = false) {
+  ui.settingsNote.textContent = text;
+  ui.settingsNote.classList.toggle("danger", isError);
+  if (text) setTimeout(() => showSettingsNote("", false), 4000);
+}
+
+// -----------------------------
+// History + notifications + sound
+// -----------------------------
+
+/** @type {string[]} */
+let history = [];
+
+function nowStamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function appendHistory(msg) {
+  history.push(`[${nowStamp()}] ${msg}`);
+  if (history.length > 600) history = history.slice(-600);
+  ui.historyPre.textContent = history.join("\n");
+  ui.historyPre.scrollTop = ui.historyPre.scrollHeight;
+}
+
+/** One-time capability warning so users know why OS banners didn't appear. */
+let _desktopNotifyHintShown = false;
+function desktopNotifyCapabilityHint() {
+  if (_desktopNotifyHintShown) return;
+  _desktopNotifyHintShown = true;
+  try {
+    if (!("Notification" in window)) {
+      showToast("Desktop notifications unavailable", "This browser does not support system notifications.", "warn", { durationMs: 12000 });
+      return;
+    }
+    const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+    if (!secure) {
+      appendNotifyDiagnostics("Notification blocked (origin):");
+      showToast(
+        "Desktop notifications are blocked here",
+        "Browsers only allow system notifications on secure pages (https://) or localhost. Open this app via http://localhost (e.g. `python -m http.server 5173`, then visit http://localhost:5173) and click Enable notifications.",
+        "warn",
+        { durationMs: 16000 },
+      );
+      return;
+    }
+    if (Notification.permission === "denied") {
+      appendNotifyDiagnostics("Notification blocked (denied):");
+      showToast(
+        "Desktop notifications blocked",
+        "Unblock notifications in the browser’s site settings (lock icon in the address bar), then click Enable notifications again.",
+        "warn",
+        { durationMs: 16000 },
+      );
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      appendNotifyDiagnostics("Notification not enabled:");
+      showToast(
+        "Desktop notifications not enabled for this page",
+        `Permission for this page is "${Notification.permission}". Click Enable notifications in the Info card to allow system notifications (toasts still work without this).`,
+        "info",
+        { durationMs: 14000 },
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Desktop notification (optional). Toasts in `raiseAlert` / `maybeNotifyCompletion` work without permission.
+ * @param {"threshold"|"completion"} kind
+ * @param {string} title
+ * @param {string} body
+ */
+function notifyDesktop(kind, title, body) {
+  if (kind === "threshold" && !config.warnNotify) return;
+  if (kind === "completion" && !config.completionNotify) return;
+  if (kind === "interrupt" && !config.interruptNotify) return;
+  // Do not spam capability toasts on alerts. We show a one-time hint on page load and keep the UI hint near the button.
+  if (!("Notification" in window)) return;
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) return;
+  if (Notification.permission !== "granted") return;
+  const opts = {
+    body,
+    silent: true,
+    icon: NOTIFICATION_ICON_URL,
+    tag:
+      kind === "threshold"
+        ? "vsqm-threshold"
+        : kind === "completion"
+          ? "vsqm-completion"
+          : "vsqm-interrupt",
+    renotify: true,
+    requireInteraction: true,
+  };
+  (async () => {
+    try {
+      const reg = await ensureServiceWorkerReady();
+      if (reg && typeof reg.showNotification === "function") {
+        // @ts-ignore options include requireInteraction in modern Chromium
+        await reg.showNotification(title, opts);
+        return;
+      }
+      // Fallback
+      // @ts-ignore requireInteraction not in older libdefs.
+      new Notification(title, opts);
+    } catch (e) {
+      appendNotifyDiagnostics("Notification delivery failed:");
+      appendHistory(`Notification delivery failed: ${String(e)}`);
+      showToast(
+        "Desktop notification failed to deliver",
+        "Permission is granted, but the browser/OS suppressed or blocked delivery. Check Windows notification settings for your browser (and Notification Center).",
+        "warn",
+        { durationMs: 16000 },
+      );
+    }
+  })();
+}
+
+// One-time, non-spammy hint on page load (if notifications aren't ready).
+(() => {
+  const kick = () => desktopNotifyCapabilityHint();
+  if (document.readyState === "complete") kick();
+  else window.addEventListener("load", kick, { once: true });
+})();
+
+function appendNotifyDiagnostics(prefix) {
+  try {
+    const diag = {
+      perm: "Notification" in window ? Notification.permission : "unsupported",
+      secure: typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false,
+      proto: typeof location !== "undefined" ? location.protocol : "",
+      vis: typeof document !== "undefined" ? document.visibilityState : "",
+      focus: typeof document !== "undefined" ? document.hasFocus?.() : null,
+    };
+    appendHistory(`${prefix} ${JSON.stringify(diag)}`);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Test notifications are frequently suppressed while focused / by Windows settings.
+ * This sends multiple pings spaced out and keeps them visible longer where supported.
+ */
+function showTestDesktopNotification() {
+  appendNotifyDiagnostics("Notification test:");
+  /** @type {Array<{title:string, body:string, delayMs:number}>} */
+  const msgs = [
+    { title: "VS Queue Monitor", body: "Test notification 1/3. If you don’t see a banner, check Notification Center.", delayMs: 0 },
+    { title: "VS Queue Monitor", body: "Test notification 2/3. Windows may suppress banners while this tab is focused.", delayMs: 900 },
+    { title: "VS Queue Monitor", body: "Test notification 3/3. Ensure Windows notifications for your browser are enabled.", delayMs: 1800 },
+  ];
+
+  const sendOne = (i) => {
+    const m = msgs[i];
+    // Prefer the same codepath as real alerts.
+    notifyDesktop("threshold", m.title, m.body);
+  };
+
+  for (let i = 0; i < msgs.length; i++) {
+    window.setTimeout(() => sendOne(i), msgs[i].delayMs);
+  }
+}
+
+/** @type {AudioContext|null} */
+let audioCtx = null;
+
+/** Soft sine chimes: used as fallback (and optional built-in sound). */
+function beepBuiltin(kind) {
+  try {
+    audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = audioCtx;
+    void ctx.resume();
+
+    const master = ctx.createGain();
+    master.gain.value = 0.72;
+    master.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    /**
+     * @param {number} freqHz
+     * @param {number} t0
+     * @param {number} durSec
+     * @param {number} peak linear ~0..0.14
+     */
+    const tone = (freqHz, t0, durSec, peak) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(freqHz, t0);
+      const atk = Math.min(0.022, durSec * 0.22);
+      const rel = Math.min(0.12, durSec * 0.45);
+      const peakT = t0 + atk;
+      const endT = t0 + durSec;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), peakT);
+      g.gain.exponentialRampToValueAtTime(0.0001, endT);
+      o.connect(g);
+      g.connect(master);
+      o.start(t0);
+      o.stop(endT + 0.04);
+    };
+
+    if (kind === "warning") {
+      // Ascending perfect fifth (C5 → G5): clear, not harsh.
+      tone(523.25, now, 0.12, 0.1);
+      tone(783.99, now + 0.13, 0.14, 0.095);
+    } else if (kind === "completion") {
+      // C major arpeggio (C5–E5–G5–C6): short celebratory swell.
+      tone(523.25, now, 0.2, 0.1);
+      tone(659.25, now + 0.1, 0.22, 0.095);
+      tone(783.99, now + 0.2, 0.24, 0.09);
+      tone(1046.5, now + 0.3, 0.32, 0.085);
+    } else {
+      // Interrupt: descending minor third (E5 → C5): noticeable but not harsh.
+      tone(659.25, now, 0.14, 0.1);
+      tone(523.25, now + 0.16, 0.2, 0.095);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// -----------------------------
+// File access
+// -----------------------------
+
+/** @type {FileSystemFileHandle|null} */
+let logFileHandle = null;
+/** @type {string|null} */
+let sourceLabel = null;
+
+const TAIL_BYTES = 128 * 1024;
+/** First read after pick: load up to this many bytes for buffer + full graph replay (whole file if smaller). */
+const INITIAL_FULL_READ_MAX_BYTES = 12 * 1024 * 1024;
+const MAX_READ_BYTES_PER_POLL = 512 * 1024;
+const BUFFER_MAX_CHARS = 400_000;
+
+/** @type {number|null} */
+let lastReadOffset = null;
+/** @type {string|null} */
+let pendingGraphReplayText = null;
+/** Saved handle when read permission is still "prompt" after reload (browsers often require a user gesture). */
+/** @type {FileSystemFileHandle|null} */
+let pendingRestoreHandle = null;
+/** @type {boolean} */
+let restoreInProgress = false;
+/** @type {string} */
+let logBuffer = "";
+const QUEUE_RESET_JUMP_THRESHOLD = 10;
+/** Min seconds between threshold alerts (debounce duplicate polls; keep low enough to allow distinct milestones). */
+const ALERT_MIN_INTERVAL_SEC = 5.0;
+const COMPLETION_NOTIFY_MIN_INTERVAL_SEC = 2.0;
+const QUEUE_UPDATE_INTERVAL_SEC = 30.0;
+const QUEUE_STALE_TIMEOUT_MULT = 2.0;
+const LOG_SILENCE_RECONNECT_SEC = 30.0;
+
+/**
+ * @param {ArrayBuffer} buf
+ * @param {number} startOffset
+ */
+function decodeLogBytes(buf, startOffset) {
+  if (!buf || buf.byteLength === 0) return "";
+  const bytes = new Uint8Array(buf);
+  const sample = bytes.slice(0, Math.min(4096, bytes.length));
+  let nul = 0;
+  for (const b of sample) if (b === 0) nul++;
+  const nulRatio = nul / Math.max(1, sample.length);
+
+  if (nulRatio > 0.05) {
+    // Ensure 2-byte alignment if sliced mid-file
+    let aligned = bytes;
+    if (startOffset % 2 === 1 && aligned.length > 1) aligned = aligned.slice(1);
+    for (const enc of ["utf-16le", "utf-16be", "utf-16"]) {
+      try {
+        return new TextDecoder(enc, { fatal: false }).decode(aligned);
+      } catch {
+        // continue
+      }
+    }
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {number} tailBytes
+ */
+async function readLogRangeText(handle, start, end) {
+  const file = await handle.getFile();
+  const safeStart = Math.max(0, Math.min(start, file.size));
+  const safeEnd = Math.max(safeStart, Math.min(end, file.size));
+  const slice = file.slice(safeStart, safeEnd);
+  const buf = await slice.arrayBuffer();
+  return decodeLogBytes(buf, safeStart);
+}
+
+async function readLogTailText(handle, tailBytes) {
+  const file = await handle.getFile();
+  const size = file.size;
+  const start = Math.max(0, size - tailBytes);
+  return await readLogRangeText(handle, start, size);
+}
+
+/**
+ * @param {FileSystemDirectoryHandle} dir
+ * @param {string[]} names
+ */
+async function tryGetFirstExistingFile(dir, names) {
+  for (const name of names) {
+    try {
+      const fh = await dir.getFileHandle(name);
+      if (fh) return fh;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+/** Shell Link (.lnk) header: first DWORD is header size 0x0000004C. */
+function fileHeadLooksLikeWindowsLnk(headBytes) {
+  if (!headBytes || headBytes.byteLength < 4) return false;
+  const u8 = new Uint8Array(headBytes);
+  return u8[0] === 0x4c && u8[1] === 0 && u8[2] === 0 && u8[3] === 0;
+}
+
+/**
+ * Windows "Create shortcut" makes a .lnk shell file, not a second path to the log bytes.
+ * The File System Access API reads that tiny binary — queue detection sees garbage. Warn clearly.
+ * @param {FileSystemFileHandle|null} handle
+ */
+async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
+  if (!handle) return;
+  try {
+    const file = await handle.getFile();
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".lnk")) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This is a Windows .lnk shell shortcut, not the log. The app would read link metadata, not client-main.log. Delete it and use Copy, or run the ? command that uses mklink /H (hard link) in cmd.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: .lnk shortcuts do not work — use a hard link (mklink /H from Help) or copy client-main.log.",
+      );
+      return;
+    }
+    const head = await file.slice(0, 64).arrayBuffer();
+    if (fileHeadLooksLikeWindowsLnk(head)) {
+      showToast(
+        "Wrong kind of shortcut",
+        "This file is a Windows shell link (.lnk), even if renamed. Browsers cannot follow .lnk to the real log. Use mklink /H from ? (cmd) or copy the file.",
+        "error",
+        { actionLabel: "Guide", onAction: () => openHelp(), durationMs: 16000 },
+      );
+      appendHistory(
+        "Picker: file header looks like .lnk — not plain log text. Use mklink /H or a file copy under Documents.",
+      );
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @returns {Promise<IDBDatabase>}
+ */
+function openLogHandlesDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_HANDLES_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_HANDLES_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ */
+async function idbPutLogFileHandle(handle) {
+  const db = await openLogHandlesDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_HANDLES_STORE, "readwrite");
+    tx.oncomplete = () => resolve(undefined);
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(IDB_HANDLES_STORE).put(handle, IDB_LOG_FILE_KEY);
+  });
+  db.close();
+}
+
+/**
+ * @returns {Promise<FileSystemFileHandle|undefined>}
+ */
+async function idbGetLogFileHandle() {
+  const db = await openLogHandlesDb();
+  const handle = await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_HANDLES_STORE, "readonly");
+    const r = tx.objectStore(IDB_HANDLES_STORE).get(IDB_LOG_FILE_KEY);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  db.close();
+  return handle;
+}
+
+async function idbDeleteLogFileHandle() {
+  try {
+    const db = await openLogHandlesDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_HANDLES_STORE, "readwrite");
+      tx.oncomplete = () => resolve(undefined);
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore(IDB_HANDLES_STORE).delete(IDB_LOG_FILE_KEY);
+    });
+    db.close();
+  } catch {
+    // ignore
+  }
+}
+
+const IDB_SOUNDS_NAME = "vsqm_sounds_v1";
+const IDB_SOUNDS_STORE = "blobs";
+
+/**
+ * @returns {Promise<IDBDatabase>}
+ */
+function openSoundsDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_SOUNDS_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_SOUNDS_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ * @param {Blob} blob
+ */
+async function idbPutSoundBlob(key, blob) {
+  const db = await openSoundsDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_SOUNDS_STORE, "readwrite");
+    tx.oncomplete = () => resolve(undefined);
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(IDB_SOUNDS_STORE).put(blob, key);
+  });
+  db.close();
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ * @returns {Promise<Blob|undefined>}
+ */
+async function idbGetSoundBlob(key) {
+  try {
+    const db = await openSoundsDb();
+    const blob = await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SOUNDS_STORE, "readonly");
+      const r = tx.objectStore(IDB_SOUNDS_STORE).get(key);
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    db.close();
+    return /** @type {Blob|undefined} */ (blob);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * @param {"warn"|"completion"} key
+ */
+async function idbDeleteSoundBlob(key) {
+  try {
+    const db = await openSoundsDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SOUNDS_STORE, "readwrite");
+      tx.oncomplete = () => resolve(undefined);
+      tx.onerror = () => reject(tx.error);
+      tx.objectStore(IDB_SOUNDS_STORE).delete(key);
+    });
+    db.close();
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Best-effort: cache shipped default sounds in IndexedDB so they play reliably even
+ * after reloads and in offline-ish scenarios. This does NOT autoplay audio.
+ */
+async function warmDefaultSoundsCache() {
+  /**
+   * @param {"warn"|"completion"|"interrupt"} key
+   * @param {string} url
+   */
+  const ensure = async (key, url) => {
+    const existing = await idbGetSoundBlob(key);
+    if (existing) return;
+    try {
+      const r = await fetch(url, { cache: "force-cache" });
+      if (!r.ok) return;
+      const blob = await r.blob();
+      if (!blob || blob.size < 16) return;
+      await idbPutSoundBlob(key, blob);
+    } catch {
+      // ignore
+    }
+  };
+  await Promise.all([
+    ensure("warn", DEFAULT_WARN_SOUND_URL),
+    ensure("completion", DEFAULT_COMPLETION_SOUND_URL),
+    ensure("interrupt", DEFAULT_INTERRUPT_SOUND_URL),
+  ]);
+};
+
+/**
+ * @param {string} s
+ * @param {number} [max]
+ */
+function truncateUrl(s, max = 56) {
+  if (s.length <= max) return s;
+  return s.slice(0, Math.max(0, max - 1)) + "…";
+}
+
+/**
+ * @param {"warn"|"completion"|"interrupt"} kind
+ * @param {Blob|undefined} blob
+ */
+function soundSummaryLine(kind, blob) {
+  const fileName =
+    kind === "warn" ? config.warnSoundFileName : kind === "completion" ? config.completionSoundFileName : config.interruptSoundFileName;
+  const urlStr =
+    kind === "warn" ? config.warnSoundUrl?.trim() : kind === "completion" ? config.completionSoundUrl?.trim() : config.interruptSoundUrl?.trim();
+  const def =
+    kind === "warn" ? DEFAULT_WARN_SOUND_URL : kind === "completion" ? DEFAULT_COMPLETION_SOUND_URL : DEFAULT_INTERRUPT_SOUND_URL;
+  if (blob) return `Using: local file (${fileName || "saved in browser"})`;
+  if (urlStr === "builtin") return "Using: built-in sine tones";
+  if (!urlStr) return `Using: default clip (${def})`;
+  return `Using: ${truncateUrl(urlStr)}`;
+}
+
+async function syncSoundSummaries() {
+  const wBlob = await idbGetSoundBlob("warn");
+  const cBlob = await idbGetSoundBlob("completion");
+  const iBlob = await idbGetSoundBlob("interrupt");
+  ui.warnSoundSummary.textContent = soundSummaryLine("warn", wBlob);
+  ui.completionSoundSummary.textContent = soundSummaryLine("completion", cBlob);
+  ui.interruptSoundSummary.textContent = soundSummaryLine("interrupt", iBlob);
+  ui.btnClearWarnSoundFile.hidden = !wBlob && !config.warnSoundFileName;
+  ui.btnClearCompletionSoundFile.hidden = !cBlob && !config.completionSoundFileName;
+  ui.btnClearInterruptSoundFile.hidden = !iBlob && !config.interruptSoundFileName;
+}
+
+/**
+ * @param {"warning"|"completion"} kind
+ */
+async function playSoundAsync(kind, opts = undefined) {
+  const force = !!opts?.force;
+  if (!force) {
+    if (kind === "warning" && !config.warnSound) return;
+    if (kind === "completion" && !config.completionSound) return;
+    if (kind === "interrupt" && !config.interruptSound) return;
+  }
+  const key = kind === "warning" ? "warn" : kind === "completion" ? "completion" : "interrupt";
+  const defaultUrl =
+    kind === "warning" ? DEFAULT_WARN_SOUND_URL : kind === "completion" ? DEFAULT_COMPLETION_SOUND_URL : DEFAULT_INTERRUPT_SOUND_URL;
+  try {
+    const blob = await idbGetSoundBlob(key);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = new Audio(url);
+      a.onended = () => URL.revokeObjectURL(url);
+      await a.play();
+      return;
+    }
+    const urlStr =
+      kind === "warning" ? config.warnSoundUrl?.trim() : kind === "completion" ? config.completionSoundUrl?.trim() : config.interruptSoundUrl?.trim();
+    if (urlStr === "builtin") {
+      beepBuiltin(kind === "warning" ? "warning" : "completion");
+      return;
+    }
+    const src = urlStr || defaultUrl;
+    const a = new Audio(src);
+    await a.play();
+  } catch {
+    beepBuiltin(kind === "warning" ? "warning" : "completion");
+  }
+}
+
+/**
+ * @param {"warning"|"completion"} kind
+ */
+function beep(kind) {
+  void playSoundAsync(kind);
+}
+
+/**
+ * Preview sound from Settings (ignores the enable toggles).
+ * @param {"warning"|"completion"} kind
+ */
+function previewSound(kind) {
+  void playSoundAsync(kind, { force: true });
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {string} sourceLabel_
+ * @param {{ name: string }} meta
+ */
+async function saveLastLogToStorage(handle, sourceLabel_, meta) {
+  try {
+    await idbPutLogFileHandle(handle);
+  } catch {
+    return;
+  }
+  try {
+    localStorage.setItem(
+      STORAGE_LAST_LOG_META_KEY,
+      JSON.stringify({ name: meta.name, sourceLabel: sourceLabel_, savedAt: Date.now() }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function hideRestoreBanner() {
+  if (ui.restoreBanner) ui.restoreBanner.hidden = true;
+}
+
+/**
+ * @param {string} [fileNameHint]
+ */
+function showRestoreBanner(fileNameHint) {
+  if (!ui.restoreBanner || !ui.restoreBannerDetail) return;
+  const extra = fileNameHint && String(fileNameHint).trim() ? ` (${String(fileNameHint).trim()})` : "";
+  ui.restoreBannerDetail.textContent =
+    `Chromium needs a click to allow reading the saved file again${extra}. The File System Access API does not grant read access from a page-load task without a user gesture.`;
+  ui.restoreBanner.hidden = false;
+}
+
+async function clearSavedLogHandle() {
+  pendingRestoreHandle = null;
+  hideRestoreBanner();
+  await idbDeleteLogFileHandle();
+  try {
+    localStorage.removeItem(STORAGE_LAST_LOG_META_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {string} sourceLabel_
+ * @param {{ historyLine?: string|null }} opts
+ */
+async function applyPickedLogHandle(handle, sourceLabel_, opts = {}) {
+  pendingRestoreHandle = null;
+  hideRestoreBanner();
+  hideInterruptAdoptModal();
+  const historyLine = opts.historyLine;
+  logFileHandle = handle;
+  sourceLabel = sourceLabel_;
+  ui.infoSource.textContent = sourceLabel ?? "—";
+  ui.infoResolved.textContent = logFileHandle ? (await logFileHandle.getFile()).name : "—";
+  ui.btnStartStop.disabled = !logFileHandle;
+  await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
+  if (historyLine) appendHistory(historyLine);
+  lastReadOffset = null;
+  pendingGraphReplayText = null;
+  logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
+  try {
+    const f = await handle.getFile();
+    await saveLastLogToStorage(handle, sourceLabel_, { name: f.name });
+  } catch {
+    await clearSavedLogHandle();
+  }
+}
+
+/**
+ * @param {FileSystemFileHandle} handle
+ */
+async function finishRestoreSavedLog(handle) {
+  if (restoreInProgress) return;
+  restoreInProgress = true;
+  try {
+    pendingRestoreHandle = null;
+    let meta = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
+      if (raw) meta = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    const label = meta && typeof meta.sourceLabel === "string" ? meta.sourceLabel : "Saved log";
+    const name = meta && typeof meta.name === "string" ? meta.name : (await handle.getFile()).name;
+    await applyPickedLogHandle(handle, label, {
+      historyLine: `Restored last log: ${name} (${label}).`,
+    });
+    startMonitoring();
+  } finally {
+    restoreInProgress = false;
+  }
+}
+
+async function tryRestoreLastLogOnLoad() {
+  if (!window.showOpenFilePicker) {
+    appendHistory(
+      "File System Access API not available (`showOpenFilePicker`). Use Edge/Chrome and open the app from https:// or http://localhost (e.g. `python -m http.server 5173`). Some contexts (including file://) do not expose the picker.",
+    );
+    return;
+  }
+  /** @type {FileSystemFileHandle|undefined} */
+  let handle;
+  try {
+    handle = await idbGetLogFileHandle();
+  } catch {
+    return;
+  }
+  if (!handle) return;
+
+  try {
+    const perm = await handle.queryPermission({ mode: "read" });
+    if (perm === "denied") {
+      await clearSavedLogHandle();
+      return;
+    }
+    // If the browser already persisted read access for this handle, restore without a click.
+    if (perm === "granted") {
+      await finishRestoreSavedLog(handle);
+      return;
+    }
+    // "prompt": do NOT call requestPermission() from the load task — Chromium ignores it without
+    // a user activation. Show the bar + toast; the button/Allow run requestPermission in a click handler.
+    pendingRestoreHandle = handle;
+    let metaName = "";
+    try {
+      const raw = localStorage.getItem(STORAGE_LAST_LOG_META_KEY);
+      if (raw) {
+        const m = JSON.parse(raw);
+        if (m && typeof m.name === "string") metaName = m.name;
+      }
+    } catch {
+      // ignore
+    }
+    showRestoreBanner(metaName);
+    showToast(
+      "Resume last session",
+      "Use Grant access & start in the green bar (or Allow here). The browser requires a click to reopen the file.",
+      "info",
+      {
+        actionLabel: "Allow",
+        onAction: async () => {
+          try {
+            const h = pendingRestoreHandle;
+            if (!h) return;
+            const p2 = await h.requestPermission({ mode: "read" });
+            if (p2 !== "granted") {
+              appendHistory("Last log not restored (permission denied).");
+              return;
+            }
+            hideRestoreBanner();
+            await finishRestoreSavedLog(h);
+          } catch (e) {
+            appendHistory(`Could not restore last log: ${String(e)}`);
+          }
+        },
+        durationMs: 60000,
+      },
+    );
+    appendHistory(
+      "Saved log found — click **Grant access & start** (or Allow) so the browser can read the file again; then monitoring starts automatically.",
+    );
+  } catch (e) {
+    appendHistory(`Could not restore last log: ${String(e)}`);
+    await clearSavedLogHandle();
+  }
+}
+
+async function pickLogFile() {
+  if (!window.showOpenFilePicker) {
+    appendHistory("This browser does not support file picking. Use Edge or Chrome.");
+    return;
+  }
+  // Proactive guidance: the picker UI can block “system” folders before we get a rejection.
+  /** @type {{remove: ()=>void}|null} */
+  let tipToast = null;
+  try {
+    const isFile = String(window.location && window.location.protocol) === "file:";
+    const plat = String(navigator.platform || "").toLowerCase();
+    const isWin = plat.includes("win");
+    const isLinux = plat.includes("linux");
+    if (isFile && (isWin || isLinux)) {
+      appendHistory("Tip: if the picker says it can’t open files in a folder due to “system files”, the browser is blocking a protected location.");
+      tipToast = showToast("Picker tip", "If blocked by “system files”, open the guide for a workaround.", "info", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: Infinity,
+      });
+      if (isWin) {
+        appendHistory("Windows: prefer a hard link to the log file — open ?, paste the full path to client-main.log, run the generated mklink /H in cmd.");
+        appendHistory("Folder junctions to AppData often still fail in the picker; /H on the file under Documents usually works.");
+        appendHistory("Older fallback (junction): mkdir + mklink /J from ? when you paste a folder path, or see README.");
+      } else if (isLinux) {
+        appendHistory("Linux workaround (symlink into ~/VSLogs):");
+        appendHistory("  mkdir -p ~/VSLogs");
+        appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
+        appendHistory("Then pick: ~/VSLogs/client-main.log");
+      }
+    }
+  } catch {
+    // ignore
+  }
+  /** @type {any} */
+  let startIn = undefined;
+  try {
+    // `startIn` cannot be an arbitrary path (e.g. %APPDATA% or $HOME). Best-effort only.
+    const last = localStorage.getItem(STORAGE_LAST_DIR_KEY);
+    if (last) startIn = last;
+  } catch {
+    // ignore
+  }
+  if (!startIn) startIn = "documents";
+
+  let handle;
+  try {
+    [handle] = await window.showOpenFilePicker({
+      multiple: false,
+      startIn,
+      types: [
+        {
+          description: "Vintage Story log",
+          accept: {
+            "text/plain": [".log", ".txt"],
+          },
+        },
+      ],
+    });
+  } catch (e) {
+    tipToast?.remove();
+    const msg = String(e && (e.message || e.name || e));
+    const low = msg.toLowerCase();
+    if (low.includes("abort") || low.includes("cancel")) {
+      appendHistory("Pick log cancelled.");
+      showToast("Pick cancelled", "No file was selected.", "warn", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 7000,
+      });
+      return;
+    }
+    const looksBlocked =
+      low.includes("system files") ||
+      low.includes("not allowed") ||
+      low.includes("not permitted") ||
+      low.includes("denied") ||
+      low.includes("security") ||
+      low.includes("permission");
+    if (looksBlocked) {
+      appendHistory("Browser blocked access to that folder/file (protected/system location).");
+      showToast("Picker blocked", "Browser denied access (protected/system location).", "error", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 9000,
+      });
+      appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
+      appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
+      appendHistory("Windows fallback (junction; may still be blocked by the picker):");
+      appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
+      appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
+      appendHistory("Explanation: exposes VintagestoryData under Documents; Edge/Chrome may still treat it as a system path.");
+      appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
+      appendHistory("Linux workaround (symlink; source is the usual VS data dir under ~/.config):");
+      appendHistory("  mkdir -p ~/VSLogs");
+      appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
+      appendHistory("Explanation: this exposes the log under your home directory so the browser picker can access it.");
+      appendHistory("Then pick: ~/VSLogs/client-main.log");
+      return;
+    }
+    appendHistory(`Pick log failed: ${msg}`);
+    showToast("Pick failed", msg, "error");
+    return;
+  }
+  tipToast?.remove();
+  if (!handle) return;
+  const pickedName = (await handle.getFile()).name;
+  await applyPickedLogHandle(handle, "Picked file", {
+    historyLine: `Selected log file: ${pickedName}`,
+  });
+  startMonitoringAfterSuccessfulPick();
+
+  // Best-effort: remember the last directory via well-known startIn token (not a real path).
+  // Browsers do not expose a parent directory for a picked file handle.
+  try {
+    localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents"));
+  } catch {
+    // ignore
+  }
+}
+
+async function pickFolder() {
+  if (!window.showDirectoryPicker) {
+    appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
+    return;
+  }
+  let dir;
+  try {
+    dir = await window.showDirectoryPicker({ mode: "read" });
+  } catch (e) {
+    // Chrome/Edge can block protected folders (and users can cancel).
+    const msg = String(e && (e.message || e.name || e));
+    if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
+      appendHistory("Pick folder cancelled.");
+      showToast("Pick cancelled", "No folder was selected.", "warn", {
+        actionLabel: "Guide",
+        onAction: () => openHelp(),
+        durationMs: 7000,
+      });
+      return;
+    }
+    appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
+    showToast("Pick failed", "Folder access was blocked. Pick the log file instead.", "error");
+    return;
+  }
+  const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
+  if (!file) {
+    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
+    sourceLabel = "Picked folder (no log yet)";
+    ui.infoSource.textContent = sourceLabel;
+    ui.infoResolved.textContent = "—";
+    logFileHandle = null;
+    ui.btnStartStop.disabled = true;
+    return;
+  }
+  const pickedName = (await file.getFile()).name;
+  await applyPickedLogHandle(file, "Picked folder", {
+    historyLine: `Selected folder; resolved log file: ${pickedName}`,
+  });
+  startMonitoringAfterSuccessfulPick();
+}
+
+// -----------------------------
+// Monitor engine (browser)
+// -----------------------------
+
+/** @typedef {[number, number]} GraphPoint */ // [epochSec, position]
+
+/** @type {GraphPoint[]} */
+let graphPoints = [];
+
+/** Last draw layout for canvas hit-testing (queue graph). */
+let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: number; padB: number; plotW: number; plotH: number; w: number; h: number; t1: number; span: number; minP: number; maxP: number }} */ (
+  null
+);
+let graphCanvasHovering = false;
+/** Canvas-space X for hover crosshair (null when pointer leaves). */
+let graphHoverCanvasX = /** @type {number|null} */ (null);
+/** Hover-snapped graph point (null when not hovering a point). */
+let graphHoverPoint = /** @type {GraphPoint|null} */ (null);
+let graphDrawRaf = 0;
+function scheduleDrawGraph() {
+  if (graphDrawRaf) return;
+  graphDrawRaf = requestAnimationFrame(() => {
+    graphDrawRaf = 0;
+    drawGraph();
+  });
+}
+/** @type {GraphPoint|null} */
+let currentPoint = null;
+/** @type {number|null} */
+let lastPosition = null;
+/** @type {number|null} */
+let positionOneReachedAt = null;
+/** @type {number|null} */
+let connectPhaseStartedEpoch = null;
+/** @type {number|null} */
+let progressAtFrontEntry = null;
+let leftConnectQueueDetected = false;
+let running = false;
+/** @type {number|null} */
+let monitorStartEpoch = null;
+/** @type {number|null} */
+let pollTimer = null;
+/** @type {number|null} */
+let estimateTimer = null;
+/** @type {number|null} */
+let graphRealtimeTimer = null;
+/** @type {number} */
+let lastAlertEpoch = 0;
+/** @type {Set<number>} */
+let thresholdsFired = new Set();
+/** Only animate warnings marquee briefly after a warning fires. */
+let warningsMarqueeUntilEpoch = 0;
+// Legacy: warnings used to have an explicit edit mode; now editing is via contextual popover.
+/** @type {number} */
+let lastCompletionNotifyEpoch = 0;
+let completionNotifiedThisRun = false;
+/** @type {number|null} */
+let lastQueueRunSession = null;
+/** @type {number|null} */
+let lastQueueLineEpoch = null;
+/** @type {{ size: number, mtime: number } | null} */
+let lastLogStat = null;
+/** @type {number|null} */
+let lastLogGrowthEpoch = null;
+let interruptedMode = false;
+/** Session index (`parseTail`) at the moment we entered interrupted mode; `null` if unknown. */
+/** @type {number|null} */
+let sessionAtInterrupt = null;
+/** User dismissed adopt for this session (suppress repeat prompts until session changes). */
+/** @type {number|null} */
+let interruptAdoptDeclinedSession = null;
+/** @type {boolean} */
+let interruptAdoptModalVisible = false;
+/** @type {number|null} */
+let interruptAdoptPendingSession = null;
+/** @type {number|null} */
+let interruptAdoptPendingPosition = null;
+/** @type {number|null} */
+let interruptedElapsedSec = null;
+/** @type {[string, string] | null} */
+let frozenRatesAtInterrupt = null;
+/** @type {number|null} */
+let lastQueuePositionChangeEpoch = null;
+let predSpeedScale = 1.0;
+let staleSlotsAccounted = 0;
+/** @type {number|null} */
+let mppFloorPosition = null;
+/** @type {number|null} */
+let mppFloorValue = null;
+
+function setStatus(text, danger = false) {
+  const statusTextEl = /** @type {HTMLElement|null} */ (document.getElementById("kpiStatusText"));
+  if (statusTextEl) statusTextEl.textContent = text;
+  else ui.kpiStatus.textContent = text;
+  // legacy flag (still used by some callers)
+  ui.kpiStatus.classList.toggle("danger", danger);
+
+  const el = ui.kpiStatus;
+  const cls = [
+    "kpi__value--neutral",
+    "kpi__value--info",
+    "kpi__value--warn",
+    "kpi__value--danger",
+    "kpi__value--done",
+    "kpi__value--ok",
+  ];
+  for (const c of cls) el.classList.remove(c);
+
+  const t = String(text || "").toLowerCase();
+  let state = "neutral";
+  if (danger || t === "error" || t.includes("warning:") || t.includes("interrupted")) state = "danger";
+  else if (t.includes("reconnecting") || t.includes("connecting") || t.includes("waiting for log")) state = "info";
+  else if (t.includes("at front")) state = "warn";
+  else if (t.includes("completed")) state = "done";
+  else if (t.includes("monitoring")) state = "ok";
+
+  el.classList.add(
+    state === "ok"
+      ? "kpi__value--ok"
+      : state === "done"
+        ? "kpi__value--done"
+        : state === "warn"
+          ? "kpi__value--warn"
+          : state === "info"
+            ? "kpi__value--info"
+            : state === "danger"
+              ? "kpi__value--danger"
+              : "kpi__value--neutral",
+  );
+}
+
+/**
+ * @param {number|null} pos
+ */
+function setPositionDisplay(pos) {
+  ui.kpiPosition.textContent = pos == null ? "—" : String(pos);
+}
+
+/**
+ * @param {number} sec
+ */
+function formatDuration(sec) {
+  const total = Math.max(0, Math.round(sec));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * @param {number} sec
+ */
+function formatDurationRemaining(sec) {
+  sec = Math.max(0, Number(sec));
+  if (!Number.isFinite(sec) || sec <= 0) return "—";
+  if (sec < 1) sec = 1;
+  if (sec >= 3600) return formatDuration(sec);
+  const m = Math.floor(sec / 60);
+  const s = sec - m * 60;
+  return `${m}:${s.toFixed(2).padStart(5, "0")}`;
+}
+
+function rollingWindowPoints() {
+  const n = Math.max(2, Math.min(10000, Math.floor(config.windowPoints || 10)));
+  return n;
+}
+
+function windowRecentPoints() {
+  if (graphPoints.length < 2) return [];
+  const n = rollingWindowPoints();
+  return graphPoints.slice(-(n + 1));
+}
+
+function currentQueuePosition() {
+  return lastPosition ?? (currentPoint ? currentPoint[1] : null);
+}
+
+function queueElapsedStartEpoch() {
+  if (connectPhaseStartedEpoch != null) return connectPhaseStartedEpoch;
+  if (graphPoints.length > 0) return graphPoints[0][0];
+  return monitorStartEpoch;
+}
+
+function computeMovingAverageSpeedPosPerSec() {
+  const pts = graphPoints;
+  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
+  const nWin = rollingWindowPoints();
+  const recent = pts.slice(-(nWin + 1));
+  const trail = recent.map((p) => p[1]);
+  /** @type {number[]} */
+  const rates = [];
+  for (let i = 0; i < recent.length - 1; i++) {
+    const [t0, p0] = recent[i];
+    const [t1, p1] = recent[i + 1];
+    const dt = t1 - t0;
+    if (dt <= 0) continue;
+    const improvement = p0 - p1;
+    if (improvement <= 0) continue;
+    rates.push(improvement / dt);
+  }
+  if (rates.length === 0) return { speed: null, n: 0, trail };
+  if (rates.length < 3) return { speed: rates.reduce((a, b) => a + b, 0) / rates.length, n: rates.length, trail };
+  rates.sort((a, b) => a - b);
+  return { speed: rates[Math.floor(rates.length / 2)], n: rates.length, trail };
+}
+
+function computeWeightedSpeedPosPerSec() {
+  const pts = graphPoints;
+  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
+  const nWin = rollingWindowPoints();
+  const recent = pts.slice(-(nWin + 1));
+  const trail = recent.map((p) => p[1]);
+  let now = Date.now() / 1000;
+  if (currentQueuePosition() === 0 && recent.length >= 2) now = recent[recent.length - 1][0];
+  const TAU = 90.0;
+  let wSum = 0;
+  let rSum = 0;
+  let nSeg = 0;
+  for (let i = 0; i < recent.length - 1; i++) {
+    const [t0, p0] = recent[i];
+    const [t1, p1] = recent[i + 1];
+    const dt = t1 - t0;
+    if (dt <= 0) continue;
+    const improvement = p0 - p1;
+    if (improvement <= 0) continue;
+    const rate = improvement / dt;
+    const w = Math.exp(-Math.max(0, now - t1) / TAU);
+    wSum += w;
+    rSum += rate * w;
+    nSeg += 1;
+  }
+  if (wSum <= 0 || nSeg < 1) return { speed: null, n: 0, trail };
+  const speed = rSum / wSum;
+  if (!(speed > 0)) return { speed: null, n: 0, trail };
+  return { speed, n: nSeg, trail };
+}
+
+function computeEmpiricalPosPerSec() {
+  const recent = windowRecentPoints();
+  if (recent.length < 2) return null;
+  const [t0, p0] = recent[0];
+  const [t1, p1] = recent[recent.length - 1];
+  const drop = p0 - p1;
+  if (drop <= 0) return null;
+  const pos = currentQueuePosition();
+  const dt = running && pos !== 0 ? (Date.now() / 1000) - t0 : t1 - t0;
+  if (dt <= 0) return null;
+  return drop / dt;
+}
+
+function minutesPerPositionFromWindow() {
+  const vEmp = computeEmpiricalPosPerSec();
+  if (vEmp != null && vEmp > 0) return 1 / (vEmp * 60);
+  const w = computeWeightedSpeedPosPerSec();
+  if (w.speed != null && w.n > 0 && w.speed > 0) return 1 / (w.speed * predSpeedScale * 60);
+  const ma = computeMovingAverageSpeedPosPerSec();
+  if (ma.speed == null || ma.n <= 0 || !(ma.speed > 0)) return null;
+  return 1 / (ma.speed * predSpeedScale * 60);
+}
+
+function minutesPerPositionCappedForDwell(mppRaw, pos) {
+  if (mppRaw == null || pos == null || pos <= 1) return mppRaw;
+  if (mppFloorPosition !== pos || mppFloorValue == null || !(mppFloorValue > 0)) return mppRaw;
+  if (mppRaw <= mppFloorValue) return mppRaw;
+  if (lastQueuePositionChangeEpoch == null) return mppFloorValue;
+  const dwell = Math.max(0, (Date.now() / 1000) - lastQueuePositionChangeEpoch);
+  if (dwell < mppFloorValue * 60) return mppFloorValue;
+  return mppRaw;
+}
+
+function globalAvgMinutesPerPosition() {
+  if (graphPoints.length < 2) return null;
+  /** @type {number[]} */
+  const mpps = [];
+  for (let i = 0; i < graphPoints.length - 1; i++) {
+    const [t0, p0] = graphPoints[i];
+    const [t1, p1] = graphPoints[i + 1];
+    const dt = t1 - t0;
+    if (dt <= 0) continue;
+    const improvement = p0 - p1;
+    if (improvement <= 0) continue;
+    const mpp = dt / 60 / improvement;
+    if (Number.isFinite(mpp) && mpp > 0) mpps.push(mpp);
+  }
+  if (mpps.length === 0) return null;
+  return mpps.reduce((a, b) => a + b, 0) / mpps.length;
+}
+
+function formatQueueRate(mpp) {
+  if (mpp != null && mpp > 0) return `${mpp.toFixed(2)} min/pos`;
+  return "—";
+}
+
+function bumpWarningsMarquee(sec = 10) {
+  const now = Date.now() / 1000;
+  warningsMarqueeUntilEpoch = Math.max(warningsMarqueeUntilEpoch, now + Math.max(2, sec));
+  syncWarningsMarquee();
+  window.setTimeout(() => {
+    if (Date.now() / 1000 >= warningsMarqueeUntilEpoch - 0.05) syncWarningsMarquee();
+  }, Math.ceil(sec * 1000) + 60);
+}
+
+function autoPanWarningsToLatestHit() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const hits = viewport.querySelectorAll(".kpiWarn--hit");
+  const el = hits.length ? /** @type {HTMLElement} */ (hits[hits.length - 1]) : null;
+  if (!el) return;
+  try {
+    el.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  } catch {
+    // ignore
+  }
+}
+
+function syncWarningsMarquee() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  const rail = ui.kpiWarningsRail;
+  if (!viewport || !rail) return;
+  viewport.classList.remove("kpiWarn__viewport--scroll");
+  viewport.classList.remove("kpiWarn__viewport--overflow");
+  ui.kpiWarnings?.classList.remove("kpiWarn--overflow");
+  rail.classList.remove("kpiWarn__rail--marquee");
+  rail.style.removeProperty("--kpi-warn-shift");
+  rail.style.removeProperty("animation");
+
+  queueMicrotask(() => {
+    requestAnimationFrame(() => {
+      const vw = viewport.clientWidth;
+      const rw = rail.scrollWidth;
+      if (rw <= vw + 2) return;
+      viewport.classList.add("kpiWarn__viewport--overflow");
+      ui.kpiWarnings?.classList.add("kpiWarn--overflow");
+      syncWarningsArrowState();
+      const now = Date.now() / 1000;
+      if (!(now < warningsMarqueeUntilEpoch)) return;
+      if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return;
+      }
+      const shift = rw - vw;
+      rail.style.setProperty("--kpi-warn-shift", `${shift}px`);
+      const sec = Math.min(22, Math.max(7, 6 + shift / 28));
+      rail.style.animation = `kpiWarnMarquee ${sec}s ease-in-out infinite alternate`;
+      viewport.classList.add("kpiWarn__viewport--scroll");
+      rail.classList.add("kpiWarn__rail--marquee");
+      syncWarningsArrowState();
+    });
+  });
+}
+
+function syncWarningsArrowState() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport || !ui.btnWarnScrollL || !ui.btnWarnScrollR) return;
+  const max = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+  const x = viewport.scrollLeft;
+  ui.btnWarnScrollL.disabled = x <= 1;
+  ui.btnWarnScrollR.disabled = x >= max - 1;
+}
+
+function refreshWarningsKpi() {
+  let thresholds;
+  try {
+    thresholds = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    if (ui.kpiWarningsRail) ui.kpiWarningsRail.textContent = "—";
+    syncWarningsMarquee();
+    return;
+  }
+  const pos = currentQueuePosition();
+  const fired = thresholdsFired;
+  const parts = [];
+  for (const t of thresholds) {
+    const passed = (pos != null && pos <= t) || fired.has(t);
+    const cls = passed ? "kpiWarn--hit" : "kpiWarn--pending";
+    parts.push(`<span class="kpiWarn__threshold ${cls}" data-threshold="${t}">${escapeHtml(String(t))}</span>`);
+  }
+  if (ui.kpiWarningsRail) {
+    ui.kpiWarningsRail.innerHTML = parts.join('<span class="kpiWarn--sep"> · </span>');
+  }
+  syncWarningsMarquee();
+}
+
+function focusUpcomingWarningOnLoad() {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const rail = ui.kpiWarningsRail;
+  if (!rail) return;
+  // Upcoming = first pending threshold (not yet hit), left-to-right as displayed.
+  const el = rail.querySelector(".kpiWarn--pending");
+  if (!el) {
+    viewport.scrollLeft = 0;
+    syncWarningsArrowState();
+    return;
+  }
+  try {
+    /** @type {HTMLElement} */ (el).scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
+  } catch {
+    // ignore
+  }
+  syncWarningsArrowState();
+}
+
+function estimateSecondsRemaining() {
+  let pos = currentQueuePosition();
+  if (pos == null || pos === 0) return null;
+  const remainingPositions = pos === 1 ? 1 : Math.max(0, pos - 1);
+  const vEmp = computeEmpiricalPosPerSec();
+  let speed = null;
+  if (vEmp != null && vEmp > 0) speed = vEmp;
+  if (speed == null) {
+    const w = computeWeightedSpeedPosPerSec();
+    if (w.speed != null && w.n > 0 && w.speed > 0) speed = w.speed;
+  }
+  if (speed == null) {
+    const ma = computeMovingAverageSpeedPosPerSec();
+    if (ma.speed != null && ma.speed > 0) speed = ma.speed;
+  }
+  if (speed == null || !(speed > 0)) {
+    if (pos === 1) return QUEUE_UPDATE_INTERVAL_SEC;
+    return null;
+  }
+
+  const expectedSecPerPos = 1 / speed;
+  const expectedUpdateSec = Math.max(QUEUE_UPDATE_INTERVAL_SEC, expectedSecPerPos);
+  if (running && currentPoint && pos >= 1) {
+    const dt = (Date.now() / 1000) - currentPoint[0];
+    if (dt >= expectedUpdateSec) {
+      const missed = Math.floor(dt / expectedUpdateSec);
+      if (missed > staleSlotsAccounted) {
+        const extra = missed - staleSlotsAccounted;
+        predSpeedScale *= Math.pow(0.92, extra);
+        predSpeedScale = Math.max(0.05, predSpeedScale);
+        staleSlotsAccounted = missed;
+      }
+    } else {
+      staleSlotsAccounted = 0;
+    }
+    const vEff = speed * predSpeedScale;
+    const base = remainingPositions / vEff;
+    return Math.max(1, base - dt);
+  }
+  return remainingPositions / (speed * predSpeedScale);
+}
+
+function updateTimeEstimates() {
+  ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
+  const pos = currentQueuePosition();
+
+  if (interruptedElapsedSec != null) {
+    ui.kpiElapsed.textContent = formatDuration(interruptedElapsedSec);
+    ui.kpiRemaining.textContent = "—";
+    if (frozenRatesAtInterrupt) {
+      ui.kpiRate.textContent = frozenRatesAtInterrupt[0];
+      ui.infoGlobalRate.textContent = frozenRatesAtInterrupt[1];
+    } else {
+      const mppRaw = minutesPerPositionFromWindow();
+      const mpp = minutesPerPositionCappedForDwell(mppRaw, pos);
+      ui.kpiRate.textContent = formatQueueRate(mpp);
+      ui.infoGlobalRate.textContent = formatQueueRate(globalAvgMinutesPerPosition());
+    }
+    ui.progressFill.style.width = "0%";
+    return;
+  }
+
+  if (running && pos != null && pos > 1) positionOneReachedAt = null;
+
+  const startT = queueElapsedStartEpoch();
+  let elapsedSec = null;
+  if (running && monitorStartEpoch != null) {
+    if (startT == null) ui.kpiElapsed.textContent = "—";
+    else if (pos != null && pos <= 1 && positionOneReachedAt != null) {
+      elapsedSec = Math.max(0, positionOneReachedAt - startT);
+      ui.kpiElapsed.textContent = formatDuration(elapsedSec);
+    } else {
+      elapsedSec = Math.max(0, (Date.now() / 1000) - startT);
+      ui.kpiElapsed.textContent = formatDuration(elapsedSec);
+    }
+  } else if (!running && positionOneReachedAt != null && graphPoints.length >= 1) {
+    elapsedSec = Math.max(0, positionOneReachedAt - graphPoints[0][0]);
+    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
+  } else if (graphPoints.length >= 2) {
+    const startT2 = graphPoints[0][0];
+    const endT = currentPoint ? currentPoint[0] : graphPoints[graphPoints.length - 1][0];
+    elapsedSec = Math.max(0, endT - startT2);
+    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
+  } else {
+    ui.kpiElapsed.textContent = "—";
+  }
+
+  const mppRaw = minutesPerPositionFromWindow();
+  const mpp = minutesPerPositionCappedForDwell(mppRaw, pos);
+  ui.kpiRate.textContent = formatQueueRate(mpp);
+  ui.infoGlobalRate.textContent = formatQueueRate(globalAvgMinutesPerPosition());
+
+  let secRem = estimateSecondsRemaining();
+  if (secRem == null && pos != null && mpp != null && mpp > 0) {
+    if (pos > 1) secRem = Math.max(0, (pos - 1) * mpp * 60);
+    else if (pos === 1) secRem = Math.max(0, mpp * 60);
+  }
+  ui.kpiRemaining.textContent = secRem == null ? "—" : formatDurationRemaining(secRem);
+
+  let progress = 0;
+  if (pos != null && pos <= 1) {
+    progress = leftConnectQueueDetected ? 100 : Math.min(99, progressAtFrontEntry ?? 90);
+  } else if (elapsedSec != null && secRem != null) {
+    const total = elapsedSec + Math.max(0, secRem);
+    progress = total > 1e-6 ? Math.min(100, Math.max(0, (100 * elapsedSec) / total)) : 0;
+  } else {
+    progress = 0;
+  }
+  ui.progressFill.style.width = `${progress.toFixed(1)}%`;
+}
+
+/**
+ * @param {number} position
+ * @param {number|null} lineEpoch
+ */
+function appendGraphPoint(position, lineEpoch) {
+  const t = lineEpoch ?? (Date.now() / 1000);
+  if (currentPoint && currentPoint[1] === position) return;
+  currentPoint = [t, position];
+  lastPosition = position;
+  predSpeedScale = 1.0;
+  staleSlotsAccounted = 0;
+  graphPoints.push(currentPoint);
+  if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+  drawGraph();
+}
+
+/**
+ * Rebuild graph points from a full log snapshot (first load / truncate resync), matching live poll semantics.
+ * @param {string} fullText
+ */
+function replayQueueGraphFromText(fullText) {
+  const text = sliceLoadedLogToCurrentQueueRun(fullText);
+  if (!text) {
+    graphPoints = [];
+    currentPoint = null;
+    lastPosition = null;
+    drawGraph();
+    return;
+  }
+  const lines = text.split(/\r?\n/);
+  const sessionBeforeLine = new Array(lines.length);
+  let s = 0;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = s;
+    if (isQueueRunBoundaryLine(lines[i])) s++;
+  }
+
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  /** @type {number|null} */
+  let sessionAtLastEmit = null;
+
+  let lastQIdx = -1;
+  let lastQueuePos = /** @type {number|null} */ (null);
+  let lastQueueEpoch = /** @type {number|null} */ (null);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isQueueRunBoundaryLine(line)) continue;
+
+    const rawPos = queuePositionFromLine(line);
+    if (rawPos != null) {
+      lastQIdx = i;
+      lastQueuePos = rawPos;
+      lastQueueEpoch = parseLogTimestampEpoch(line);
+    }
+
+    if (lastQIdx < 0 || lastQueuePos == null) continue;
+
+    const sess = sessionBeforeLine[lastQIdx];
+    let pos = lastQueuePos;
+
+    let left = false;
+    for (let j = lastQIdx + 1; j <= i; j++) {
+      if (isPostQueueProgressLine(lines[j])) {
+        left = true;
+        break;
+      }
+    }
+
+    const prevPos = lastPosition;
+    if (
+      prevPos != null &&
+      sessionAtLastEmit != null &&
+      sess === sessionAtLastEmit &&
+      pos > prevPos &&
+      pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD
+    ) {
+      pos = prevPos;
+    }
+
+    if (pos <= 1 && left) pos = 0;
+
+    const t = lastQueueEpoch ?? Date.now() / 1000;
+
+    if (!currentPoint || currentPoint[1] !== pos) {
+      currentPoint = [t, pos];
+      graphPoints.push(currentPoint);
+      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+      lastPosition = pos;
+      sessionAtLastEmit = sess;
+    }
+  }
+
+  const { session } = parseTailLastQueueReading(text);
+  lastQueueRunSession = session;
+  drawGraph();
+}
+
+/**
+ * @param {number|null} prevPos
+ * @param {number} currPos
+ * @returns {{ should: boolean, reason: string }}
+ */
+function computeAlert(prevPos, currPos) {
+  let thresholds;
+  try {
+    thresholds = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    return { should: false, reason: "" };
+  }
+  if (prevPos == null) return { should: false, reason: "" };
+  if (prevPos <= 1 && currPos <= 1) return { should: false, reason: "" };
+  const jumpUp = currPos - prevPos;
+  if (jumpUp >= QUEUE_RESET_JUMP_THRESHOLD) {
+    const marginalSpikeFromFront = prevPos <= 1 && jumpUp === QUEUE_RESET_JUMP_THRESHOLD;
+    if (!marginalSpikeFromFront) thresholdsFired.clear();
+  }
+  const crossed = [];
+  for (const t of thresholds) {
+    if (prevPos > t && currPos <= t && !thresholdsFired.has(t)) {
+      crossed.push(t);
+      thresholdsFired.add(t);
+    }
+  }
+  if (crossed.length === 0) return { should: false, reason: "" };
+  crossed.sort((a, b) => b - a);
+  return { should: true, reason: `reached ${crossed.map((t) => `≤${t}`).join(", ")}` };
+}
+
+/**
+ * @param {number} position
+ * @param {string} reason
+ */
+function raiseAlert(position, reason) {
+  const now = Date.now() / 1000;
+  if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
+  lastAlertEpoch = now;
+  bumpWarningsMarquee(12);
+  // If the thresholds overflow the KPI cell, pan to the newly-hit milestone.
+  autoPanWarningsToLatestHit();
+  const secRem = estimateSecondsRemaining();
+  const etaDisplay = secRem == null ? "—" : formatDurationRemaining(secRem);
+  const etaPart = secRem == null ? "" : ` Est. remaining ${etaDisplay}.`;
+  ui.infoLastAlert.textContent = `${nowStamp()} · pos ${position} · ${reason}`;
+  appendHistory(`Threshold alert: position ${position} (${reason})${secRem == null ? "" : `; est. remaining ${etaDisplay}`}`);
+  beep("warning");
+  if (config.warnNotify) {
+    showToast(
+      "Threshold reached",
+      `Position ${position}. ${reason}.${etaPart}`,
+      "warn",
+      { durationMs: 9000 },
+    );
+    notifyDesktop(
+      "threshold",
+      "Threshold reached",
+      secRem == null
+        ? `Position ${position}. ${reason}.`
+        : `Position ${position}. ${reason}. About ${etaDisplay} left.`,
+    );
+  }
+}
+
+/**
+ * @param {number} position
+ * @param {string} tailText
+ */
+function maybeNotifyCompletion(position, tailText) {
+  if (position !== 0) return;
+  if (!tailHasPostQueueAfterLastQueueLine(tailText)) return;
+  if (completionNotifiedThisRun) return;
+  const now = Date.now() / 1000;
+  if (lastCompletionNotifyEpoch > 0 && now - lastCompletionNotifyEpoch < COMPLETION_NOTIFY_MIN_INTERVAL_SEC) return;
+  const wantSound = !!config.completionSound;
+  const wantPopup = !!config.completionNotify;
+  if (!wantSound && !wantPopup) return;
+  completionNotifiedThisRun = true;
+  lastCompletionNotifyEpoch = now;
+  appendHistory("Queue completion: past queue wait — connecting (position 0).");
+  ui.infoLastAlert.textContent = `${nowStamp()} · queue complete`;
+  beep("completion");
+  if (wantPopup) {
+    const msg = "Past queue wait detected — connecting or loading.";
+    showToast("Queue complete", msg, "ok", { durationMs: 14000 });
+    notifyDesktop("completion", "Queue complete", msg);
+  }
+}
+
+function hideInterruptAdoptModal() {
+  if (!ui.interruptAdoptOverlay) return;
+  interruptAdoptModalVisible = false;
+  ui.interruptAdoptOverlay.hidden = true;
+}
+
+function showInterruptAdoptModal() {
+  if (!ui.interruptAdoptOverlay || !ui.interruptAdoptDetail) return;
+  interruptAdoptModalVisible = true;
+  const s = interruptAdoptPendingSession;
+  const p = interruptAdoptPendingPosition;
+  ui.interruptAdoptDetail.textContent = `A new connect-queue run appears in the log (session ${s ?? "?"}, position ${p ?? "—"}). Adopt it to clear the graph and reset alerts for this run, or stay interrupted to keep the previous graph until you decide.`;
+  ui.interruptAdoptOverlay.hidden = false;
+}
+
+/**
+ * @param {number} session
+ * @param {number|null} lastPos
+ */
+function offerInterruptAdoptIfNeeded(session, lastPos) {
+  if (interruptAdoptModalVisible) return;
+  if (interruptAdoptDeclinedSession === session) return;
+  interruptAdoptPendingSession = session;
+  interruptAdoptPendingPosition = lastPos;
+  showInterruptAdoptModal();
+}
+
+/**
+ * @param {number} session
+ */
+function applyInterruptAdopt(session) {
+  hideInterruptAdoptModal();
+  interruptedMode = false;
+  interruptedElapsedSec = null;
+  frozenRatesAtInterrupt = null;
+  sessionAtInterrupt = null;
+  interruptAdoptDeclinedSession = null;
+  thresholdsFired.clear();
+  positionOneReachedAt = null;
+  connectPhaseStartedEpoch = null;
+  progressAtFrontEntry = null;
+  leftConnectQueueDetected = false;
+  completionNotifiedThisRun = false;
+  lastQueuePositionChangeEpoch = Date.now() / 1000;
+  mppFloorPosition = null;
+  mppFloorValue = null;
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  pendingGraphReplayText = null;
+  const slice = sliceLoadedLogToCurrentQueueRun(logBuffer);
+  replayQueueGraphFromText(slice);
+  lastQueueRunSession = session;
+  setStatus("Monitoring");
+  appendHistory("Adopted new queue run after interrupt — graph and alerts re-seeded for this run.");
+  drawGraph();
+  refreshWarningsKpi();
+  updateTimeEstimates();
+}
+
+/**
+ * @param {string} detail
+ */
+function enterInterruptedState(detail) {
+  if (interruptedMode) return;
+  interruptedMode = true;
+  sessionAtInterrupt = lastQueueRunSession;
+  interruptedElapsedSec = snapshotElapsedSecondsAtInterrupt();
+  frozenRatesAtInterrupt = [ui.kpiRate.textContent, ui.infoGlobalRate.textContent];
+  setStatus("Interrupted", true);
+  appendHistory(`Queue interrupted; still watching the log. (${detail})`);
+
+  // Separate alert channel for disconnects/interrupts.
+  notifyDesktop("interrupt", "VS Queue Monitor — interrupted", detail);
+  beep("interrupt");
+}
+
+function snapshotElapsedSecondsAtInterrupt() {
+  const startT = queueElapsedStartEpoch();
+  if (startT == null) return null;
+  const pos = currentQueuePosition();
+  if (pos != null && pos <= 1 && positionOneReachedAt != null) return Math.max(0, positionOneReachedAt - startT);
+  return Math.max(0, (Date.now() / 1000) - startT);
+}
+
+async function bumpLogActivityIfChanged() {
+  if (!logFileHandle) return;
+  try {
+    const f = await logFileHandle.getFile();
+    const size = f.size;
+    const mtime = f.lastModified;
+    const key = { size, mtime };
+    if (!lastLogStat || lastLogStat.size !== key.size || lastLogStat.mtime !== key.mtime) {
+      lastLogStat = key;
+      lastLogGrowthEpoch = Date.now() / 1000;
+    } else if (lastLogGrowthEpoch == null) {
+      lastLogGrowthEpoch = Date.now() / 1000;
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function appendToLogBuffer(text) {
+  if (!text) return;
+  logBuffer += text;
+  if (logBuffer.length > BUFFER_MAX_CHARS) logBuffer = logBuffer.slice(-BUFFER_MAX_CHARS);
+}
+
+async function readNewLogText(handle) {
+  const file = await handle.getFile();
+  const size = file.size;
+
+  // First read: load full file when reasonable so we can replay the full queue graph; then set offset to EOF.
+  if (lastReadOffset == null) {
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+      appendHistory(
+        `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
+      );
+    }
+    const rawLen = seed.length;
+    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    if (seed.length < rawLen) {
+      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
+    }
+    lastReadOffset = size;
+    pendingGraphReplayText = seed;
+    return seed;
+  }
+
+  // Truncation / rotation: file got smaller, reset and reload window for replay.
+  if (size < lastReadOffset) {
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+    }
+    appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
+    const rawLenT = seed.length;
+    seed = sliceLoadedLogToCurrentQueueRun(seed);
+    if (seed.length < rawLenT) {
+      appendHistory("Using current queue session only (earlier reconnects omitted from this load).");
+    }
+    lastReadOffset = size;
+    pendingGraphReplayText = seed;
+    return seed;
+  }
+
+  if (size === lastReadOffset) return "";
+
+  // Read only appended bytes, with a cap to avoid huge spikes.
+  const start = lastReadOffset;
+  const end = Math.min(size, start + MAX_READ_BYTES_PER_POLL);
+  const chunk = await readLogRangeText(handle, start, end);
+  lastReadOffset = end;
+
+  if (end < size) {
+    appendHistory(
+      `Log grew quickly; read ${MAX_READ_BYTES_PER_POLL} bytes this poll and will continue next poll.`,
+    );
+  }
+  return chunk;
+}
+
+async function pollOnce() {
+  if (!running) return;
+  if (!logFileHandle) {
+    setStatus("Waiting for log file", false);
+    return;
+  }
+
+  try {
+    updateTimeEstimates();
+    await bumpLogActivityIfChanged();
+    const newText = await readNewLogText(logFileHandle);
+    const replayChunk = pendingGraphReplayText;
+    pendingGraphReplayText = null;
+    if (newText) appendToLogBuffer(newText);
+    if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
+    if (replayChunk != null) replayQueueGraphFromText(replayChunk);
+    const view = logBuffer || "";
+    const { kind } = classifyTailConnectionState(view);
+    const { lastPos, session } = parseTailLastQueueReading(view);
+    const lastLineEpoch = parseTailLastQueueLineEpoch(view);
+    if (lastLineEpoch != null) lastQueueLineEpoch = lastLineEpoch;
+    const left = tailHasPostQueueAfterLastQueueLine(view);
+    const now = Date.now() / 1000;
+    const logSilent = lastLogGrowthEpoch != null && now - lastLogGrowthEpoch >= LOG_SILENCE_RECONNECT_SEC;
+    const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
+
+    if (interruptedMode) {
+      if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
+        if (sessionAtInterrupt === null) {
+          interruptedMode = false;
+          interruptedElapsedSec = null;
+          frozenRatesAtInterrupt = null;
+          sessionAtInterrupt = null;
+          interruptAdoptDeclinedSession = null;
+          hideInterruptAdoptModal();
+          setStatus("Monitoring");
+          appendHistory("Recovered from interrupted state (queue lines resumed).");
+        } else if (session > sessionAtInterrupt) {
+          offerInterruptAdoptIfNeeded(session, lastPos);
+          return;
+        } else {
+          interruptedMode = false;
+          interruptedElapsedSec = null;
+          frozenRatesAtInterrupt = null;
+          sessionAtInterrupt = null;
+          interruptAdoptDeclinedSession = null;
+          hideInterruptAdoptModal();
+          setStatus("Monitoring");
+          appendHistory("Recovered from interrupted state (queue lines resumed).");
+        }
+      } else {
+        return;
+      }
+    }
+
+    if (!interruptedMode && kind === "disconnected") {
+      enterInterruptedState("Connection lost (final teardown).");
+      leftConnectQueueDetected = false;
+      positionOneReachedAt = null;
+      connectPhaseStartedEpoch = null;
+      setPositionDisplay(null);
+      lastPosition = null;
+      return;
+    }
+
+    if (!interruptedMode && (kind === "reconnecting" || kind === "grace" || logSilent) && !(lastPos != null && lastPos <= 1)) {
+      leftConnectQueueDetected = false;
+      progressAtFrontEntry = null;
+      positionOneReachedAt = null;
+      connectPhaseStartedEpoch = null;
+      setStatus(logSilent || kind === "grace" ? "Reconnecting…" : "Connecting…");
+      setPositionDisplay(null);
+      lastPosition = null;
+      return;
+    }
+
+    if (!interruptedMode && lastPos != null && (!logSilent || lastPos <= 1)) {
+      const prevPos = lastPosition;
+      let pos = lastPos;
+
+      if (prevPos != null && pos > prevPos && pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD) {
+        pos = prevPos;
+      }
+
+      if (pos <= 1 && left) pos = 0;
+
+      if (pos > 1) {
+        leftConnectQueueDetected = false;
+        progressAtFrontEntry = null;
+        completionNotifiedThisRun = false;
+        if (prevPos == null || pos !== prevPos) {
+          lastQueuePositionChangeEpoch = now;
+        } else if (lastQueuePositionChangeEpoch == null) {
+          lastQueuePositionChangeEpoch = now;
+        }
+
+        if (lastQueueLineEpoch == null || now - lastQueueLineEpoch > staleLimit) {
+          enterInterruptedState(`No new queue log lines for ~${staleLimit.toFixed(0)}s (stale).`);
+          return;
+        }
+      } else {
+        lastQueuePositionChangeEpoch = null;
+      }
+
+      if (prevPos != null && prevPos > 1 && pos <= 1) {
+        const w = Number.parseFloat(String(ui.progressFill.style.width || "").replace("%", ""));
+        progressAtFrontEntry = Number.isFinite(w) ? Math.min(99, Math.max(0, w)) : 95;
+      }
+
+      if (pos === 0) leftConnectQueueDetected = true;
+      else if (pos <= 1) leftConnectQueueDetected = false;
+
+      // New run detection: session counter in tail (best-effort)
+      if (lastQueueRunSession != null && session > lastQueueRunSession) {
+        thresholdsFired.clear();
+        positionOneReachedAt = null;
+        connectPhaseStartedEpoch = null;
+        progressAtFrontEntry = null;
+        leftConnectQueueDetected = false;
+        completionNotifiedThisRun = false;
+        lastQueuePositionChangeEpoch = now;
+        mppFloorPosition = null;
+        mppFloorValue = null;
+        appendHistory("New queue run (from log).");
+      }
+      lastQueueRunSession = session;
+
+      if (pos === 0) setStatus("Completed");
+      else if (pos <= 1) setStatus("At front");
+      else setStatus("Monitoring");
+
+      setPositionDisplay(pos);
+      if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
+
+      appendGraphPoint(pos, lastLineEpoch);
+      try {
+        updateTimeEstimates();
+
+        if (pos !== prevPos) {
+          ui.infoLastChange.textContent = nowStamp();
+          mppFloorPosition = pos;
+          mppFloorValue = minutesPerPositionFromWindow();
+          if (config.logEveryChange) {
+            if (prevPos == null) appendHistory(`Queue position: ${pos}`);
+            else appendHistory(`Queue changed: ${prevPos} → ${pos}`);
+          }
+        }
+
+        const { should, reason } = computeAlert(prevPos, pos);
+        if (should) raiseAlert(pos, reason);
+        maybeNotifyCompletion(pos, view);
+        refreshWarningsKpi();
+      } catch (e) {
+        appendHistory(`Non-fatal: ${String(e)}`);
+      }
+      return;
+    }
+
+    setStatus("Warning: no queue detected", true);
+  } catch (e) {
+    setStatus("Error", true);
+    appendHistory(`Error: ${String(e)}`);
+  }
+}
+
+/** After a successful file/folder pick: begin (or restart) tailing the new handle. */
+function startMonitoringAfterSuccessfulPick() {
+  if (running) stopMonitoring();
+  startMonitoring();
+}
+
+/** @param {boolean} isRunning */
+function setLogActivityMonitoring(on) {
+  const w = ui.logActivityWrap;
+  const led = ui.logActivityLed;
+  if (!w || !led) return;
+  if (on) {
+    w.hidden = false;
+    led.classList.add("logActivityLed--armed");
+  } else {
+    w.hidden = true;
+    led.classList.remove("logActivityLed--armed", "logActivityLed--pulse");
+  }
+}
+
+function pulseLogActivityLed() {
+  const el = ui.logActivityLed;
+  if (!el || !running) return;
+  // The graph scrolls each tick; keep the indicator subtle (no pulse).
+}
+
+function setStartStopButtonLook(isRunning) {
+  ui.btnStartStop.textContent = isRunning ? "Stop" : "Start";
+  ui.btnStartStop.classList.toggle("btn--primary", !isRunning);
+  ui.btnStartStop.classList.toggle("btn--stop", isRunning);
+  ui.btnStartStop.setAttribute("aria-pressed", isRunning ? "true" : "false");
+  ui.btnStartStop.title = isRunning ? "Stop tailing the log" : "Start tailing the log";
+}
+
+function startMonitoring() {
+  if (!logFileHandle) return;
+  if (running) return;
+  running = true;
+  monitorStartEpoch = Date.now() / 1000;
+  setStatus("Monitoring");
+  setStartStopButtonLook(true);
+  ui.btnPickLog.disabled = true;
+  ui.btnPickFolder.disabled = true;
+  thresholdsFired.clear();
+  completionNotifiedThisRun = false;
+  interruptedMode = false;
+  interruptedElapsedSec = null;
+  frozenRatesAtInterrupt = null;
+  sessionAtInterrupt = null;
+  interruptAdoptDeclinedSession = null;
+  hideInterruptAdoptModal();
+  lastQueueRunSession = null;
+  appendHistory("Monitoring started.");
+  setLogActivityMonitoring(true);
+
+  if (pollTimer != null) window.clearInterval(pollTimer);
+  pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+  if (estimateTimer != null) window.clearInterval(estimateTimer);
+  estimateTimer = window.setInterval(() => updateTimeEstimates(), 100);
+  if (graphRealtimeTimer != null) window.clearInterval(graphRealtimeTimer);
+  graphRealtimeTimer = window.setInterval(() => {
+    if (running && config.graphLiveWindow && graphPoints.length > 0) scheduleDrawGraph();
+  }, 250);
+  pollOnce();
+}
+
+function stopMonitoring() {
+  running = false;
+  setLogActivityMonitoring(false);
+  setStartStopButtonLook(false);
+  ui.btnPickLog.disabled = false;
+  ui.btnPickFolder.disabled = false;
+  if (pollTimer != null) window.clearInterval(pollTimer);
+  pollTimer = null;
+  if (estimateTimer != null) window.clearInterval(estimateTimer);
+  estimateTimer = null;
+  if (graphRealtimeTimer != null) window.clearInterval(graphRealtimeTimer);
+  graphRealtimeTimer = null;
+  hideInterruptAdoptModal();
+  setStatus(leftConnectQueueDetected ? "Completed" : "Stopped", false);
+  appendHistory("Monitoring stopped.");
+}
+
+// -----------------------------
+// Graph (canvas)
+// -----------------------------
+
+function graphHintDefaultText() {
+  if (graphPoints.length < 1) {
+    return "Pick a log file to start monitoring. The graph will fill as queue positions change.";
+  }
+  return config.graphLogScale ? "Y scale: log" : "Y scale: linear";
+}
+
+/**
+ * @param {number} tSec
+ */
+function formatGraphHoverTime(tSec) {
+  try {
+    return new Date(tSec * 1000).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return String(tSec);
+  }
+}
+
+/** Short time for X-axis ticks (Grafana-style compact axis). */
+function formatGraphXTick(tSec) {
+  try {
+    return new Date(tSec * 1000).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * @param {number} clientX
+ * @param {number} clientY
+ * @returns {GraphPoint|null}
+ */
+function hitTestGraphPoint(clientX, clientY) {
+  const layout = lastGraphLayout;
+  if (!layout || graphPoints.length < 1) return null;
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const mx = (clientX - rect.left) * scaleX;
+  const my = (clientY - rect.top) * scaleY;
+  const { padL, padR, padT, padB, plotW, plotH, w, h, t1, span } = layout;
+  if (mx < padL || mx > w - padR || my < padT || my > h - padB) return null;
+  const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
+  /** @type {GraphPoint|null} */
+  let best = null;
+  let bestD = Infinity;
+  for (let i = 0; i < graphPoints.length; i++) {
+    const d = Math.abs(xOf(graphPoints[i][0]) - mx);
+    if (d < bestD) {
+      bestD = d;
+      best = graphPoints[i];
+    }
+  }
+  // No snapping: only “pick up” a point when the cursor is actually near a real update.
+  const HIT_PX = 8;
+  if (best && bestD <= HIT_PX) return best;
+  return null;
+}
+
+function graphYMap(pos, minP, maxP, h) {
+  const padTop = 22;
+  const padBot = 46;
+  const plotH = h - padTop - padBot;
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  if (config.graphLogScale) {
+    const p = Math.max(0, pos);
+    const a = Math.log1p(Math.max(0, minP));
+    const b = Math.log1p(Math.max(0, maxP));
+    const v = Math.log1p(p);
+    const t = b - a <= 1e-9 ? 0.5 : clamp((v - a) / (b - a));
+    return padTop + (1 - t) * plotH;
+  }
+  const t = maxP - minP <= 1e-9 ? 0.5 : Math.max(0, Math.min(1, (pos - minP) / (maxP - minP)));
+  return padTop + (1 - t) * plotH;
+}
+
+function drawGraph() {
+  const c = ui.graphCanvas;
+  const ctx = c.getContext("2d");
+  if (!ctx) return;
+  const w = c.width;
+  const h = c.height;
+
+  ctx.clearRect(0, 0, w, h);
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+  bgGrad.addColorStop(0, "rgba(18,22,32,0.98)");
+  bgGrad.addColorStop(0.55, "rgba(10,13,20,0.98)");
+  bgGrad.addColorStop(1, "rgba(6,8,12,0.99)");
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  if (graphPoints.length < 1) {
+    lastGraphLayout = null;
+    ui.graphHint.textContent = graphHintDefaultText();
+    return;
+  }
+  if (!graphCanvasHovering) ui.graphHint.textContent = graphHintDefaultText();
+
+  const padL = 56;
+  const padR = 20;
+  const padT = 22;
+  const padB = 46;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+  const plotBottom = padT + plotH;
+
+  // Time range
+  const tLast = graphPoints[graphPoints.length - 1][0];
+  const tNow = Date.now() / 1000;
+  // Live view = keep the X-axis advancing so the full-history timeline keeps stretching (constant motion).
+  const t1 = config.graphLiveWindow && running ? Math.max(tLast, tNow) : tLast;
+  const span = Math.max(60, t1 - graphPoints[0][0]);
+  const t0 = t1 - span;
+  const xOf = (t) => padL + ((t - t0) / span) * plotW;
+
+  // Range: always full-history (live view only affects X-axis motion).
+  const positions = graphPoints.map((p) => p[1]);
+  let minP = Math.min(...positions);
+  let maxP = Math.max(...positions);
+  if (!Number.isFinite(minP) || !Number.isFinite(maxP)) {
+    lastGraphLayout = null;
+    return;
+  }
+  if (minP === maxP) {
+    minP = Math.max(0, minP - 1);
+    maxP = maxP + 1;
+  }
+
+  const mono = getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "ui-monospace, monospace";
+
+  // Grids (horizontal + vertical, Grafana-style readability)
+  const yTickCount = 5;
+  const xTickCount = 5;
+  ctx.lineWidth = 1;
+
+  // Horizontal gridlines + Y labels that match the active scale.
+  const yTicks = [];
+  if (config.graphLogScale) {
+    const a = Math.log1p(Math.max(0, minP));
+    const b = Math.log1p(Math.max(0, maxP));
+    for (let i = 0; i <= yTickCount; i++) {
+      const frac = i / yTickCount; // 0 top → 1 bottom
+      const v = Math.expm1(b - frac * (b - a));
+      yTicks.push(Math.max(0, Math.round(v)));
+    }
+  } else {
+    for (let i = 0; i <= yTickCount; i++) {
+      const frac = i / yTickCount; // 0 top → 1 bottom
+      const v = maxP - frac * (maxP - minP);
+      yTicks.push(Math.round(v));
+    }
+  }
+  // De-dupe while keeping order (log rounding can create repeats).
+  const seen = new Set();
+  const yTickVals = yTicks.filter((v) => {
+    if (seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+
+  ctx.strokeStyle = "rgba(55,65,82,0.36)";
+  for (let i = 0; i < yTickVals.length; i++) {
+    const val = yTickVals[i];
+    const y = graphYMap(val, minP, maxP, h);
+    const strong = i === 0 || i === yTickVals.length - 1;
+    ctx.strokeStyle = strong ? "rgba(55,65,82,0.62)" : "rgba(55,65,82,0.36)";
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(w - padR, y);
+    ctx.stroke();
+  }
+
+  // Y-axis tick labels (every other tick, plus ends).
+  ctx.fillStyle = "rgba(155,165,176,0.92)";
+  ctx.font = "12px " + mono;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < yTickVals.length; i++) {
+    if (!(i === 0 || i === yTickVals.length - 1 || i % 2 === 0)) continue;
+    const val = yTickVals[i];
+    const y = graphYMap(val, minP, maxP, h);
+    ctx.fillText(String(val), padL - 8, y);
+  }
+
+  for (let i = 0; i <= xTickCount; i++) {
+    const x = padL + (i / xTickCount) * plotW;
+    ctx.strokeStyle = i === 0 || i === xTickCount ? "rgba(55,65,82,0.42)" : "rgba(55,65,82,0.2)";
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, plotBottom);
+    ctx.stroke();
+  }
+
+  // Panel frame
+  ctx.strokeStyle = "rgba(46,55,66,0.95)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padL - 0.5, padT - 0.5, plotW + 1, plotH + 1);
+
+  // Y-axis title
+  ctx.save();
+  ctx.fillStyle = "rgba(130,140,155,0.85)";
+  ctx.font = "10px " + mono;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.translate(12, padT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Position", 0, 0);
+  ctx.restore();
+
+  function traceStepLine() {
+    for (let i = 0; i < graphPoints.length; i++) {
+      const [t, p] = graphPoints[i];
+      const x = xOf(t);
+      const y = graphYMap(p, minP, maxP, h);
+      if (i === 0) ctx.moveTo(x, y);
+      else {
+        const [, pPrev] = graphPoints[i - 1];
+        const yPrev = graphYMap(pPrev, minP, maxP, h);
+        ctx.lineTo(x, yPrev);
+        ctx.lineTo(x, y);
+      }
+    }
+  }
+
+  // Gradient area under the step series
+  if (graphPoints.length >= 2) {
+    const gradFill = ctx.createLinearGradient(0, padT, 0, plotBottom);
+    gradFill.addColorStop(0, "rgba(100,168,255,0.24)");
+    gradFill.addColorStop(1, "rgba(100,168,255,0.03)");
+    const [t0, p0] = graphPoints[0];
+    const x0 = xOf(t0);
+    const y0 = graphYMap(p0, minP, maxP, h);
+    ctx.beginPath();
+    ctx.moveTo(x0, plotBottom);
+    ctx.lineTo(x0, y0);
+    for (let i = 1; i < graphPoints.length; i++) {
+      const [t, p] = graphPoints[i];
+      const [, pPrev] = graphPoints[i - 1];
+      const x = xOf(t);
+      const y = graphYMap(p, minP, maxP, h);
+      const yPrev = graphYMap(pPrev, minP, maxP, h);
+      ctx.lineTo(x, yPrev);
+      ctx.lineTo(x, y);
+    }
+    const xLast = xOf(graphPoints[graphPoints.length - 1][0]);
+    ctx.lineTo(xLast, plotBottom);
+    ctx.closePath();
+    ctx.fillStyle = gradFill;
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = "rgba(100,168,255,0.92)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  traceStepLine();
+  ctx.stroke();
+
+  // Current marker
+  const last = graphPoints[graphPoints.length - 1];
+  const xm = xOf(last[0]);
+  const ym = graphYMap(last[1], minP, maxP, h);
+  ctx.fillStyle = "rgba(130,200,255,0.98)";
+  ctx.beginPath();
+  ctx.arc(xm, ym, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hover marker (snaps to nearest point)
+  if (graphCanvasHovering && graphHoverPoint) {
+    const xh = xOf(graphHoverPoint[0]);
+    const yh = graphYMap(graphHoverPoint[1], minP, maxP, h);
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.beginPath();
+    ctx.arc(xh, yh, 3.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100,168,255,0.85)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(xh, yh, 5.2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Hover crosshair (vertical, scoped to plot)
+  if (graphCanvasHovering && graphHoverCanvasX != null) {
+    const cx = Math.max(padL, Math.min(w - padR, graphHoverCanvasX));
+    ctx.strokeStyle = "rgba(200,210,230,0.4)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(cx, padT);
+    ctx.lineTo(cx, plotBottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // X-axis time ticks
+  ctx.fillStyle = "rgba(130,140,155,0.88)";
+  ctx.font = "10px " + mono;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= xTickCount; i++) {
+    const frac = i / xTickCount;
+    const tTick = t0 + frac * span;
+    const x = padL + frac * plotW;
+    ctx.fillText(formatGraphXTick(tTick), x, plotBottom + 4);
+  }
+
+  lastGraphLayout = { padL, padR, padT, padB, plotW, plotH, w, h, t1, span, minP, maxP };
+}
+
+// -----------------------------
+// Wire up UI
+// -----------------------------
+
+loadConfig();
+syncConfigToForm();
+void syncSoundSummaries();
+void warmDefaultSoundsCache();
+setStatus("Idle");
+refreshWarningsKpi();
+// On first paint, center the next upcoming (pending) threshold.
+queueMicrotask(() => requestAnimationFrame(() => focusUpcomingWarningOnLoad()));
+appendHistory(
+  "VS Queue Monitor (web) ready. Pick your client log to start monitoring (or use Stop / Start to pause and resume). The last session can restore automatically when permitted.",
+);
+window.addEventListener(
+  "load",
+  () => {
+    queueMicrotask(() => void tryRestoreLastLogOnLoad());
+  },
+  { once: true },
+);
+wireHelpOverlay();
+wireSettingsOverlay();
+startUpdateCheckLoop();
+
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport || typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => syncWarningsMarquee());
+  ro.observe(viewport);
+})();
+
+// Warnings: allow side-scroll on wheel/trackpad when hovered.
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  viewport.addEventListener("scroll", () => syncWarningsArrowState(), { passive: true });
+  viewport.addEventListener(
+    "wheel",
+    (e) => {
+      // Prefer explicit horizontal deltas when present; otherwise map vertical wheel to horizontal pan.
+      const dx = Math.abs(e.deltaX) > 0.5 ? e.deltaX : e.deltaY;
+      if (!dx) return;
+      const before = viewport.scrollLeft;
+      viewport.scrollLeft += dx;
+      if (viewport.scrollLeft !== before) e.preventDefault();
+      syncWarningsArrowState();
+    },
+    { passive: false },
+  );
+})();
+
+(() => {
+  const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
+  if (!viewport) return;
+  const step = () => Math.max(80, Math.round(viewport.clientWidth * 0.55));
+  ui.btnWarnScrollL?.addEventListener("click", () => {
+    viewport.scrollBy({ left: -step(), behavior: "smooth" });
+    window.setTimeout(() => syncWarningsArrowState(), 220);
+  });
+  ui.btnWarnScrollR?.addEventListener("click", () => {
+    viewport.scrollBy({ left: step(), behavior: "smooth" });
+    window.setTimeout(() => syncWarningsArrowState(), 220);
+  });
+})();
+
+let _warningsEditorPrev = "";
+function openWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  _warningsEditorPrev = String(config.thresholdsRaw || "");
+  ui.inpWarningsAdd.value = _warningsEditorPrev;
+  ui.warningsAddPopover.hidden = false;
+  try {
+    ui.inpWarningsAdd.focus();
+    ui.inpWarningsAdd.select();
+  } catch {
+    // ignore
+  }
+}
+
+function closeWarningsAddPopover() {
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden = true;
+}
+
+// Warnings editor is a simple CSV input popover (see index.html).
+
+function updateThresholdsFromList(list) {
+  const uniq = [...new Set(list.filter((n) => Number.isFinite(n) && n >= 1))];
+  uniq.sort((a, b) => b - a);
+  config.thresholdsRaw = uniq.join(", ");
+  if (ui.inpThresholds) ui.inpThresholds.value = config.thresholdsRaw;
+  saveConfig();
+  refreshWarningsKpi();
+}
+
+function normalizeThresholdInput(raw) {
+  const s = String(raw ?? "").replaceAll(",", " ");
+  const parts = s.split(/\s+/).map((x) => x.trim()).filter(Boolean);
+  /** @type {number[]} */
+  const out = [];
+  for (const p of parts) {
+    const n = Number.parseInt(p, 10);
+    if (!Number.isFinite(n)) continue;
+    if (n >= 1) out.push(n);
+  }
+  const uniq = [...new Set(out)];
+  uniq.sort((a, b) => b - a);
+  return { list: uniq, normalized: uniq.join(", ") };
+}
+
+ui.btnWarningsEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
+  if (!ui.warningsAddPopover) return;
+  ui.warningsAddPopover.hidden ? openWarningsAddPopover() : closeWarningsAddPopover();
+});
+
+ui.btnWarningsAddCancel?.addEventListener("click", () => {
+  ui.inpWarningsAdd.value = _warningsEditorPrev;
+  closeWarningsAddPopover();
+});
+
+ui.btnWarningsAddOk?.addEventListener("click", () => {
+  const { list: next, normalized } = normalizeThresholdInput(ui.inpWarningsAdd.value);
+  if (next.length === 0) {
+    showToast("Invalid thresholds", "Enter one or more whole numbers ≥ 1 (comma- or space-separated).", "warn", { durationMs: 8000 });
+    return;
+  }
+  updateThresholdsFromList(next);
+  ui.inpWarningsAdd.value = normalized;
+  closeWarningsAddPopover();
+});
+
+ui.inpWarningsAdd?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    ui.btnWarningsAddOk.click();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    ui.btnWarningsAddCancel.click();
+  }
+});
+
+ui.inpWarningsAdd?.addEventListener("blur", () => {
+  const { normalized } = normalizeThresholdInput(ui.inpWarningsAdd.value);
+  if (normalized) ui.inpWarningsAdd.value = normalized;
+});
+
+
+ui.btnResumeLastLog.addEventListener("click", async () => {
+  const h = pendingRestoreHandle;
+  if (!h) return;
+  try {
+    const p = await h.requestPermission({ mode: "read" });
+    if (p !== "granted") {
+      appendHistory("Permission not granted.");
+      return;
+    }
+    hideRestoreBanner();
+    await finishRestoreSavedLog(h);
+  } catch (e) {
+    appendHistory(`Resume failed: ${String(e)}`);
+  }
+});
+ui.btnDismissRestoreBanner.addEventListener("click", () => {
+  pendingRestoreHandle = null;
+  hideRestoreBanner();
+  appendHistory("Resume dismissed — pick the log file or reload to try again.");
+});
+
+ui.btnInterruptAdoptConfirm.addEventListener("click", () => {
+  const s = interruptAdoptPendingSession;
+  if (s == null) return;
+  applyInterruptAdopt(s);
+});
+ui.btnInterruptAdoptNotNow.addEventListener("click", () => {
+  interruptAdoptDeclinedSession = interruptAdoptPendingSession;
+  hideInterruptAdoptModal();
+  appendHistory("Keeping interrupted state — adopt the new run when ready (dialog will show again if the session changes).");
+});
+
+// Hide folder picking when unsupported (common under file:// or non-Chromium).
+try {
+  const isFile = String(window.location && window.location.protocol) === "file:";
+  if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
+} catch {
+  // ignore
+}
+
+function focusAndReveal(el) {
+  try {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  } catch {
+    // ignore
+  }
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    try {
+      el.focus();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function flashInput(el) {
+  el.classList.add("flash");
+  window.setTimeout(() => el.classList.remove("flash"), 700);
+}
+
+// Inline-edit affordances: click KPI to jump to the relevant setting.
+ui.kpiWarnings.title = "Scroll to pan thresholds left/right. Click to edit warning thresholds.";
+ui.kpiWarnings.style.cursor = "pointer";
+ui.kpiWarnings.addEventListener("click", () => {
+  if (warningsEditMode) return;
+  focusAndReveal(ui.inpThresholds);
+  try {
+    ui.inpThresholds.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpThresholds);
+});
+
+ui.kpiRateLabel.title = "Click to edit rolling window (points)";
+ui.kpiRateLabel.style.cursor = "pointer";
+ui.kpiRateLabel.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.kpiRate.title = "Click to edit rolling window (points)";
+ui.kpiRate.style.cursor = "pointer";
+ui.kpiRate.addEventListener("click", () => {
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.btnRateEdit?.addEventListener("click", (e) => {
+  e.preventDefault();
+  focusAndReveal(ui.inpWindowPoints);
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
+  flashInput(ui.inpWindowPoints);
+});
+
+ui.btnPickLog.addEventListener("click", async () => {
+  try {
+    await pickLogFile();
+  } catch (e) {
+    appendHistory(`Pick log cancelled/failed: ${String(e)}`);
+  }
+});
+
+ui.btnPickFolder.addEventListener("click", async () => {
+  try {
+    await pickFolder();
+  } catch (e) {
+    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
+  }
+});
+
+ui.btnStartStop.addEventListener("click", async () => {
+  if (!running) startMonitoring();
+  else stopMonitoring();
+});
+
+ui.btnYScale.addEventListener("click", () => {
+  config.graphLogScale = !config.graphLogScale;
+  ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
+  saveConfig();
+  drawGraph();
+});
+
+ui.btnGraphWindow?.addEventListener("click", () => {
+  config.graphLiveWindow = !config.graphLiveWindow;
+  ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
+  saveConfig();
+  drawGraph();
+});
+
+ui.btnClear.addEventListener("click", () => {
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  connectPhaseStartedEpoch = null;
+  progressAtFrontEntry = null;
+  leftConnectQueueDetected = false;
+  thresholdsFired.clear();
+  completionNotifiedThisRun = false;
+  ui.infoLastChange.textContent = "—";
+  ui.infoLastAlert.textContent = "—";
+  setPositionDisplay(null);
+  ui.kpiElapsed.textContent = "—";
+  ui.kpiRemaining.textContent = "—";
+  ui.kpiRate.textContent = "—";
+  ui.infoGlobalRate.textContent = "—";
+  ui.progressFill.style.width = "0%";
+  history = [];
+  ui.historyPre.textContent = "";
+  appendHistory("Cleared.");
+  drawGraph();
+});
+
+ui.btnCopyHistory.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(ui.historyPre.textContent || "");
+    appendHistory("History copied to clipboard.");
+  } catch {
+    appendHistory("Could not copy history (clipboard permission).");
+  }
+});
+
+ui.btnRequestNotify.addEventListener("click", async () => {
+  if (!("Notification" in window)) {
+    appendHistory("Notifications are not supported in this browser.");
+    showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
+    return;
+  }
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
+    appendHistory("Desktop notifications are blocked in this context (not a secure origin).");
+    showToast(
+      "Open via localhost",
+      "Desktop notifications require a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click Enable notifications again.",
+      "warn",
+      { durationMs: 16000 },
+    );
+    return;
+  }
+  if (Notification.permission === "granted") {
+    showTestDesktopNotification();
+    appendHistory("Desktop notifications: permission already granted — sent a test notification.");
+    showToast(
+      "Test sent",
+      "If you don’t see a banner, open Notification Center and check Windows notification settings for your browser. Banners are often suppressed while this tab is focused—try another window and watch for the next ping.",
+      "info",
+      { durationMs: 14000 },
+    );
+    syncNotifyButtonUi();
+    return;
+  }
+  if (Notification.permission === "denied") {
+    appendHistory("Notifications are blocked for this site — change the permission in the browser (lock icon / site settings).");
+    showToast(
+      "Notifications blocked",
+      "Unblock this site in the browser’s site settings (address bar) if you want desktop alerts.",
+      "warn",
+      { durationMs: 12000 },
+    );
+    return;
+  }
+  const p = await Notification.requestPermission();
+  appendHistory(`Notification permission: ${p}`);
+  if (p === "granted") {
+    showTestDesktopNotification();
+    showToast(
+      "Notifications enabled",
+      "You should see up to 3 test notifications. If not, open Notification Center and ensure Windows allows notifications for your browser.",
+      "info",
+      { durationMs: 16000 },
+    );
+  } else {
+    showToast("Notifications not granted", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
+  }
+  syncNotifyButtonUi();
+});
+
+ui.btnSaveSettings.addEventListener("click", () => {
+  try {
+    const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
+    if (!(pollSec >= 0.2)) throw new Error("Poll (s) must be >= 0.2.");
+    const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
+    if (!Number.isFinite(win) || win < 2) throw new Error("Rolling window (points) must be >= 2.");
+    parseAlertThresholds(config.thresholdsRaw);
+
+    config.pollSec = pollSec;
+    config.windowPoints = win;
+    // thresholdsRaw is edited inline from WARNINGS (not in this dialog)
+    applyFormToConfig();
+    saveConfig();
+    syncConfigToForm();
+    void syncSoundSummaries();
+    refreshWarningsKpi();
+    updateTimeEstimates();
+    showSettingsNote("Saved.");
+
+    if (running) {
+      if (pollTimer != null) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+      appendHistory(`Updated poll interval: ${config.pollSec}s`);
+    }
+  } catch (e) {
+    showSettingsNote(String(e), true);
+  }
+});
+
+ui.btnCancelSettings?.addEventListener("click", () => {
+  // Discard in-progress edits (autosave may already have persisted, but this restores the form view).
+  try {
+    syncConfigToForm();
+    void syncSoundSummaries();
+  } catch {
+    // ignore
+  }
+  closeSettings();
+});
+
+function bindEnterToSave(input) {
+  input.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    ui.btnSaveSettings.click();
+  });
+}
+
+bindEnterToSave(ui.inpPollSec);
+if (ui.inpThresholds) bindEnterToSave(ui.inpThresholds);
+bindEnterToSave(ui.inpWindowPoints);
+bindEnterToSave(ui.inpWarnSoundUrl);
+bindEnterToSave(ui.inpCompletionSoundUrl);
+bindEnterToSave(ui.inpInterruptSoundUrl);
+
+// Auto-save on change (debounced). This is the primary persistence mechanism.
+for (const el of [
+  ui.inpPollSec,
+  ui.inpThresholds,
+  ui.inpWindowPoints,
+  ui.inpWarnSoundUrl,
+  ui.inpCompletionSoundUrl,
+  ui.inpInterruptSoundUrl,
+  ui.chkLogEveryChange,
+  ui.chkWarnNotify,
+  ui.chkWarnSound,
+  ui.chkCompletionNotify,
+  ui.chkCompletionSound,
+  ui.chkInterruptNotify,
+  ui.chkInterruptSound,
+].filter(Boolean)) {
+  el.addEventListener("input", () => {
+    applyFormToConfig();
+    scheduleAutosave();
+    refreshWarningsKpi();
+    updateTimeEstimates();
+    if (running) {
+      if (pollTimer != null) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+    }
+  });
+  el.addEventListener("change", () => {
+    applyFormToConfig();
+    scheduleAutosave();
+    refreshWarningsKpi();
+    updateTimeEstimates();
+    if (running) {
+      if (pollTimer != null) window.clearInterval(pollTimer);
+      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
+    }
+  });
+}
+
+ui.btnPickWarnSound.addEventListener("click", () => ui.fileWarnSound.click());
+ui.btnPickCompletionSound.addEventListener("click", () => ui.fileCompletionSound.click());
+ui.btnPickInterruptSound.addEventListener("click", () => ui.fileInterruptSound.click());
+
+ui.fileWarnSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("warn", f);
+    config.warnSoundFileName = f.name;
+    saveConfig();
+    ui.fileWarnSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save warning sound file.", true);
+  }
+});
+
+ui.fileCompletionSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("completion", f);
+    config.completionSoundFileName = f.name;
+    saveConfig();
+    ui.fileCompletionSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save completion sound file.", true);
+  }
+});
+
+ui.fileInterruptSound.addEventListener("change", async (e) => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  try {
+    await idbPutSoundBlob("interrupt", f);
+    config.interruptSoundFileName = f.name;
+    saveConfig();
+    ui.fileInterruptSound.value = "";
+    await syncSoundSummaries();
+  } catch {
+    showSettingsNote("Could not save interrupt sound file.", true);
+  }
+});
+
+ui.btnClearWarnSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("warn");
+  config.warnSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnClearCompletionSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("completion");
+  config.completionSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnClearInterruptSoundFile.addEventListener("click", async () => {
+  await idbDeleteSoundBlob("interrupt");
+  config.interruptSoundFileName = "";
+  saveConfig();
+  await syncSoundSummaries();
+});
+
+ui.btnWarnBuiltin.addEventListener("click", () => {
+  ui.inpWarnSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnCompletionBuiltin.addEventListener("click", () => {
+  ui.inpCompletionSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnInterruptBuiltin.addEventListener("click", () => {
+  ui.inpInterruptSoundUrl.value = "builtin";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnWarnDefaultUrl.addEventListener("click", () => {
+  ui.inpWarnSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnCompletionDefaultUrl.addEventListener("click", () => {
+  ui.inpCompletionSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnInterruptDefaultUrl.addEventListener("click", () => {
+  ui.inpInterruptSoundUrl.value = "";
+  applyFormToConfig();
+  scheduleAutosave();
+  void syncSoundSummaries();
+});
+
+ui.btnTestWarnSound.addEventListener("click", () => {
+  previewSound("warning");
+});
+
+ui.btnTestCompletionSound.addEventListener("click", () => {
+  previewSound("completion");
+});
+
+ui.btnTestInterruptSound.addEventListener("click", () => {
+  previewSound("interrupt");
+});
+
+// Resize canvas for crisp rendering on HiDPI (keep CSS size fixed)
+function resizeCanvasToDisplaySize() {
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(600, Math.round(rect.width * dpr));
+  const h = Math.max(280, Math.round(rect.height * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    drawGraph();
+  }
+}
+window.addEventListener("resize", () => resizeCanvasToDisplaySize());
+resizeCanvasToDisplaySize();
+
+ui.graphCanvas.addEventListener("mouseenter", () => {
+  graphCanvasHovering = true;
+});
+ui.graphCanvas.addEventListener("mouseleave", () => {
+  graphCanvasHovering = false;
+  graphHoverCanvasX = null;
+  graphHoverPoint = null;
+  ui.graphHint.textContent = graphHintDefaultText();
+  scheduleDrawGraph();
+});
+ui.graphCanvas.addEventListener("mousemove", (e) => {
+  const canvas = ui.graphCanvas;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
+  const pt = hitTestGraphPoint(e.clientX, e.clientY);
+  graphHoverPoint = pt;
+  if (pt) ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
+  else ui.graphHint.textContent = graphHintDefaultText();
+  scheduleDrawGraph();
+});
+
+drawGraph();
+
