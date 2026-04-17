@@ -244,6 +244,7 @@ body{
 .toast--warn{border-color:rgba(255, 176, 32, 0.75)}
 .toast__title{font-weight:800;margin-bottom:4px}
 .toast__body{color:var(--text)}
+.toast__hint{margin-top:6px;color:var(--muted);font-size:12px}
 .toast__actions{margin-top:8px;display:flex;gap:8px}
 .toast__btn{
   appearance:none;
@@ -326,7 +327,9 @@ body{
   background:var(--btn-active);
   border-color:rgba(87,148,242,0.55);
 }
-    </style>
+
+
+</style>
   </head>
   <body>
     <header class="topbar">
@@ -336,7 +339,7 @@ body{
       </div>
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
-        <button id="btnPickFolder" class="btn btn--secondary" title="Folder picking is optional and may be unavailable under file://">
+        <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
           Pick folder…
         </button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
@@ -410,7 +413,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
             <input
               id="inpHelpSourcePath"
               class="input helpForm__input"
-              placeholder='Example (Windows): %APPDATA%\\VintagestoryData  |  (Mac): ~/Library/Application Support/VintagestoryData/Logs/client-main.log  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
+              placeholder='Example (Windows): %APPDATA%\VintagestoryData  |  (Mac): ~/Library/Application Support/VintagestoryData/Logs/client-main.log  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
               autocomplete="off"
               spellcheck="false"
             />
@@ -583,7 +586,8 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
     <script type="module">
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
-const APP_VERSION = "2.0.28";
+// Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
+const APP_VERSION = "2.0.30";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -641,11 +645,16 @@ const ui = {
 ui.footerVersion.textContent = `v${APP_VERSION}`;
 
 const STORAGE_HELP_PLAT_KEY = "vsqm_help_plat_v1";
+/** @type {"win"|"unix"} */
 let helpPlat = "win";
 
 function setHelpPlat(next) {
   helpPlat = next === "unix" ? "unix" : "win";
-  try { localStorage.setItem(STORAGE_HELP_PLAT_KEY, helpPlat); } catch {}
+  try {
+    localStorage.setItem(STORAGE_HELP_PLAT_KEY, helpPlat);
+  } catch {
+    // ignore
+  }
   updateHelpPlatUi();
   renderHelpCommandPreview();
 }
@@ -653,15 +662,6 @@ function setHelpPlat(next) {
 function updateHelpPlatUi() {
   ui.btnHelpPlatWin?.setAttribute("aria-pressed", helpPlat === "win" ? "true" : "false");
   ui.btnHelpPlatUnix?.setAttribute("aria-pressed", helpPlat === "unix" ? "true" : "false");
-}
-
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function showToast(title, body = "", kind = "info", opts = undefined) {
@@ -679,7 +679,15 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   if (actionLabel && opts && typeof opts.onAction === "function") {
     const btn = el.querySelector(".toast__btn");
     btn?.addEventListener("click", () => {
-      try { opts.onAction(); } finally { try { el.remove(); } catch {} }
+      try {
+        opts.onAction();
+      } finally {
+        try {
+          el.remove();
+        } catch {
+          // ignore
+        }
+      }
     });
   }
 
@@ -692,44 +700,76 @@ function showToast(title, body = "", kind = "info", opts = undefined) {
   let timer = null;
   if (durationMs !== Infinity) {
     timer = window.setTimeout(() => {
-      try { el.remove(); } catch {}
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
     }, durationMs);
   }
 
   return {
     remove: () => {
       if (timer != null) window.clearTimeout(timer);
-      try { el.remove(); } catch {}
+      try {
+        el.remove();
+      } catch {
+        // ignore
+      }
     },
   };
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function openHelp() {
   if (!ui.helpOverlay) return;
   ui.helpOverlay.hidden = false;
   try {
+    // Load persisted selection or infer once from platform.
     try {
       const saved = localStorage.getItem(STORAGE_HELP_PLAT_KEY);
       if (saved === "win" || saved === "unix") helpPlat = saved;
-    } catch {}
+    } catch {
+      // ignore
+    }
     if (helpPlat !== "win" && helpPlat !== "unix") {
       const plat = String(navigator.platform || "").toLowerCase();
       helpPlat = plat.includes("win") ? "win" : "unix";
     }
     updateHelpPlatUi();
+
+    // Set a sensible default in the generator if empty.
     if (ui.inpHelpSourcePath && !ui.inpHelpSourcePath.value) {
       if (helpPlat === "win") ui.inpHelpSourcePath.value = "%APPDATA%\\VintagestoryData";
       else ui.inpHelpSourcePath.value = "~/.config/VintagestoryData/Logs/client-main.log";
     }
     renderHelpCommandPreview();
-  } catch {}
-  try { ui.btnHelpClose?.focus(); } catch {}
+  } catch {
+    // ignore
+  }
+  try {
+    ui.btnHelpClose?.focus();
+  } catch {
+    // ignore
+  }
 }
 
 function closeHelp() {
   if (!ui.helpOverlay) return;
   ui.helpOverlay.hidden = true;
-  try { ui.btnHelp?.focus(); } catch {}
+  try {
+    ui.btnHelp?.focus();
+  } catch {
+    // ignore
+  }
 }
 
 function wireHelpOverlay() {
@@ -773,6 +813,11 @@ function normalizeSlashes(s) {
   return String(s).trim().replaceAll("\r", "").replaceAll("\n", "");
 }
 
+/**
+ * Stable 8-char hex id from the pasted source path + kind (same path → same folder name).
+ * @param {string} seedPath
+ * @param {"logs"|"data"|"file"} kind
+ */
 function hashSourcePathForLinkFolder(seedPath, kind) {
   const p = normalizeSlashes(seedPath).replaceAll("\\", "/").toLowerCase();
   let h = 0x811c9dc5;
@@ -784,10 +829,19 @@ function hashSourcePathForLinkFolder(seedPath, kind) {
   return (h >>> 0).toString(16).padStart(8, "0");
 }
 
+/**
+ * @param {"logs"|"data"|"file"} kind
+ * @param {string} seedPath
+ */
 function linkFolderName(kind, seedPath) {
   return `${kind}-${hashSourcePathForLinkFolder(seedPath, kind)}`;
 }
 
+/**
+ * Path to the Vintage Story `Logs` folder if `p` contains `\\Logs\\` or ends with `\\Logs`.
+ * @param {string} p
+ * @returns {string|null}
+ */
 function findWindowsLogsFolderRoot(p) {
   const n = normalizeSlashes(p).replaceAll("/", "\\");
   if (!n) return null;
@@ -799,6 +853,12 @@ function findWindowsLogsFolderRoot(p) {
   return null;
 }
 
+/**
+ * Path under `Logs\\` for a file or folder under that logs root, or "" if `fullPath` is exactly `logsRoot`.
+ * @param {string} fullPath
+ * @param {string} logsRoot
+ * @returns {string|null}
+ */
 function winPathRelativeBelowLogs(fullPath, logsRoot) {
   const f = normalizeSlashes(fullPath).replaceAll("/", "\\").replace(/\\+$/g, "");
   const lr = normalizeSlashes(logsRoot).replaceAll("/", "\\").replace(/\\+$/g, "");
@@ -810,6 +870,10 @@ function winPathRelativeBelowLogs(fullPath, logsRoot) {
   return f.slice(root.length).replace(/^\\+/, "");
 }
 
+/**
+ * Destination path for `mklink /H` — one file directly under Documents\vs-queue-monitor (no subfolder).
+ * @param {string} srcLogPath
+ */
 function winHardLinkExposedLogPath(srcLogPath) {
   const base = srcLogPath.replace(/^.*[\\/]/, "") || "client-main.log";
   const dot = base.lastIndexOf(".");
@@ -825,6 +889,7 @@ function renderHelpCommandPreview() {
   const isWin = helpPlat === "win";
   const isUnix = helpPlat === "unix";
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
+  // For guidance, always prefer the canonical client log name.
   const logName = "client-main.log";
   const setPick = (p) => {
     if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
@@ -836,6 +901,7 @@ function renderHelpCommandPreview() {
       /[\\/]client-main\.log$/i.test(srcIn) || /[\\/]client\.log$/i.test(srcIn) || /\.log$/i.test(srcIn);
     const logsRoot = findWindowsLogsFolderRoot(srcIn);
 
+    // Hard link the log file into Documents (no admin on same volume). Single file under vs-queue-monitor — no subfolder.
     if (looksLikeLogFile) {
       const destFile = winHardLinkExposedLogPath(srcIn);
       let txt =
@@ -860,6 +926,7 @@ function renderHelpCommandPreview() {
       return;
     }
 
+    // Folder junction: Logs directory or data root (no .log file pasted).
     if (logsRoot) {
       const leaf = linkFolderName("logs", logsRoot);
       const dest = `%USERPROFILE%\\Documents\\vs-queue-monitor\\${leaf}`;
@@ -907,6 +974,10 @@ function renderHelpCommandPreview() {
   setPick("");
 }
 
+// -----------------------------
+// Parsing (ported from core.py)
+// -----------------------------
+
 const QUEUE_RE = new RegExp(
   "(?:" +
     "client\\s+is\\s+in\\s+connect\\s+queue\\s+at\\s+position" +
@@ -915,6 +986,10 @@ const QUEUE_RE = new RegExp(
   "gi",
 );
 
+/**
+ * @param {string} line
+ * @returns {number|null}
+ */
 function queuePositionFromLine(line) {
   const matches = [...line.matchAll(QUEUE_RE)];
   for (let i = matches.length - 1; i >= 0; i--) {
@@ -986,6 +1061,9 @@ const QUEUE_RUN_BOUNDARY_RES = [
   /\b(?:server|client)\s+shut\s+down\b/i,
 ];
 
+/**
+ * @param {string} line
+ */
 function isQueueRunBoundaryLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -993,6 +1071,9 @@ function isQueueRunBoundaryLine(line) {
   return QUEUE_RUN_BOUNDARY_RES.some((r) => r.test(s));
 }
 
+/**
+ * @param {string} line
+ */
 function isGraceDisconnectLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -1000,6 +1081,9 @@ function isGraceDisconnectLine(line) {
   return GRACE_DISCONNECT_LINE_RES.some((r) => r.test(s));
 }
 
+/**
+ * @param {string} line
+ */
 function isFinalCrashLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -1007,6 +1091,9 @@ function isFinalCrashLine(line) {
   return FINAL_CRASH_LINE_RES.some((r) => r.test(s));
 }
 
+/**
+ * @param {string} line
+ */
 function isReconnectingLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -1014,6 +1101,9 @@ function isReconnectingLine(line) {
   return RECONNECTING_LINE_RES.some((r) => r.test(s));
 }
 
+/**
+ * @param {string} line
+ */
 function isDisconnectedLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -1021,6 +1111,9 @@ function isDisconnectedLine(line) {
   return DISCONNECTED_LINE_RES.some((r) => r.test(s));
 }
 
+/**
+ * @param {string} line
+ */
 function isHardDisconnectLine(line) {
   const s = line.trim();
   if (!s) return false;
@@ -1029,6 +1122,9 @@ function isHardDisconnectLine(line) {
   return isDisconnectedLine(s);
 }
 
+/**
+ * @param {string} s
+ */
 function isPostQueueProgressLine(s) {
   const t = s.trim();
   if (!t) return false;
@@ -1036,6 +1132,9 @@ function isPostQueueProgressLine(s) {
   return POST_QUEUE_PROGRESS_LINE_RES.some((r) => r.test(t));
 }
 
+/**
+ * @param {string} data
+ */
 function tailHasPostQueueAfterLastQueueLine(data) {
   const lines = data.split(/\r?\n/);
   let lastQ = -1;
@@ -1049,8 +1148,14 @@ function tailHasPostQueueAfterLastQueueLine(data) {
   return false;
 }
 
+/**
+ * @param {string} data
+ * @returns {{ kind: "disconnected"|"reconnecting"|"grace"|"queue"|"unknown", lastPos: number|null }}
+ */
 function classifyTailConnectionState(data) {
+  /** @type {"disconnected"|"reconnecting"|"grace"|"queue"|"unknown"} */
   let lastKind = "unknown";
+  /** @type {number|null} */
   let lastPos = null;
 
   for (const line of data.split(/\r?\n/)) {
@@ -1083,7 +1188,12 @@ function classifyTailConnectionState(data) {
   return { kind: lastKind, lastPos };
 }
 
+/**
+ * @param {string} data
+ * @returns {{ lastPos: number|null, session: number }}
+ */
 function parseTailLastQueueReading(data) {
+  /** @type {number|null} */
   let lastPos = null;
   let session = 0;
   let lastSess = 0;
@@ -1102,6 +1212,10 @@ function parseTailLastQueueReading(data) {
 
 const TS_RE = /^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\b/;
 
+/**
+ * @param {string} line
+ * @returns {number|null} epoch seconds
+ */
 function parseLogTimestampEpoch(line) {
   const m = TS_RE.exec(line);
   if (!m) return null;
@@ -1118,7 +1232,12 @@ function parseLogTimestampEpoch(line) {
   return t;
 }
 
+/**
+ * @param {string} data
+ * @returns {number|null}
+ */
 function parseTailLastQueueLineEpoch(data) {
+  /** @type {number|null} */
   let lastT = null;
   for (const line of data.split(/\r?\n/)) {
     if (queuePositionFromLine(line) == null) continue;
@@ -1128,6 +1247,10 @@ function parseTailLastQueueLineEpoch(data) {
   return lastT;
 }
 
+/**
+ * @param {string} raw
+ * @returns {number[]}
+ */
 function parseAlertThresholds(raw) {
   const parts = raw.replaceAll(",", " ").split(/\s+/).map((s) => s.trim()).filter(Boolean);
   const out = [];
@@ -1143,10 +1266,15 @@ function parseAlertThresholds(raw) {
   return uniq;
 }
 
+// -----------------------------
+// State + config
+// -----------------------------
+
 const STORAGE_KEY = "vsqm_web_config_v1";
 const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
 
-let _autosaveTimer = null;
+// Debounced auto-save (mirrors the old app’s “save shortly after change” feel).
+let _autosaveTimer = /** @type {number|null} */ (null);
 function scheduleAutosave(note = "") {
   if (_autosaveTimer != null) window.clearTimeout(_autosaveTimer);
   _autosaveTimer = window.setTimeout(() => {
@@ -1154,13 +1282,16 @@ function scheduleAutosave(note = "") {
     try {
       saveConfig();
       if (note) showSettingsNote(note);
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, 450);
 }
 
 function applyFormToConfig() {
   const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
   const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
+  // Validate thresholds but only throw if the user explicitly saves.
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
   config.thresholdsRaw = ui.inpThresholds.value.trim() || config.thresholdsRaw;
@@ -1172,6 +1303,21 @@ function applyFormToConfig() {
   ui.kpiRateLabel.textContent = `RATE (Rolling ${rollingWindowPoints()})`;
 }
 
+/**
+ * @typedef {{
+ *   pollSec: number,
+ *   thresholdsRaw: string,
+ *   windowPoints: number,
+ *   logEveryChange: boolean,
+ *   warnNotify: boolean,
+ *   warnSound: boolean,
+ *   completionNotify: boolean,
+ *   completionSound: boolean,
+ *   graphLogScale: boolean
+ * }} AppConfig
+ */
+
+/** @type {AppConfig} */
 let config = {
   pollSec: 2,
   thresholdsRaw: "10, 5, 1",
@@ -1190,7 +1336,10 @@ function loadConfig() {
     if (!raw) return;
     const obj = JSON.parse(raw);
     if (obj && typeof obj === "object") {
-      config = { ...config, ...obj };
+      config = {
+        ...config,
+        ...obj,
+      };
     }
   } catch {
     // ignore
@@ -1220,6 +1369,11 @@ function showSettingsNote(text, isError = false) {
   if (text) setTimeout(() => showSettingsNote("", false), 4000);
 }
 
+// -----------------------------
+// History + notifications + sound
+// -----------------------------
+
+/** @type {string[]} */
 let history = [];
 
 function nowStamp() {
@@ -1235,6 +1389,10 @@ function appendHistory(msg) {
   ui.historyPre.scrollTop = ui.historyPre.scrollHeight;
 }
 
+/**
+ * @param {string} title
+ * @param {string} body
+ */
 function notify(title, body) {
   if (!config.warnNotify && title.startsWith("⚠")) return;
   if (!config.completionNotify && title.startsWith("🎉")) return;
@@ -1247,6 +1405,7 @@ function notify(title, body) {
   }
 }
 
+/** @type {AudioContext|null} */
 let audioCtx = null;
 
 function beep(kind) {
@@ -1274,14 +1433,26 @@ function beep(kind) {
   }
 }
 
+// -----------------------------
+// File access
+// -----------------------------
+
+/** @type {FileSystemFileHandle|null} */
 let logFileHandle = null;
+/** @type {string|null} */
 let sourceLabel = null;
 
 const TAIL_BYTES = 128 * 1024;
+/** First read after pick: load up to this many bytes for buffer + full graph replay (whole file if smaller). */
+const INITIAL_FULL_READ_MAX_BYTES = 12 * 1024 * 1024;
 const MAX_READ_BYTES_PER_POLL = 512 * 1024;
 const BUFFER_MAX_CHARS = 400_000;
 
+/** @type {number|null} */
 let lastReadOffset = null;
+/** @type {string|null} */
+let pendingGraphReplayText = null;
+/** @type {string} */
 let logBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
 const ALERT_MIN_INTERVAL_SEC = 12.0;
@@ -1290,6 +1461,10 @@ const QUEUE_UPDATE_INTERVAL_SEC = 30.0;
 const QUEUE_STALE_TIMEOUT_MULT = 2.0;
 const LOG_SILENCE_RECONNECT_SEC = 30.0;
 
+/**
+ * @param {ArrayBuffer} buf
+ * @param {number} startOffset
+ */
 function decodeLogBytes(buf, startOffset) {
   if (!buf || buf.byteLength === 0) return "";
   const bytes = new Uint8Array(buf);
@@ -1299,6 +1474,7 @@ function decodeLogBytes(buf, startOffset) {
   const nulRatio = nul / Math.max(1, sample.length);
 
   if (nulRatio > 0.05) {
+    // Ensure 2-byte alignment if sliced mid-file
     let aligned = bytes;
     if (startOffset % 2 === 1 && aligned.length > 1) aligned = aligned.slice(1);
     for (const enc of ["utf-16le", "utf-16be", "utf-16"]) {
@@ -1312,6 +1488,10 @@ function decodeLogBytes(buf, startOffset) {
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
 }
 
+/**
+ * @param {FileSystemFileHandle} handle
+ * @param {number} tailBytes
+ */
 async function readLogRangeText(handle, start, end) {
   const file = await handle.getFile();
   const safeStart = Math.max(0, Math.min(start, file.size));
@@ -1328,6 +1508,10 @@ async function readLogTailText(handle, tailBytes) {
   return await readLogRangeText(handle, start, size);
 }
 
+/**
+ * @param {FileSystemDirectoryHandle} dir
+ * @param {string[]} names
+ */
 async function tryGetFirstExistingFile(dir, names) {
   for (const name of names) {
     try {
@@ -1340,12 +1524,18 @@ async function tryGetFirstExistingFile(dir, names) {
   return null;
 }
 
+/** Shell Link (.lnk) header: first DWORD is header size 0x0000004C. */
 function fileHeadLooksLikeWindowsLnk(headBytes) {
   if (!headBytes || headBytes.byteLength < 4) return false;
   const u8 = new Uint8Array(headBytes);
   return u8[0] === 0x4c && u8[1] === 0 && u8[2] === 0 && u8[3] === 0;
 }
 
+/**
+ * Windows "Create shortcut" makes a .lnk shell file, not a second path to the log bytes.
+ * The File System Access API reads that tiny binary — queue detection sees garbage. Warn clearly.
+ * @param {FileSystemFileHandle|null} handle
+ */
 async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
   if (!handle) return;
   try {
@@ -1375,14 +1565,18 @@ async function warnIfPickedLogIsWindowsLnkShortcut(handle) {
         "Picker: file header looks like .lnk — not plain log text. Use mklink /H or a file copy under Documents.",
       );
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
 }
 
 async function pickLogFile() {
   if (!window.showOpenFilePicker) {
-    appendHistory("Live tail requires Edge/Chrome with File System Access API (showOpenFilePicker).");
+    appendHistory("This browser does not support file picking. Use Edge or Chrome.");
     return;
   }
+  // Proactive guidance: the picker UI can block “system” folders before we get a rejection.
+  /** @type {{remove: ()=>void}|null} */
   let tipToast = null;
   try {
     const isFile = String(window.location && window.location.protocol) === "file:";
@@ -1407,12 +1601,18 @@ async function pickLogFile() {
         appendHistory("Then pick: ~/VSLogs/client-main.log");
       }
     }
-  } catch {}
+  } catch {
+    // ignore
+  }
+  /** @type {any} */
   let startIn = undefined;
   try {
+    // `startIn` cannot be an arbitrary path (e.g. %APPDATA% or $HOME). Best-effort only.
     const last = localStorage.getItem(STORAGE_LAST_DIR_KEY);
     if (last) startIn = last;
-  } catch {}
+  } catch {
+    // ignore
+  }
   if (!startIn) startIn = "documents";
 
   let handle;
@@ -1423,7 +1623,9 @@ async function pickLogFile() {
       types: [
         {
           description: "Vintage Story log",
-          accept: { "text/plain": [".log", ".txt"] },
+          accept: {
+            "text/plain": [".log", ".txt"],
+          },
         },
       ],
     });
@@ -1457,10 +1659,10 @@ async function pickLogFile() {
       appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can’t auto-generate a command with the exact blocked path.");
       appendHistory('Tip: click "?" and paste the full path to client-main.log — the app generates mklink /H (hard link), which usually works when folder junctions do not.');
       appendHistory("Windows fallback (junction; may still be blocked by the picker):");
-      appendHistory('  mkdir \"%USERPROFILE%\\\\Documents\\\\VintagestoryData\"');
-      appendHistory('  mklink /J \"%USERPROFILE%\\\\Documents\\\\VintagestoryData\" \"%APPDATA%\\\\VintagestoryData\"');
+      appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
+      appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
       appendHistory("Explanation: exposes VintagestoryData under Documents; Edge/Chrome may still treat it as a system path.");
-      appendHistory("Then pick: %USERPROFILE%\\\\Documents\\\\VintagestoryData\\\\Logs\\\\client-main.log");
+      appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
       appendHistory("Linux workaround (symlink; source is the usual VS data dir under ~/.config):");
       appendHistory("  mkdir -p ~/VSLogs");
       appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
@@ -1481,9 +1683,21 @@ async function pickLogFile() {
   await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
+  pendingGraphReplayText = null;
   logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
 
-  try { localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents")); } catch {}
+  // Best-effort: remember the last directory via well-known startIn token (not a real path).
+  // Browsers do not expose a parent directory for a picked file handle.
+  try {
+    localStorage.setItem(STORAGE_LAST_DIR_KEY, String(startIn || "documents"));
+  } catch {
+    // ignore
+  }
 }
 
 async function pickFolder() {
@@ -1495,6 +1709,7 @@ async function pickFolder() {
   try {
     dir = await window.showDirectoryPicker({ mode: "read" });
   } catch (e) {
+    // Chrome/Edge can block protected folders (and users can cancel).
     const msg = String(e && (e.message || e.name || e));
     if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
       appendHistory("Pick folder cancelled.");
@@ -1511,7 +1726,7 @@ async function pickFolder() {
   }
   const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
   if (!file) {
-    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly.");
+    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
     sourceLabel = "Picked folder (no log yet)";
     ui.infoSource.textContent = sourceLabel;
     ui.infoResolved.textContent = "—";
@@ -1527,37 +1742,74 @@ async function pickFolder() {
   await warnIfPickedLogIsWindowsLnkShortcut(logFileHandle);
   appendHistory(`Selected folder; resolved log file: ${(await logFileHandle.getFile()).name}`);
   lastReadOffset = null;
+  pendingGraphReplayText = null;
   logBuffer = "";
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  positionOneReachedAt = null;
+  drawGraph();
 }
 
+// -----------------------------
+// Monitor engine (browser)
+// -----------------------------
+
+/** @typedef {[number, number]} GraphPoint */ // [epochSec, position]
+
+/** @type {GraphPoint[]} */
 let graphPoints = [];
-let lastGraphLayout = null;
+
+/** Last draw layout for canvas hit-testing (queue graph). */
+let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: number; padB: number; plotW: number; plotH: number; w: number; h: number; t1: number; span: number; minP: number; maxP: number }} */ (
+  null
+);
 let graphCanvasHovering = false;
+/** @type {GraphPoint|null} */
 let currentPoint = null;
+/** @type {number|null} */
 let lastPosition = null;
+/** @type {number|null} */
 let positionOneReachedAt = null;
+/** @type {number|null} */
 let connectPhaseStartedEpoch = null;
+/** @type {number|null} */
 let progressAtFrontEntry = null;
 let leftConnectQueueDetected = false;
 let running = false;
+/** @type {number|null} */
 let monitorStartEpoch = null;
+/** @type {number|null} */
 let pollTimer = null;
+/** @type {number|null} */
 let estimateTimer = null;
+/** @type {number} */
 let lastAlertEpoch = 0;
+/** @type {Set<number>} */
 let thresholdsFired = new Set();
+/** @type {number} */
 let lastCompletionNotifyEpoch = 0;
 let completionNotifiedThisRun = false;
+/** @type {number|null} */
 let lastQueueRunSession = null;
+/** @type {number|null} */
 let lastQueueLineEpoch = null;
+/** @type {{ size: number, mtime: number } | null} */
 let lastLogStat = null;
+/** @type {number|null} */
 let lastLogGrowthEpoch = null;
 let interruptedMode = false;
+/** @type {number|null} */
 let interruptedElapsedSec = null;
+/** @type {[string, string] | null} */
 let frozenRatesAtInterrupt = null;
+/** @type {number|null} */
 let lastQueuePositionChangeEpoch = null;
 let predSpeedScale = 1.0;
 let staleSlotsAccounted = 0;
+/** @type {number|null} */
 let mppFloorPosition = null;
+/** @type {number|null} */
 let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
@@ -1565,10 +1817,16 @@ function setStatus(text, danger = false) {
   ui.kpiStatus.classList.toggle("danger", danger);
 }
 
+/**
+ * @param {number|null} pos
+ */
 function setPositionDisplay(pos) {
   ui.kpiPosition.textContent = pos == null ? "—" : String(pos);
 }
 
+/**
+ * @param {number} sec
+ */
 function formatDuration(sec) {
   const total = Math.max(0, Math.round(sec));
   const h = Math.floor(total / 3600);
@@ -1578,6 +1836,9 @@ function formatDuration(sec) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * @param {number} sec
+ */
 function formatDurationRemaining(sec) {
   sec = Math.max(0, Number(sec));
   if (!Number.isFinite(sec) || sec <= 0) return "—";
@@ -1589,7 +1850,8 @@ function formatDurationRemaining(sec) {
 }
 
 function rollingWindowPoints() {
-  return Math.max(2, Math.min(10000, Math.floor(config.windowPoints || 10)));
+  const n = Math.max(2, Math.min(10000, Math.floor(config.windowPoints || 10)));
+  return n;
 }
 
 function windowRecentPoints() {
@@ -1610,9 +1872,11 @@ function queueElapsedStartEpoch() {
 
 function computeMovingAverageSpeedPosPerSec() {
   const pts = graphPoints;
-  if (pts.length < 2) return { speed: null, n: 0 };
+  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
+  const trail = recent.map((p) => p[1]);
+  /** @type {number[]} */
   const rates = [];
   for (let i = 0; i < recent.length - 1; i++) {
     const [t0, p0] = recent[i];
@@ -1623,17 +1887,18 @@ function computeMovingAverageSpeedPosPerSec() {
     if (improvement <= 0) continue;
     rates.push(improvement / dt);
   }
-  if (rates.length === 0) return { speed: null, n: 0 };
-  if (rates.length < 3) return { speed: rates.reduce((a, b) => a + b, 0) / rates.length, n: rates.length };
+  if (rates.length === 0) return { speed: null, n: 0, trail };
+  if (rates.length < 3) return { speed: rates.reduce((a, b) => a + b, 0) / rates.length, n: rates.length, trail };
   rates.sort((a, b) => a - b);
-  return { speed: rates[Math.floor(rates.length / 2)], n: rates.length };
+  return { speed: rates[Math.floor(rates.length / 2)], n: rates.length, trail };
 }
 
 function computeWeightedSpeedPosPerSec() {
   const pts = graphPoints;
-  if (pts.length < 2) return { speed: null, n: 0 };
+  if (pts.length < 2) return { speed: null, n: 0, trail: pts.map((p) => p[1]) };
   const nWin = rollingWindowPoints();
   const recent = pts.slice(-(nWin + 1));
+  const trail = recent.map((p) => p[1]);
   let now = Date.now() / 1000;
   if (currentQueuePosition() === 0 && recent.length >= 2) now = recent[recent.length - 1][0];
   const TAU = 90.0;
@@ -1653,10 +1918,10 @@ function computeWeightedSpeedPosPerSec() {
     rSum += rate * w;
     nSeg += 1;
   }
-  if (wSum <= 0 || nSeg < 1) return { speed: null, n: 0 };
+  if (wSum <= 0 || nSeg < 1) return { speed: null, n: 0, trail };
   const speed = rSum / wSum;
-  if (!(speed > 0)) return { speed: null, n: 0 };
-  return { speed, n: nSeg };
+  if (!(speed > 0)) return { speed: null, n: 0, trail };
+  return { speed, n: nSeg, trail };
 }
 
 function computeEmpiricalPosPerSec() {
@@ -1694,6 +1959,7 @@ function minutesPerPositionCappedForDwell(mppRaw, pos) {
 
 function globalAvgMinutesPerPosition() {
   if (graphPoints.length < 2) return null;
+  /** @type {number[]} */
   const mpps = [];
   for (let i = 0; i < graphPoints.length - 1; i++) {
     const [t0, p0] = graphPoints[i];
@@ -1722,7 +1988,14 @@ function refreshWarningsKpi() {
     ui.kpiWarnings.textContent = "—";
     return;
   }
-  ui.kpiWarnings.textContent = thresholds.join(" · ");
+  const pos = currentQueuePosition();
+  const fired = thresholdsFired;
+  const parts = [];
+  for (const t of thresholds) {
+    const passed = (pos != null && pos <= t) || fired.has(t);
+    parts.push(passed ? String(t) : String(t));
+  }
+  ui.kpiWarnings.textContent = parts.join(" · ");
 }
 
 function estimateSecondsRemaining() {
@@ -1800,6 +2073,14 @@ function updateTimeEstimates() {
       elapsedSec = Math.max(0, (Date.now() / 1000) - startT);
       ui.kpiElapsed.textContent = formatDuration(elapsedSec);
     }
+  } else if (!running && positionOneReachedAt != null && graphPoints.length >= 1) {
+    elapsedSec = Math.max(0, positionOneReachedAt - graphPoints[0][0]);
+    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
+  } else if (graphPoints.length >= 2) {
+    const startT2 = graphPoints[0][0];
+    const endT = currentPoint ? currentPoint[0] : graphPoints[graphPoints.length - 1][0];
+    elapsedSec = Math.max(0, endT - startT2);
+    ui.kpiElapsed.textContent = formatDuration(elapsedSec);
   } else {
     ui.kpiElapsed.textContent = "—";
   }
@@ -1828,6 +2109,10 @@ function updateTimeEstimates() {
   ui.progressFill.style.width = `${progress.toFixed(1)}%`;
 }
 
+/**
+ * @param {number} position
+ * @param {number|null} lineEpoch
+ */
 function appendGraphPoint(position, lineEpoch) {
   const t = lineEpoch ?? (Date.now() / 1000);
   if (currentPoint && currentPoint[1] === position) return;
@@ -1840,6 +2125,94 @@ function appendGraphPoint(position, lineEpoch) {
   drawGraph();
 }
 
+/**
+ * Rebuild graph points from a full log snapshot (first load / truncate resync), matching live poll semantics.
+ * @param {string} fullText
+ */
+function replayQueueGraphFromText(fullText) {
+  if (!fullText) {
+    graphPoints = [];
+    currentPoint = null;
+    lastPosition = null;
+    drawGraph();
+    return;
+  }
+  const lines = fullText.split(/\r?\n/);
+  const sessionBeforeLine = new Array(lines.length);
+  let s = 0;
+  for (let i = 0; i < lines.length; i++) {
+    sessionBeforeLine[i] = s;
+    if (isQueueRunBoundaryLine(lines[i])) s++;
+  }
+
+  graphPoints = [];
+  currentPoint = null;
+  lastPosition = null;
+  /** @type {number|null} */
+  let sessionAtLastEmit = null;
+
+  let lastQIdx = -1;
+  let lastQueuePos = /** @type {number|null} */ (null);
+  let lastQueueEpoch = /** @type {number|null} */ (null);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isQueueRunBoundaryLine(line)) continue;
+
+    const rawPos = queuePositionFromLine(line);
+    if (rawPos != null) {
+      lastQIdx = i;
+      lastQueuePos = rawPos;
+      lastQueueEpoch = parseLogTimestampEpoch(line);
+    }
+
+    if (lastQIdx < 0 || lastQueuePos == null) continue;
+
+    const sess = sessionBeforeLine[lastQIdx];
+    let pos = lastQueuePos;
+
+    let left = false;
+    for (let j = lastQIdx + 1; j <= i; j++) {
+      if (isPostQueueProgressLine(lines[j])) {
+        left = true;
+        break;
+      }
+    }
+
+    const prevPos = lastPosition;
+    if (
+      prevPos != null &&
+      sessionAtLastEmit != null &&
+      sess === sessionAtLastEmit &&
+      pos > prevPos &&
+      pos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD
+    ) {
+      pos = prevPos;
+    }
+
+    if (pos <= 1 && left) pos = 0;
+
+    const t = lastQueueEpoch ?? Date.now() / 1000;
+
+    if (!currentPoint || currentPoint[1] !== pos) {
+      currentPoint = [t, pos];
+      graphPoints.push(currentPoint);
+      if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+      lastPosition = pos;
+      sessionAtLastEmit = sess;
+    }
+  }
+
+  const { session } = parseTailLastQueueReading(fullText);
+  lastQueueRunSession = session;
+  drawGraph();
+}
+
+/**
+ * @param {number|null} prevPos
+ * @param {number} currPos
+ * @returns {{ should: boolean, reason: string }}
+ */
 function computeAlert(prevPos, currPos) {
   let thresholds;
   try {
@@ -1866,6 +2239,10 @@ function computeAlert(prevPos, currPos) {
   return { should: true, reason: `crossed threshold(s): ${crossed.join(", ")}` };
 }
 
+/**
+ * @param {number} position
+ * @param {string} reason
+ */
 function raiseAlert(position, reason) {
   const now = Date.now() / 1000;
   if (lastAlertEpoch > 0 && now - lastAlertEpoch < ALERT_MIN_INTERVAL_SEC) return;
@@ -1879,6 +2256,10 @@ function raiseAlert(position, reason) {
   notify("⚠ Threshold alert", `Position ${position} (${reason}). ETA: ${etaDisplay}`);
 }
 
+/**
+ * @param {number} position
+ * @param {string} tailText
+ */
 function maybeNotifyCompletion(position, tailText) {
   if (position !== 0) return;
   if (!tailHasPostQueueAfterLastQueueLine(tailText)) return;
@@ -1895,6 +2276,9 @@ function maybeNotifyCompletion(position, tailText) {
   notify("🎉 Queue completed", "Past queue wait detected in the log tail (connecting/loading).");
 }
 
+/**
+ * @param {string} detail
+ */
 function enterInterruptedState(detail) {
   if (interruptedMode) return;
   interruptedMode = true;
@@ -1940,30 +2324,50 @@ async function readNewLogText(handle) {
   const file = await handle.getFile();
   const size = file.size;
 
+  // First read: load full file when reasonable so we can replay the full queue graph; then set offset to EOF.
   if (lastReadOffset == null) {
-    const start = Math.max(0, size - TAIL_BYTES);
-    const seed = await readLogRangeText(handle, start, size);
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+      appendHistory(
+        `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
+      );
+    }
     lastReadOffset = size;
+    pendingGraphReplayText = seed;
     return seed;
   }
 
+  // Truncation / rotation: file got smaller, reset and reload window for replay.
   if (size < lastReadOffset) {
-    const start = Math.max(0, size - TAIL_BYTES);
-    const seed = await readLogRangeText(handle, start, size);
+    let seed;
+    if (size <= INITIAL_FULL_READ_MAX_BYTES) {
+      seed = await readLogRangeText(handle, 0, size);
+    } else {
+      const start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
+      seed = await readLogRangeText(handle, start, size);
+    }
     lastReadOffset = size;
+    pendingGraphReplayText = seed;
     appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
     return seed;
   }
 
   if (size === lastReadOffset) return "";
 
+  // Read only appended bytes, with a cap to avoid huge spikes.
   const start = lastReadOffset;
   const end = Math.min(size, start + MAX_READ_BYTES_PER_POLL);
   const chunk = await readLogRangeText(handle, start, end);
   lastReadOffset = end;
 
   if (end < size) {
-    appendHistory(`Log grew quickly; read ${MAX_READ_BYTES_PER_POLL} bytes this poll and will continue next poll.`);
+    appendHistory(
+      `Log grew quickly; read ${MAX_READ_BYTES_PER_POLL} bytes this poll and will continue next poll.`,
+    );
   }
   return chunk;
 }
@@ -1979,7 +2383,10 @@ async function pollOnce() {
     updateTimeEstimates();
     await bumpLogActivityIfChanged();
     const newText = await readNewLogText(logFileHandle);
+    const replayChunk = pendingGraphReplayText;
+    pendingGraphReplayText = null;
     if (newText) appendToLogBuffer(newText);
+    if (replayChunk != null) replayQueueGraphFromText(replayChunk);
     const view = logBuffer || "";
     const { kind } = classifyTailConnectionState(view);
     const { lastPos, session } = parseTailLastQueueReading(view);
@@ -1991,6 +2398,7 @@ async function pollOnce() {
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
 
     if (interruptedMode) {
+      // Minimal: keep interrupted until the queue looks healthy again (new queue lines).
       if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
         interruptedMode = false;
         interruptedElapsedSec = null;
@@ -2057,6 +2465,7 @@ async function pollOnce() {
       if (pos === 0) leftConnectQueueDetected = true;
       else if (pos <= 1) leftConnectQueueDetected = false;
 
+      // New run detection: session counter in tail (best-effort)
       if (lastQueueRunSession != null && session > lastQueueRunSession) {
         thresholdsFired.clear();
         positionOneReachedAt = null;
@@ -2079,22 +2488,26 @@ async function pollOnce() {
       if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
 
       appendGraphPoint(pos, lastLineEpoch);
-      updateTimeEstimates();
+      try {
+        updateTimeEstimates();
 
-      if (pos !== prevPos) {
-        ui.infoLastChange.textContent = nowStamp();
-        mppFloorPosition = pos;
-        mppFloorValue = minutesPerPositionFromWindow();
-        if (config.logEveryChange) {
-          if (prevPos == null) appendHistory(`Queue position: ${pos}`);
-          else appendHistory(`Queue changed: ${prevPos} → ${pos}`);
+        if (pos !== prevPos) {
+          ui.infoLastChange.textContent = nowStamp();
+          mppFloorPosition = pos;
+          mppFloorValue = minutesPerPositionFromWindow();
+          if (config.logEveryChange) {
+            if (prevPos == null) appendHistory(`Queue position: ${pos}`);
+            else appendHistory(`Queue changed: ${prevPos} → ${pos}`);
+          }
         }
-      }
 
-      const { should, reason } = computeAlert(prevPos, pos);
-      if (should) raiseAlert(pos, reason);
-      maybeNotifyCompletion(pos, view);
-      refreshWarningsKpi();
+        const { should, reason } = computeAlert(prevPos, pos);
+        if (should) raiseAlert(pos, reason);
+        maybeNotifyCompletion(pos, view);
+        refreshWarningsKpi();
+      } catch (e) {
+        appendHistory(`Non-fatal: ${String(e)}`);
+      }
       return;
     }
 
@@ -2112,7 +2525,7 @@ function startMonitoring() {
   setStatus("Monitoring");
   ui.btnStartStop.textContent = "Stop";
   ui.btnPickLog.disabled = true;
-  try { ui.btnPickFolder.disabled = true; } catch {}
+  ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
   completionNotifiedThisRun = false;
   interruptedMode = false;
@@ -2132,7 +2545,7 @@ function stopMonitoring() {
   running = false;
   ui.btnStartStop.textContent = "Start";
   ui.btnPickLog.disabled = false;
-  try { ui.btnPickFolder.disabled = false; } catch {}
+  ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
@@ -2141,6 +2554,10 @@ function stopMonitoring() {
   appendHistory("Monitoring stopped.");
 }
 
+// -----------------------------
+// Graph (canvas)
+// -----------------------------
+
 function graphHintDefaultText() {
   if (graphPoints.length < 1) {
     return "Pick a log and press Start. The graph will fill as queue positions change.";
@@ -2148,6 +2565,9 @@ function graphHintDefaultText() {
   return config.graphLogScale ? "Y scale: log" : "Y scale: linear";
 }
 
+/**
+ * @param {number} tSec
+ */
 function formatGraphHoverTime(tSec) {
   try {
     return new Date(tSec * 1000).toLocaleString(undefined, {
@@ -2162,17 +2582,24 @@ function formatGraphHoverTime(tSec) {
   }
 }
 
+/**
+ * @param {number} clientX
+ * @param {number} clientY
+ * @returns {GraphPoint|null}
+ */
 function hitTestGraphPoint(clientX, clientY) {
   const layout = lastGraphLayout;
   if (!layout || graphPoints.length < 1) return null;
   const canvas = ui.graphCanvas;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
   const mx = (clientX - rect.left) * scaleX;
-  const my = (clientY - rect.top) * (canvas.height / rect.height);
+  const my = (clientY - rect.top) * scaleY;
   const { padL, padR, padT, padB, plotW, plotH, w, h, t1, span } = layout;
   if (mx < padL || mx > w - padR || my < padT || my > h - padB) return null;
   const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
+  /** @type {GraphPoint|null} */
   let best = null;
   let bestD = Infinity;
   for (let i = 0; i < graphPoints.length; i++) {
@@ -2227,6 +2654,7 @@ function drawGraph() {
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
+  // Range
   const positions = graphPoints.map((p) => p[1]);
   let minP = Math.min(...positions);
   let maxP = Math.max(...positions);
@@ -2239,11 +2667,13 @@ function drawGraph() {
     maxP = maxP + 1;
   }
 
+  // Time range
   const t0 = graphPoints[0][0];
   const t1 = graphPoints[graphPoints.length - 1][0];
   const span = Math.max(60, t1 - t0);
   const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
 
+  // Grid
   ctx.strokeStyle = "rgba(46,55,66,0.7)";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 6; i++) {
@@ -2254,6 +2684,7 @@ function drawGraph() {
     ctx.stroke();
   }
 
+  // Axes labels (simple)
   ctx.fillStyle = "rgba(159,167,179,0.95)";
   ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--mono");
   ctx.textAlign = "right";
@@ -2264,6 +2695,7 @@ function drawGraph() {
     ctx.fillText(String(val), padL - 8, y);
   }
 
+  // Series (step plot)
   ctx.strokeStyle = "rgba(87,148,242,0.95)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -2274,6 +2706,7 @@ function drawGraph() {
     if (i === 0) ctx.moveTo(x, y);
     else {
       const [tPrev, pPrev] = graphPoints[i - 1];
+      const xPrev = xOf(tPrev);
       const yPrev = graphYMap(pPrev, minP, maxP, h);
       ctx.lineTo(x, yPrev);
       ctx.lineTo(x, y);
@@ -2281,6 +2714,7 @@ function drawGraph() {
   }
   ctx.stroke();
 
+  // Current marker
   const last = graphPoints[graphPoints.length - 1];
   const xm = xOf(last[0]);
   const ym = graphYMap(last[1], minP, maxP, h);
@@ -2292,21 +2726,40 @@ function drawGraph() {
   lastGraphLayout = { padL, padR, padT, padB, plotW, plotH, w, h, t1, span, minP, maxP };
 }
 
+// -----------------------------
+// Wire up UI
+// -----------------------------
+
 loadConfig();
 syncConfigToForm();
 setStatus("Idle");
 refreshWarningsKpi();
-appendHistory("VS Queue Monitor ready. Pick your client log and press Start.");
+appendHistory("VS Queue Monitor (web) ready. Pick your client log and press Start.");
 wireHelpOverlay();
 
+// Hide folder picking when unsupported (common under file:// or non-Chromium).
 try {
   const isFile = String(window.location && window.location.protocol) === "file:";
   if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
-} catch {}
+} catch {
+  // ignore
+}
 
 function focusAndReveal(el) {
-  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch {}
-  try { el.focus({ preventScroll: true }); } catch { try { el.focus(); } catch {} }
+  try {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+  } catch {
+    // ignore
+  }
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    try {
+      el.focus();
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function flashInput(el) {
@@ -2314,11 +2767,16 @@ function flashInput(el) {
   window.setTimeout(() => el.classList.remove("flash"), 700);
 }
 
+// Inline-edit affordances: click KPI to jump to the relevant setting.
 ui.kpiWarnings.title = "Click to edit warning thresholds";
 ui.kpiWarnings.style.cursor = "pointer";
 ui.kpiWarnings.addEventListener("click", () => {
   focusAndReveal(ui.inpThresholds);
-  try { ui.inpThresholds.select(); } catch {}
+  try {
+    ui.inpThresholds.select();
+  } catch {
+    // ignore
+  }
   flashInput(ui.inpThresholds);
 });
 
@@ -2326,7 +2784,11 @@ ui.kpiRateLabel.title = "Click to edit rolling window (points)";
 ui.kpiRateLabel.style.cursor = "pointer";
 ui.kpiRateLabel.addEventListener("click", () => {
   focusAndReveal(ui.inpWindowPoints);
-  try { ui.inpWindowPoints.select(); } catch {}
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
   flashInput(ui.inpWindowPoints);
 });
 
@@ -2334,19 +2796,31 @@ ui.kpiRate.title = "Click to edit rolling window (points)";
 ui.kpiRate.style.cursor = "pointer";
 ui.kpiRate.addEventListener("click", () => {
   focusAndReveal(ui.inpWindowPoints);
-  try { ui.inpWindowPoints.select(); } catch {}
+  try {
+    ui.inpWindowPoints.select();
+  } catch {
+    // ignore
+  }
   flashInput(ui.inpWindowPoints);
 });
 
 ui.btnPickLog.addEventListener("click", async () => {
-  try { await pickLogFile(); } catch (e) { appendHistory(`Pick log cancelled/failed: ${String(e)}`); }
+  try {
+    await pickLogFile();
+  } catch (e) {
+    appendHistory(`Pick log cancelled/failed: ${String(e)}`);
+  }
 });
 
 ui.btnPickFolder.addEventListener("click", async () => {
-  try { await pickFolder(); } catch (e) { appendHistory(`Pick folder cancelled/failed: ${String(e)}`); }
+  try {
+    await pickFolder();
+  } catch (e) {
+    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
+  }
 });
 
-ui.btnStartStop.addEventListener("click", () => {
+ui.btnStartStop.addEventListener("click", async () => {
   if (!running) startMonitoring();
   else stopMonitoring();
 });
@@ -2439,10 +2913,12 @@ function bindEnterToSave(input) {
     ui.btnSaveSettings.click();
   });
 }
+
 bindEnterToSave(ui.inpPollSec);
 bindEnterToSave(ui.inpThresholds);
 bindEnterToSave(ui.inpWindowPoints);
 
+// Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [
   ui.inpPollSec,
   ui.inpThresholds,
@@ -2475,6 +2951,7 @@ for (const el of [
   });
 }
 
+// Resize canvas for crisp rendering on HiDPI (keep CSS size fixed)
 function resizeCanvasToDisplaySize() {
   const canvas = ui.graphCanvas;
   const rect = canvas.getBoundingClientRect();
@@ -2507,7 +2984,9 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
 });
 
 drawGraph();
-    </script>
+
+
+</script>
   </body>
 </html>
 
