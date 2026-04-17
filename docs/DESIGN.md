@@ -281,15 +281,25 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Decision**: Render compact time ticks (HH:MM:SS) along the bottom so the user can read cadence at a glance.
   - **Shipped**: Bottom time ticks.
 
-- **FR: Scroll the graph each poll tick (fixed time window)**
-  - **Request**: The graph can move every tick; use the last tick vs current tick.
-  - **Decision**: Prefer a Grafana-like “last \(N\) seconds” window so the plot scrolls forward each tick, rather than constantly rescaling the full session.
-  - **Shipped**: Live window mode exists, but **full-session view remains the default**; live window is an explicit toggle.
+- **FR: One “Live view” toggle (X-axis motion only), default on**
+  - **Request**: “I don’t need 2 views… just a button to toggle live view on/off… live view on by default.” Live view means the timeline keeps stretching as the file updates, so there’s constant motion.
+  - **Decision**: Keep **full-session history** as the data range (the story of the current run), but let the X-axis advance to “now” while monitoring so the plot has subtle motion. One toggle controls this.
+  - **Shipped**: `Live view: on/off` toggle; **on by default**; affects **X-axis motion**, not which points are included.
 
-- **FR: Default graph should be zoomed out (whole session)**
-  - **Request**: Zoom out fully by default; show the whole graph.
-  - **Decision**: Default to full-session context (trust + narrative). Provide an explicit “live window” toggle for users who want a scrolling time window.
-  - **Shipped**: Default full-history view + a window toggle (full vs live).
+- **FR: Hover should reveal real update points (no crosshair snapping)**
+  - **Request**: “Cross hair does not need to snap… the travelling dot snaps” and show a data point only when the cursor is **near** an actual update (including minor updates).
+  - **Decision**: Always keep the crosshair under the pointer; separately snap the hover marker to the nearest real update point **only when close enough**. Treat **every log-derived update line** as a point so hover can snap to “minor” updates.
+  - **Shipped**: Hover crosshair follows the mouse; hover marker snaps to the nearest point only within a small radius; all update lines are recorded as points (even if position didn’t change).
+
+- **FR: Graph must not “jump” over intermediate updates**
+  - **Request**: “You jumped straight from position 40 to 34..”
+  - **Decision**: If multiple queue readings arrive between polls, append **each** reading as its own point (monotonic timestamps) so the step plot reflects intermediate movement.
+  - **Shipped**: Poll delta parsing appends all queue readings found in the new chunk, not only the last one.
+
+- **FR: Graph hover must work reliably on HiDPI**
+  - **Request**: “Graph still broken” (hover/snap unreliable).
+  - **Decision**: Hover hit-testing must use a **CSS-pixel** radius scaled by DPR so it doesn’t become too small on high-density displays.
+  - **Shipped**: Hit radius scales with canvas-to-CSS pixel ratio.
 
 - **FR: Graph should be resizable (at least vertically)**
   - **Request**: Graph should be resizable at least vertically.
@@ -449,6 +459,10 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - Explain **why** (browser/OS policy), not “your fault.”
   - Offer **Help** with **Windows vs Mac/Linux** paths where behavior differs.
   - Provide **generated commands** from a user-pasted path so they can create a **reachable** file or junction and pick that—**copy/paste friendly**, minimal jargon in-app; **README** for long-form edge cases.
+
+- **Secure origin is required for pick/notifications**
+  - File picking (and service-worker-backed notifications) may be **unavailable** when the app is opened from **`file://`** or other non-secure contexts.
+  - The UI should explain this clearly and instruct the user to open via **`http://localhost`** (or `https://`) rather than silently failing.
 
 ---
 
