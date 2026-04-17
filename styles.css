@@ -308,6 +308,7 @@ body{
   font-size:12px;
 }
 .helpForm__input:focus{outline:2px solid rgba(87,148,242,0.35);outline-offset:2px}
+.helpForm__input--narrow{max-width:96px}
 .helpForm__actions{display:flex;gap:8px;flex-wrap:wrap}
 
 .helpPlat{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
