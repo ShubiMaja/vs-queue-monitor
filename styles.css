@@ -302,8 +302,11 @@ body{
   font-weight:800;
   text-transform:uppercase;
   opacity:0.95;
+  white-space:nowrap;
 }
-.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;min-width:0}
+.kpi__labelRow > *{min-width:0}
+.kpi__labelRow > :first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kpi__labelActions{display:inline-flex;gap:6px;align-items:center}
 .kpi__labelActions .btn{padding:4px 8px;font-size:12px;border-radius:8px;line-height:1}
 .kpi__labelActions .btn--icon{width:auto}
@@ -330,12 +333,15 @@ body{
 .kpiWarn__threshold{background:rgba(110,179,255,0.06)}
 /* Warnings row: horizontal pan when thresholds overflow the KPI cell */
 .kpi--warnings{min-width:0}
-.btnWarnEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.btnWarnEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--warnings:hover .btnWarnEdit,
-.kpi--warnings:focus-within .btnWarnEdit{opacity:1;pointer-events:auto}
-.btnRateEdit{opacity:0;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--warnings:focus-within .btnWarnEdit{opacity:1;visibility:visible;pointer-events:auto}
+.btnRateEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
 .kpi--rate:hover .btnRateEdit,
-.kpi--rate:focus-within .btnRateEdit{opacity:1;pointer-events:auto}
+.kpi--rate:focus-within .btnRateEdit{opacity:1;visibility:visible;pointer-events:auto}
+.btnStatusRefreshEdit{opacity:0;visibility:hidden;pointer-events:none;transition:opacity 0.12s ease}
+.kpi--status:hover .btnStatusRefreshEdit,
+.kpi--status:focus-within .btnStatusRefreshEdit{opacity:1;visibility:visible;pointer-events:auto}
 .kpiWarn{width:100%;min-width:0}
 .kpiWarn{position:relative}
 .kpiWarn__viewport{
@@ -401,8 +407,12 @@ body{
 .kpiWarn--overflow:hover .kpiWarn__arrow,
 .kpiWarn--overflow:focus-within .kpiWarn__arrow{display:flex}
 
-/* Small popover used by inline warning editor */
+/* Small popover used by inline KPI editors */
 .kpi--warnings{position:relative}
+.kpi--rate{position:relative}
+.kpi--status{position:relative}
+.kpi--status .kpi__labelRow{position:relative;padding-right:22px}
+.kpi--status .kpi__labelActions{position:absolute;right:0;top:0}
 .popover{
   position:absolute;
   top:24px;
@@ -451,13 +461,24 @@ body{
   transition:width 0.35s ease;
 }
 
-.graph{grid-column:1 / -1}
+.card.graph{
+  grid-column:1 / -1;
+  display:flex;
+  flex-direction:column;
+  resize:vertical;
+  overflow:hidden;
+  min-height:340px;
+  min-width:0;
+}
 #graphCanvas{
   display:block;
   width:100%;
-  height:360px;
+  height:auto;
+  min-height:0;
+  flex:1 1 auto;
   cursor:crosshair;
 }
+.graph__hint{flex:0 0 auto}
 .sound-summary{margin:6px 0 0;font-size:12px;line-height:1.35}
 .sound-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .sound-row--sub{margin-top:6px}
@@ -470,6 +491,14 @@ body{
   background:rgba(8,10,14,0.28);
 }
 .sound-url{flex:1;min-width:min(100%,220px)}
+.fileInputHidden{
+  position:absolute;
+  left:-9999px;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
 
 .graph__hint{
   padding:10px 16px;
@@ -542,9 +571,9 @@ body{
   border:1px solid rgba(55,65,82,0.65);
   background:rgba(8,10,14,0.35);
 }
-.inlineView::after{
-  content:"✎";
+.inlineView__edit{
   width:18px;
+  flex:0 0 18px;
   text-align:center;
   opacity:0;
   color:var(--muted);
@@ -553,7 +582,7 @@ body{
   transition:opacity 0.12s ease, color 0.12s ease;
   pointer-events:none;
 }
-.inlineView:hover::after{
+.inlineView:hover .inlineView__edit{
   opacity:0.8;
   color:#aab6c2;
 }
@@ -663,6 +692,7 @@ body{
   pointer-events:none;
 }
 .toast{
+  position:relative;
   pointer-events:auto;
   min-width:260px;
   max-width:400px;
@@ -694,6 +724,34 @@ body{
 .toast__body{color:var(--text)}
 .toast__hint{margin-top:6px;color:var(--muted);font-size:12px}
 .toast__actions{margin-top:8px;display:flex;gap:8px}
+.toast__close{
+  position:absolute;
+  top:8px;
+  right:8px;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.10);
+  background:rgba(255,255,255,0.04);
+  color:rgba(255,255,255,0.78);
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  line-height:1;
+  font-size:16px;
+  font-weight:700;
+  transition:background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.toast__close:hover{
+  background:rgba(255,255,255,0.07);
+  border-color:rgba(255,255,255,0.14);
+  color:rgba(255,255,255,0.90);
+}
+.toast__close:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(91,156,247,0.22);
+  border-color:rgba(91,156,247,0.45);
+}
 .toast__btn{
   appearance:none;
   border:1px solid rgba(55,65,82,0.9);
@@ -793,3 +851,14 @@ body{
   border-color:rgba(91,156,247,0.55);
   box-shadow:0 0 0 1px rgba(91,156,247,0.2);
 }
+
+/* Tutorial */
+.modal.tutorial{max-width:760px}
+.tutorial__step{font-size:12px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin-left:10px}
+.tutorial__body{margin-top:2px}
+.tutorial__body .tutorial__lead{font-size:14px;line-height:1.6;color:var(--text)}
+.tutorial__body .tutorial__hint{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.55}
+.tutorial__body .tutorial__k{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid rgba(62,74,94,0.55);background:rgba(8,10,14,0.45);font-family:var(--mono);font-size:12px}
+.tutorial__body .tutorial__list{margin:10px 0 0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55}
+.tutorial__body .tutorial__actions{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+.tutorial__body .tutorial__warn{margin-top:10px;color:#ffd28a;font-size:13px;line-height:1.55}
