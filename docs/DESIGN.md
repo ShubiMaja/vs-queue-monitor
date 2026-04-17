@@ -158,7 +158,7 @@ The app is a **single-page dashboard** with a stable mental model:
 
 1. **Header** — identity, **help** (`?`), optional **notifications** enablement. Help is a **working surface** (short picker guidance, command generator, load actions); **README** holds full troubleshooting.
 2. **Control strip** — pick log (and optionally folder where supported), **Start / Stop**, and when needed **permission / grant access** flows. This is the **gate** between “configured” and “live.”
-3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings (the threshold row **auto-pans** when the list is wider than the cell), elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
+3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings (thresholds remain readable even when the list overflows: subtle motion only when an alert fires, plus user-controlled horizontal pan), elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
 4. **Chart** — **time series** of position for the **current queue session**, so the user sees **trend**, not only a snapshot.
 5. **Info (collapsible)** — **secondary** detail: last changes, global averages, resolved label for the log source—**supporting** the KPIs, not competing with them.
 6. **History (collapsible)** — **narrative log** of app events and optional per-step queue lines (when enabled). For debugging and reassurance, not the primary readout.
@@ -264,7 +264,12 @@ This section turns the project’s ad-hoc prompts into durable **feature request
 - **FR: Scroll the graph each poll tick (fixed time window)**
   - **Request**: The graph can move every tick; use the last tick vs current tick.
   - **Decision**: Prefer a Grafana-like “last \(N\) seconds” window so the plot scrolls forward each tick, rather than constantly rescaling the full session.
-  - **Shipped**: Fixed-span window that scrolls each poll tick; points outside the window naturally compress off-screen.
+  - **Shipped**: Live window mode exists, but **full-session view remains the default**; live window is an explicit toggle.
+
+- **FR: Default graph should be zoomed out (whole session)**
+  - **Request**: Zoom out fully by default; show the whole graph.
+  - **Decision**: Default to full-session context (trust + narrative). Provide an explicit “live window” toggle for users who want a scrolling time window.
+  - **Shipped**: Default full-history view + a window toggle (full vs live).
 
 #### Alerts, sounds, and history verbosity
 
@@ -294,6 +299,11 @@ This section turns the project’s ad-hoc prompts into durable **feature request
   - **Request**: The warning list marquee should not animate continuously.
   - **Decision**: Motion is a “just happened” cue. Only marquee briefly after an alert fires (and only if overflow requires it).
   - **Shipped**: Marquee gate window triggered by threshold alerts.
+
+- **FR: Warnings should be side-scrollable**
+  - **Request**: Warnings is side scrollable; scrolling over it moves it left or right.
+  - **Decision**: Prefer direct manipulation over animation: let the user pan the threshold strip horizontally (mouse wheel/trackpad) when it overflows.
+  - **Shipped**: Warnings viewport is horizontally scrollable; wheel/trackpad pans left/right on hover.
 
 - **FR: Status should be color-coded**
   - **Request**: Make Status glanceable with color.
