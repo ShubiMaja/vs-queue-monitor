@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.52";
+const APP_VERSION = "2.0.53";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -14,6 +14,7 @@ const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const ui = {
   btnPickLog: $("btnPickLog"),
   btnPickFolder: $("btnPickFolder"),
+  btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
   btnStartStop: $("btnStartStop"),
@@ -32,6 +33,8 @@ const ui = {
   btnInterruptAdoptConfirm: $("btnInterruptAdoptConfirm"),
   btnInterruptAdoptNotNow: $("btnInterruptAdoptNotNow"),
   helpOverlay: $("helpOverlay"),
+  settingsOverlay: $("settingsOverlay"),
+  btnSettingsClose: $("btnSettingsClose"),
   inpHelpSourcePath: /** @type {HTMLInputElement} */ ($("inpHelpSourcePath")),
   btnHelpLoadFile: $("btnHelpLoadFile"),
   btnHelpPlatWin: $("btnHelpPlatWin"),
@@ -325,6 +328,26 @@ function closeHelp() {
   }
 }
 
+function openSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = false;
+  try {
+    ui.btnSettingsClose?.focus();
+  } catch {
+    // ignore
+  }
+}
+
+function closeSettings() {
+  if (!ui.settingsOverlay) return;
+  ui.settingsOverlay.hidden = true;
+  try {
+    ui.btnSettings?.focus();
+  } catch {
+    // ignore
+  }
+}
+
 function wireHelpOverlay() {
   ui.btnHelp?.addEventListener("click", () => openHelp());
   ui.btnHelpClose?.addEventListener("click", () => closeHelp());
@@ -359,6 +382,17 @@ function wireHelpOverlay() {
     } catch {
       showToast("Copy failed", "Clipboard access was blocked by the browser.", "error");
     }
+  });
+}
+
+function wireSettingsOverlay() {
+  ui.btnSettings?.addEventListener("click", () => openSettings());
+  ui.btnSettingsClose?.addEventListener("click", () => closeSettings());
+  ui.settingsOverlay?.addEventListener("click", (e) => {
+    if (e.target === ui.settingsOverlay) closeSettings();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.settingsOverlay && !ui.settingsOverlay.hidden) closeSettings();
   });
 }
 
@@ -3164,6 +3198,7 @@ window.addEventListener(
   { once: true },
 );
 wireHelpOverlay();
+wireSettingsOverlay();
 startUpdateCheckLoop();
 
 (() => {
