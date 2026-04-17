@@ -22,13 +22,13 @@ const ui = {
   btnGraphWindow: $("btnGraphWindow"),
   btnClear: $("btnClear"),
   btnCopyGraph: $("btnCopyGraph"),
+  btnDownloadGraph: /** @type {HTMLElement|null} */ (document.getElementById("btnDownloadGraph")),
   btnCopyHistory: $("btnCopyHistory"),
   btnRequestNotify: $("btnRequestNotify"),
   notifyHint: $("notifyHint"),
   lowerSplit: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplit")),
   lowerSplitBar: /** @type {HTMLElement|null} */ (document.getElementById("lowerSplitBar")),
-  btnSaveSettings: $("btnSaveSettings"),
-  btnCancelSettings: $("btnCancelSettings"),
+  btnSettingsClose2: $("btnSettingsClose2"),
   toastHost: $("toastHost"),
   restoreBanner: $("restoreBanner"),
   restoreBannerDetail: $("restoreBannerDetail"),
@@ -51,6 +51,9 @@ const ui = {
   spanHelpPickPath: $("spanHelpPickPath"),
   graphCanvas: /** @type {HTMLCanvasElement} */ ($("graphCanvas")),
   graphHint: $("graphHint"),
+  graphTooltip: /** @type {HTMLElement|null} */ (document.getElementById("graphTooltip")),
+  selSession: /** @type {HTMLSelectElement|null} */ (document.getElementById("selSession")),
+  sessionModeBadge: /** @type {HTMLElement|null} */ (document.getElementById("sessionModeBadge")),
 
   kpiPosition: $("kpiPosition"),
   kpiStatus: $("kpiStatus"),
@@ -87,10 +90,16 @@ const ui = {
   infoLastChange: $("infoLastChange"),
   infoLastAlert: $("infoLastAlert"),
   infoGlobalRate: $("infoGlobalRate"),
+  infoStatStart: /** @type {HTMLElement|null} */ (document.getElementById("infoStatStart")),
+  infoStatEnd: /** @type {HTMLElement|null} */ (document.getElementById("infoStatEnd")),
+  infoStatCleared: /** @type {HTMLElement|null} */ (document.getElementById("infoStatCleared")),
+  infoStatSpan: /** @type {HTMLElement|null} */ (document.getElementById("infoStatSpan")),
+  infoStatAvg: /** @type {HTMLElement|null} */ (document.getElementById("infoStatAvg")),
+  btnCopyStats: /** @type {HTMLElement|null} */ (document.getElementById("btnCopyStats")),
 
-  inpPollSec: /** @type {HTMLInputElement} */ ($("inpPollSec")),
+  inpPollSec: /** @type {HTMLInputElement|null} */ (document.getElementById("inpPollSec")),
   inpThresholds: /** @type {HTMLInputElement|null} */ (document.getElementById("inpThresholds")),
-  inpWindowPoints: /** @type {HTMLInputElement} */ ($("inpWindowPoints")),
+  inpWindowPoints: /** @type {HTMLInputElement|null} */ (document.getElementById("inpWindowPoints")),
   chkLogEveryChange: /** @type {HTMLInputElement} */ ($("chkLogEveryChange")),
   chkLogEveryChangeHistory: /** @type {HTMLInputElement} */ ($("chkLogEveryChangeHistory")),
   chkWarnNotify: /** @type {HTMLInputElement} */ ($("chkWarnNotify")),
@@ -143,11 +152,19 @@ ui.footerVersion.textContent = `v${APP_VERSION}`;
 const STORAGE_LAST_APP_VERSION_KEY = "vsqm_last_app_version_v1";
 /** @type {number} */
 let suppressInterruptedUntilEpoch = 0;
+let _updateSuppressNoted = false;
+let suppressInterruptedUntilFreshQueue = true;
 try {
+  // Any reload (including hot reload / dev refresh / cache bust without version bump)
+  // can momentarily make the tail look stale/disconnected. Suppress "Interrupted" briefly on startup.
+  suppressInterruptedUntilEpoch = Date.now() / 1000 + 8;
+  suppressInterruptedUntilFreshQueue = true;
   const prevVer = localStorage.getItem(STORAGE_LAST_APP_VERSION_KEY) || "";
   if (prevVer && prevVer !== APP_VERSION) {
     showToast("Updated", `Web page updated to v${APP_VERSION}.`, "update", { durationMs: 12000 });
-    suppressInterruptedUntilEpoch = Date.now() / 1000 + 12;
+    suppressInterruptedUntilEpoch = Date.now() / 1000 + 15;
+    _updateSuppressNoted = false;
+    suppressInterruptedUntilFreshQueue = true;
   }
   localStorage.setItem(STORAGE_LAST_APP_VERSION_KEY, APP_VERSION);
 } catch {
@@ -201,6 +218,7 @@ const STORAGE_TOUR_DONE_KEY = "vsqm_tour_done_v1";
 let tourActive = false;
 let tourStepIdx = 0;
 let _tourTargetEl = /** @type {HTMLElement|null} */ (null);
+let _tourPausedMonitoring = false;
 
 const TOUR_STEPS = [
   {
@@ -264,12 +282,30 @@ function closeTour(markDone = false) {
   tourActive = false;
   overlay.hidden = true;
   clearTourTarget();
+  // Do not auto-resume monitoring; user explicitly asked that we stop if needed.
+  _tourPausedMonitoring = false;
   if (markDone) setTourDone();
 }
 
 function openTour(reset = true) {
   const overlay = document.getElementById("tourOverlay");
   if (!overlay) return;
+  // Prevent tour bubble from appearing over modals (settings/help).
+  try {
+    if (ui.settingsOverlay && !ui.settingsOverlay.hidden) closeSettings();
+    if (ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
+  } catch {
+    // ignore
+  }
+  // Ensure the buttons we point at are actually clickable.
+  // Monitoring disables "Pick log file…" so pause monitoring while the tour is active.
+  if (running) {
+    _tourPausedMonitoring = true;
+    stopMonitoring();
+    appendHistory("Tour started — monitoring paused so you can click the guided buttons.");
+  } else {
+    _tourPausedMonitoring = false;
+  }
   tourActive = true;
   if (reset) tourStepIdx = 0;
   overlay.hidden = false;
@@ -328,8 +364,13 @@ function syncNotifyButtonUi() {
   if (!ui.btnRequestNotify) return;
   const supported = "Notification" in window;
   const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+  const icoOn = /** @type {HTMLElement|null} */ (document.getElementById("icoNotifyOn"));
+  const icoOff = /** @type {HTMLElement|null} */ (document.getElementById("icoNotifyOff"));
   if (!supported) {
-    ui.btnRequestNotify.disabled = true;
+    // Keep clickable so we can explain the limitation via toast/history.
+    ui.btnRequestNotify.disabled = false;
+    if (icoOn) icoOn.hidden = true;
+    if (icoOff) icoOff.hidden = false;
     ui.btnRequestNotify.title = "This browser does not support desktop notifications.";
     if (ui.notifyHint) {
       ui.notifyHint.textContent = "Not supported in this browser.";
@@ -337,23 +378,120 @@ function syncNotifyButtonUi() {
     }
     return;
   }
-  if (!secure) {
-    ui.btnRequestNotify.disabled = true;
-    ui.btnRequestNotify.title =
-      "Desktop notifications require https:// or http://localhost. Run `python -m http.server 5173` and open http://localhost:5173.";
-    if (ui.notifyHint) {
-      ui.notifyHint.textContent = "Requires https:// or http://localhost (not file://).";
-      ui.notifyHint.hidden = false;
-    }
-    return;
-  }
+  // Bell icon toggles whether we *use* desktop notifications.
   ui.btnRequestNotify.disabled = false;
-  const p = Notification.permission;
-  ui.btnRequestNotify.textContent = p === "granted" ? "Test notification" : "Enable notifications";
+  if (icoOn) icoOn.hidden = !config.desktopNotifyEnabled;
+  if (icoOff) icoOff.hidden = !!config.desktopNotifyEnabled;
+  ui.btnRequestNotify.title = config.desktopNotifyEnabled ? "Notifications: on" : "Notifications: off";
   if (ui.notifyHint) ui.notifyHint.hidden = true;
 }
 
 syncNotifyButtonUi();
+syncNotifyNagToast();
+
+let _notifyNagDismissed = false;
+/** @type {HTMLElement|null} */
+let _notifyNagEl = null;
+function removeNotifyNagToast() {
+  try {
+    _notifyNagEl?.remove();
+  } catch {
+    // ignore
+  }
+  _notifyNagEl = null;
+}
+
+async function requestDesktopNotificationsViaUserGesture() {
+  if (!("Notification" in window)) {
+    appendHistory("Notifications are not supported in this browser.");
+    showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
+    return;
+  }
+  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
+    appendHistory("Desktop notifications are blocked in this context (not a secure origin).");
+    showToast(
+      "Open via localhost",
+      "Desktop notifications require a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click the bell again.",
+      "warn",
+      { durationMs: 16000 },
+    );
+    return;
+  }
+  if (Notification.permission === "granted") {
+    showTestDesktopNotification();
+    appendHistory("Desktop notifications: permission already granted — sent a test notification.");
+    showToast("Test sent", "Desktop notifications are enabled.", "ok", { durationMs: 6000 });
+    return;
+  }
+  if (Notification.permission === "denied") {
+    appendHistory("Notifications are blocked for this site — change the permission in the browser (lock icon / site settings).");
+    showToast("Notifications blocked", "Unblock this site in the browser’s site settings.", "warn", { durationMs: 12000 });
+    return;
+  }
+  const p = await Notification.requestPermission();
+  appendHistory(`Notification permission: ${p}`);
+  if (p === "granted") {
+    showTestDesktopNotification();
+    showToast("Notifications enabled", "Desktop notifications are enabled.", "ok", { durationMs: 6000 });
+  } else {
+    showToast("Not enabled", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
+  }
+}
+
+function syncNotifyNagToast() {
+  const supported = "Notification" in window;
+  const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
+  const wantsAny = !!(config.warnNotify || config.completionNotify || config.interruptNotify);
+  const permitted = supported && secure && Notification.permission === "granted";
+  const shouldShow = config.desktopNotifyEnabled && wantsAny && !permitted && !_notifyNagDismissed;
+
+  if (!shouldShow) {
+    removeNotifyNagToast();
+    return;
+  }
+  if (_notifyNagEl) return;
+
+  const host = ui.toastHost;
+  if (!host) return;
+  const el = document.createElement("div");
+  el.className = "toast toast--warn";
+  const body =
+    !supported
+      ? "This browser doesn't support desktop notifications."
+      : !secure
+        ? "Open via http://localhost to enable desktop notifications."
+        : Notification.permission === "denied"
+          ? "Unblock this site in browser settings to enable desktop notifications."
+          : "Enable desktop notifications for background alerts.";
+  el.innerHTML =
+    `<button type="button" class="toast__close" aria-label="Dismiss">×</button>` +
+    `<div class="toast__title">Enable notifications</div>` +
+    `<div class="toast__body">${escapeHtml(body)}</div>` +
+    `<div class="toast__actions"><button type="button" class="toast__btn">Enable</button></div>`;
+  host.appendChild(el);
+  _notifyNagEl = el;
+
+  const closeBtn = el.querySelector(".toast__close");
+  closeBtn?.addEventListener("click", () => {
+    _notifyNagDismissed = true;
+    removeNotifyNagToast();
+  });
+
+  const doEnable = async () => {
+    await requestDesktopNotificationsViaUserGesture();
+    // If enabled, the nag should disappear naturally.
+    syncNotifyButtonUi();
+    syncNotifyNagToast();
+  };
+  el.querySelector(".toast__btn")?.addEventListener("click", () => void doEnable());
+  // Click anywhere on the toast (except close) to enable.
+  el.addEventListener("click", (e) => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    if (t && t.classList && t.classList.contains("toast__close")) return;
+    if (t && t.closest && t.closest(".toast__close")) return;
+    void doEnable();
+  });
+}
 
 let _baseTitle = document.title || "VS Queue Monitor";
 let _attentionActive = false;
@@ -382,33 +520,7 @@ document.addEventListener("visibilitychange", () => {
 document.addEventListener("click", () => clearAttentionBadge(), { capture: true });
 
 function syncNotifyPill() {
-  const pill = ui.btnNotifyPill;
-  if (!pill) return;
-  try {
-    if (!("Notification" in window)) {
-      pill.hidden = false;
-      pill.className = "pill pill--danger";
-      pill.textContent = "Desktop notifications: unsupported";
-      return;
-    }
-    const secure = typeof window !== "undefined" && "isSecureContext" in window ? window.isSecureContext : false;
-    if (!secure) {
-      pill.hidden = false;
-      pill.className = "pill pill--warn";
-      pill.textContent = "Desktop notifications: open via localhost";
-      return;
-    }
-    const p = Notification.permission;
-    if (p !== "granted") {
-      pill.hidden = false;
-      pill.className = "pill pill--warn";
-      pill.textContent = "Desktop notifications: off";
-      return;
-    }
-    pill.hidden = true;
-  } catch {
-    pill.hidden = true;
-  }
+  // Legacy: notification pill removed from the UI.
 }
 
 syncNotifyPill();
@@ -541,9 +653,9 @@ function makeInlineField(inputEl, opts) {
 
 function wireSettingsInlineEditing() {
   // Numeric/text fields
-  makeInlineField(ui.inpPollSec);
+if (ui.inpPollSec) makeInlineField(ui.inpPollSec);
   if (ui.inpThresholds) makeInlineField(ui.inpThresholds);
-  makeInlineField(ui.inpWindowPoints);
+if (ui.inpWindowPoints) makeInlineField(ui.inpWindowPoints);
 
   // Sound URLs stay editable as-is (power users); show inline view for consistency.
   makeInlineField(ui.inpWarnSoundUrl, { format: () => ui.warnSoundSummary?.textContent || "—" });
@@ -780,6 +892,8 @@ function startUpdateCheckLoop() {
 
 function openHelp() {
   if (!ui.helpOverlay) return;
+  // If a tour is open, close it to avoid overlay-on-overlay conflicts.
+  if (tourActive) closeTour(false);
   ui.helpOverlay.hidden = false;
   try {
     // Load persisted selection or infer once from platform.
@@ -835,6 +949,8 @@ function closeHelp() {
 
 function openSettings() {
   if (!ui.settingsOverlay) return;
+  // If a tour is open, close it to avoid overlay-on-overlay conflicts.
+  if (tourActive) closeTour(false);
   ui.settingsOverlay.hidden = false;
   try {
     ui.btnSettingsClose?.focus();
@@ -862,6 +978,17 @@ function wireHelpOverlay() {
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.helpOverlay && !ui.helpOverlay.hidden) closeHelp();
   });
+
+  // Safety: if the modal is shown by any code path while tour is open, hide the tour.
+  try {
+    const mo = new MutationObserver(() => {
+      if (!ui.helpOverlay) return;
+      if (!ui.helpOverlay.hidden && tourActive) closeTour(false);
+    });
+    if (ui.helpOverlay) mo.observe(ui.helpOverlay, { attributes: true, attributeFilter: ["hidden"] });
+  } catch {
+    // ignore
+  }
 
   ui.inpHelpSourcePath?.addEventListener("input", () => renderHelpCommandPreview());
   ui.btnHelpLoadFile?.addEventListener("click", async () => {
@@ -899,6 +1026,61 @@ function wireSettingsOverlay() {
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.settingsOverlay && !ui.settingsOverlay.hidden) closeSettings();
   });
+
+  // Safety: if the modal is shown by any code path while tour is open, hide the tour.
+  try {
+    const mo = new MutationObserver(() => {
+      if (!ui.settingsOverlay) return;
+      if (!ui.settingsOverlay.hidden && tourActive) closeTour(false);
+    });
+    if (ui.settingsOverlay) mo.observe(ui.settingsOverlay, { attributes: true, attributeFilter: ["hidden"] });
+  } catch {
+    // ignore
+  }
+}
+
+const STORAGE_SOUND_TAB_KEY = "vsqm_sound_tab_v1"; // "warn" | "completion" | "interrupt"
+function wireSoundTabs() {
+  const btnWarn = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnSoundTabWarn"));
+  const btnComp = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnSoundTabCompletion"));
+  const btnInt = /** @type {HTMLButtonElement|null} */ (document.getElementById("btnSoundTabInterrupt"));
+  const panWarn = /** @type {HTMLElement|null} */ (document.getElementById("soundPanelWarn"));
+  const panComp = /** @type {HTMLElement|null} */ (document.getElementById("soundPanelCompletion"));
+  const panInt = /** @type {HTMLElement|null} */ (document.getElementById("soundPanelInterrupt"));
+  if (!btnWarn || !btnComp || !btnInt || !panWarn || !panComp || !panInt) return;
+
+  const set = (which) => {
+    const isWarn = which === "warn";
+    const isComp = which === "completion";
+    const isInt = which === "interrupt";
+    btnWarn.classList.toggle("soundTabBtn--active", isWarn);
+    btnComp.classList.toggle("soundTabBtn--active", isComp);
+    btnInt.classList.toggle("soundTabBtn--active", isInt);
+    btnWarn.setAttribute("aria-selected", isWarn ? "true" : "false");
+    btnComp.setAttribute("aria-selected", isComp ? "true" : "false");
+    btnInt.setAttribute("aria-selected", isInt ? "true" : "false");
+    panWarn.hidden = !isWarn;
+    panComp.hidden = !isComp;
+    panInt.hidden = !isInt;
+    try {
+      localStorage.setItem(STORAGE_SOUND_TAB_KEY, which);
+    } catch {
+      // ignore
+    }
+  };
+
+  btnWarn.addEventListener("click", () => set("warn"));
+  btnComp.addEventListener("click", () => set("completion"));
+  btnInt.addEventListener("click", () => set("interrupt"));
+
+  let saved = "warn";
+  try {
+    const v = String(localStorage.getItem(STORAGE_SOUND_TAB_KEY) || "");
+    if (v === "warn" || v === "completion" || v === "interrupt") saved = v;
+  } catch {
+    // ignore
+  }
+  set(saved);
 }
 
 function normalizeSlashes(s) {
@@ -1381,6 +1563,30 @@ function parseTailLastQueueLineEpoch(data) {
 }
 
 /**
+ * @param {string[]} lines
+ * @returns {number|null}
+ */
+function parseFirstTimestampEpochFromLines(lines) {
+  for (const line of lines) {
+    const t = parseLogTimestampEpoch(line);
+    if (t != null) return t;
+  }
+  return null;
+}
+
+/**
+ * @param {string[]} lines
+ * @returns {number|null}
+ */
+function parseLastTimestampEpochFromLines(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const t = parseLogTimestampEpoch(lines[i]);
+    if (t != null) return t;
+  }
+  return null;
+}
+
+/**
  * @param {string} data
  * @returns {number|null} epoch seconds for the first queue-position line in `data`
  */
@@ -1409,6 +1615,284 @@ function extractQueueReadingsFromText(chunk) {
     out.push({ pos, epoch: parseLogTimestampEpoch(line) });
   }
   return out;
+}
+
+/**
+ * Build per-session slices from a full log snapshot.
+ * Sessions are defined by {@link queueRunSessionBeforeLine}.
+ * @param {string} data
+ * @returns {{ sessionIndex: number, key: string, lines: string[], startIdx: number, endIdx: number, startEpoch: number|null, endEpoch: number|null }[]}
+ */
+function splitLogIntoSessions(data) {
+  if (!data) return [];
+  const lines = data.split(/\r?\n/);
+  if (lines.length === 0) return [];
+  const sessionBeforeLine = queueRunSessionBeforeLine(lines);
+  /** @type {{ key: string, lines: string[], startIdx: number, endIdx: number }[]} */
+  const out = [];
+  let start = 0;
+  let curSess = sessionBeforeLine[0] ?? 0;
+  for (let i = 1; i <= lines.length; i++) {
+    const s = i < lines.length ? (sessionBeforeLine[i] ?? curSess) : null;
+    if (i === lines.length || s !== curSess) {
+      const seg = lines.slice(start, i);
+      const segStart = parseFirstTimestampEpochFromLines(seg);
+      const segEnd = parseLastTimestampEpochFromLines(seg);
+      // Stable key: based on first timestamp (independent of buffer trimming).
+      // Session indices are relative to the loaded chunk, so they are NOT stable.
+      const stablePart = segStart != null && Number.isFinite(segStart) ? `t:${Math.floor(segStart)}` : `u:${start}`;
+      out.push({
+        sessionIndex: curSess,
+        key: stablePart,
+        lines: seg,
+        startIdx: start,
+        endIdx: i,
+        startEpoch: segStart,
+        endEpoch: segEnd,
+      });
+      start = i;
+      curSess = s ?? curSess;
+    }
+  }
+  return out;
+}
+
+/**
+ * Build graph points for a single session slice.
+ * Mirrors {@link replayQueueGraphFromText} semantics but returns points instead of mutating globals.
+ * @param {string[]} lines
+ * @returns {{ points: [number, number][], startEpoch: number|null, endEpoch: number|null, startPos: number|null, endPos: number|null, markerEpoch: number|null }}
+ */
+function buildGraphPointsForSessionLines(lines) {
+  /** @type {[number, number][]} */
+  const points = [];
+  /** @type {number|null} */
+  let lastPositionLocal = null;
+  /** @type {number|null} */
+  let lastQueueEpoch = null;
+
+  const REPLAY_MAX_POINTS = 5000;
+  /** @type {number[]} */
+  const queueIdxs = [];
+  let realLastQueueIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isQueueRunBoundaryLine(line)) continue;
+    if (queuePositionFromLine(line) == null) continue;
+    queueIdxs.push(i);
+    realLastQueueIdx = i;
+  }
+  if (queueIdxs.length === 0) {
+    return { points: [], startEpoch: null, endEpoch: null, startPos: null, endPos: null, markerEpoch: null };
+  }
+
+  const stride = Math.max(1, Math.ceil(queueIdxs.length / REPLAY_MAX_POINTS));
+  let lastIncludedPos = /** @type {number|null} */ (null);
+
+  for (let k = 0; k < queueIdxs.length; k++) {
+    const i = queueIdxs[k];
+    const line = lines[i];
+    const rawPos = queuePositionFromLine(line);
+    if (rawPos == null) continue;
+
+    const mustKeep = k === 0 || k === queueIdxs.length - 1;
+    const keepByStride = stride <= 1 || k % stride === 0;
+    const keepByChange = lastIncludedPos == null || rawPos !== lastIncludedPos;
+    if (!mustKeep && !keepByStride && !keepByChange) continue;
+
+    // Large jump *up* (worse position) inside what looks like a single session often indicates
+    // a reset/new segment; carrying points across this jump regresses the loaded graph into weird shapes.
+    const prevPos = lastPositionLocal;
+    if (prevPos != null && rawPos > prevPos && rawPos - prevPos >= QUEUE_RESET_JUMP_THRESHOLD) {
+      points.length = 0;
+      lastPositionLocal = null;
+      lastIncludedPos = null;
+      // Keep lastQueueEpoch; timestamps still monotonic for subsequent points.
+    }
+
+    const parsedEpoch = parseLogTimestampEpoch(line);
+    if (parsedEpoch != null) lastQueueEpoch = parsedEpoch;
+    else if (lastQueueEpoch != null) lastQueueEpoch = lastQueueEpoch + QUEUE_UPDATE_INTERVAL_SEC;
+    else lastQueueEpoch = Date.now() / 1000;
+
+    let t = lastQueueEpoch ?? (Date.now() / 1000);
+    const lastT = points.length ? points[points.length - 1][0] : null;
+    if (lastT != null && t <= lastT) t = lastT + 0.001;
+    points.push([t, rawPos]);
+    lastPositionLocal = rawPos;
+    lastIncludedPos = rawPos;
+  }
+
+  // Append a single final "0" point if we left the queue after the last queue line.
+  const endPos = points.length ? points[points.length - 1][1] : null;
+  if (realLastQueueIdx >= 0 && endPos != null && endPos <= 1) {
+    let postIdx = -1;
+    for (let i = realLastQueueIdx + 1; i < lines.length; i++) {
+      if (isPostQueueProgressLine(lines[i])) {
+        postIdx = i;
+        break;
+      }
+    }
+    if (postIdx >= 0) {
+      let t0 = parseLogTimestampEpoch(lines[postIdx]);
+      if (t0 == null) t0 = (lastQueueEpoch ?? Date.now() / 1000) + 0.25;
+      const lastT = points.length ? points[points.length - 1][0] : null;
+      if (lastT != null && t0 <= lastT) t0 = lastT + 0.001;
+      points.push([t0, 0]);
+      lastPositionLocal = 0;
+    }
+  }
+
+  const startEpoch = points.length ? points[0][0] : null;
+  const endEpoch = points.length ? points[points.length - 1][0] : null;
+  const startPos = points.length ? points[0][1] : null;
+  const endPos2 = points.length ? points[points.length - 1][1] : null;
+  const markerEpoch = startEpoch;
+  return { points, startEpoch, endEpoch, startPos, endPos: endPos2, markerEpoch };
+}
+
+/**
+ * Recompute sessions + dropdown options from a full log snapshot.
+ * @param {string} fullText
+ */
+function rebuildSessionsFromText(fullText) {
+  const segs = splitLogIntoSessions(fullText);
+  /** @type {typeof queueSessions} */
+  const nextSessions = [];
+  /** @type {number[]} */
+  const markers = [];
+
+  let anyWithPoints = false;
+  for (const seg of segs) {
+    const built = buildGraphPointsForSessionLines(seg.lines);
+    const segStart = seg.startEpoch;
+    const segEnd = seg.endEpoch;
+    if (built.points.length) anyWithPoints = true;
+    nextSessions.push({
+      key: seg.key,
+      label: "",
+      startEpoch: built.startEpoch ?? segStart,
+      endEpoch: built.endEpoch ?? segEnd ?? (built.startEpoch ?? segStart),
+      startPos: built.startPos,
+      endPos: built.endPos,
+      points: built.points,
+      markerEpoch: built.markerEpoch,
+    });
+    if (built.markerEpoch != null) markers.push(built.markerEpoch);
+  }
+
+  queueSessions = nextSessions;
+  graphSessionMarkers = markers;
+  // Stable display numbering: based on chronological order in the loaded index buffer.
+  for (let i = 0; i < queueSessions.length; i++) queueSessions[i].label = `Session ${i + 1}`;
+
+  if (!ui.selSession) return;
+  const prevKey = selectedSessionKey;
+  if (!_didInitSessionSelection) {
+    _didInitSessionSelection = true;
+    const saved = (() => {
+      try {
+        return String(localStorage.getItem(STORAGE_SELECTED_SESSION_KEY) || "");
+      } catch {
+        return "";
+      }
+    })();
+    if (saved) {
+      // Migration: old keys looked like "s:<idx>@<epoch>" (idx was not stable). Convert to "t:<epoch>".
+      if (saved.startsWith("s:") && saved.includes("@")) {
+        const parts = saved.split("@");
+        const ep = Number.parseInt(parts[1] || "", 10);
+        if (Number.isFinite(ep) && ep > 0) selectedSessionKey = `t:${ep}`;
+        else selectedSessionKey = "latest";
+      } else {
+        selectedSessionKey = saved;
+      }
+    }
+  }
+
+  // Latest session (used when selection is "latest").
+  const latestKeyFallback = queueSessions.length ? queueSessions[queueSessions.length - 1].key : "";
+  const latestWithPoints = [...queueSessions].reverse().find((s) => s.points && s.points.length)?.key || latestKeyFallback;
+  const latestKey = latestWithPoints || latestKeyFallback;
+  const validKeys = new Set(queueSessions.map((s) => s.key));
+  // Never auto-rewrite "latest" into a concrete session key; that caused the UI to feel like it flips.
+  if (selectedSessionKey !== "latest" && !validKeys.has(selectedSessionKey)) {
+    selectedSessionKey = "latest";
+  }
+
+  // Rebuild dropdown options
+  ui.selSession.innerHTML = "";
+  const optLatest = document.createElement("option");
+  optLatest.value = "latest";
+  optLatest.textContent = anyWithPoints ? "Latest session (auto)" : "Latest session (auto)";
+  optLatest.title = anyWithPoints ? "Always show the newest session with queue readings." : "No queue readings found yet.";
+  ui.selSession.appendChild(optLatest);
+
+  for (const s of queueSessions) {
+    const opt = document.createElement("option");
+    opt.value = s.key;
+    const startLabel = formatSessionStartLabel(s.startEpoch);
+    // Keep the row clean; details go in hover tooltip only.
+    opt.textContent = `${s.label} — ${startLabel}`;
+    const dur = formatSessionDuration(s.startEpoch, s.endEpoch);
+    const startFull = s.startEpoch != null ? formatGraphHoverTime(s.startEpoch) : "—";
+    const endFull = s.endEpoch != null ? formatGraphHoverTime(s.endEpoch) : "—";
+    const posFull = s.startPos != null && s.endPos != null ? `Positions: ${s.startPos} → ${s.endPos}` : "Positions: —";
+    const pointsPart = s.points && s.points.length ? `Queue points: ${s.points.length}` : "Queue points: 0 (no queue readings)";
+    opt.title = `Start: ${startFull}\nEnd: ${endFull}\nDuration: ${dur}\n${posFull}\n${pointsPart}`;
+    ui.selSession.appendChild(opt);
+  }
+
+  ui.selSession.value = selectedSessionKey;
+  if (ui.selSession.value !== selectedSessionKey) ui.selSession.value = "latest";
+
+  if (prevKey !== selectedSessionKey) {
+    try {
+      localStorage.setItem(STORAGE_SELECTED_SESSION_KEY, selectedSessionKey);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function getSelectedSessionPoints() {
+  const latest = [...queueSessions].reverse().find((s) => s.points && s.points.length) || (queueSessions.length ? queueSessions[queueSessions.length - 1] : null);
+  if (selectedSessionKey === "latest") return latest ? latest.points.slice() : [];
+  let s = queueSessions.find((x) => x.key === selectedSessionKey) || null;
+  // Robust match: keys are `t:<floorEpoch>`, so match by floor(startEpoch) too.
+  if (!s && selectedSessionKey.startsWith("t:")) {
+    const ep = Number.parseInt(selectedSessionKey.slice(2), 10);
+    if (Number.isFinite(ep) && ep > 0) {
+      s =
+        queueSessions.find((x) => x.startEpoch != null && Math.floor(x.startEpoch) === ep) ||
+        queueSessions.find((x) => x.markerEpoch != null && Math.floor(x.markerEpoch) === ep) ||
+        null;
+    }
+  }
+  return s ? s.points.slice() : (latest ? latest.points.slice() : []);
+}
+
+function applySessionSelectionToGraph() {
+  // Always rebuild sessions from the stable index buffer first so dropdown selection maps to the same session list.
+  rebuildSessionsFromText(sessionsIndexBuffer || logBuffer || "");
+  graphPoints = getSelectedSessionPoints();
+  currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
+  lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
+  currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
+  renderSelectedSessionStats();
+  drawGraph();
+  syncPastSessionUi();
+
+  try {
+    const s = queueSessions.find((x) => x.key === selectedSessionKey) || null;
+    appendHistory(
+      selectedSessionKey === "latest"
+        ? "Session applied: latest"
+        : `Session applied: ${selectedSessionKey} · points ${(s && s.points) ? s.points.length : graphPoints.length}`,
+    );
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -1490,6 +1974,7 @@ function parseAlertThresholds(raw) {
 
 const STORAGE_KEY = "vsqm_web_config_v1";
 const STORAGE_LAST_DIR_KEY = "vsqm_web_last_dir_v1";
+const STORAGE_SELECTED_SESSION_KEY = "vsqm_web_selected_session_v1"; // "latest" | "t:<epochSec>"
 /** Display metadata for the last successfully opened log (name + how it was chosen). Browsers do not expose real paths to pages. */
 const STORAGE_LAST_LOG_META_KEY = "vsqm_last_log_meta_v1";
 const IDB_HANDLES_NAME = "vsqm_handles_v1";
@@ -1513,8 +1998,8 @@ function scheduleAutosave(note = "") {
 }
 
 function applyFormToConfig() {
-  const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
-  const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
+  const pollSec = ui.inpPollSec ? Number.parseFloat(ui.inpPollSec.value.trim()) : NaN;
+  const win = ui.inpWindowPoints ? Number.parseInt(ui.inpWindowPoints.value.trim(), 10) : NaN;
   // Validate thresholds but only throw if the user explicitly saves.
   config.pollSec = Number.isFinite(pollSec) ? pollSec : config.pollSec;
   config.windowPoints = Number.isFinite(win) ? win : config.windowPoints;
@@ -1559,7 +2044,8 @@ function applyFormToConfig() {
  *   interruptSoundUrl: string,
  *   interruptSoundFileName: string,
  *   graphLogScale: boolean,
- *   graphLiveWindow: boolean
+ *   graphLiveWindow: boolean,
+ *   desktopNotifyEnabled: boolean
  * }} AppConfig
  */
 
@@ -1583,6 +2069,7 @@ let config = {
   interruptSoundFileName: "",
   graphLogScale: false,
   graphLiveWindow: true,
+  desktopNotifyEnabled: true,
 };
 
 function loadConfig() {
@@ -1606,9 +2093,9 @@ function saveConfig() {
 }
 
 function syncConfigToForm() {
-  ui.inpPollSec.value = String(config.pollSec);
+  if (ui.inpPollSec) ui.inpPollSec.value = String(config.pollSec);
   if (ui.inpThresholds) ui.inpThresholds.value = String(config.thresholdsRaw);
-  ui.inpWindowPoints.value = String(config.windowPoints);
+  if (ui.inpWindowPoints) ui.inpWindowPoints.value = String(config.windowPoints);
   if (ui.chkLogEveryChange) ui.chkLogEveryChange.checked = !!config.logEveryChange;
   if (ui.chkLogEveryChangeHistory) ui.chkLogEveryChangeHistory.checked = !!config.logEveryChange;
   ui.chkWarnNotify.checked = !!config.warnNotify;
@@ -1704,6 +2191,7 @@ function desktopNotifyCapabilityHint() {
  * @param {string} body
  */
 function notifyDesktop(kind, title, body) {
+  if (!config.desktopNotifyEnabled) return;
   if (kind === "threshold" && !config.warnNotify) return;
   if (kind === "completion" && !config.completionNotify) return;
   if (kind === "interrupt" && !config.interruptNotify) return;
@@ -1919,6 +2407,11 @@ let pendingRestoreHandle = null;
 let restoreInProgress = false;
 /** @type {string} */
 let logBuffer = "";
+// Separate, larger buffer for indexing sessions in the dropdown.
+// `logBuffer` is intentionally small for responsiveness, but sessions should not collapse after trimming.
+const SESSIONS_INDEX_MAX_CHARS = 40_000_000; // enough to keep many sessions visible
+/** @type {string} */
+let sessionsIndexBuffer = "";
 const QUEUE_RESET_JUMP_THRESHOLD = 10;
 /** Min seconds between threshold alerts (debounce duplicate polls; keep low enough to allow distinct milestones). */
 const ALERT_MIN_INTERVAL_SEC = 5.0;
@@ -2542,6 +3035,14 @@ async function tryRestoreLastLogOnLoad() {
 }
 
 async function pickLogFile() {
+  // Always emit a quick diagnostic so it's obvious why the picker didn't appear.
+  try {
+    appendHistory(
+      `Pick log: secure=${String(window.isSecureContext)} protocol=${String(location?.protocol || "")} hasPicker=${String(!!window.showOpenFilePicker)}`,
+    );
+  } catch {
+    // ignore
+  }
   if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
     appendHistory(
       "Pick log failed: this page is not a secure origin. Open via http://localhost (or https://) for the browser file picker to work.",
@@ -2687,6 +3188,13 @@ async function pickLogFile() {
 
 /** @type {GraphPoint[]} */
 let graphPoints = [];
+/** @type {{ key: string, label: string, startEpoch: number|null, endEpoch: number|null, startPos: number|null, endPos: number|null, points: [number, number][], markerEpoch: number|null }[]} */
+let queueSessions = [];
+/** @type {string} */
+let selectedSessionKey = "latest";
+let _didInitSessionSelection = false;
+/** @type {number[]} */
+let graphSessionMarkers = [];
 
 /** Last draw layout for canvas hit-testing (queue graph). */
 let lastGraphLayout = /** @type {null | { padL: number; padR: number; padT: number; padB: number; plotW: number; plotH: number; w: number; h: number; t1: number; span: number; minP: number; maxP: number }} */ (
@@ -2729,6 +3237,8 @@ let graphRealtimeTimer = null;
 let lastAlertEpoch = 0;
 /** @type {Set<number>} */
 let thresholdsFired = new Set();
+/** @type {Set<number>|null} */
+let _savedLiveThresholdsFired = null;
 /** Only animate warnings marquee briefly after a warning fires. */
 let warningsMarqueeUntilEpoch = 0;
 // Legacy: warnings used to have an explicit edit mode; now editing is via contextual popover.
@@ -2774,7 +3284,11 @@ let mppFloorValue = null;
 
 function setStatus(text, danger = false) {
   const statusTextEl = /** @type {HTMLElement|null} */ (document.getElementById("kpiStatusText"));
-  if (statusTextEl) statusTextEl.textContent = text;
+  if (statusTextEl) {
+    statusTextEl.textContent = text;
+    // Ensure the full status is still accessible when CSS ellipsizes.
+    statusTextEl.title = String(text || "");
+  }
   else ui.kpiStatus.textContent = text;
   // legacy flag (still used by some callers)
   ui.kpiStatus.classList.toggle("danger", danger);
@@ -3011,6 +3525,130 @@ function globalAvgMinutesPerPosition() {
 function formatQueueRate(mpp) {
   if (mpp != null && mpp > 0) return `${mpp.toFixed(2)} min/pos`;
   return "—";
+}
+
+function computeSelectedSessionStats() {
+  const pts = graphPoints;
+  if (!pts || pts.length < 1) {
+    return {
+      startPos: null,
+      endPos: null,
+      cleared: null,
+      minutes: null,
+      avgPosPerMin: null,
+    };
+  }
+
+  // Start position: first point > 1 if present (ignores completion 0/1 noise).
+  let startPos = /** @type {number|null} */ (null);
+  let startT = /** @type {number|null} */ (null);
+  for (let i = 0; i < pts.length; i++) {
+    if (pts[i][1] > 1) {
+      startPos = pts[i][1];
+      startT = pts[i][0];
+      break;
+    }
+  }
+  if (startPos == null) {
+    startPos = pts[0][1];
+    startT = pts[0][0];
+  }
+
+  const endPos = pts[pts.length - 1][1];
+  const endT = pts[pts.length - 1][0];
+  const minutes = startT != null && endT != null ? Math.max(0, (endT - startT) / 60) : null;
+  const cleared = startPos != null && endPos != null ? Math.max(0, startPos - endPos) : null;
+  const avgPosPerMin =
+    minutes != null && minutes > 0 && cleared != null ? cleared / minutes : null;
+  return { startPos, endPos, cleared, minutes, avgPosPerMin };
+}
+
+function renderSelectedSessionStats() {
+  const stats = computeSelectedSessionStats();
+  if (ui.infoStatStart) ui.infoStatStart.textContent = stats.startPos == null ? "—" : String(stats.startPos);
+  if (ui.infoStatEnd) ui.infoStatEnd.textContent = stats.endPos == null ? "—" : String(stats.endPos);
+  if (ui.infoStatCleared) ui.infoStatCleared.textContent = stats.cleared == null ? "—" : String(stats.cleared);
+  if (ui.infoStatSpan) ui.infoStatSpan.textContent = stats.minutes == null ? "—" : `${stats.minutes.toFixed(1)} min`;
+  if (ui.infoStatAvg) ui.infoStatAvg.textContent = stats.avgPosPerMin == null ? "—" : `${stats.avgPosPerMin.toFixed(2)} pos/min`;
+}
+
+function computeThresholdsFiredForSelectedSession() {
+  /** @type {Set<number>} */
+  const fired = new Set();
+  const pts = graphPoints;
+  if (!pts || pts.length < 2) return fired;
+  let thresholds;
+  try {
+    thresholds = parseAlertThresholds(config.thresholdsRaw);
+  } catch {
+    return fired;
+  }
+  for (let i = 1; i < pts.length; i++) {
+    const p0 = pts[i - 1][1];
+    const p1 = pts[i][1];
+    for (const t of thresholds) {
+      if (p0 > t && p1 <= t) fired.add(t);
+    }
+  }
+  return fired;
+}
+
+function isViewingPastSession() {
+  return selectedSessionKey !== "latest";
+}
+
+function syncPastSessionUi() {
+  const past = isViewingPastSession();
+  if (ui.sessionModeBadge) {
+    ui.sessionModeBadge.hidden = false;
+    ui.sessionModeBadge.textContent = past ? "Past" : "Now";
+    ui.sessionModeBadge.classList.toggle("sessionBadge--past", past);
+    ui.sessionModeBadge.classList.toggle("sessionBadge--now", !past);
+  }
+
+  // Rewrite the status area when viewing a past session.
+  if (past) {
+    // Swap warnings state to reflect this session.
+    if (_savedLiveThresholdsFired == null) _savedLiveThresholdsFired = new Set(thresholdsFired);
+    thresholdsFired = computeThresholdsFiredForSelectedSession();
+    refreshWarningsKpi();
+
+    // Force progress/ETA KPIs to reflect the selected session, not the last live view.
+    const sess = selectedSessionForStats();
+    if (sess && sess.points && sess.points.length) {
+      const endPos = sess.endPos ?? sess.points[sess.points.length - 1][1];
+      lastPosition = endPos;
+      currentPoint = sess.points[sess.points.length - 1];
+      leftConnectQueueDetected = endPos === 0;
+      setPositionDisplay(endPos);
+    }
+    updateTimeEstimates();
+
+    setStatus("Past session", false);
+    if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = "STATUS (past)";
+    if (ui.graphHint && graphPoints.length) ui.graphHint.textContent = "Past session — live updates paused";
+    // Reduce confusion: Start/Stop is only meaningful for live mode.
+    try {
+      ui.btnStartStop.disabled = true;
+      ui.btnStartStop.title = "Switch to Latest session (auto) to resume monitoring.";
+    } catch {
+      // ignore
+    }
+  } else {
+    // Restore live warnings state if we swapped it out.
+    if (_savedLiveThresholdsFired != null) {
+      thresholdsFired = _savedLiveThresholdsFired;
+      _savedLiveThresholdsFired = null;
+      refreshWarningsKpi();
+    }
+    // Restore the live label; do not override the current status text (Monitoring/Stopped/etc.)
+    if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s ⟳)`;
+    try {
+      ui.btnStartStop.disabled = !logFileHandle;
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function bumpWarningsMarquee(sec = 10) {
@@ -3296,6 +3934,7 @@ function appendGraphPoint(position, lineEpoch) {
   staleSlotsAccounted = 0;
   graphPoints.push(currentPoint);
   if (graphPoints.length > 5000) graphPoints = graphPoints.slice(-5000);
+  renderSelectedSessionStats();
   drawGraph();
 }
 
@@ -3304,6 +3943,10 @@ function appendGraphPoint(position, lineEpoch) {
  * @param {string} fullText
  */
 function replayQueueGraphFromText(fullText) {
+  // Build session list (for dropdown + optional all-session view) from the full snapshot.
+  rebuildSessionsFromText(sessionsIndexBuffer || fullText);
+  renderSelectedSessionStats();
+
   // Only graph the *current* queue run (avoid cluttering with older reconnect runs).
   const text = sliceLoadedLogToCurrentQueueRun(fullText);
   if (!text) {
@@ -3311,9 +3954,23 @@ function replayQueueGraphFromText(fullText) {
     currentPoint = null;
     lastPosition = null;
     currentQueueRunStartEpoch = null;
+    renderSelectedSessionStats();
     drawGraph();
     return;
   }
+  // Dropdown controls session selection. For past sessions, load the chosen session's points.
+  // For "latest", keep the original current-run replay logic (most reliable for live loading).
+  if (selectedSessionKey && selectedSessionKey !== "latest") {
+    graphPoints = getSelectedSessionPoints();
+    currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
+    lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
+    currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
+    renderSelectedSessionStats();
+    drawGraph();
+    syncPastSessionUi();
+    return;
+  }
+
   const lines = text.split(/\r?\n/);
   const sessionBeforeLine = queueRunSessionBeforeLine(lines);
 
@@ -3585,6 +4242,15 @@ function applyInterruptAdopt(session) {
  * @param {string} detail
  */
 function enterInterruptedState(detail) {
+  // During/after a page update or reload, never enter Interrupted. Stay in "Updated" until fresh queue lines arrive.
+  if (suppressInterruptedUntilFreshQueue) {
+    setStatus("Updated");
+    if (!_updateSuppressNoted) {
+      _updateSuppressNoted = true;
+      appendHistory("Page updated — suppressing Interrupted until fresh log lines arrive.");
+    }
+    return;
+  }
   if (interruptedMode) return;
   interruptedMode = true;
   sessionAtInterrupt = lastQueueRunSession;
@@ -3631,6 +4297,14 @@ function appendToLogBuffer(text) {
   if (logBuffer.length > BUFFER_MAX_CHARS) logBuffer = logBuffer.slice(-BUFFER_MAX_CHARS);
 }
 
+function appendToSessionsIndexBuffer(text) {
+  if (!text) return;
+  sessionsIndexBuffer += text;
+  if (sessionsIndexBuffer.length > SESSIONS_INDEX_MAX_CHARS) {
+    sessionsIndexBuffer = sessionsIndexBuffer.slice(-SESSIONS_INDEX_MAX_CHARS);
+  }
+}
+
 async function readNewLogText(handle) {
   const file = await handle.getFile();
   const size = file.size;
@@ -3643,19 +4317,16 @@ async function readNewLogText(handle) {
     } else {
       // Large logs: start with a tail window, but walk backward a little if the current queue run
       // appears to start before the loaded chunk (e.g. you started at 47 but the tail begins later).
-      const maxWalkBack = Math.max(INITIAL_FULL_READ_MAX_BYTES * 3, 32 * 1024 * 1024); // cap extra reads
+      const maxWalkBack = Math.max(INITIAL_FULL_READ_MAX_BYTES * 3, 128 * 1024 * 1024); // cap extra reads
       let start = Math.max(0, size - INITIAL_FULL_READ_MAX_BYTES);
       let span = size - start;
       seed = await readLogRangeText(handle, start, size);
       appendHistory(
         `Large log (${(size / (1024 * 1024)).toFixed(1)} MB); loaded last ${(INITIAL_FULL_READ_MAX_BYTES / (1024 * 1024)).toFixed(0)} MB for history and graph.`,
       );
-      // If the current run slice begins at the chunk start, we likely missed earlier lines for this run.
-      // Walk back (up to a cap) to capture the beginning of the active run.
-      for (let attempts = 0; attempts < 8; attempts++) {
-        const meta = sliceLoadedLogToCurrentQueueRunMeta(seed);
-        if (meta.lastQIdx < 0) break;
-        if (meta.startIdx > 0) break;
+      // Walk back (up to a cap) to capture more sessions for the dropdown,
+      // while still avoiding loading the entire file for huge logs.
+      for (let attempts = 0; attempts < 32; attempts++) {
         if (start <= 0) break;
         const add = Math.min(INITIAL_FULL_READ_MAX_BYTES, maxWalkBack - span);
         if (add <= 0) break;
@@ -3665,12 +4336,14 @@ async function readNewLogText(handle) {
         span = size - start;
         seed = await readLogRangeText(handle, start, size);
       }
+      appendHistory(
+        `Sessions indexed from last ${(span / (1024 * 1024)).toFixed(0)} MB (cap ${(maxWalkBack / (1024 * 1024)).toFixed(0)} MB).`,
+      );
     }
-    const rawLen = seed.length;
-    const meta = sliceLoadedLogToCurrentQueueRunMeta(seed);
-    seed = meta.slice;
-    if (seed.length < rawLen) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
+    // Keep the full loaded chunk for session parsing / dropdown.
+    // The graph renderer will still default to the latest/current run view as needed.
     lastReadOffset = size;
+    sessionsIndexBuffer = seed;
     pendingGraphReplayText = seed;
     return seed;
   }
@@ -3685,11 +4358,8 @@ async function readNewLogText(handle) {
       seed = await readLogRangeText(handle, start, size);
     }
     appendHistory("Log file size decreased (truncated/rotated). Resynced tail.");
-    const rawLenT = seed.length;
-    const metaT = sliceLoadedLogToCurrentQueueRunMeta(seed);
-    seed = metaT.slice;
-    if (seed.length < rawLenT) appendHistory("Graph: current queue run only (older reconnect runs omitted).");
     lastReadOffset = size;
+    sessionsIndexBuffer = seed;
     pendingGraphReplayText = seed;
     return seed;
   }
@@ -3724,7 +4394,10 @@ async function pollOnce() {
     const replayChunk = pendingGraphReplayText;
     const didReplayThisTick = replayChunk != null;
     pendingGraphReplayText = null;
-    if (newText) appendToLogBuffer(newText);
+    if (newText) {
+      appendToLogBuffer(newText);
+      appendToSessionsIndexBuffer(newText);
+    }
     if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
     // Use the full buffered tail for session tracking (session counter is relative to the buffer),
@@ -3739,6 +4412,14 @@ async function pollOnce() {
     const now = Date.now() / 1000;
     const logSilent = lastLogGrowthEpoch != null && now - lastLogGrowthEpoch >= LOG_SILENCE_RECONNECT_SEC;
     const staleLimit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT;
+
+    // Clear "updated/reload" suppression once we see fresh queue lines again.
+    if (suppressInterruptedUntilFreshQueue) {
+      if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
+        suppressInterruptedUntilFreshQueue = false;
+        _updateSuppressNoted = false;
+      }
+    }
 
     if (interruptedMode) {
       if (lastQueueLineEpoch != null && now - lastQueueLineEpoch <= staleLimit && kind === "queue" && lastPos != null) {
@@ -3771,10 +4452,13 @@ async function pollOnce() {
 
     if (!interruptedMode && kind === "disconnected") {
       const now2 = Date.now() / 1000;
-      const canSuppress = now2 < suppressInterruptedUntilEpoch && (graphPoints.length < 2 || lastQueueLineEpoch == null);
+      const canSuppress = suppressInterruptedUntilFreshQueue || now2 < suppressInterruptedUntilEpoch;
       if (canSuppress) {
-        setStatus("Monitoring");
-        appendHistory("Page updated — ignoring stale disconnect tail until new queue lines appear.");
+        setStatus("Updated");
+        if (!_updateSuppressNoted) {
+          _updateSuppressNoted = true;
+          appendHistory("Page updated — suppressing Interrupted until fresh log lines arrive.");
+        }
         return;
       }
       enterInterruptedState("Connection lost (final teardown).");
@@ -3799,6 +4483,11 @@ async function pollOnce() {
     if (!interruptedMode && lastPos != null && (!logSilent || lastPos <= 1)) {
       const prevPos = lastPosition;
       let pos = lastPos;
+
+      // Once we see fresh queue readings after an update, stop suppressing Interrupted.
+      if (suppressInterruptedUntilEpoch > 0 && now >= suppressInterruptedUntilEpoch - 0.01) {
+        _updateSuppressNoted = false;
+      }
 
       // Large jump *up* (worse position) usually indicates a new queue run/reconnect.
       // Do not clamp and freeze; reset and re-seed to the new run instead.
@@ -3849,10 +4538,13 @@ async function pollOnce() {
         }
 
         if (lastQueueLineEpoch == null || now - lastQueueLineEpoch > staleLimit) {
-          const canSuppress = now < suppressInterruptedUntilEpoch && graphPoints.length < 2;
+          const canSuppress = suppressInterruptedUntilFreshQueue || now < suppressInterruptedUntilEpoch;
           if (canSuppress) {
-            setStatus("Monitoring");
-            appendHistory("Page updated — ignoring stale queue timeout until new queue lines appear.");
+            setStatus("Updated");
+            if (!_updateSuppressNoted) {
+              _updateSuppressNoted = true;
+              appendHistory("Page updated — suppressing Interrupted until fresh log lines arrive.");
+            }
             return;
           }
           enterInterruptedState(`No new queue log lines for ~${staleLimit.toFixed(0)}s (stale).`);
@@ -3905,6 +4597,16 @@ async function pollOnce() {
       setPositionDisplay(pos);
       if (pos <= 1 && positionOneReachedAt == null) positionOneReachedAt = lastLineEpoch ?? now;
 
+      // If the user is viewing a specific session, keep the graph derived from session parsing
+      // rather than incrementally appending points (which is only correct for the "current run" view).
+      if (selectedSessionKey && selectedSessionKey !== "latest") {
+        rebuildSessionsFromText(sessionsIndexBuffer || viewRaw);
+        graphPoints = getSelectedSessionPoints();
+        currentPoint = graphPoints.length ? graphPoints[graphPoints.length - 1] : null;
+        lastPosition = graphPoints.length ? graphPoints[graphPoints.length - 1][1] : null;
+        currentQueueRunStartEpoch = graphPoints.length ? graphPoints[0][0] : null;
+        drawGraph();
+      } else {
       // If multiple queue readings arrived since the last poll, append them all so the graph doesn't "jump".
       // If we just replayed a seed chunk this tick, it already built the full graph for that chunk;
       // do not append the same readings again (that distorts the run start/current values).
@@ -3932,6 +4634,7 @@ async function pollOnce() {
         }
       } else {
         appendGraphPoint(pos, lastLineEpoch);
+      }
       }
       try {
         updateTimeEstimates();
@@ -4000,6 +4703,15 @@ function setStartStopButtonLook(isRunning) {
 function startMonitoring() {
   if (!logFileHandle) return;
   if (running) return;
+  // Live monitoring always follows the latest session.
+  selectedSessionKey = "latest";
+  try {
+    if (ui.selSession) ui.selSession.value = "latest";
+    localStorage.setItem(STORAGE_SELECTED_SESSION_KEY, "latest");
+  } catch {
+    // ignore
+  }
+  syncPastSessionUi();
   running = true;
   monitorStartEpoch = Date.now() / 1000;
   setStatus("Monitoring");
@@ -4033,6 +4745,12 @@ function stopMonitoring() {
   setLogActivityMonitoring(false);
   setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
+  // If we're in past-session mode, keep Start disabled to avoid confusion.
+  try {
+    if (isViewingPastSession()) ui.btnStartStop.disabled = true;
+  } catch {
+    // ignore
+  }
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = null;
   if (estimateTimer != null) window.clearInterval(estimateTimer);
@@ -4072,6 +4790,35 @@ function formatGraphHoverTime(tSec) {
   }
 }
 
+/**
+ * Compact session start label for dropdown rows.
+ * @param {number|null} tSec
+ */
+function formatSessionStartLabel(tSec) {
+  if (tSec == null || !Number.isFinite(tSec)) return "Unknown time";
+  try {
+    return new Date(tSec * 1000).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return formatGraphHoverTime(/** @type {number} */ (tSec));
+  }
+}
+
+/**
+ * @param {number|null} startSec
+ * @param {number|null} endSec
+ */
+function formatSessionDuration(startSec, endSec) {
+  if (startSec == null || endSec == null) return "—";
+  const d = Math.max(0, endSec - startSec);
+  if (!Number.isFinite(d)) return "—";
+  return formatDuration(d);
+}
+
 /** Short time for X-axis ticks (Grafana-style compact axis). */
 function formatGraphXTick(tSec) {
   try {
@@ -4083,6 +4830,50 @@ function formatGraphXTick(tSec) {
   } catch {
     return "";
   }
+}
+
+/**
+ * @param {number} tSec
+ * @returns {string|null}
+ */
+function sessionLabelForTime(tSec) {
+  if (!queueSessions || queueSessions.length < 1) return null;
+  for (const s of queueSessions) {
+    if (s.startEpoch == null || s.endEpoch == null) continue;
+    if (tSec >= s.startEpoch && tSec <= s.endEpoch) return s.label;
+  }
+  return null;
+}
+
+function hideGraphTooltip() {
+  if (!ui.graphTooltip) return;
+  ui.graphTooltip.hidden = true;
+}
+
+/**
+ * @param {string} text
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function showGraphTooltip(text, clientX, clientY) {
+  const tip = ui.graphTooltip;
+  if (!tip) return;
+  tip.textContent = text;
+  tip.hidden = false;
+
+  // Position near cursor but keep on-screen.
+  const pad = 12;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  tip.style.left = "0px";
+  tip.style.top = "0px";
+  const r = tip.getBoundingClientRect();
+  let x = clientX + pad;
+  let y = clientY + pad;
+  if (x + r.width + 8 > vw) x = Math.max(8, clientX - pad - r.width);
+  if (y + r.height + 8 > vh) y = Math.max(8, clientY - pad - r.height);
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
 }
 
 /**
@@ -4265,6 +5056,28 @@ function drawGraph() {
   ctx.lineWidth = 1;
   ctx.strokeRect(padL - 0.5, padT - 0.5, plotW + 1, plotH + 1);
 
+  // Warning threshold markers (light yellow horizontal lines).
+  try {
+    const thresholds = parseAlertThresholds(config.thresholdsRaw);
+    if (thresholds && thresholds.length) {
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255, 232, 170, 0.38)";
+      for (const t of thresholds) {
+        if (!Number.isFinite(t)) continue;
+        if (t < minP || t > maxP) continue;
+        const y = graphYMap(t, minP, maxP, h);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } catch {
+    // ignore bad thresholds input
+  }
+
   // Y-axis title
   ctx.save();
   ctx.fillStyle = "rgba(130,140,155,0.85)";
@@ -4400,6 +5213,7 @@ window.addEventListener(
 );
 wireHelpOverlay();
 wireSettingsOverlay();
+wireSoundTabs();
 startUpdateCheckLoop();
 
 // Guided tour wiring.
@@ -4835,6 +5649,27 @@ ui.btnGraphWindow?.addEventListener("click", () => {
   drawGraph();
 });
 
+ui.selSession?.addEventListener("change", () => {
+  const v = ui.selSession ? String(ui.selSession.value || "") : "";
+  if (!v) return;
+  selectedSessionKey = v;
+  try {
+    localStorage.setItem(STORAGE_SELECTED_SESSION_KEY, selectedSessionKey);
+  } catch {
+    // ignore
+  }
+  if (selectedSessionKey !== "latest" && running) {
+    stopMonitoring();
+    appendHistory("Viewing a past session — monitoring paused.");
+  }
+  if (selectedSessionKey === "latest" && !running && logFileHandle) {
+    startMonitoring();
+    appendHistory("Back to latest session — monitoring resumed.");
+  }
+  syncPastSessionUi();
+  applySessionSelectionToGraph();
+});
+
 ui.btnClear.addEventListener("click", () => {
   graphPoints = [];
   currentPoint = null;
@@ -4865,6 +5700,24 @@ ui.btnCopyHistory.addEventListener("click", async () => {
     appendHistory("History copied to clipboard.");
   } catch {
     appendHistory("Could not copy history (clipboard permission).");
+  }
+});
+
+ui.btnCopyStats?.addEventListener("click", async () => {
+  const stats = computeSelectedSessionStats();
+  const txt =
+    `Start Pos: ${stats.startPos == null ? "—" : stats.startPos}\n` +
+    `End Pos: ${stats.endPos == null ? "—" : stats.endPos}\n` +
+    `Pos Delta: ${stats.cleared == null ? "—" : stats.cleared}\n` +
+    `Duration: ${stats.minutes == null ? "—" : `${stats.minutes.toFixed(1)} min`}\n` +
+    `Avg Rate: ${stats.avgPosPerMin == null ? "—" : `${stats.avgPosPerMin.toFixed(2)} pos/min`}\n`;
+  try {
+    await navigator.clipboard.writeText(txt);
+    showToast("Copied", "Stats copied.", "info", { durationMs: 4000 });
+    appendHistory("Stats copied to clipboard.");
+  } catch {
+    showToast("Copy failed", "Clipboard access was blocked by the browser.", "error");
+    appendHistory("Could not copy stats (clipboard permission).");
   }
 });
 
@@ -4915,122 +5768,44 @@ ui.btnCopyGraph?.addEventListener("click", async () => {
   }
 });
 
+ui.btnDownloadGraph?.addEventListener("click", async () => {
+  const canvas = ui.graphCanvas;
+  const blob = await canvasToPngBlob(canvas);
+  if (!blob) {
+    showToast("Download failed", "Could not capture the canvas image.", "error");
+    return;
+  }
+  const fileName = `vs-queue-graph-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+  downloadBlob(blob, fileName);
+  showToast("Downloaded", `Saved ${fileName}`, "info", { durationMs: 5000 });
+  appendHistory(`Graph snapshot downloaded: ${fileName}`);
+});
+
 ui.btnRequestNotify.addEventListener("click", async () => {
-  if (!("Notification" in window)) {
-    appendHistory("Notifications are not supported in this browser.");
-    showToast("Not supported", "This browser does not support desktop notifications.", "warn", { durationMs: 7000 });
-    return;
-  }
-  if (typeof window !== "undefined" && "isSecureContext" in window && !window.isSecureContext) {
-    appendHistory("Desktop notifications are blocked in this context (not a secure origin).");
-    showToast(
-      "Open via localhost",
-      "Desktop notifications require a secure origin. Run `python -m http.server 5173`, open http://localhost:5173, then click Enable notifications again.",
-      "warn",
-      { durationMs: 16000 },
-    );
-    return;
-  }
-  if (Notification.permission === "granted") {
-    showTestDesktopNotification();
-    appendHistory("Desktop notifications: permission already granted — sent a test notification.");
-    showToast(
-      "Test sent",
-      "If you don’t see a banner, open Notification Center and check Windows notification settings for your browser. Banners are often suppressed while this tab is focused—try another window and watch for the next ping.",
-      "info",
-      { durationMs: 14000 },
-    );
-    syncNotifyButtonUi();
-    syncNotifyPill();
-    return;
-  }
-  if (Notification.permission === "denied") {
-    appendHistory("Notifications are blocked for this site — change the permission in the browser (lock icon / site settings).");
-    showToast(
-      "Notifications blocked",
-      "Unblock this site in the browser’s site settings (address bar) if you want desktop alerts.",
-      "warn",
-      { durationMs: 12000 },
-    );
-    return;
-  }
-  const p = await Notification.requestPermission();
-  appendHistory(`Notification permission: ${p}`);
-  if (p === "granted") {
-    showTestDesktopNotification();
-    showToast(
-      "Notifications enabled",
-      "You should see up to 3 test notifications. If not, open Notification Center and ensure Windows allows notifications for your browser.",
-      "info",
-      { durationMs: 16000 },
-    );
-  } else {
-    showToast("Notifications not granted", "Desktop alerts stay off until you allow them in the browser.", "warn", { durationMs: 9000 });
-  }
+  config.desktopNotifyEnabled = !config.desktopNotifyEnabled;
+  saveConfig();
+  _notifyNagDismissed = false;
   syncNotifyButtonUi();
-  syncNotifyPill();
+  syncNotifyNagToast();
+  appendHistory(`Desktop notifications: ${config.desktopNotifyEnabled ? "On" : "Off"}`);
 });
 
-ui.btnNotifyPill?.addEventListener("click", () => {
-  try {
-    if (ui.btnRequestNotify && !ui.btnRequestNotify.disabled) ui.btnRequestNotify.click();
-    else desktopNotifyCapabilityHint();
-  } catch {
-    // ignore
-  }
-});
+// Legacy: notification pill removed.
 
-ui.btnSaveSettings.addEventListener("click", () => {
-  try {
-    const pollSec = Number.parseFloat(ui.inpPollSec.value.trim());
-    if (!(pollSec >= 0.2)) throw new Error("Poll (s) must be >= 0.2.");
-    const win = Number.parseInt(ui.inpWindowPoints.value.trim(), 10);
-    if (!Number.isFinite(win) || win < 2) throw new Error("Rolling window (points) must be >= 2.");
-    parseAlertThresholds(config.thresholdsRaw);
-
-    config.pollSec = pollSec;
-    config.windowPoints = win;
-    // thresholdsRaw is edited inline from WARNINGS (not in this dialog)
-    applyFormToConfig();
-    saveConfig();
-    syncConfigToForm();
-    void syncSoundSummaries();
-    refreshWarningsKpi();
-    updateTimeEstimates();
-    showSettingsNote("Saved.");
-
-    if (running) {
-      if (pollTimer != null) window.clearInterval(pollTimer);
-      pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
-      appendHistory(`Updated poll interval: ${config.pollSec}s`);
-    }
-  } catch (e) {
-    showSettingsNote(String(e), true);
-  }
-});
-
-ui.btnCancelSettings?.addEventListener("click", () => {
-  // Discard in-progress edits (autosave may already have persisted, but this restores the form view).
-  try {
-    syncConfigToForm();
-    void syncSoundSummaries();
-  } catch {
-    // ignore
-  }
-  closeSettings();
-});
+ui.btnSettingsClose2?.addEventListener("click", () => closeSettings());
 
 function bindEnterToSave(input) {
   input.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     e.preventDefault();
-    ui.btnSaveSettings.click();
+    // Settings are auto-saved; Enter should just close the modal for convenience.
+    closeSettings();
   });
 }
 
-bindEnterToSave(ui.inpPollSec);
+if (ui.inpPollSec) bindEnterToSave(ui.inpPollSec);
 if (ui.inpThresholds) bindEnterToSave(ui.inpThresholds);
-bindEnterToSave(ui.inpWindowPoints);
+if (ui.inpWindowPoints) bindEnterToSave(ui.inpWindowPoints);
 bindEnterToSave(ui.inpWarnSoundUrl);
 bindEnterToSave(ui.inpCompletionSoundUrl);
 bindEnterToSave(ui.inpInterruptSoundUrl);
@@ -5231,6 +6006,7 @@ ui.graphCanvas.addEventListener("mouseleave", () => {
   graphHoverCanvasX = null;
   graphHoverPoint = null;
   ui.graphHint.textContent = graphHintDefaultText();
+  hideGraphTooltip();
   scheduleDrawGraph();
 });
 ui.graphCanvas.addEventListener("mousemove", (e) => {
@@ -5240,8 +6016,14 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
   graphHoverCanvasX = (e.clientX - rect.left) * scaleX;
   const pt = hitTestGraphPoint(e.clientX, e.clientY);
   graphHoverPoint = pt;
-  if (pt) ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
-  else ui.graphHint.textContent = graphHintDefaultText();
+  if (pt) {
+    const text = `${formatGraphHoverTime(pt[0])}\nposition ${pt[1]}`;
+    ui.graphHint.textContent = `${formatGraphHoverTime(pt[0])} — position ${pt[1]}`;
+    showGraphTooltip(text, e.clientX, e.clientY);
+  } else {
+    ui.graphHint.textContent = graphHintDefaultText();
+    hideGraphTooltip();
+  }
   scheduleDrawGraph();
 });
 

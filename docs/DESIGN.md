@@ -74,6 +74,18 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
   - **Expected**: \<the correct outcome\>
 - **Notes**: \<gotchas, follow-ups, links to commits/PRs\>
 
+### Entries
+
+- **Title**: Latest session selection breaks graph/UI
+- **Symptom**: Graph appears not to load or stops updating; user reports “nothing works” after refresh.
+- **Trigger**: `selectedSessionKey` persisted as `"latest"` and `replayQueueGraphFromText()` takes the session-override path.
+- **Root cause**: The “use dropdown-selected session points” branch ran for **any** truthy `selectedSessionKey`, including `"latest"`, bypassing the reliable live current-run replay.
+- **Fix**: Only override the graph when `selectedSessionKey !== "latest"`; keep `"latest"` on the normal current-run replay path.
+- **Verify**:
+  - **Steps**: Load page → pick log → confirm graph updates; switch to an older session (graph should freeze) → switch back to Latest (graph resumes live).
+  - **Expected**: Latest keeps updating; past session renders historical points and does not mutate during polling.
+- **Notes**: If a “dead UI” happens again, first check DevTools Console for a startup exception caused by a missing DOM id (one throw prevents all listeners from wiring).
+
 ### What to prioritize logging
 
 - **Session boundaries** (graph spans multiple sessions, “new run” not detected, stale values after reconnect)

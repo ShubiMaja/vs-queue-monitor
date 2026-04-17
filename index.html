@@ -13,21 +13,27 @@
         <div class="brand__title">VS Queue Monitor</div>
         <div class="brand__tagline">Vintage Story client log queue monitor</div>
       </div>
-      <div class="topbar__mid">
-        <div class="notifyCtl notifyCtl--top" aria-label="Desktop notifications">
-          <button
-            id="btnRequestNotify"
-            class="btn btn--small btn--secondary"
-            title="Allow OS notifications for threshold/completion while the tab is in the background. In-page toasts work without this. Many browsers only show OS banners when another window is focused."
-          >
-            Enable notifications
-          </button>
-          <div id="notifyHint" class="notifyCtl__hint muted" hidden></div>
-        </div>
-      </div>
+      <div class="topbar__mid"></div>
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
+        <button
+          id="btnRequestNotify"
+          class="btn btn--secondary btn--icon"
+          title="Enable desktop notifications (requires https:// or http://localhost)."
+          aria-label="Enable notifications"
+        >
+          <svg class="iconSvg" id="icoNotifyOn" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+            />
+          </svg>
+          <svg class="iconSvg" id="icoNotifyOff" viewBox="0 0 24 24" aria-hidden="true" hidden>
+            <path
+              d="M20 18.69 7.31 6 6 4.69 4.73 6l2.52 2.52C6.46 9.68 6 10.95 6 12v5l-2 2v1h13.73l1.27 1.27L20 18.69zM18 11c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68c-.72.17-1.37.49-1.95.9l9.45 9.45V11zM12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"
+            />
+          </svg>
+        </button>
         <button id="btnSettings" class="btn btn--secondary btn--icon" title="Settings">⚙</button>
         <button
           id="btnStartStop"
@@ -63,6 +69,8 @@
     <button id="btnTourRestart" type="button" class="tourFab" title="Start the guided tour" aria-label="Start guided tour">
       Tour
     </button>
+
+    <div id="notifyHint" class="notifyHintFloat muted" hidden></div>
 
     <div id="restoreBanner" class="restoreBanner" hidden>
       <div class="restoreBanner__inner">
@@ -194,96 +202,110 @@
             <div class="settingsSection">
               <div class="settingsSection__title">Sounds</div>
               <div class="settingsSection__grid">
-            <div class="field field--wide">
-              <label class="label" for="chkWarnSound">
-                <input id="chkWarnSound" type="checkbox" checked />
-                Warning sound
-              </label>
-              <p class="muted sound-summary" id="warnSoundSummary">—</p>
-              <div class="sound-row sound-row--compact">
-                <button type="button" id="btnTestWarnSound" class="btn btn--small btn--secondary">Play</button>
-                <button type="button" id="btnWarnSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
-              </div>
-              <div id="warnSoundAdv" class="soundAdv" hidden>
-                <div class="sound-row">
-                  <input
-                    id="inpWarnSoundUrl"
-                    class="input sound-url"
-                    type="text"
-                    spellcheck="false"
-                    placeholder="./assets/sounds/warning.wav"
-                    title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-                  />
-                  <input type="file" id="fileWarnSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
-                  <button type="button" id="btnPickWarnSound" class="btn btn--small btn--secondary">Local file…</button>
-                  <button type="button" id="btnClearWarnSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                <div class="soundTabs" role="tablist" aria-label="Sound tabs">
+                  <button id="btnSoundTabWarn" type="button" class="soundTabBtn" role="tab" aria-selected="true">Warn</button>
+                  <button id="btnSoundTabCompletion" type="button" class="soundTabBtn" role="tab" aria-selected="false">Complete</button>
+                  <button id="btnSoundTabInterrupt" type="button" class="soundTabBtn" role="tab" aria-selected="false">Interrupt</button>
                 </div>
-                <div class="sound-row sound-row--sub">
-                  <button type="button" id="btnWarnBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-                  <button type="button" id="btnWarnDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+
+                <div id="soundPanelWarn" class="soundTabPanel" role="tabpanel">
+                  <div class="field field--wide">
+                    <label class="label" for="chkWarnSound">
+                      <input id="chkWarnSound" type="checkbox" checked />
+                      Warning sound
+                    </label>
+                    <p class="muted sound-summary" id="warnSoundSummary">—</p>
+                    <div class="sound-row sound-row--compact">
+                      <button type="button" id="btnTestWarnSound" class="btn btn--small btn--secondary">Play</button>
+                      <button type="button" id="btnWarnSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
+                    </div>
+                    <div id="warnSoundAdv" class="soundAdv" hidden>
+                      <div class="sound-row">
+                        <input
+                          id="inpWarnSoundUrl"
+                          class="input sound-url"
+                          type="text"
+                          spellcheck="false"
+                          placeholder="./assets/sounds/warning.wav"
+                          title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                        />
+                        <input type="file" id="fileWarnSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
+                        <button type="button" id="btnPickWarnSound" class="btn btn--small btn--secondary">Local file…</button>
+                        <button type="button" id="btnClearWarnSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                      </div>
+                      <div class="sound-row sound-row--sub">
+                        <button type="button" id="btnWarnBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                        <button type="button" id="btnWarnDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div class="field field--wide">
-              <label class="label" for="chkCompletionSound">
-                <input id="chkCompletionSound" type="checkbox" checked />
-                Completion sound
-              </label>
-              <p class="muted sound-summary" id="completionSoundSummary">—</p>
-              <div class="sound-row sound-row--compact">
-                <button type="button" id="btnTestCompletionSound" class="btn btn--small btn--secondary">Play</button>
-                <button type="button" id="btnCompletionSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
-              </div>
-              <div id="completionSoundAdv" class="soundAdv" hidden>
-                <div class="sound-row">
-                  <input
-                    id="inpCompletionSoundUrl"
-                    class="input sound-url"
-                    type="text"
-                    spellcheck="false"
-                    placeholder="./assets/sounds/completion.wav"
-                    title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-                  />
-                  <input type="file" id="fileCompletionSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
-                  <button type="button" id="btnPickCompletionSound" class="btn btn--small btn--secondary">Local file…</button>
-                  <button type="button" id="btnClearCompletionSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+
+                <div id="soundPanelCompletion" class="soundTabPanel" role="tabpanel" hidden>
+                  <div class="field field--wide">
+                    <label class="label" for="chkCompletionSound">
+                      <input id="chkCompletionSound" type="checkbox" checked />
+                      Completion sound
+                    </label>
+                    <p class="muted sound-summary" id="completionSoundSummary">—</p>
+                    <div class="sound-row sound-row--compact">
+                      <button type="button" id="btnTestCompletionSound" class="btn btn--small btn--secondary">Play</button>
+                      <button type="button" id="btnCompletionSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
+                    </div>
+                    <div id="completionSoundAdv" class="soundAdv" hidden>
+                      <div class="sound-row">
+                        <input
+                          id="inpCompletionSoundUrl"
+                          class="input sound-url"
+                          type="text"
+                          spellcheck="false"
+                          placeholder="./assets/sounds/completion.wav"
+                          title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                        />
+                        <input type="file" id="fileCompletionSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
+                        <button type="button" id="btnPickCompletionSound" class="btn btn--small btn--secondary">Local file…</button>
+                        <button type="button" id="btnClearCompletionSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                      </div>
+                      <div class="sound-row sound-row--sub">
+                        <button type="button" id="btnCompletionBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                        <button type="button" id="btnCompletionDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="sound-row sound-row--sub">
-                  <button type="button" id="btnCompletionBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-                  <button type="button" id="btnCompletionDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+
+                <div id="soundPanelInterrupt" class="soundTabPanel" role="tabpanel" hidden>
+                  <div class="field field--wide">
+                    <label class="label" for="chkInterruptSound">
+                      <input id="chkInterruptSound" type="checkbox" checked />
+                      Disconnected / interrupted sound
+                    </label>
+                    <p class="muted sound-summary" id="interruptSoundSummary">—</p>
+                    <div class="sound-row sound-row--compact">
+                      <button type="button" id="btnTestInterruptSound" class="btn btn--small btn--secondary">Play</button>
+                      <button type="button" id="btnInterruptSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
+                    </div>
+                    <div id="interruptSoundAdv" class="soundAdv" hidden>
+                      <div class="sound-row">
+                        <input
+                          id="inpInterruptSoundUrl"
+                          class="input sound-url"
+                          type="text"
+                          spellcheck="false"
+                          placeholder="./assets/sounds/disconnected.wav"
+                          title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
+                        />
+                        <input type="file" id="fileInterruptSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
+                        <button type="button" id="btnPickInterruptSound" class="btn btn--small btn--secondary">Local file…</button>
+                        <button type="button" id="btnClearInterruptSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
+                      </div>
+                      <div class="sound-row sound-row--sub">
+                        <button type="button" id="btnInterruptBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
+                        <button type="button" id="btnInterruptDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div class="field field--wide">
-              <label class="label" for="chkInterruptSound">
-                <input id="chkInterruptSound" type="checkbox" checked />
-                Disconnected / interrupted sound
-              </label>
-              <p class="muted sound-summary" id="interruptSoundSummary">—</p>
-              <div class="sound-row sound-row--compact">
-                <button type="button" id="btnTestInterruptSound" class="btn btn--small btn--secondary">Play</button>
-                <button type="button" id="btnInterruptSoundAdv" class="btn btn--small btn--secondary btn--icon" title="Customize sound">⚙</button>
-              </div>
-              <div id="interruptSoundAdv" class="soundAdv" hidden>
-                <div class="sound-row">
-                  <input
-                    id="inpInterruptSoundUrl"
-                    class="input sound-url"
-                    type="text"
-                    spellcheck="false"
-                    placeholder="./assets/sounds/disconnected.wav"
-                    title="Optional: https://… or a path relative to this page. Leave empty for the default clip."
-                  />
-                  <input type="file" id="fileInterruptSound" class="fileInputHidden" accept="audio/*" aria-hidden="true" />
-                  <button type="button" id="btnPickInterruptSound" class="btn btn--small btn--secondary">Local file…</button>
-                  <button type="button" id="btnClearInterruptSoundFile" class="btn btn--small btn--secondary" hidden>Clear file</button>
-                </div>
-                <div class="sound-row sound-row--sub">
-                  <button type="button" id="btnInterruptBuiltin" class="btn btn--small btn--secondary">Built-in tone</button>
-                  <button type="button" id="btnInterruptDefaultUrl" class="btn btn--small btn--secondary">Default clip</button>
-                </div>
-              </div>
-            </div>
               </div>
             </div>
 
@@ -302,8 +324,7 @@
           <div class="settings__footer">
             <div class="settings__note" id="settingsNote"></div>
             <div class="settings__buttons">
-              <button id="btnCancelSettings" class="btn btn--secondary btn--icon" title="Cancel">×</button>
-              <button id="btnSaveSettings" class="btn btn--secondary btn--icon" title="Save">✓</button>
+              <button id="btnSettingsClose2" class="btn btn--secondary btn--icon" title="Close">×</button>
             </div>
           </div>
         </div>
@@ -466,6 +487,11 @@
         <div class="card__header">
           <div class="card__title">Queue graph</div>
           <div class="card__actions">
+            <label class="muted" style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px">Session</span>
+              <select id="selSession" class="sessionSelect" aria-label="Select queue session"></select>
+            </label>
+            <span id="sessionModeBadge" class="sessionBadge sessionBadge--now">Now</span>
             <button id="btnYScale" class="btn btn--small btn--secondary" title="Toggle Y scale (log/linear)">
               Y → linear
             </button>
@@ -480,12 +506,21 @@
             >
               ⧉
             </button>
+            <button
+              id="btnDownloadGraph"
+              class="btn btn--small btn--secondary btn--icon"
+              title="Download graph snapshot (PNG)"
+              aria-label="Download graph snapshot (PNG)"
+            >
+              ⤓
+            </button>
             <button id="btnClear" class="btn btn--small btn--secondary" title="Clear graph + history">
               Clear
             </button>
           </div>
         </div>
         <canvas id="graphCanvas" width="1200" height="360"></canvas>
+        <div id="graphTooltip" class="graphTooltip" hidden></div>
         <div class="graph__hint" id="graphHint"></div>
       </section>
 
@@ -495,6 +530,27 @@
             <div class="card__title">Info</div>
           </div>
           <div class="infoGrid infoGrid--compact">
+            <div class="infoGrid__label">Stats</div>
+            <div class="infoGrid__value">
+              <div class="infoStats">
+                <div class="infoStats__rows" id="infoStatsRows">
+                  <div><span class="muted">Start Pos</span> <span id="infoStatStart">—</span></div>
+                  <div><span class="muted">End Pos</span> <span id="infoStatEnd">—</span></div>
+                  <div><span class="muted">Pos Delta</span> <span id="infoStatCleared">—</span></div>
+                  <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
+                  <div><span class="muted">Avg Rate</span> <span id="infoStatAvg">—</span></div>
+                </div>
+                <button
+                  id="btnCopyStats"
+                  class="btn btn--secondary btn--small btn--icon"
+                  title="Copy stats"
+                  aria-label="Copy stats"
+                >
+                  ⧉
+                </button>
+              </div>
+            </div>
+
             <div class="infoGrid__label">Logs folder</div>
             <div id="infoSource" class="infoGrid__value">—</div>
             <div class="infoGrid__label">Resolved log</div>

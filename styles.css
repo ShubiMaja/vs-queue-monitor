@@ -213,6 +213,44 @@ body{
   color:var(--muted);
 }
 .card__actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sessionSelect{
+  height:30px;
+  padding:0 10px;
+  border-radius:10px;
+  border:1px solid rgba(92,105,122,.55);
+  background:rgba(18,22,32,.55);
+  color:rgba(235,240,248,.92);
+  font-size:12px;
+  outline:none
+}
+.sessionBadge{
+  display:inline-flex;
+  align-items:center;
+  height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(126,232,255,0.26);
+  background:rgba(126,232,255,0.08);
+  color:rgba(200,245,255,0.95);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:0.02em;
+  user-select:none;
+}
+.sessionBadge--past{
+  border-color:rgba(255,210,138,0.45);
+  background:rgba(255,210,138,0.10);
+  color:#ffd28a;
+}
+.sessionBadge--now{
+  border-color:rgba(46,160,90,0.50);
+  background:rgba(46,160,90,0.12);
+  color:#bff2c3;
+}
+.sessionSelect:focus{
+  border-color:rgba(105,175,255,.75);
+  box-shadow:0 0 0 3px rgba(105,175,255,.18)
+}
 
 .notifyCtl{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .notifyCtl__hint{max-width:320px;font-size:11px;line-height:1.25;text-align:right}
@@ -245,6 +283,13 @@ body{
   font-family:var(--mono);
   font-weight:800;
   border-radius:var(--radius-sm);
+}
+.iconSvg{
+  width:18px;
+  height:18px;
+  display:inline-block;
+  vertical-align:middle;
+  fill:currentColor;
 }
 .btn--primary{
   background:linear-gradient(180deg, var(--btn-primary) 0%, #17803a 100%);
@@ -326,6 +371,23 @@ body{
 .kpi__value--warn{color:#ffd28a}
 .kpi__value--danger{color:#ff8b8b}
 .kpi__value--done{color:#7ee8ff}
+
+/* Status KPI: keep readable + wrap, but avoid "pill" look */
+#kpiStatus{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+#kpiStatus .statusText{
+  min-width:0;
+  white-space:normal;
+  display:block;
+  font-size:18px;
+  line-height:1.08;
+}
 .kpiWarn--hit{color:var(--ok);font-weight:800}
 .kpiWarn--pending{color:var(--muted);font-weight:650}
 .kpiWarn--sep{color:var(--muted);font-weight:600;opacity:0.85}
@@ -489,11 +551,46 @@ body{
   flex:1 1 auto;
   cursor:crosshair;
 }
+.graphTooltip{
+  position:fixed;
+  z-index:90;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(92,105,122,0.65);
+  background:rgba(10,13,20,0.94);
+  color:rgba(235,240,248,0.96);
+  font-size:12px;
+  font-family:var(--mono);
+  line-height:1.25;
+  box-shadow:0 10px 30px rgba(0,0,0,0.35);
+  pointer-events:none;
+  white-space:pre;
+}
 .graph__hint{flex:0 0 auto}
 .sound-summary{margin:6px 0 0;font-size:12px;line-height:1.35}
 .sound-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .sound-row--sub{margin-top:6px}
 .sound-row--compact{margin-top:8px}
+.soundTabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.soundTabBtn{
+  appearance:none;
+  border:1px solid rgba(62,74,94,0.55);
+  background:rgba(12,14,18,0.25);
+  color:rgba(220,226,233,0.92);
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:0.02em;
+  cursor:pointer;
+}
+.soundTabBtn:hover{background:rgba(18,21,28,0.45)}
+.soundTabBtn--active{
+  border-color:rgba(105,175,255,0.55);
+  background:rgba(105,175,255,0.14);
+  color:rgba(235,240,248,0.96);
+}
+.soundTabPanel{margin-top:8px}
 .soundAdv{
   margin-top:8px;
   padding:10px 10px 8px;
@@ -534,6 +631,21 @@ body{
 
 .notifyCtl--top{display:flex;align-items:center;gap:10px}
 .notifyCtl--top .notifyCtl__hint{max-width:280px}
+.notifyHintFloat{
+  position:fixed;
+  top:56px;
+  right:18px;
+  max-width:320px;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(55,65,82,0.7);
+  background:rgba(10,13,20,0.92);
+  font-size:11px;
+  line-height:1.25;
+  z-index:85;
+  pointer-events:none;
+}
+
 
 .lowerSplit{
   grid-column:1 / -1;
@@ -565,6 +677,8 @@ body{
 }
 .infoGrid__label{color:var(--muted);font-weight:750;font-size:11px;letter-spacing:0.04em}
 .infoGrid__value{font-family:var(--mono);font-size:12px;color:var(--text);overflow-wrap:anywhere;line-height:1.45}
+.infoStats{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.infoStats__rows{display:flex;flex-direction:column;gap:3px;min-width:0}
 
 .settings .form{padding:0;display:grid;grid-template-columns: repeat(2, minmax(0,1fr));gap:14px}
 .settings--modal .form{padding:0}
@@ -841,8 +955,8 @@ body{
 .tourOverlay__scrim{
   position:absolute;
   inset:0;
-  background:rgba(4,6,10,0.55);
-  backdrop-filter:blur(2px);
+  /* Don't gray out the UI during the tour; just highlight the target. */
+  background:transparent;
   pointer-events:none;
 }
 .tourBubble{
@@ -887,7 +1001,8 @@ body{
 .overlay{
   position:fixed;
   inset:0;
-  z-index:60;
+  /* Modals must sit above the tour bubble. */
+  z-index:95;
   display:flex;
   align-items:center;
   justify-content:center;
