@@ -17,6 +17,17 @@
         <div class="brand__title">VS Queue Monitor</div>
         <div class="brand__tagline">Vintage Story client log queue monitor</div>
       </div>
+      <div class="topbar__mid">
+        <div
+          id="logActivityWrap"
+          class="logActivity"
+          hidden
+          title="Pulses when a new line appears in the log tail (live read)."
+        >
+          <span class="logActivityLed" id="logActivityLed" aria-hidden="true"></span>
+          <span class="logActivity__label">tail</span>
+        </div>
+      </div>
       <div class="topbar__actions">
         <button id="btnPickLog" class="btn">Pick log file…</button>
         <button id="btnPickFolder" class="btn btn--secondary" title="Requires a Chromium browser (Edge/Chrome)">
@@ -285,7 +296,7 @@
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.46"></script>
+    <script type="module" src="./app.js?v=2.0.47"></script>
   </body>
 </html>
 

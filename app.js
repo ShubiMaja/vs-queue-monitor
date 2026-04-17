@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.46";
+const APP_VERSION = "2.0.47";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -64,6 +64,8 @@ const ui = {
   settingsNote: $("settingsNote"),
   historyPre: $("historyPre"),
   footerVersion: $("footerVersion"),
+  logActivityWrap: $("logActivityWrap"),
+  logActivityLed: $("logActivityLed"),
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
@@ -2353,6 +2355,7 @@ async function pollOnce() {
     const replayChunk = pendingGraphReplayText;
     pendingGraphReplayText = null;
     if (newText) appendToLogBuffer(newText);
+    if (newText && /[\r\n]/.test(newText)) pulseLogActivityLed();
     if (replayChunk != null) replayQueueGraphFromText(replayChunk);
     const view = logBuffer || "";
     const { kind } = classifyTailConnectionState(view);
@@ -2510,6 +2513,30 @@ function startMonitoringAfterSuccessfulPick() {
 }
 
 /** @param {boolean} isRunning */
+function setLogActivityMonitoring(on) {
+  const w = ui.logActivityWrap;
+  const led = ui.logActivityLed;
+  if (!w || !led) return;
+  if (on) {
+    w.hidden = false;
+    led.classList.add("logActivityLed--armed");
+  } else {
+    w.hidden = true;
+    led.classList.remove("logActivityLed--armed", "logActivityLed--pulse");
+  }
+}
+
+function pulseLogActivityLed() {
+  const el = ui.logActivityLed;
+  if (!el || !running) return;
+  el.classList.remove("logActivityLed--pulse");
+  void el.offsetWidth;
+  el.classList.add("logActivityLed--pulse");
+  window.setTimeout(() => {
+    el.classList.remove("logActivityLed--pulse");
+  }, 600);
+}
+
 function setStartStopButtonLook(isRunning) {
   ui.btnStartStop.textContent = isRunning ? "Stop" : "Start";
   ui.btnStartStop.classList.toggle("btn--primary", !isRunning);
@@ -2537,6 +2564,7 @@ function startMonitoring() {
   hideInterruptAdoptModal();
   lastQueueRunSession = null;
   appendHistory("Monitoring started.");
+  setLogActivityMonitoring(true);
 
   if (pollTimer != null) window.clearInterval(pollTimer);
   pollTimer = window.setInterval(() => pollOnce(), Math.max(200, config.pollSec * 1000));
@@ -2547,6 +2575,7 @@ function startMonitoring() {
 
 function stopMonitoring() {
   running = false;
+  setLogActivityMonitoring(false);
   setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
   ui.btnPickFolder.disabled = false;
