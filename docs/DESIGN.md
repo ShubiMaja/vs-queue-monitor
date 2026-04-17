@@ -155,7 +155,7 @@ When adding features, **extend tokens** or reuse existing ones before introducin
 
 The app is a **single-page dashboard** with a stable mental model:
 
-1. **Header** — identity, **help** (`?`), optional **notifications** enablement. Help is a **working surface** (paths, generators, load actions), not a static readme dump.
+1. **Header** — identity, **help** (`?`), optional **notifications** enablement. Help is a **working surface** (short picker guidance, command generator, load actions); **README** holds full troubleshooting.
 2. **Control strip** — pick log (and optionally folder where supported), **Start / Stop**, and when needed **permission / grant access** flows. This is the **gate** between “configured” and “live.”
 3. **KPI strip** — **at-a-glance** numbers: position, status, rate, warnings, elapsed, ETA, progress. This answers “what’s happening now?” without scrolling.
 4. **Chart** — **time series** of position for the **current queue session**, so the user sees **trend**, not only a snapshot.
@@ -297,7 +297,7 @@ The app is a **single-page dashboard** with a stable mental model:
 - Some users **cannot** pick logs under protected locations. Desired UX:
   - Explain **why** (browser/OS policy), not “your fault.”
   - Offer **Help** with **Windows vs Mac/Linux** paths where behavior differs.
-  - Provide **generated commands** from a user-pasted path so they can create a **reachable** file or junction and pick that—**copy/paste friendly**, minimal jargon.
+  - Provide **generated commands** from a user-pasted path so they can create a **reachable** file or junction and pick that—**copy/paste friendly**, minimal jargon in-app; **README** for long-form edge cases.
 
 ---
 
