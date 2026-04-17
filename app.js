@@ -1648,6 +1648,18 @@ function splitLogIntoSessions(data) {
   const sessionBeforeLine = queueRunSessionBeforeLine(lines);
   /** @type {{ key: string, lines: string[], startIdx: number, endIdx: number }[]} */
   const out = [];
+  /** @type {Map<string, number>} */
+  const keyCounts = new Map();
+
+  const stableHash32 = (s) => {
+    // Simple, stable 32-bit FNV-1a-ish hash for keys (not crypto).
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16).padStart(8, "0");
+  };
   let start = 0;
   let curSess = sessionBeforeLine[0] ?? 0;
   for (let i = 1; i <= lines.length; i++) {
@@ -1658,7 +1670,13 @@ function splitLogIntoSessions(data) {
       const segEnd = parseLastTimestampEpochFromLines(seg);
       // Stable key: based on first timestamp (independent of buffer trimming).
       // Session indices are relative to the loaded chunk, so they are NOT stable.
-      const stablePart = segStart != null && Number.isFinite(segStart) ? `t:${Math.floor(segStart)}` : `u:${start}`;
+      const base =
+        segStart != null && Number.isFinite(segStart)
+          ? `t:${Math.floor(segStart)}`
+          : `u:${stableHash32(`${seg.length}|${seg.slice(0, 40).join("\n")}`)}`;
+      const seen = keyCounts.get(base) || 0;
+      keyCounts.set(base, seen + 1);
+      const stablePart = seen ? `${base}#${seen + 1}` : base;
       out.push({
         sessionIndex: curSess,
         key: stablePart,
@@ -1879,7 +1897,8 @@ function getSelectedSessionPoints() {
   let s = queueSessions.find((x) => x.key === selectedSessionKey) || null;
   // Robust match: keys are `t:<floorEpoch>`, so match by floor(startEpoch) too.
   if (!s && selectedSessionKey.startsWith("t:")) {
-    const ep = Number.parseInt(selectedSessionKey.slice(2), 10);
+    const m = /^t:(\d+)/.exec(selectedSessionKey);
+    const ep = m ? Number.parseInt(m[1], 10) : Number.parseInt(selectedSessionKey.slice(2), 10);
     if (Number.isFinite(ep) && ep > 0) {
       s =
         queueSessions.find((x) => x.startEpoch != null && Math.floor(x.startEpoch) === ep) ||
