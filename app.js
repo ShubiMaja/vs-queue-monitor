@@ -621,14 +621,17 @@ async function pickLogFile() {
       low.includes("security") ||
       low.includes("permission");
     if (looksBlocked) {
-      appendHistory("Browser blocked access to that folder/file (protected/system location). Workaround: expose the log under a non-system folder, then pick it from there.");
-      appendHistory("Windows (junction via Documents):");
+      appendHistory("Browser blocked access to that folder/file (protected/system location).");
+      appendHistory("Note: browsers do not reveal the exact filesystem path you attempted to pick, so we can only provide a best-guess command. If your Vintage Story data/logs live elsewhere, replace the source path below.");
+      appendHistory("Windows workaround (junction; source is the usual VS data dir under %APPDATA%):");
       appendHistory('  mkdir "%USERPROFILE%\\Documents\\VintagestoryData"');
       appendHistory('  mklink /J "%USERPROFILE%\\Documents\\VintagestoryData" "%APPDATA%\\VintagestoryData"');
-      appendHistory("Then pick: Documents\\VintagestoryData\\Logs\\client-main.log");
-      appendHistory("Linux (symlink into ~/VSLogs):");
+      appendHistory("Explanation: this exposes %APPDATA%\\VintagestoryData under Documents so the browser picker can access it.");
+      appendHistory("Then pick: %USERPROFILE%\\Documents\\VintagestoryData\\Logs\\client-main.log");
+      appendHistory("Linux workaround (symlink; source is the usual VS data dir under ~/.config):");
       appendHistory("  mkdir -p ~/VSLogs");
       appendHistory("  ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log");
+      appendHistory("Explanation: this exposes the log under your home directory so the browser picker can access it.");
       appendHistory("Then pick: ~/VSLogs/client-main.log");
       return;
     }

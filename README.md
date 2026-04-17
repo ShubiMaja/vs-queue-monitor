@@ -56,6 +56,8 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/VSLogs/client-main.log
 
 Then pick: `~/VSLogs/client-main.log`
 
+Note: the browser does not reveal the exact path you attempted to pick when it blocks access, so these commands use the typical Vintage Story data locations. Replace the source path if your install uses a different location.
+
 ## Open-source hosted assets
 
 The app can use hosted assets (no backend). If you want everything to work fully offline, you’ll need to embed/inline assets instead; this section is specifically for **hosted** open-source assets.
