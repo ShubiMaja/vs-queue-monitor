@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.42";
+const APP_VERSION = "2.0.43";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -2494,7 +2494,11 @@ function drawGraph() {
   const h = c.height;
 
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(13,15,18,0.95)";
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+  bgGrad.addColorStop(0, "rgba(18,22,32,0.98)");
+  bgGrad.addColorStop(0.55, "rgba(10,13,20,0.98)");
+  bgGrad.addColorStop(1, "rgba(6,8,12,0.99)");
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, w, h);
 
   if (graphPoints.length < 1) {
@@ -2531,7 +2535,7 @@ function drawGraph() {
   const xOf = (t) => padL + ((t - t1 + span) / span) * plotW;
 
   // Grid
-  ctx.strokeStyle = "rgba(46,55,66,0.7)";
+  ctx.strokeStyle = "rgba(55,65,82,0.55)";
   ctx.lineWidth = 1;
   for (let i = 0; i <= 6; i++) {
     const y = padT + (i / 6) * plotH;
@@ -2542,7 +2546,7 @@ function drawGraph() {
   }
 
   // Axes labels (simple)
-  ctx.fillStyle = "rgba(159,167,179,0.95)";
+  ctx.fillStyle = "rgba(155,165,176,0.92)";
   ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue("--mono");
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -2553,7 +2557,7 @@ function drawGraph() {
   }
 
   // Series (step plot)
-  ctx.strokeStyle = "rgba(87,148,242,0.95)";
+  ctx.strokeStyle = "rgba(100,168,255,0.92)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   for (let i = 0; i < graphPoints.length; i++) {
@@ -2575,7 +2579,7 @@ function drawGraph() {
   const last = graphPoints[graphPoints.length - 1];
   const xm = xOf(last[0]);
   const ym = graphYMap(last[1], minP, maxP, h);
-  ctx.fillStyle = "rgba(107,155,214,1)";
+  ctx.fillStyle = "rgba(130,200,255,0.98)";
   ctx.beginPath();
   ctx.arc(xm, ym, 4.5, 0, Math.PI * 2);
   ctx.fill();

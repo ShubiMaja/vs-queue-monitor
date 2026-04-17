@@ -108,13 +108,14 @@ Implementation lives in [`styles.css`](../styles.css) on `:root`. Tokens are **s
 
 | Token | Typical use |
 |-------|-------------|
-| **`--bg-app`** (`#111217`) | Page background. |
-| **`--bg-card`**, **`--bg-card-2`** | Card surfaces; slightly lifted panels and inset regions (graph, history, inputs). |
-| **`--text`** (`#d8d9da`) | Primary body and KPI values. |
-| **`--muted`** (`#8e9ba3`) | Labels, hints, footer, secondary copy—**scan hierarchy**: label small/muted, number large/bright. |
-| **`--sep`** (`#2e3742`) | Borders, dividers, KPI grid lines—structure without loud chrome. |
-| **`--accent`** (`#5794f2`) | **Primary accent**: links, progress fill gradient start, graph stroke, focus affordances. Pairs with a lighter cyan in the progress gradient (`#8be9fd`) for a subtle “active” read. |
-| **`--link`** (`#58a6ff`) | Hyperlinks (distinct from `--accent` slightly—both read as “interactive blue”). |
+| **`--bg-app`**, **`--bg-app-mid`** | Page background: cool dark base plus **radial** highlights (subtle blue/green wash) and a vertical blend for depth—not a flat fill. |
+| **`--bg-card`**, **`--bg-card-2`**, **`--bg-inset`** | Card surfaces (often **gradient**), inset panels (history, inputs). |
+| **`--text`**, **`--text-bright`** | Primary copy vs KPI / titles (slightly brighter for scan). |
+| **`--muted`** | Labels, hints, footer—**scan hierarchy** with uppercase micro-labels on cards. |
+| **`--sep`**, **`--border-card`** | Dividers and card hairlines (soft rgba, not harsh lines). |
+| **`--shadow-card`** | Card/modal elevation: soft outer shadow + **inset** top highlight. |
+| **`--accent`**, **`--accent-soft`** | **Primary accent** (links, progress, chart); soft variant for focus rings. |
+| **`--link`** | Hyperlinks (hover brightens slightly). |
 | **`--btn`**, **`--btn-active`** | Default buttons: neutral slate; hover brightens. |
 | **`--btn-primary`**, **`--btn-primary-active`** | **Positive / go** actions (e.g. grant access, primary confirmations)—green, not the same as the blue accent. |
 | **`--btn-stop-*`**, **`btn--stop`** | **Stop** while monitoring is live: warm dark gradient + amber border—visually distinct from green **Start**, so pause/stop is not mistaken for another “go”. |
@@ -124,11 +125,11 @@ Implementation lives in [`styles.css`](../styles.css) on `:root`. Tokens are **s
 **State overlays (not always separate tokens):**
 
 - **Restore / resume banner:** Green-tinted gradient over the app bar so “you can continue” reads as **opportunity**, not alarm (`restoreBanner` in CSS).
-- **Toasts:** Dark card-like panels; **error** toasts get a red border tint; **warn** a warm/yellow border—**noticeable but not full-screen**.
+- **Toasts:** Gradient card panels; **error** / **warn** / **ok** border tints; backdrop blur on the stack—**noticeable but not full-screen**.
 
 ### Chart (canvas)
 
-The queue **graph** is drawn in [`app.js`](../app.js) with colors aligned to the same system: dark plot background (`rgba(13,15,18,…)`), muted grid (`rgba(46,55,66,…)`), axis labels near **`--muted`**, series line **`--accent`**, current-point marker a slightly softer blue—so the chart **feels part of the same UI** as the KPI strip.
+The queue **graph** is drawn in [`app.js`](../app.js) with colors aligned to the same system: **vertical gradient** plot fill, soft grid lines, axis labels near **`--muted`**, cyan-tinted **series** line and marker—so the chart **matches** the KPI strip and progress bar.
 
 ### Typography
 
@@ -138,7 +139,7 @@ The queue **graph** is drawn in [`app.js`](../app.js) with colors aligned to the
 ### Layout and shape
 
 - **Max width** (~1280px) keeps the dashboard readable on ultrawide monitors; content stays **centered**, not edge-to-edge chaos.
-- **Cards:** Rounded corners (~12px), thin borders using `--sep`; **sticky top bar** with light blur so controls stay reachable while scrolling.
+- **Cards:** Rounded corners (~14px), **`--border-card`** + **`--shadow-card`**; **sticky top bar** with blur/saturation and shadow so controls stay reachable while scrolling.
 - **Density:** KPI row is **compact but legible**; graph is the **largest** visual anchor below KPIs—reinforces “position over time” as the main story.
 
 ### Design principles (visual)
