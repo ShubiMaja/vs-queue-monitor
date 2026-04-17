@@ -302,8 +302,11 @@ body{
   font-weight:800;
   text-transform:uppercase;
   opacity:0.95;
+  white-space:nowrap;
 }
-.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.kpi__labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;min-width:0}
+.kpi__labelRow > *{min-width:0}
+.kpi__labelRow > :first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kpi__labelActions{display:inline-flex;gap:6px;align-items:center}
 .kpi__labelActions .btn{padding:4px 8px;font-size:12px;border-radius:8px;line-height:1}
 .kpi__labelActions .btn--icon{width:auto}

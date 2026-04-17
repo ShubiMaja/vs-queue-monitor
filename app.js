@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.12";
+const APP_VERSION = "2.1.13";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1529,7 +1529,7 @@ function applyFormToConfig() {
   config.interruptSoundUrl = ui.inpInterruptSoundUrl.value.trim();
   // graphLiveWindow is controlled by a button (not a form field).
   ui.kpiRateLabel.textContent = `RATE (AVG ${rollingWindowPoints()})`;
-  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s ⟳)`;
 }
 
 /**
@@ -1614,7 +1614,7 @@ function syncConfigToForm() {
   ui.btnYScale.textContent = config.graphLogScale ? "Y → log" : "Y → linear";
   if (ui.btnGraphWindow) ui.btnGraphWindow.textContent = config.graphLiveWindow ? "Live view: on" : "Live view: off";
   ui.kpiRateLabel.textContent = `RATE (AVG ${config.windowPoints})`;
-  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s REFRESH)`;
+  if (ui.kpiStatusLabel) ui.kpiStatusLabel.textContent = `STATUS (${config.pollSec}s ⟳)`;
 }
 
 function showSettingsNote(text, isError = false) {
