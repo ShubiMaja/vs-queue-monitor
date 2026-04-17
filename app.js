@@ -1,4 +1,4 @@
-const APP_VERSION = "2.0.10";
+const APP_VERSION = "2.0.11";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -230,7 +230,8 @@ function renderHelpCommandPreview() {
   const isWin = helpPlat === "win";
   const isUnix = helpPlat === "unix";
   const wantsFile = /[\\/](client-main\.log|client\.log)$/i.test(raw) || /\.log$/i.test(raw);
-  const logName = /client\.log$/i.test(raw) ? "client.log" : "client-main.log";
+  // For guidance, always prefer the canonical client log name.
+  const logName = "client-main.log";
   const setPick = (p) => {
     if (ui.spanHelpPickPath) ui.spanHelpPickPath.textContent = p || "";
   };
@@ -242,7 +243,7 @@ function renderHelpCommandPreview() {
     const srcDir = looksLikeLogFile ? srcIn.replace(/[\\/][^\\/]+$/i, "") : srcIn;
 
     if (looksLikeLogsDir) {
-      const dest = "%USERPROFILE%\\Documents\\VSLogs";
+      const dest = "%USERPROFILE%\\Documents\\vs-queue-monitor\\Logs";
       ui.preHelpCmd.textContent =
         `mkdir "${dest}"\n` +
         `mklink /J "${dest}" "${srcDir}"`;
@@ -250,7 +251,7 @@ function renderHelpCommandPreview() {
       return;
     }
 
-    const dest = "%USERPROFILE%\\Documents\\VintagestoryData";
+    const dest = "%USERPROFILE%\\Documents\\vs-queue-monitor\\VintagestoryData";
     ui.preHelpCmd.textContent =
       `mkdir "${dest}"\n` +
       `mklink /J "${dest}" "${srcDir}"`;
@@ -262,16 +263,16 @@ function renderHelpCommandPreview() {
     if (wantsFile) {
       const srcFile = raw || "~/.config/VintagestoryData/Logs/client-main.log";
       ui.preHelpCmd.textContent =
-        `mkdir -p ~/VSLogs\n` +
-        `ln -s ${srcFile} ~/VSLogs/${logName}`;
-      setPick(`~/VSLogs/${logName}`);
+        `mkdir -p ~/vs-queue-monitor/Logs\n` +
+        `ln -s ${srcFile} ~/vs-queue-monitor/Logs/${logName}`;
+      setPick(`~/vs-queue-monitor/Logs/${logName}`);
       return;
     }
     const srcDir = raw || "~/.config/VintagestoryData";
     ui.preHelpCmd.textContent =
-      `mkdir -p ~/VSLogs\n` +
-      `ln -s ${srcDir}/Logs/${logName} ~/VSLogs/${logName}`;
-    setPick(`~/VSLogs/${logName}`);
+      `mkdir -p ~/vs-queue-monitor/Logs\n` +
+      `ln -s ${srcDir}/Logs/${logName} ~/vs-queue-monitor/Logs/${logName}`;
+    setPick(`~/vs-queue-monitor/Logs/${logName}`);
     return;
   }
 
