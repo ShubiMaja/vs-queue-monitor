@@ -94,6 +94,24 @@ body{
   min-width:0;
   pointer-events:none;
 }
+.pill{
+  pointer-events:auto;
+  appearance:none;
+  border:1px solid rgba(62,74,94,0.55);
+  background:rgba(12,14,18,0.35);
+  color:rgba(220,226,233,0.92);
+  border-radius:999px;
+  padding:7px 12px;
+  font-size:12px;
+  font-weight:750;
+  letter-spacing:0.02em;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.pill:hover{background:rgba(18,21,28,0.55)}
+.pill--warn{border-color:rgba(255,210,138,0.55);color:#ffd28a}
+.pill--danger{border-color:rgba(242,73,92,0.55);color:#ff8b8b}
+.pill--ok{border-color:rgba(46,160,90,0.55);color:#bff2c3}
 .logActivity{
   pointer-events:auto;
   display:flex;

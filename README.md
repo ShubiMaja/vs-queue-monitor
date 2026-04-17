@@ -52,6 +52,7 @@ Then open `http://localhost:5173/dist/`.
 2. Optional: click **Enable notifications** so threshold/completion can use **OS / desktop notifications**.
    - Desktop notifications are most reliable when the app is opened from **`http://localhost`** (or `https://`), not `file://`.
    - Use **Test notification** after enabling to validate your OS/browser settings. In-page toasts work regardless.
+   - If desktop notifications are off/blocked, a small **top-bar pill** shows the reason and acts as a shortcut to enable/test. Alerts also add a temporary **tab title badge** when the page isn’t focused.
 
 Use **Stop** / **Start** to pause and resume tailing the same file without picking again.
 
