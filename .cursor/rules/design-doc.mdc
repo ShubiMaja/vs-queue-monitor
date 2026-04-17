@@ -1,0 +1,29 @@
+---
+description: Use docs/DESIGN.md as UX/product source of truth
+alwaysApply: true
+---
+
+# Design doc is the contract
+
+`docs/DESIGN.md` is the **source of truth** for product intent and UX decisions in this repo.
+
+## When working on UI/UX changes
+
+- **Consult `docs/DESIGN.md` first** and align changes to its intent, vocabulary, and interaction patterns.
+- If a requested change conflicts with the design contract, **update the design doc first** (capturing the new decision), then implement.
+
+## Keep docs in sync
+
+- If a change affects **user-visible behavior** (labels, copy, flows, defaults, onboarding, alerts, graph behavior, settings affordances), update:
+  - **`docs/DESIGN.md`** when the **intent / decision / UX contract** changes
+  - **`README.md`** when the **how-to / troubleshooting / setup steps** change
+
+## Maintain design consistency
+
+Prefer the established patterns documented in `docs/DESIGN.md`, especially:
+
+- **Seamless flow**: in-context guidance, actionable errors, minimal steps
+- **Progressive disclosure**: dashboard first; Settings for advanced/rare items
+- **Graph behavior**: Live view toggle semantics, hover/snap rules, session/history expectations
+- **Honest states**: completion vs at-front vs interrupted are distinct and must stay consistent across KPIs, graph, History, and notifications
+
