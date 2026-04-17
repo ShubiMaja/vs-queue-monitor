@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.39";
+const APP_VERSION = "2.0.40";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 

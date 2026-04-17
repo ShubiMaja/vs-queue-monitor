@@ -76,53 +76,22 @@
           <button id="btnHelpClose" class="btn btn--secondary btn--icon" title="Close">×</button>
         </div>
         <div class="modal__body">
-          <div class="modal__sectionTitle">Live tail requirements</div>
+          <div class="modal__sectionTitle">Picking the log</div>
           <div class="modal__text">
-            Live tail requires Edge/Chrome with the File System Access API. The app polls the picked log file handle and reads new bytes as it grows.
+            Use <strong>Edge</strong> or <strong>Chrome</strong>. The app reads the file you choose and polls for new lines as the log grows.
           </div>
 
-          <div class="modal__sectionTitle">Picker blocked by “system files”</div>
+          <div class="modal__sectionTitle">If the picker blocks protected folders</div>
           <div class="modal__text">
-            On <strong>Windows</strong>, Edge/Chrome often still block picks <strong>through</strong> a folder junction or symlink into AppData — even under Documents. What reliably works is a <strong>hard link</strong> (<span class="mono">mklink /H</span>) to the <strong>log file itself</strong> so you pick a normal file next to Documents. Use <strong>Generate an exact command</strong> with the <strong>full path to <span class="mono">client-main.log</span></strong>. On Linux/macOS, a symlink to the file under home is usually enough.
-          </div>
-
-          <div class="modal__sectionTitle">Windows (hard link to log file — recommended)</div>
-          <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
-mklink /H "%USERPROFILE%\Documents\vs-queue-monitor\client-main-1a2b3c4d.log" "%APPDATA%\VintagestoryData\Logs\client-main.log"</pre>
-          <div class="modal__text">One file directly under <span class="mono">vs-queue-monitor</span> (name includes an 8-char hash — filled in by the generator). Requires the real log file to exist and to be on the <strong>same drive</strong> as your Documents folder.</div>
-          <div class="modal__text muted">
-            <strong>Files vs folders:</strong> <span class="mono">mklink /H</span> applies only to a <strong>file</strong> (e.g. <span class="mono">client-main.log</span>). Using <span class="mono">/H</span> on a <strong>folder</strong> fails (illegal / invalid operation). For directories, use <span class="mono">mklink /J</span> (junction). Paste the <strong>full path to the .log file</strong> in the generator so the command uses <span class="mono">/H</span> on that file.
-          </div>
-
-          <div class="modal__sectionTitle">Windows: “shortcut” vs real link</div>
-          <div class="modal__text">
-            <strong>Send to → Desktop (create shortcut)</strong> or <strong>right‑click → Create shortcut</strong> produces a <span class="mono">.lnk</span> file. That is a <em>shell</em> shortcut (tiny binary), not a second path to the log bytes. Edge/Chrome will read the <span class="mono">.lnk</span> itself — monitoring will not see your queue lines. <strong>Copy</strong> the log or use <span class="mono">mklink /H</span> from <strong>Generate an exact command</strong> (Command Prompt). <span class="mono">mklink /H</span> creates a <strong>hard link</strong>: same file data as the original, which behaves like a copy for reading.
-          </div>
-
-          <div class="modal__sectionTitle">Windows (folder junction — optional fallback)</div>
-          <pre class="code">if not exist "%USERPROFILE%\Documents\vs-queue-monitor" mkdir "%USERPROFILE%\Documents\vs-queue-monitor"
-mklink /J "%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d" "%APPDATA%\VintagestoryData"</pre>
-          <div class="modal__text">Some users still get “system files” when opening a file <em>inside</em> a junction to AppData — if so, use the <strong>hard link</strong> to <span class="mono">client-main.log</span> above instead. Otherwise: do not <span class="mono">mkdir</span> the <span class="mono">data-…</span> / <span class="mono">logs-…</span> name first — <span class="mono">mklink /J</span> creates it. Then pick: <span class="mono">%USERPROFILE%\Documents\vs-queue-monitor\data-1a2b3c4d\Logs\client-main.log</span> — <span class="muted">filled in by “Generate an exact command” when you paste a folder path.</span></div>
-          <div class="modal__text muted">
-            <strong>Empty folder?</strong> A <strong>normal</strong> empty <span class="mono">logs-…</span> / <span class="mono">data-…</span> is usually <strong>not</strong> a junction — often <span class="mono">mkdir</span> created that name first (then <span class="mono">mklink</span> could not run), or <span class="mono">mklink</span> was never run (e.g. PowerShell). Delete that folder if empty (<span class="mono">rmdir</span>), then run only the generator lines in <strong>cmd</strong>. In <span class="mono">cmd</span>, <span class="mono">dir</span> shows real junctions with type <span class="mono">&lt;JUNCTION&gt;</span>, not <span class="mono">&lt;DIR&gt;</span> alone. If the link works but files are missing, regenerate — older builds could mis-handle paths under a subfolder of <span class="mono">Logs</span>.
-          </div>
-
-          <div class="modal__sectionTitle">Linux / macOS (file symlink example)</div>
-          <pre class="code">mkdir -p ~/vs-queue-monitor/logs-9f8e7d6c
-ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</pre>
-          <div class="modal__text">Then pick: <span class="mono">~/vs-queue-monitor/logs-9f8e7d6c/client-main.log</span> — <span class="muted">same hash idea from the generator.</span></div>
-
-          <div class="modal__sectionTitle">Why we can’t show the exact blocked path</div>
-          <div class="modal__text">
-            For security, browsers don’t reveal the exact filesystem path you attempted to pick when access is blocked. The commands above use typical Vintage Story locations; replace the source path if yours differs.
-          </div>
-
-          <div class="modal__sectionTitle">Generate an exact command (paste your real path)</div>
-          <div class="modal__text">
-            Paste the <strong>full path to your log file</strong> (Windows) or the log file path (Linux), or a data folder if you are not pasting a <span class="mono">.log</span> path — then copy the generated command.
+            Browsers often refuse logs under AppData and similar. Put a <strong>reachable copy of the path</strong> under your profile: on Windows run the generated <span class="mono">mklink /H</span> in <strong>Command Prompt</strong> (same drive as Documents); on Linux/macOS use a <span class="mono">ln -s</span> under home. Paste your <strong>real</strong> path below — the generator fills exact commands and the pick target.
           </div>
           <div class="modal__text muted">
-            <strong>Windows:</strong> paste a <span class="mono">.log</span> path for <span class="mono">mklink /H</span> (recommended — usually the one that works with Edge/Chrome). Paste a folder path only if you need the optional <span class="mono">mklink /J</span> junction. <strong>Mac/Linux:</strong> symlinks under <span class="mono">~/vs-queue-monitor/</span>.
+            <strong>Windows:</strong> don’t pick Explorer “shortcuts” (<span class="mono">.lnk</span>) — they aren’t the log file. <span class="mono">mklink /H</span> applies to a <strong>file</strong> only; for folders the generator can offer <span class="mono">mklink /J</span>. Junction edge cases, empty folders, and PowerShell quirks are covered in the <a class="link" href="https://github.com/ShubiMaja/vs-queue-monitor#readme" target="_blank" rel="noreferrer">README</a>.
+          </div>
+
+          <div class="modal__sectionTitle">Generate an exact command</div>
+          <div class="modal__text">
+            Paste the <strong>full path to <span class="mono">client-main.log</span></strong> (best), or a data folder if you don’t have a <span class="mono">.log</span> path — then copy the command and pick the path shown.
           </div>
           <div class="helpPlat">
             <button id="btnHelpPlatWin" class="btn btn--secondary btn--small" type="button" aria-pressed="false">Windows</button>
@@ -133,7 +102,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
             <input
               id="inpHelpSourcePath"
               class="input helpForm__input"
-              placeholder='Example (Windows): %APPDATA%\VintagestoryData  |  (Mac): ~/Library/Application Support/VintagestoryData/Logs/client-main.log  |  (Linux): ~/.config/VintagestoryData/Logs/client-main.log'
+              placeholder="Paste path to client-main.log or your Vintage Story data folder"
               autocomplete="off"
               spellcheck="false"
             />
@@ -303,7 +272,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.39"></script>
+    <script type="module" src="./app.js?v=2.0.40"></script>
   </body>
 </html>
 
