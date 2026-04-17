@@ -2,6 +2,8 @@
 
 One-page **web app** that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds — all **in your browser** (no backend).
 
+**Product & UX (high level):** [`DESIGN.md`](DESIGN.md) describes the intended user journey, goals, and UX principles. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
+
 ## Disclaimer (read this)
 
 **No warranty — use at your own risk.** **Not affiliated with Vintage Story** or its developers. You must validate paths, alerts, ETAs, and time-sensitive decisions yourself.
