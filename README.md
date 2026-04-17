@@ -22,6 +22,8 @@ One-page **web app** that tails the **Vintage Story** client log, tracks **conne
 
 Open the built one-page app:
 
+- Hosted (recommended): open the GitHub Pages build:
+  - `https://shubimaja.github.io/vs-queue-monitor/index.html`
 - Open `dist/index.html` in **Edge/Chrome**
 
 ## Build `dist/index.html`
