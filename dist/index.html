@@ -802,6 +802,17 @@ body{
   box-shadow:0 0 0 1px rgba(91,156,247,0.2);
 }
 
+/* Tutorial */
+.modal.tutorial{max-width:760px}
+.tutorial__step{font-size:12px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin-left:10px}
+.tutorial__body{margin-top:2px}
+.tutorial__body .tutorial__lead{font-size:14px;line-height:1.6;color:var(--text)}
+.tutorial__body .tutorial__hint{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.55}
+.tutorial__body .tutorial__k{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid rgba(62,74,94,0.55);background:rgba(8,10,14,0.45);font-family:var(--mono);font-size:12px}
+.tutorial__body .tutorial__list{margin:10px 0 0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55}
+.tutorial__body .tutorial__actions{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+.tutorial__body .tutorial__warn{margin-top:10px;color:#ffd28a;font-size:13px;line-height:1.55}
+
 </style>
   </head>
   <body>
@@ -858,6 +869,32 @@ body{
           <div class="helpForm__actions" style="margin-top: 14px">
             <button id="btnInterruptAdoptConfirm" type="button" class="btn btn--primary">Adopt new run</button>
             <button id="btnInterruptAdoptNotNow" type="button" class="btn btn--secondary">Not now</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tutorialOverlay" class="overlay" hidden>
+      <div class="modal tutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+        <div class="modal__header">
+          <div class="modal__title">
+            <span id="tutorialTitle">Welcome</span>
+            <span id="tutorialStep" class="tutorial__step muted"></span>
+          </div>
+          <button id="btnTutorialSkip" class="btn btn--secondary btn--small" type="button" title="Skip tutorial">
+            Skip
+          </button>
+        </div>
+        <div class="modal__body">
+          <div id="tutorialBody" class="tutorial__body"></div>
+          <div class="helpForm__actions" style="margin-top: 14px; justify-content: space-between">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button id="btnTutorialBack" type="button" class="btn btn--secondary">Back</button>
+              <button id="btnTutorialNext" type="button" class="btn btn--primary">Next</button>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
+              <button id="btnTutorialHelp" type="button" class="btn btn--secondary">Open help</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1228,7 +1265,7 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.99";
+const APP_VERSION = "2.1.0";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -1245,6 +1282,14 @@ const ui = {
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
+  tutorialOverlay: $("tutorialOverlay"),
+  tutorialTitle: $("tutorialTitle"),
+  tutorialStep: $("tutorialStep"),
+  tutorialBody: $("tutorialBody"),
+  btnTutorialSkip: $("btnTutorialSkip"),
+  btnTutorialBack: $("btnTutorialBack"),
+  btnTutorialNext: $("btnTutorialNext"),
+  btnTutorialHelp: $("btnTutorialHelp"),
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnGraphWindow: $("btnGraphWindow"),
@@ -1350,6 +1395,197 @@ const ui = {
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+// -----------------------------
+// Tutorial (first-run onboarding)
+// -----------------------------
+
+const STORAGE_TUTORIAL_DONE_KEY = "vsqm_tutorial_done_v1";
+let tutorialActive = false;
+let tutorialStepIdx = 0;
+let tutorialPickedDuringRun = false;
+
+function isTutorialDone() {
+  try {
+    return localStorage.getItem(STORAGE_TUTORIAL_DONE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setTutorialDone() {
+  try {
+    localStorage.setItem(STORAGE_TUTORIAL_DONE_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function openTutorial() {
+  if (!ui.tutorialOverlay) return;
+  tutorialActive = true;
+  tutorialPickedDuringRun = false;
+  tutorialStepIdx = 0;
+  ui.tutorialOverlay.hidden = false;
+  renderTutorial();
+}
+
+function closeTutorial(markDone) {
+  if (!ui.tutorialOverlay) return;
+  tutorialActive = false;
+  ui.tutorialOverlay.hidden = true;
+  if (markDone) setTutorialDone();
+}
+
+function tutorialHasLogSelected() {
+  return !!logFileHandle;
+}
+
+function tutorialSetStep(next) {
+  tutorialStepIdx = Math.max(0, Math.min(4, next | 0));
+  renderTutorial();
+}
+
+function renderTutorial() {
+  if (!tutorialActive) return;
+  if (!ui.tutorialTitle || !ui.tutorialBody || !ui.tutorialStep || !ui.btnTutorialBack || !ui.btnTutorialNext) return;
+
+  const stepN = tutorialStepIdx + 1;
+  const total = 5;
+  ui.tutorialStep.textContent = `Step ${stepN}/${total}`;
+
+  const hasLog = tutorialHasLogSelected();
+  ui.btnTutorialBack.disabled = tutorialStepIdx === 0;
+
+  /** @type {{title:string, html:string, nextLabel?:string, nextDisabled?:boolean}} */
+  let s = { title: "Welcome", html: "" };
+
+  if (tutorialStepIdx === 0) {
+    s = {
+      title: "Welcome",
+      html:
+        `<div class="tutorial__lead"><strong>Let’s get you monitoring in ~2 minutes.</strong> We’ll pick your log file, tune warnings, tune the rolling rate window, then start monitoring.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><span class="tutorial__k">Pick log file…</span> is required (the browser can’t read logs without you choosing one).</li>` +
+        `<li>Warnings default to <span class="tutorial__k">10, 5, 1</span> (alerts fire when you cross downward through each threshold).</li>` +
+        `<li>Rolling rate defaults to <span class="tutorial__k">10</span> points (more points = smoother but slower to react).</li>` +
+        `</ul>` +
+        `<div class="tutorial__hint">You can skip this tutorial, but it’s recommended the first time.</div>`,
+      nextLabel: "Pick a log",
+    };
+  } else if (tutorialStepIdx === 1) {
+    s = {
+      title: "Pick your log file",
+      html:
+        `<div class="tutorial__lead">Choose <span class="tutorial__k">client-main.log</span> (or <span class="tutorial__k">client.log</span>).</div>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--primary" id="btnTutorialPickNow">Pick log file…</button>` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">Open help / fix blocked picks</button>` +
+        `</div>` +
+        `<div class="tutorial__hint"><strong>Common paths</strong> (you don’t need to paste these, just a guide):</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><strong>macOS</strong>: <span class="tutorial__k">~/Library/Application Support/VintagestoryData/Logs/client-main.log</span></li>` +
+        `<li><strong>Linux</strong>: <span class="tutorial__k">~/.config/VintagestoryData/Logs/client-main.log</span></li>` +
+        `</ul>` +
+        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> / blocks AppData-like folders, click <strong>Open help</strong> and use the generated <span class="tutorial__k">mklink /H</span> (Windows) or <span class="tutorial__k">ln -s</span> (Mac/Linux).</div>` +
+        (hasLog
+          ? `<div class="tutorial__hint"><strong>Selected:</strong> ${escapeHtml(String(ui.infoResolved?.textContent || "log"))}</div>`
+          : `<div class="tutorial__hint"><strong>Not selected yet.</strong> Pick a log to continue.</div>`),
+      nextLabel: "Next",
+      nextDisabled: !hasLog,
+    };
+  } else if (tutorialStepIdx === 2) {
+    s = {
+      title: "Configure warnings",
+      html:
+        `<div class="tutorial__lead">Warnings are the milestones that trigger alerts as you move toward the front of the queue.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li>Defaults: <span class="tutorial__k">10, 5, 1</span></li>` +
+        `<li>Alerts fire on <strong>downward crossings</strong> (e.g. 6 → 5 triggers ≤5).</li>` +
+        `</ul>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialEditWarnings">Edit WARNINGS…</button>` +
+        `</div>` +
+        `<div class="tutorial__hint">Tip: keep <span class="tutorial__k">1</span> so you get a “front of queue” warning.</div>`,
+      nextLabel: "Next",
+    };
+  } else if (tutorialStepIdx === 3) {
+    s = {
+      title: "Configure rolling rate",
+      html:
+        `<div class="tutorial__lead">Rolling rate estimates how fast you’re moving. The window is measured in <strong>points</strong> (updates).</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><strong>10 points</strong>: a good default balance.</li>` +
+        `<li><strong>5</strong>: more responsive but noisier.</li>` +
+        `<li><strong>20</strong>: smoother but slower to react.</li>` +
+        `</ul>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialEditRate">Edit rolling window…</button>` +
+        `</div>`,
+      nextLabel: "Next",
+    };
+  } else {
+    s = {
+      title: "Start monitoring",
+      html:
+        `<div class="tutorial__lead">All set. When you finish, the app will start tailing your selected log and updating the graph live.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li>You can stop/resume anytime with <span class="tutorial__k">Start/Stop</span>.</li>` +
+        `<li>Desktop notifications are optional (Info → Enable notifications).</li>` +
+        `</ul>`,
+      nextLabel: "Start monitoring",
+      nextDisabled: !hasLog,
+    };
+  }
+
+  ui.tutorialTitle.textContent = s.title;
+  ui.tutorialBody.innerHTML = s.html;
+  ui.btnTutorialNext.textContent = s.nextLabel || "Next";
+  ui.btnTutorialNext.disabled = !!s.nextDisabled;
+
+  const pickNow = document.getElementById("btnTutorialPickNow");
+  pickNow?.addEventListener("click", async () => {
+    try {
+      await pickLogFile();
+      tutorialPickedDuringRun = tutorialHasLogSelected();
+      renderTutorial();
+    } catch {
+      renderTutorial();
+    }
+  });
+  const openH = document.getElementById("btnTutorialOpenHelp");
+  openH?.addEventListener("click", () => openPickerFixGuide());
+
+  const editWarn = document.getElementById("btnTutorialEditWarnings");
+  editWarn?.addEventListener("click", () => {
+    try {
+      closeTutorial(false);
+      ui.btnWarningsEdit?.click();
+      showToast("Tutorial", "Edit thresholds, then return to the tutorial to continue.", "info", {
+        actionLabel: "Resume tutorial",
+        onAction: () => openTutorial(),
+        durationMs: 14000,
+      });
+    } catch {
+      // ignore
+    }
+  });
+
+  const editRate = document.getElementById("btnTutorialEditRate");
+  editRate?.addEventListener("click", () => {
+    try {
+      closeTutorial(false);
+      openSettingsAndEditRollingWindow();
+      showToast("Tutorial", "Adjust Rolling window (points), then return to the tutorial to continue.", "info", {
+        actionLabel: "Resume tutorial",
+        onAction: () => openTutorial(),
+        durationMs: 14000,
+      });
+    } catch {
+      // ignore
+    }
+  });
+}
 
 function syncNotifyButtonUi() {
   if (!ui.btnRequestNotify) return;
@@ -3238,7 +3474,7 @@ async function finishRestoreSavedLog(handle) {
     await applyPickedLogHandle(handle, label, {
       historyLine: `Restored last log: ${name} (${label}).`,
     });
-    startMonitoring();
+    if (!tutorialActive) startMonitoring();
   } finally {
     restoreInProgress = false;
   }
@@ -3438,7 +3674,12 @@ async function pickLogFile() {
   await applyPickedLogHandle(handle, "Picked file", {
     historyLine: `Selected log file: ${pickedName}`,
   });
-  startMonitoringAfterSuccessfulPick();
+  // During the tutorial we require completing onboarding before monitoring starts.
+  if (tutorialActive) {
+    tutorialPickedDuringRun = true;
+  } else {
+    startMonitoringAfterSuccessfulPick();
+  }
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -3447,52 +3688,6 @@ async function pickLogFile() {
   } catch {
     // ignore
   }
-}
-
-async function pickFolder() {
-  if (!window.showDirectoryPicker) {
-    appendHistory("Folder picking is not available here. Pick the log file directly (recommended).");
-    return;
-  }
-  let dir;
-  try {
-    dir = await window.showDirectoryPicker({ mode: "read" });
-  } catch (e) {
-    // Chrome/Edge can block protected folders (and users can cancel).
-    const msg = String(e && (e.message || e.name || e));
-    if (msg.toLowerCase().includes("abort") || msg.toLowerCase().includes("cancel")) {
-      appendHistory("Pick folder cancelled.");
-      showToast(
-        "Pick cancelled",
-        "No folder was selected. If the picker blocked the folder as “system files” / protected, use the fix guide (recommended: pick the log file via a hard link).",
-        "warn",
-        { actionLabel: "Open fix guide", onAction: () => openPickerFixGuide(), durationMs: 12000 },
-      );
-      return;
-    }
-    appendHistory("Could not open that folder. Pick the log file directly (recommended), or choose a non-system folder such as your Vintage Story data/Logs folder.");
-    showToast("Pick failed", "Folder access was blocked. Pick the log file instead (or open the fix guide).", "error", {
-      actionLabel: "Open fix guide",
-      onAction: () => openPickerFixGuide(),
-      durationMs: 16000,
-    });
-    return;
-  }
-  const file = await tryGetFirstExistingFile(dir, ["client-main.log", "client.log"]);
-  if (!file) {
-    appendHistory("Selected folder, but no client-main.log/client.log found at the top level. Pick the log file directly, or choose the Logs folder.");
-    sourceLabel = "Picked folder (no log yet)";
-    ui.infoSource.textContent = sourceLabel;
-    ui.infoResolved.textContent = "—";
-    logFileHandle = null;
-    ui.btnStartStop.disabled = true;
-    return;
-  }
-  const pickedName = (await file.getFile()).name;
-  await applyPickedLogHandle(file, "Picked folder", {
-    historyLine: `Selected folder; resolved log file: ${pickedName}`,
-  });
-  startMonitoringAfterSuccessfulPick();
 }
 
 // -----------------------------
@@ -4975,6 +5170,28 @@ wireHelpOverlay();
 wireSettingsOverlay();
 startUpdateCheckLoop();
 
+// Tutorial wiring (first run).
+(() => {
+  ui.btnTutorialHelp?.addEventListener("click", () => openPickerFixGuide());
+  ui.btnTutorialSkip?.addEventListener("click", () => closeTutorial(true));
+  ui.btnTutorialBack?.addEventListener("click", () => tutorialSetStep(tutorialStepIdx - 1));
+  ui.btnTutorialNext?.addEventListener("click", () => {
+    if (tutorialStepIdx === 4) {
+      if (tutorialHasLogSelected()) startMonitoringAfterSuccessfulPick();
+      closeTutorial(true);
+      showToast("Tutorial complete", "Monitoring started. You can adjust WARNINGS and RATE any time.", "ok", { durationMs: 8000 });
+      return;
+    }
+    tutorialSetStep(tutorialStepIdx + 1);
+  });
+
+  try {
+    if (!isTutorialDone()) openTutorial();
+  } catch {
+    // ignore
+  }
+})();
+
 (() => {
   const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
   if (!viewport || typeof ResizeObserver === "undefined") return;
@@ -5131,13 +5348,7 @@ ui.btnInterruptAdoptNotNow.addEventListener("click", () => {
   appendHistory("Keeping interrupted state — adopt the new run when ready (dialog will show again if the session changes).");
 });
 
-// Hide folder picking when unsupported (common under file:// or non-Chromium).
-try {
-  const isFile = String(window.location && window.location.protocol) === "file:";
-  if (isFile || !window.showDirectoryPicker) ui.btnPickFolder.style.display = "none";
-} catch {
-  // ignore
-}
+// Folder picking removed (confusing UX). Keep only “Pick log file…”.
 
 function focusAndReveal(el) {
   try {
@@ -5211,14 +5422,6 @@ ui.btnPickLog.addEventListener("click", async () => {
     await pickLogFile();
   } catch (e) {
     appendHistory(`Pick log cancelled/failed: ${String(e)}`);
-  }
-});
-
-ui.btnPickFolder.addEventListener("click", async () => {
-  try {
-    await pickFolder();
-  } catch (e) {
-    appendHistory(`Pick folder cancelled/failed: ${String(e)}`);
   }
 });
 

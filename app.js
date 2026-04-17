@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.99";
+const APP_VERSION = "2.1.0";
 
 /** Same as favicon; desktop notifications need HTTPS or localhost. */
 const NOTIFICATION_ICON_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4c1.svg";
@@ -16,6 +16,14 @@ const ui = {
   btnSettings: $("btnSettings"),
   btnHelp: $("btnHelp"),
   btnHelpClose: $("btnHelpClose"),
+  tutorialOverlay: $("tutorialOverlay"),
+  tutorialTitle: $("tutorialTitle"),
+  tutorialStep: $("tutorialStep"),
+  tutorialBody: $("tutorialBody"),
+  btnTutorialSkip: $("btnTutorialSkip"),
+  btnTutorialBack: $("btnTutorialBack"),
+  btnTutorialNext: $("btnTutorialNext"),
+  btnTutorialHelp: $("btnTutorialHelp"),
   btnStartStop: $("btnStartStop"),
   btnYScale: $("btnYScale"),
   btnGraphWindow: $("btnGraphWindow"),
@@ -121,6 +129,198 @@ const ui = {
 };
 
 ui.footerVersion.textContent = `v${APP_VERSION}`;
+
+// -----------------------------
+// Tutorial (first-run onboarding)
+// -----------------------------
+
+const STORAGE_TUTORIAL_DONE_KEY = "vsqm_tutorial_done_v1";
+let tutorialActive = false;
+let tutorialStepIdx = 0;
+let tutorialPickedDuringRun = false;
+
+function isTutorialDone() {
+  try {
+    return localStorage.getItem(STORAGE_TUTORIAL_DONE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setTutorialDone() {
+  try {
+    localStorage.setItem(STORAGE_TUTORIAL_DONE_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function openTutorial() {
+  if (!ui.tutorialOverlay) return;
+  tutorialActive = true;
+  tutorialPickedDuringRun = false;
+  tutorialStepIdx = 0;
+  ui.tutorialOverlay.hidden = false;
+  renderTutorial();
+}
+
+function closeTutorial(markDone) {
+  if (!ui.tutorialOverlay) return;
+  tutorialActive = false;
+  ui.tutorialOverlay.hidden = true;
+  if (markDone) setTutorialDone();
+}
+
+function tutorialHasLogSelected() {
+  return !!logFileHandle;
+}
+
+function tutorialSetStep(next) {
+  tutorialStepIdx = Math.max(0, Math.min(4, next | 0));
+  renderTutorial();
+}
+
+function renderTutorial() {
+  if (!tutorialActive) return;
+  if (!ui.tutorialTitle || !ui.tutorialBody || !ui.tutorialStep || !ui.btnTutorialBack || !ui.btnTutorialNext) return;
+
+  const stepN = tutorialStepIdx + 1;
+  const total = 5;
+  ui.tutorialStep.textContent = `Step ${stepN}/${total}`;
+
+  const hasLog = tutorialHasLogSelected();
+  ui.btnTutorialBack.disabled = tutorialStepIdx === 0;
+
+  /** @type {{title:string, html:string, nextLabel?:string, nextDisabled?:boolean}} */
+  let s = { title: "Welcome", html: "" };
+
+  if (tutorialStepIdx === 0) {
+    s = {
+      title: "Welcome",
+      html:
+        `<div class="tutorial__lead"><strong>Let’s get you monitoring in ~2 minutes.</strong> We’ll pick your log file, tune warnings, tune the rolling rate window, then start monitoring.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><span class="tutorial__k">Pick log file…</span> is required (the browser can’t read logs without you choosing one).</li>` +
+        `<li>Warnings default to <span class="tutorial__k">10, 5, 1</span> (alerts fire when you cross downward through each threshold).</li>` +
+        `<li>Rolling rate defaults to <span class="tutorial__k">10</span> points (more points = smoother but slower to react).</li>` +
+        `</ul>` +
+        `<div class="tutorial__hint">You can skip this tutorial, but it’s recommended the first time.</div>`,
+      nextLabel: "Pick a log",
+    };
+  } else if (tutorialStepIdx === 1) {
+    s = {
+      title: "Pick your log file",
+      html:
+        `<div class="tutorial__lead">Choose <span class="tutorial__k">client-main.log</span> (or <span class="tutorial__k">client.log</span>).</div>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--primary" id="btnTutorialPickNow">Pick log file…</button>` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialOpenHelp">Open help / fix blocked picks</button>` +
+        `</div>` +
+        `<div class="tutorial__hint"><strong>Common paths</strong> (you don’t need to paste these, just a guide):</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><strong>macOS</strong>: <span class="tutorial__k">~/Library/Application Support/VintagestoryData/Logs/client-main.log</span></li>` +
+        `<li><strong>Linux</strong>: <span class="tutorial__k">~/.config/VintagestoryData/Logs/client-main.log</span></li>` +
+        `</ul>` +
+        `<div class="tutorial__warn">If the picker says <strong>“system files”</strong> / blocks AppData-like folders, click <strong>Open help</strong> and use the generated <span class="tutorial__k">mklink /H</span> (Windows) or <span class="tutorial__k">ln -s</span> (Mac/Linux).</div>` +
+        (hasLog
+          ? `<div class="tutorial__hint"><strong>Selected:</strong> ${escapeHtml(String(ui.infoResolved?.textContent || "log"))}</div>`
+          : `<div class="tutorial__hint"><strong>Not selected yet.</strong> Pick a log to continue.</div>`),
+      nextLabel: "Next",
+      nextDisabled: !hasLog,
+    };
+  } else if (tutorialStepIdx === 2) {
+    s = {
+      title: "Configure warnings",
+      html:
+        `<div class="tutorial__lead">Warnings are the milestones that trigger alerts as you move toward the front of the queue.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li>Defaults: <span class="tutorial__k">10, 5, 1</span></li>` +
+        `<li>Alerts fire on <strong>downward crossings</strong> (e.g. 6 → 5 triggers ≤5).</li>` +
+        `</ul>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialEditWarnings">Edit WARNINGS…</button>` +
+        `</div>` +
+        `<div class="tutorial__hint">Tip: keep <span class="tutorial__k">1</span> so you get a “front of queue” warning.</div>`,
+      nextLabel: "Next",
+    };
+  } else if (tutorialStepIdx === 3) {
+    s = {
+      title: "Configure rolling rate",
+      html:
+        `<div class="tutorial__lead">Rolling rate estimates how fast you’re moving. The window is measured in <strong>points</strong> (updates).</div>` +
+        `<ul class="tutorial__list">` +
+        `<li><strong>10 points</strong>: a good default balance.</li>` +
+        `<li><strong>5</strong>: more responsive but noisier.</li>` +
+        `<li><strong>20</strong>: smoother but slower to react.</li>` +
+        `</ul>` +
+        `<div class="tutorial__actions">` +
+        `<button type="button" class="btn btn--secondary" id="btnTutorialEditRate">Edit rolling window…</button>` +
+        `</div>`,
+      nextLabel: "Next",
+    };
+  } else {
+    s = {
+      title: "Start monitoring",
+      html:
+        `<div class="tutorial__lead">All set. When you finish, the app will start tailing your selected log and updating the graph live.</div>` +
+        `<ul class="tutorial__list">` +
+        `<li>You can stop/resume anytime with <span class="tutorial__k">Start/Stop</span>.</li>` +
+        `<li>Desktop notifications are optional (Info → Enable notifications).</li>` +
+        `</ul>`,
+      nextLabel: "Start monitoring",
+      nextDisabled: !hasLog,
+    };
+  }
+
+  ui.tutorialTitle.textContent = s.title;
+  ui.tutorialBody.innerHTML = s.html;
+  ui.btnTutorialNext.textContent = s.nextLabel || "Next";
+  ui.btnTutorialNext.disabled = !!s.nextDisabled;
+
+  // Wire per-step buttons (rebuilt each render).
+  const pickNow = document.getElementById("btnTutorialPickNow");
+  pickNow?.addEventListener("click", async () => {
+    try {
+      await pickLogFile();
+      tutorialPickedDuringRun = tutorialHasLogSelected();
+      renderTutorial();
+    } catch {
+      renderTutorial();
+    }
+  });
+  const openH = document.getElementById("btnTutorialOpenHelp");
+  openH?.addEventListener("click", () => openPickerFixGuide());
+
+  const editWarn = document.getElementById("btnTutorialEditWarnings");
+  editWarn?.addEventListener("click", () => {
+    try {
+      closeTutorial(false);
+      ui.btnWarningsEdit?.click();
+      showToast("Tutorial", "Edit thresholds, then return to the tutorial to continue.", "info", {
+        actionLabel: "Resume tutorial",
+        onAction: () => openTutorial(),
+        durationMs: 14000,
+      });
+    } catch {
+      // ignore
+    }
+  });
+
+  const editRate = document.getElementById("btnTutorialEditRate");
+  editRate?.addEventListener("click", () => {
+    try {
+      closeTutorial(false);
+      openSettingsAndEditRollingWindow();
+      showToast("Tutorial", "Adjust Rolling window (points), then return to the tutorial to continue.", "info", {
+        actionLabel: "Resume tutorial",
+        onAction: () => openTutorial(),
+        durationMs: 14000,
+      });
+    } catch {
+      // ignore
+    }
+  });
+}
 
 function syncNotifyButtonUi() {
   if (!ui.btnRequestNotify) return;
@@ -2010,7 +2210,7 @@ async function finishRestoreSavedLog(handle) {
     await applyPickedLogHandle(handle, label, {
       historyLine: `Restored last log: ${name} (${label}).`,
     });
-    startMonitoring();
+    if (!tutorialActive) startMonitoring();
   } finally {
     restoreInProgress = false;
   }
@@ -2210,7 +2410,12 @@ async function pickLogFile() {
   await applyPickedLogHandle(handle, "Picked file", {
     historyLine: `Selected log file: ${pickedName}`,
   });
-  startMonitoringAfterSuccessfulPick();
+  // During the tutorial we require completing onboarding before monitoring starts.
+  if (tutorialActive) {
+    tutorialPickedDuringRun = true;
+  } else {
+    startMonitoringAfterSuccessfulPick();
+  }
 
   // Best-effort: remember the last directory via well-known startIn token (not a real path).
   // Browsers do not expose a parent directory for a picked file handle.
@@ -3700,6 +3905,33 @@ window.addEventListener(
 wireHelpOverlay();
 wireSettingsOverlay();
 startUpdateCheckLoop();
+
+// Tutorial wiring (first run).
+(() => {
+  ui.btnTutorialHelp?.addEventListener("click", () => openPickerFixGuide());
+  ui.btnTutorialSkip?.addEventListener("click", () => closeTutorial(true));
+  ui.btnTutorialBack?.addEventListener("click", () => tutorialSetStep(tutorialStepIdx - 1));
+  ui.btnTutorialNext?.addEventListener("click", () => {
+    if (tutorialStepIdx === 4) {
+      // Complete tutorial: start monitoring now (if a log was selected).
+      if (tutorialHasLogSelected()) startMonitoringAfterSuccessfulPick();
+      closeTutorial(true);
+      showToast("Tutorial complete", "Monitoring started. You can adjust WARNINGS and RATE any time.", "ok", { durationMs: 8000 });
+      return;
+    }
+    tutorialSetStep(tutorialStepIdx + 1);
+  });
+
+  // Auto-open on first run.
+  try {
+    if (!isTutorialDone()) {
+      // If a log is already restored automatically (rare), still show tutorial but allow skipping.
+      openTutorial();
+    }
+  } catch {
+    // ignore
+  }
+})();
 
 (() => {
   const viewport = ui.kpiWarnings?.querySelector(".kpiWarn__viewport");
