@@ -13,6 +13,11 @@
   --btn-active:#384556;
   --btn-primary:#1f883d;
   --btn-primary-active:#2ea043;
+  --btn-stop-top:#3a3528;
+  --btn-stop-bottom:#26231c;
+  --btn-stop-hover-top:#463f30;
+  --btn-stop-hover-bottom:#302a20;
+  --btn-stop-border:rgba(210, 164, 60, 0.55);
   --mono:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --sans:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
 }
@@ -101,6 +106,24 @@ body{
   border-color:rgba(31,136,61,0.65);
 }
 .btn--primary:hover{background:var(--btn-primary-active)}
+/* Stop = monitoring active; distinct from green Start so “pause” isn’t read as another “go”. */
+.btn--stop{
+  background: linear-gradient(180deg, var(--btn-stop-top), var(--btn-stop-bottom));
+  border-color: var(--btn-stop-border);
+  color: #f4eeda;
+}
+.btn--stop:hover{
+  background: linear-gradient(180deg, var(--btn-stop-hover-top), var(--btn-stop-hover-bottom));
+  border-color: rgba(230, 180, 90, 0.7);
+}
+.btn--stop:focus-visible{
+  outline: 2px solid rgba(230, 180, 90, 0.55);
+  outline-offset: 2px;
+}
+.btn--primary:focus-visible{
+  outline: 2px solid rgba(46, 160, 90, 0.65);
+  outline-offset: 2px;
+}
 
 .kpis{
   grid-column:1 / -1;

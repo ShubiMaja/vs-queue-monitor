@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.0.38";
+const APP_VERSION = "2.0.39";
 
 const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
 
@@ -2307,13 +2307,22 @@ function startMonitoringAfterSuccessfulPick() {
   startMonitoring();
 }
 
+/** @param {boolean} isRunning */
+function setStartStopButtonLook(isRunning) {
+  ui.btnStartStop.textContent = isRunning ? "Stop" : "Start";
+  ui.btnStartStop.classList.toggle("btn--primary", !isRunning);
+  ui.btnStartStop.classList.toggle("btn--stop", isRunning);
+  ui.btnStartStop.setAttribute("aria-pressed", isRunning ? "true" : "false");
+  ui.btnStartStop.title = isRunning ? "Stop tailing the log" : "Start tailing the log";
+}
+
 function startMonitoring() {
   if (!logFileHandle) return;
   if (running) return;
   running = true;
   monitorStartEpoch = Date.now() / 1000;
   setStatus("Monitoring");
-  ui.btnStartStop.textContent = "Stop";
+  setStartStopButtonLook(true);
   ui.btnPickLog.disabled = true;
   ui.btnPickFolder.disabled = true;
   thresholdsFired.clear();
@@ -2336,7 +2345,7 @@ function startMonitoring() {
 
 function stopMonitoring() {
   running = false;
-  ui.btnStartStop.textContent = "Start";
+  setStartStopButtonLook(false);
   ui.btnPickLog.disabled = false;
   ui.btnPickFolder.disabled = false;
   if (pollTimer != null) window.clearInterval(pollTimer);

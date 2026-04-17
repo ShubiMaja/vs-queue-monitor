@@ -23,7 +23,16 @@
           Pick folder…
         </button>
         <button id="btnHelp" class="btn btn--secondary btn--icon" title="Help / info">?</button>
-        <button id="btnStartStop" class="btn btn--primary" disabled>Start</button>
+        <button
+          id="btnStartStop"
+          type="button"
+          class="btn btn--primary"
+          disabled
+          aria-pressed="false"
+          title="Start tailing the log"
+        >
+          Start
+        </button>
       </div>
     </header>
 
@@ -294,7 +303,7 @@ ln -s ~/.config/VintagestoryData/Logs/client-main.log ~/vs-queue-monitor/logs-9f
       </div>
     </footer>
 
-    <script type="module" src="./app.js?v=2.0.38"></script>
+    <script type="module" src="./app.js?v=2.0.39"></script>
   </body>
 </html>
 

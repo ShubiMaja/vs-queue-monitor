@@ -117,6 +117,7 @@ Implementation lives in [`styles.css`](../styles.css) on `:root`. Tokens are **s
 | **`--link`** (`#58a6ff`) | Hyperlinks (distinct from `--accent` slightly—both read as “interactive blue”). |
 | **`--btn`**, **`--btn-active`** | Default buttons: neutral slate; hover brightens. |
 | **`--btn-primary`**, **`--btn-primary-active`** | **Positive / go** actions (e.g. grant access, primary confirmations)—green, not the same as the blue accent. |
+| **`--btn-stop-*`**, **`btn--stop`** | **Stop** while monitoring is live: warm dark gradient + amber border—visually distinct from green **Start**, so pause/stop is not mistaken for another “go”. |
 | **`--danger`** (`#f2495c`) | Errors, destructive emphasis, danger text (e.g. `.danger` on status). |
 | **`--ok`** (`#73bf69`) | Success-adjacent accents where used (e.g. positive framing in banners). |
 
