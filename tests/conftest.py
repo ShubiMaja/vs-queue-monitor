@@ -7,23 +7,28 @@ import threading
 from typing import Generator
 
 import pytest
+import uvicorn
 
-# Real Chromium often reports permission as granted/denied before our UI runs, so the
-# notification modal (default only) never appears. Stub Notification for modal tests.
+# Chromium may not start with permission "default". Stub matches the web API: after
+# requestPermission() resolves granted, Notification.permission reads as granted.
 NOTIFICATION_STUB_DEFAULT_GRANT = """
 (function () {
   function FakeNotification(title, opts) {
     this.title = title || "";
     this.body = opts && opts.body ? opts.body : "";
   }
-  FakeNotification.permission = "default";
+  var perm = "default";
+  Object.defineProperty(FakeNotification, "permission", {
+    get: function () { return perm; },
+    configurable: true
+  });
   FakeNotification.requestPermission = function () {
+    perm = "granted";
     return Promise.resolve("granted");
   };
   window.Notification = FakeNotification;
 })();
 """
-import uvicorn
 
 from vs_queue_monitor.engine import QueueMonitorEngine
 from vs_queue_monitor.web.hooks_web import WebMonitorHooks
