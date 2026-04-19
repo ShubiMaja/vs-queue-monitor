@@ -43,3 +43,9 @@ def chrome_theme_css_vars() -> dict[str, str]:
         "--danger": c.UI_DANGER,
         "--graph-line": c.UI_GRAPH_LINE,
     }
+
+
+if __name__ == "__main__":
+    raise SystemExit(
+        "Import as part of the package (e.g. python -c \"from vs_queue_monitor.web.theme import graph_theme_dict\")."
+    )

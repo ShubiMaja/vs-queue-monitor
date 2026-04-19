@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 import traceback
-from collections import deque
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
@@ -287,11 +287,25 @@ UI_HISTORY_TEXT_PAD = UI_INNER_PAD_Y_SM
 def parse_alert_thresholds(raw: str) -> list[int]:
     """Comma-separated queue positions (default 10, 5, 1); each fires at most once per
     downward crossing until a new queue run (log boundary lines and/or large upward jump; see poll + compute_alert).
+
+    Supports inclusive ranges like ``3-1`` or ``8-10`` (expanded to individual integers), matching the web client.
     """
     out: list[int] = []
     for part in raw.replace(",", " ").split():
         part = part.strip()
         if not part:
+            continue
+        m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", part)
+        if m:
+            a = int(m.group(1))
+            b = int(m.group(2))
+            if a < 1 or b < 1:
+                raise ValueError(f"Alert threshold must be >= 1 (got {part}).")
+            step = 1 if a <= b else -1
+            x = a
+            while (step > 0 and x <= b) or (step < 0 and x >= b):
+                out.append(x)
+                x += step
             continue
         out.append(int(part))
     if not out:
@@ -731,6 +745,50 @@ def classify_tail_connection_state(data: str) -> tuple[str, Optional[int]]:
             last_kind = "disconnected"
             continue
     return last_kind, last_pos
+
+
+def queue_sessions_for_log_tail(
+    log_file: Path,
+    tail_bytes: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    """Group :func:`walk_queue_position_events` by queue run session id for the web session dropdown.
+
+    Keys mirror the static ``feature/change-to-web-ui`` client (``t:<floor(first_epoch)>`` with ``#N`` on collisions).
+    """
+    if tail_bytes is None:
+        tail_bytes = SEED_LOG_TAIL_BYTES
+    text = read_log_file_tail_text(log_file, tail_bytes)
+    if not text:
+        return []
+    events = walk_queue_position_events(text)
+    if not events:
+        return []
+    by_sess: dict[int, list[tuple[float, int]]] = defaultdict(list)
+    for t, p, sid in events:
+        by_sess[sid].append((t, p))
+    sessions: list[dict[str, Any]] = []
+    key_counts: dict[str, int] = {}
+    for sess_id in sorted(by_sess.keys()):
+        pts = sorted(by_sess[sess_id], key=lambda x: x[0])
+        base = f"t:{int(math.floor(pts[0][0]))}" if pts else f"s:{sess_id}"
+        seen = key_counts.get(base, 0)
+        key_counts[base] = seen + 1
+        key = base if seen == 0 else f"{base}#{seen + 1}"
+        sessions.append(
+            {
+                "key": key,
+                "session_id": sess_id,
+                "label": "",
+                "start_epoch": pts[0][0],
+                "end_epoch": pts[-1][0],
+                "start_pos": pts[0][1],
+                "end_pos": pts[-1][1],
+                "points": [[float(t), int(p)] for t, p in pts],
+            }
+        )
+    for i, sess in enumerate(sessions):
+        sess["label"] = f"Session {i + 1}"
+    return sessions
 
 
 def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
