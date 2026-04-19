@@ -27,7 +27,7 @@ pip install -r requirements.txt
 python monitor.py
 ```
 
-Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, **Folder…** / **Log file…** open a native picker on the machine running Python (Tk); paste still works everywhere.
+Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, the **folder** and **log file** icons open a native picker on the machine running Python (Tk); click the path summary or paste in the prompt to set a path.
 
 | | |
 |--|--|
