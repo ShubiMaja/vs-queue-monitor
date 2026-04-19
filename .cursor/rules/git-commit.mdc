@@ -21,6 +21,7 @@ When you finish a coherent set of edits or complete a user-requested task in thi
    - If the project later adds tests or a linter (e.g. `pytest`, `ruff`), run those too when relevant.
    - **Do not** create a commit while compile or lint checks still fail, unless the user explicitly says to commit anyway.
 4. **Commit** — Run `git add` for the files you changed (only intentional project files), then `git commit` with a message that states *what* changed and *why* in plain language.
+   - **Do not run `git push`** (or otherwise publish to the remote) unless the user explicitly asks to push.
 5. **Do not commit** build artifacts, `__pycache__/`, editor junk, or secrets unless the user explicitly wants them tracked.
 6. If there is nothing new to commit (already clean), skip.
 7. If the directory is not a git repository, say so once; do not fail silently on commit commands.
