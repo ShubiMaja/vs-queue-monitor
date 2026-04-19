@@ -258,6 +258,9 @@
     if (epoch == null || !isFinite(epoch)) {
       return "—";
     }
+    if (typeof dayjs === "function") {
+      return dayjs.unix(epoch).format("YYYY-MM-DD HH:mm:ss");
+    }
     return new Date(epoch * 1000).toLocaleString();
   }
 
