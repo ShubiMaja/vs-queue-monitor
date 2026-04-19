@@ -1250,7 +1250,7 @@ class QueueMonitorEngine:
         self.last_alert_var.set(time.strftime('%Y-%m-%d %H:%M:%S'))
         sec_rem = self.estimate_seconds_remaining()
         eta_display = self.format_duration_remaining(sec_rem) if sec_rem is not None else '—'
-        hist_extra = f'; est. remaining {eta_display}' if sec_rem is not None else ''
+        hist_extra = f'; remaining {eta_display}' if sec_rem is not None else ''
         self.write_history(f'Threshold alert: position {position} ({reason}){hist_extra}')
         if self.sound_enabled_var.get():
             self.play_sound()
