@@ -2,6 +2,7 @@
 # or run headless on Unix (no DISPLAY). The graphical app uses Tk only.
 textual>=0.47
 
-# Local web UI (--web): Starlette + uvicorn serve the browser client from vs_queue_monitor/web/static/.
+# Local web UI (--web): Starlette + uvicorn serve the static client; pywebview opens it in a desktop window by default.
 starlette>=0.37
 uvicorn[standard]>=0.27
+pywebview>=4.4

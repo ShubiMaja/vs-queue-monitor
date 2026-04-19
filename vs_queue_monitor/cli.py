@@ -56,7 +56,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ui.add_argument(
         "--web",
         action="store_true",
-        help="Local web UI in the browser (Starlette on 127.0.0.1; requires starlette & uvicorn).",
+        help="Local web UI: embedded desktop window (pywebview) on 127.0.0.1; use --web-browser for your default external browser.",
     )
     parser.add_argument(
         "--path",
@@ -76,6 +76,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         metavar="PORT",
         help="TCP port for --web (default: 8765 or VS_QUEUE_MONITOR_WEB_PORT).",
     )
+    parser.add_argument(
+        "--web-browser",
+        action="store_true",
+        help="With --web: open the UI in your default external browser instead of an embedded window.",
+    )
     return parser
 
 
@@ -89,7 +94,7 @@ def main() -> int:
             initial_path=args.path,
             auto_start=not args.no_start,
             port=args.web_port,
-            open_browser=True,
+            open_external_browser=bool(args.web_browser),
         )
     auto_tui = _should_use_tui_auto()
     use_tui = bool(args.tui) or (not args.gui and auto_tui)

@@ -35,7 +35,7 @@ except ImportError as exc:  # pragma: no cover
             "  - python -m vs_queue_monitor\n"
             "  - python monitor.py --gui   (force Tk)\n"
             "  - python monitor.py --tui   (force terminal UI)\n"
-            "  - python monitor.py --web   (local browser UI)\n"
+            "  - python monitor.py --web   (local web UI; embedded window, or --web-browser)\n"
         ) from exc
     raise
 
@@ -168,6 +168,7 @@ class QueueMonitorEngine:
         self._dismissed_new_queue_session: Optional[int] = None
         self._interrupted_elapsed_sec: Optional[float] = None
         self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
+        self._pending_new_queue_session: Optional[int] = None
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.graph_log_scale_var.trace_add(
@@ -277,6 +278,7 @@ class QueueMonitorEngine:
         self._interrupted_mode = False
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
+        self._pending_new_queue_session = None
         self.graph_points.clear()
         self.current_point = None
         self._alert_thresholds_fired.clear()
@@ -542,11 +544,36 @@ class QueueMonitorEngine:
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
-        if position is not None and queue_sess > self._interrupt_baseline_session and (queue_sess != self._dismissed_new_queue_session):
-            if self._hooks.ask_yes_no('New queue detected', 'A new queue run was detected in the log.\n\nLoad it? This will reset the graph and threshold alerts for the new run.'):
-                self._accept_new_queue_from_log()
-            else:
-                self._dismissed_new_queue_session = queue_sess
+        if position is None:
+            return
+        if queue_sess <= self._interrupt_baseline_session:
+            return
+        if queue_sess == self._dismissed_new_queue_session:
+            return
+        if self._pending_new_queue_session == queue_sess:
+            return
+        async_ui = getattr(self._hooks, 'new_queue_dialog_async', None)
+        if callable(async_ui) and async_ui():
+            self._pending_new_queue_session = queue_sess
+            return
+        if self._hooks.ask_yes_no(
+            'New queue detected',
+            'A new queue run was detected in the log.\n\nLoad it? This will reset the graph and threshold alerts for the new run.',
+        ):
+            self._accept_new_queue_from_log()
+        else:
+            self._dismissed_new_queue_session = queue_sess
+
+    def resolve_new_queue_offer(self, accept: bool) -> None:
+        """Used by the local web UI when ``new_queue_dialog_async`` deferred the dialog."""
+        sess = self._pending_new_queue_session
+        if sess is None:
+            return
+        self._pending_new_queue_session = None
+        if accept:
+            self._accept_new_queue_from_log()
+        else:
+            self._dismissed_new_queue_session = sess
 
     def _accept_new_queue_from_log(self) -> None:
         """Leave interrupted state and seed the graph from the current log (new queue run)."""
@@ -587,6 +614,7 @@ class QueueMonitorEngine:
         self._frozen_rates_at_interrupt = None
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
+        self._pending_new_queue_session = None
         self.running = False
         self.monitor_start_epoch = None
         self._queue_stale_latched = False
