@@ -25,6 +25,7 @@ from .. import APP_DISPLAY_NAME, VERSION
 from ..core import get_config_path, parse_alert_thresholds
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
+from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
@@ -135,7 +136,13 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
 
 
 def _api_meta(request: Request) -> JSONResponse:
-    return JSONResponse({"config_path": str(get_config_path())})
+    return JSONResponse(
+        {
+            "config_path": str(get_config_path()),
+            "graph_theme": graph_theme_dict(),
+            "chrome_theme": chrome_theme_css_vars(),
+        }
+    )
 
 
 def _api_state(request: Request) -> JSONResponse:

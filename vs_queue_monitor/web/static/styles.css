@@ -261,12 +261,13 @@ body {
   width: 100%;
   height: auto;
   display: block;
-  background: var(--bg);
+  background: var(--plot);
   border-radius: 4px;
 }
 .graph-hint {
   font-size: 0.8rem;
   margin-top: 8px;
+  white-space: pre-line;
 }
 .muted {
   color: var(--muted);
