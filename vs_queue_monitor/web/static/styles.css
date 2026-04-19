@@ -371,23 +371,30 @@ select.inp:focus-visible {
 }
 
 .main {
+  box-sizing: border-box;
   padding: var(--space-4) var(--space-4) var(--space-6);
-  max-width: 1200px;
+  width: 100%;
+  max-width: min(1200px, calc(100vw - 2 * var(--space-4)));
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  min-width: 0;
 }
 
-/* KPI strip: responsive grid; min-width 0 on cells stops long text from widening the page. */
+/* KPI strip: minmax(0,…) tracks + optional horizontal scroll — avoids spilling past the viewport. */
 .kpi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(6.5rem, 100%), 1fr));
   gap: var(--space-3);
   margin: 0;
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
 .kpi__cell {
   position: relative;
@@ -404,7 +411,7 @@ select.inp:focus-visible {
 .kpi__cell--wide {
   grid-column: span 2;
 }
-@media (max-width: 800px) {
+@media (max-width: 1100px) {
   .kpi__cell--grow,
   .kpi__cell--wide {
     grid-column: span 1;
@@ -516,15 +523,16 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
-  flex: 1 1 220px;
+  min-width: 0;
+  flex: 1 1 min(220px, 100%);
 }
 .graph-session-label {
   font-size: 0.75rem;
   white-space: nowrap;
 }
 .graph-session-select {
-  min-width: 180px;
+  min-width: 0;
+  flex: 1 1 10rem;
   max-width: min(420px, 100%);
   font-size: 0.85rem;
   padding: 4px 8px;
