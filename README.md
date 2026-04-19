@@ -85,7 +85,18 @@ python monitor.py --web
 
 Opens the UI in a **desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. Use **`--web-browser`** if you prefer the old behavior (default OS browser). Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
 
-If `pywebview` is not installed (or `pip install` failed on a very new Python version), the server still runs and stderr explains how to install it or use **`--web-browser`**. On Windows, **WebView2** is usually already present; on Linux you may need **GTK/WebKit** packages for pywebview.
+If `pywebview` is not installed (or `pip install` failed on a very new Python version), the server still runs and stderr explains how to install it or use **`--web-browser`**.
+
+#### `--web` cross-platform (embedded window)
+
+The same **`python monitor.py --web`** flow works on **Windows, macOS, and Linux** with a graphical session. [pywebview](https://pywebview.idepy.com/) uses the **native webview** on each OS (Edge **WebView2** on Windows, **WKWebView** on macOS, **WebKitGTK** on typical Linux desktops). The HTTP server always binds **`127.0.0.1`** only.
+
+| OS | Typical prerequisites |
+|----|------------------------|
+| **Windows** | WebView2 runtime (usually present on Windows 10/11). |
+| **macOS** | No extra system packages beyond `pip install -r requirements.txt`. |
+| **Linux** | A desktop with **X11** or **Wayland** (`DISPLAY` / `WAYLAND_DISPLAY`). You may need distro packages for WebKitGTK (e.g. Debian/Ubuntu: `gir1.2-webkit2-4.1`, `gtk3`; names vary — see [pywebview prerequisites](https://pywebview.idepy.com/guide/installation.html)). |
+| **Headless / SSH** | No embedded window; the app serves **`http://127.0.0.1:<port>/`** and prints how to use **`ssh -L`** or **`--web-browser`**. |
 
 The web client supports **inline editing** (✎ on poll interval, rolling window, thresholds), **Copy graph as PNG**, **Copy graph (TSV)**, and a **guided spotlight tour** (runs once until completed; stored as `tutorial_done` in config, same key as the Tk welcome dialog).
 

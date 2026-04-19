@@ -39,6 +39,20 @@ def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
     return False
 
 
+def _gui_display_available() -> bool:
+    """Whether a desktop/webview window can plausibly open (cross-platform)."""
+    if sys.platform == "win32":
+        return True
+    if sys.platform == "darwin":
+        return True
+    if sys.platform.startswith("linux"):
+        return bool(
+            (os.environ.get("DISPLAY") or "").strip()
+            or (os.environ.get("WAYLAND_DISPLAY") or "").strip()
+        )
+    return True
+
+
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
     try:
         thresholds = parse_alert_thresholds(engine.alert_thresholds_var.get())
@@ -285,6 +299,18 @@ def run_web_server(
             "Or open your system browser instead:\n"
             f"  python monitor.py --web --web-browser\n"
             f"Serving at {url} (Ctrl+C to stop).",
+            file=sys.stderr,
+        )
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        return 0
+
+    if not _gui_display_available():
+        print(
+            "No desktop display detected (headless or SSH without X11/Wayland). "
+            "Skipping embedded window.\n"
+            f"  Server: {url}\n"
+            f"  Remote access: ssh -L {p}:127.0.0.1:{p} user@host  then open that URL in a browser.\n"
+            "  Local browser on this machine: python monitor.py --web --web-browser",
             file=sys.stderr,
         )
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
