@@ -122,15 +122,6 @@ body {
     align-items: center;
   }
 }
-.notify-hint {
-  font-size: 0.75rem;
-  max-width: min(200px, 100%);
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .btn--pill {
   border-radius: 999px;
   font-size: 0.8rem;
