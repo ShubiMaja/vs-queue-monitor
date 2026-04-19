@@ -120,11 +120,27 @@ body {
     grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, auto) auto;
     grid-template-areas: "brand path mid actions";
     align-items: center;
+    padding: 8px min(14px, 3vw);
+    gap: 8px 12px;
   }
-  /* Cap path width and align toward session toolbar so the 1fr column does not read as dead space. */
+  /* Path sits next to the brand (start of the flexible column); remaining space stays before the bell. */
   .topbar > .topbar__path {
-    justify-self: end;
+    justify-self: start;
     width: min(560px, 100%);
+  }
+  /* One visual row: label + controls align with the title row and match toolbar height. */
+  .topbar > .topbar__path .field-block {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  .topbar > .topbar__path .field-label {
+    flex-shrink: 0;
+    line-height: 1.2;
+    padding-top: 1px;
+  }
+  .topbar > .topbar__actions {
+    gap: 8px;
   }
 }
 /* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
