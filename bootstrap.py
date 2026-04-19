@@ -18,7 +18,9 @@ launchers warn you, open the Python install page, and exit.
 Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
 the README one-liner; it checks for ``py`` / ``python`` before piping this script.
 
-Pipe (no saved file; clones to ~/vs-queue-monitor by default):
+Pipe (no saved file; clones to ~/vs-queue-monitor by default). Run ``curl`` from
+``~/Downloads`` (or ``%USERPROFILE%\\Downloads`` on Windows) so the download succeeds.
+
   curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 
 Override install location:
