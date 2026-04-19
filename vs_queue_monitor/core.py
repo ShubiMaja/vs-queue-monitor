@@ -151,7 +151,8 @@ def _alert_popup_emoji_font(size: int = 42) -> tuple[str, int, str]:
 
 
 MAX_GRAPH_POINTS = 5000
-MAX_DRAW_POINTS = 1200
+# Canvas downsample cap (must be >= typical graph_points length so poll heartbeats are drawable).
+MAX_DRAW_POINTS = MAX_GRAPH_POINTS
 # When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
 SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10

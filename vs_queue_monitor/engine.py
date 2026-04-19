@@ -806,7 +806,8 @@ class QueueMonitorEngine:
                             self._set_position_display(position)
                             if position is not None and position <= 1 and (self._position_one_reached_at is None):
                                 self._position_one_reached_at = last_queue_line_epoch or now
-                            self.append_graph_point(position, last_queue_line_epoch)
+                            # Wall-clock samples every poll so the chart shows heartbeat / flat segments, not only log-line times.
+                            self.append_graph_point(position, None)
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._mpp_floor_position = position
@@ -837,9 +838,20 @@ class QueueMonitorEngine:
                 self.job_id = self._hooks.schedule(int(self.poll_sec * 1000), self.poll_once)
 
     def append_graph_point(self, position: int, line_epoch: Optional[float]=None) -> None:
-        t = time.time() if line_epoch is None else line_epoch
-        if self.current_point is not None and self.current_point[1] == position:
-            return
+        """Append one sample to the session graph.
+
+        ``line_epoch`` is used when seeding from a log line timestamp; ``None`` uses wall time so each
+        poll adds a point (heartbeat) even when queue position is unchanged, producing a visible flat segment.
+        """
+        now = time.time()
+        if line_epoch is not None:
+            t = float(line_epoch)
+        else:
+            t = now
+        if self.graph_points:
+            last_t = self.graph_points[-1][0]
+            if t <= last_t:
+                t = last_t + 1e-6
         self.current_point = (t, position)
         self.last_position = position
         self._pred_speed_scale = 1.0
