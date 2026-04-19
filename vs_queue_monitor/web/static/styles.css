@@ -31,7 +31,8 @@
 
 html {
   color-scheme: dark;
-  overflow-x: clip;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -42,7 +43,9 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow-x: clip;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Screen-reader only (WCAG accessible names for icon-only controls) */
@@ -58,13 +61,13 @@ body {
   border: 0;
 }
 
-/* Stacked rows on smaller widths so the path row never forces horizontal scroll. */
+/* Top bar: always stacked CSS grid — avoids single-row flex overflow at any viewport width. */
 .topbar {
   width: 100%;
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
   box-sizing: border-box;
-  padding: 12px 16px;
+  padding: 12px min(16px, 4vw);
   background: var(--card);
   border-bottom: 1px solid var(--line);
   gap: 10px 12px;
@@ -79,11 +82,13 @@ body {
 .topbar > .brand {
   grid-area: brand;
   min-width: 0;
+  max-width: 100%;
 }
 .topbar > .topbar__path {
   grid-area: path;
   min-width: 0;
   width: 100%;
+  max-width: 100%;
 }
 .topbar__mid {
   grid-area: mid;
@@ -92,6 +97,7 @@ body {
   gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
+  max-width: 100%;
 }
 .topbar > .topbar__actions {
   grid-area: actions;
@@ -99,33 +105,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
+  min-width: 0;
   max-width: 100%;
-}
-@media (min-width: 1100px) {
-  .topbar {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  .topbar > .brand {
-    flex: 0 1 240px;
-    min-width: 0;
-  }
-  .topbar > .topbar__path {
-    flex: 1 1 0%;
-    min-width: 0;
-    width: auto;
-  }
-  .topbar__mid {
-    flex: 0 0 auto;
-  }
-  .topbar > .topbar__actions {
-    flex: 0 0 auto;
-    max-width: none;
-  }
 }
 .notify-hint {
   font-size: 0.75rem;
@@ -223,9 +206,14 @@ body {
   display: flex;
   gap: 8px;
 }
+.brand {
+  overflow-wrap: anywhere;
+}
 .brand__title {
   font-weight: 700;
   font-size: 1.1rem;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .brand__tagline {
   font-size: 0.75rem;
@@ -279,6 +267,10 @@ body {
   border: 1px solid var(--line);
   background: #11161c;
   color: var(--text);
+}
+.field-row .inp {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .inp:focus {
   outline: none;
