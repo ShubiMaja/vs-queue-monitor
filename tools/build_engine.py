@@ -95,7 +95,7 @@ NEW_INIT = r'''    def __init__(self, hooks: MonitorHooks, initial_path: str = "
         self.completion_popup_enabled_var = hooks.boolean_var(
             bool(self.config.get("completion_popup_enabled", True)),
         )
-        self.show_every_change_var = hooks.boolean_var(bool(self.config.get("show_every_change", False)))
+        self.show_every_change_var = hooks.boolean_var(bool(self.config.get("show_every_change", True)))
 
         self.running = False
         self.monitor_start_epoch: Optional[float] = None

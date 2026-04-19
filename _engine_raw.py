@@ -80,7 +80,7 @@ class QueueMonitorEngine:
             _comp_initial = default_completion_sound_path_for_display()
         self.completion_sound_path_var = tk.StringVar(value=_comp_initial)
         self.completion_popup_enabled_var = tk.BooleanVar(value=bool(self.config.get('completion_popup_enabled', True)))
-        self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get('show_every_change', False)))
+        self.show_every_change_var = tk.BooleanVar(value=bool(self.config.get('show_every_change', True)))
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
         self.timer_job_id: Optional[str] = None
@@ -219,7 +219,7 @@ class QueueMonitorEngine:
         self.completion_popup_enabled_var.set(True)
         self.completion_sound_enabled_var.set(True)
         self.completion_sound_path_var.set(default_completion_sound_path_for_display())
-        self.show_every_change_var.set(False)
+        self.show_every_change_var.set(True)
         self.resolved_path_var.set('')
         self._set_status_line('Idle')
         self._set_position_display(None)
