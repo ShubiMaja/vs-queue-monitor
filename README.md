@@ -141,6 +141,8 @@ python -m pytest tests/
 
 Run **`python -m pytest tests/ --headed --slowmo 400`** to watch the browser. With the app already running (`python monitor.py`), use **`playwright codegen http://127.0.0.1:8765/`** to record steps and paste generated selectors.
 
+**Layout checks** (`tests/test_ui_visual.py`): several **viewport widths** (mobile through desktop), **no horizontal document overflow**, **top bar** overflow check, **information architecture** (KPI labels, graph canvas, **Info** / **History** titles), and a **long log path** via `POST /api/config` to ensure the path summary still fits. For **full-page PNGs** under pytest’s temp dir, run with **`VSQM_PLAYWRIGHT_SCREENSHOTS=1`**.
+
 ## Pointing at the log
 
 Pass a **folder** (Vintage Story **data** directory, or a folder that contains the client log). The app resolves **`client-main.log`** (and fallbacks) — you do not enter a `.log` file in the main path field.
