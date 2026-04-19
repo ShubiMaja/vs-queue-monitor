@@ -26,6 +26,35 @@
 
 ## Quick start
 
+### One command from a single file (smooth setup)
+
+Download **`bootstrap.py`** once (or pipe it), run it, and it will **git clone** the repo (if needed), create **`.venv`**, **pip install** dependencies, and start the app. Default clone location: **`~/vs-queue-monitor`** (override with env **`VS_QUEUE_MONITOR_HOME`**). Forks: set **`VS_QUEUE_MONITOR_REPO`** to your git URL; optional **`VS_QUEUE_MONITOR_BRANCH`**.
+
+If **`bootstrap.py` is not on `main` yet**, replace `main` in the URL with your branch name (e.g. `feature/unified-approach` → path segment `feature%2Funified-approach`).
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
+```
+
+**Pipe (no `bootstrap.py` on disk)**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
+```
+
+**Windows (PowerShell)**
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py
+python bootstrap.py
+```
+
+Pass the same flags as usual, e.g. `python bootstrap.py --web`, `python bootstrap.py --tui`, `python bootstrap.py --path "%APPDATA%\VintagestoryData"`.
+
+### Manual install (existing clone)
+
 ```bash
 pip install -r requirements.txt
 python monitor.py
@@ -79,6 +108,7 @@ python monitor.py --no-start
 | `vs_queue_monitor/web/` | Local Starlette app + static browser client (`--web`) |
 | `vs_queue_monitor/cli.py` | `--gui` / `--tui`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
+| `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
 | `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |
 | `_engine_raw.py` | Input for `tools/build_engine.py` |
 
