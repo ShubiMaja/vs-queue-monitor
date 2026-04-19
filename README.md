@@ -27,21 +27,21 @@
 
 ## Quick start
 
-| Goal | Do this |
-|------|---------|
-| **Fastest first run** | Download & run **`bootstrap.py`** (clones repo, creates **`.venv`**, installs deps, starts the app). See commands below. |
-| **Already have a clone** | `pip install -r requirements.txt` → **`python monitor.py`** |
-| **Windows, run again later** | Double-click **`Run VS Queue Monitor.bat`** or **`vsqm.cmd`** in the project folder; **Win+R** works with **`vsqm`** after adding the folder to PATH (below) |
-| **Classic windowed GUI** | `python monitor.py --gui` |
-| **SSH / no browser shell** | `python monitor.py --tui` |
+```bash
+pip install -r requirements.txt
+python monitor.py
+```
 
-Then: paste your **Vintage Story data or Logs folder** (the one that contains or sits above **`client-main.log`**), press **Start**.
+Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`.
 
-### One command from a single file (smooth setup)
+| | |
+|--|--|
+| Tk | `python monitor.py --gui` |
+| TUI | `python monitor.py --tui` |
+| Windows | `vsqm.cmd` / `Run VS Queue Monitor.bat` · `Win+R` → `vsqm` if the repo directory is on user **`Path`** · else `"…\vs-queue-monitor\vsqm.cmd"` |
+| macOS / Linux | `./run-vs-queue-monitor.sh` or `python3 monitor.py` |
 
-Download **`bootstrap.py`** once (or pipe it), run it, and it will **git clone** the repo (if needed), create **`.venv`**, **pip install** dependencies, and start the app. Default clone location: **`~/vs-queue-monitor`** (override with env **`VS_QUEUE_MONITOR_HOME`**). Forks: set **`VS_QUEUE_MONITOR_REPO`** to your git URL; optional **`VS_QUEUE_MONITOR_BRANCH`**.
-
-If **`bootstrap.py` is not on `main` yet**, replace `main` in the URL with your branch name (e.g. `feature/unified-approach` → path segment `feature%2Funified-approach`).
+**Bootstrap** — default clone `~/vs-queue-monitor`; `VS_QUEUE_MONITOR_HOME` overrides. Forks: `VS_QUEUE_MONITOR_REPO`, `VS_QUEUE_MONITOR_BRANCH`. Non-`main` branch: fix the raw URL path (e.g. `feature%2Funified-approach`).
 
 **macOS / Linux**
 
@@ -62,48 +62,15 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-mon
 python bootstrap.py
 ```
 
-Pass the same flags as usual, e.g. `python bootstrap.py` (default web UI), `python bootstrap.py --gui`, `python bootstrap.py --tui`, `python bootstrap.py --path "%APPDATA%\VintagestoryData"`.
+`python bootstrap.py` forwards the same flags as `monitor.py` (e.g. `--gui`, `--tui`, `--path "%APPDATA%\VintagestoryData"`).
 
-### Manual install (existing clone)
+Log path: folder above or containing `client-main.log` — [Pointing at the log](#pointing-at-the-log).
 
-```bash
-pip install -r requirements.txt
-python monitor.py
-```
+### Default web UI
 
-Equivalent: `python -m vs_queue_monitor`. On Windows use `python` or `py` if needed.
+`http://127.0.0.1:8765/` — webview when available; otherwise the default browser. **`--web-browser`** skips embedded. **`--web-port`** / **`VS_QUEUE_MONITOR_WEB_PORT`**. **Ctrl+C** stops the server. **`--web`** is a no-op alias for scripts.
 
-### After install: what to double-click (or run)
-
-| Situation | What to use |
-|-----------|-------------|
-| **Windows**, full git clone | Double-click **`Run VS Queue Monitor.bat`** or **`vsqm.cmd`** (uses `.venv` if present). **Win+R:** add the folder to PATH, then run **`vsqm`**. |
-| **macOS / Linux**, full clone | **`./run-vs-queue-monitor.sh`** after `chmod +x run-vs-queue-monitor.sh` once, or **`python3 monitor.py`**. |
-| Any OS, terminal | **`python monitor.py`** from the project root (or **`.venv\Scripts\python.exe`** / **`.venv/bin/python`**). |
-
-Double-clicking **`monitor.py`** only works if `.py` files are associated with Python on your system; the **`.bat`** / **`.sh`** launchers are more predictable.
-
-#### Windows Run dialog (**Win+R**)
-
-The short launcher **`vsqm.cmd`** is made for the **Run** box (and for folders on `PATH`):
-
-1. **Optional — type `vsqm` from anywhere:** add your **clone folder** (the directory that contains `vsqm.cmd`) to your **user** `Path` — *Settings → System → About → Advanced system settings → Environment Variables → Path → Edit → New* — paste the folder path, OK out, **sign out or restart apps** so new shells see it.
-2. Press **Win+R**, type **`vsqm`**, press **Enter** (or use the full path in quotes if you did not add PATH: `"C:\path\to\vs-queue-monitor\vsqm.cmd"`).
-
-**`Run VS Queue Monitor.bat`** is a thin wrapper that calls **`vsqm.cmd`** so there is only one script to maintain.
-
-### Default: embedded web app (`python monitor.py`)
-
-```bash
-pip install -r requirements.txt
-python monitor.py
-```
-
-Opens the UI in a **single desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. If the embedded shell cannot start (e.g. Windows without **pythonnet** / **pywin32**), the app **opens your default browser** to the same URL and keeps serving. Use **`--web-browser`** to skip trying the embedded window. Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
-
-The optional flag **`--web`** does the same as running with no UI flag (kept for scripts).
-
-If `pywebview` is not installed (or `pip install` failed on a very new Python version), the server still runs and stderr explains how to install it or use **`--web-browser`**.
+Without a working `pywebview` install, stderr describes **`--web-browser`** or installing `pywebview`.
 
 #### pip / `pythonnet` fails on Windows (Python 3.14+)
 
