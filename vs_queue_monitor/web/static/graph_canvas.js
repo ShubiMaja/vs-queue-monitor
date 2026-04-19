@@ -7,7 +7,7 @@
   "use strict";
 
   var DEFAULT_THEME = {
-    max_draw_points: 1200,
+    max_draw_points: 5000,
     single_point_graph_span_sec: 60,
     graph_log_gamma: 1.15,
     pad_left: 46,
