@@ -470,13 +470,18 @@ select.inp:focus-visible {
   padding-bottom: 2px;
 }
 .kpi__cell {
+  --kpi-label-h: 1.75rem;
+  --kpi-value-minh: 2.5rem;
   position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: var(--space-3) 14px;
+  padding: 10px 12px;
   min-width: 0;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .kpi__cell--grow {
   grid-column: span 2;
@@ -492,17 +497,20 @@ select.inp:focus-visible {
 }
 .kpi__label {
   font-size: 0.7rem;
+  line-height: 1.2;
   color: var(--muted);
   letter-spacing: 0.04em;
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  min-height: var(--kpi-label-h);
+  flex-shrink: 0;
 }
 .kpi__edit {
   font-size: 0.75rem;
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 24px;
+  min-height: 24px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   border: none;
@@ -517,25 +525,33 @@ select.inp:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* One size for all KPI values so the row lines up across cards */
 .kpi__val {
-  font-size: 1.35rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  margin-top: 4px;
+  line-height: 1.25;
+  margin-top: 0;
   min-width: 0;
+  min-height: var(--kpi-value-minh);
+  display: flex;
+  align-items: center;
   overflow-wrap: break-word;
 }
 .kpi__val--sm {
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 .kpi__warn-rail {
-  margin-top: 6px;
+  margin-top: 0;
   max-width: 100%;
+  min-height: var(--kpi-value-minh);
+  display: flex;
+  align-items: center;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 0;
 }
 .kpi__warn {
-  font-size: 0.95rem;
-  line-height: 1.4;
+  font-size: 1.125rem;
+  line-height: 1.25;
   white-space: nowrap;
 }
 .warn-on {
@@ -818,6 +834,12 @@ select.inp:focus-visible {
   border-radius: 3px;
   margin-top: 6px;
   overflow: hidden;
+}
+/* Same vertical footprint as other KPI values: pad so the 6px track sits centered in --kpi-value-minh */
+.kpi__cell > .progress {
+  margin-top: 0;
+  box-sizing: content-box;
+  padding: calc((var(--kpi-value-minh) - 6px) / 2) 0;
 }
 .progress__fill {
   height: 100%;
