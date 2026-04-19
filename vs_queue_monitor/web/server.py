@@ -71,6 +71,20 @@ def _windows_server_child_command(
     return cmd, str(parent)
 
 
+def _popen_windows_server_console(cmd: list[str], cwd: str) -> subprocess.Popen:
+    """Run ``cmd`` in a **new** console. On non-zero exit, ``pause`` so tracebacks stay readable."""
+    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    joined = subprocess.list2cmdline(cmd)
+    # ``|| pause`` keeps the window open if Python exits with an error (e.g. ImportError). Clean
+    # shutdown (Ctrl+C handled inside uvicorn) typically exits 0, so pause does not run.
+    shell_line = f"{joined} || pause"
+    return subprocess.Popen(
+        ["cmd.exe", "/c", shell_line],
+        cwd=cwd,
+        creationflags=creationflags,
+    )
+
+
 def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
     """Read env var; prefer ``primary``, then legacy names (e.g. old ``VSQM_*``)."""
     v = os.environ.get(primary, "").strip()
@@ -514,13 +528,8 @@ def _run_windows_split_console_webview(
 
     cmd, child_cwd = _windows_server_child_command(p, initial_path, auto_start)
 
-    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=child_cwd,
-            creationflags=creationflags,
-        )
+        proc = _popen_windows_server_console(cmd, child_cwd)
     except OSError as exc:
         print(f"Could not start server console process: {exc}", file=sys.stderr)
         return 1
