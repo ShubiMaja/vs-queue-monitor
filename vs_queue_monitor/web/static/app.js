@@ -604,7 +604,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p>Hover the chart for time and position. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
+          "<p>Hover the chart for a <strong>tooltip</strong> (time, position, and details). <strong>Copy PNG / TSV</strong> for sharing.</p>" +
           "<p>Use the <strong>bell</strong> in the header to turn desktop alerts on or off (localhost).</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -899,7 +899,7 @@
     var ts = VSQMGraph.fmtTooltipTs(pt[0]);
     var n = series.length;
     var posStr = String(pt[1]);
-    var lines = [ts, "pos " + posStr, "sample " + (idx + 1) + " of " + n];
+    var lines = [ts + "  ·  pos " + posStr, "sample " + (idx + 1) + " of " + n];
     lines.push(st.logScale ? "y-scale: log" : "y-scale: linear");
     var sel = $("selSession");
     if (sel && sel.value === "latest") {
@@ -930,12 +930,55 @@
     return lines.join("\n");
   }
 
+  function hideGraphTooltip() {
+    var tt = $("graphTooltip");
+    if (!tt) {
+      return;
+    }
+    tt.classList.add("hidden");
+    tt.textContent = "";
+    tt.setAttribute("aria-hidden", "true");
+  }
+
+  function showGraphTooltip(ev, text) {
+    var tt = $("graphTooltip");
+    if (!tt) {
+      return;
+    }
+    tt.textContent = text;
+    tt.classList.remove("hidden");
+    tt.setAttribute("aria-hidden", "false");
+    var pad = 14;
+    tt.style.left = ev.clientX + pad + "px";
+    tt.style.top = ev.clientY + pad + "px";
+    requestAnimationFrame(function () {
+      var r = tt.getBoundingClientRect();
+      var x = ev.clientX + pad;
+      var y = ev.clientY + pad;
+      if (x + r.width > window.innerWidth - 8) {
+        x = window.innerWidth - r.width - 8;
+      }
+      if (y + r.height > window.innerHeight - 8) {
+        y = window.innerHeight - r.height - 8;
+      }
+      if (x < 8) {
+        x = 8;
+      }
+      if (y < 8) {
+        y = 8;
+      }
+      tt.style.left = x + "px";
+      tt.style.top = y + "px";
+    });
+  }
+
   function setupGraphCanvas() {
     const c = $("graphCanvas");
     c.addEventListener("mousemove", function (ev) {
       const st = c._drawState;
       const series = (st && st.rawPoints && st.rawPoints.length ? st.rawPoints : st && st.drawn) || [];
       if (!st || !series.length) {
+        hideGraphTooltip();
         return;
       }
       const rect = c.getBoundingClientRect();
@@ -948,16 +991,16 @@
       const targetT = t0 + ((x - padL) / plotW) * (t1 - t0);
       const idx = nearestPointIndexByTime(series, targetT);
       if (idx < 0) {
+        hideGraphTooltip();
         return;
       }
       const best = series[idx];
-      $("graphHint").textContent = formatGraphTooltipHint(st, best, idx, series);
+      showGraphTooltip(ev, formatGraphTooltipHint(st, best, idx, series));
       window._graphHover = [best[0], best[1]];
       redrawGraphOnly();
     });
     c.addEventListener("mouseleave", function () {
-      $("graphHint").textContent =
-        "Move the mouse over the chart for time, position, sample index, scale, session, and Δ / slope vs the previous sample.";
+      hideGraphTooltip();
       window._graphHover = null;
       redrawGraphOnly();
     });
