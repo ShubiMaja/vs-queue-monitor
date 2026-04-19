@@ -123,9 +123,6 @@ python monitor.py --no-start
 | `bootstrap-windows.cmd` | Windows: `curl` + pipe to Python; **Win+R** one-liner in README; warns if Python missing |
 | `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
-| `monitor-tui.py`, `main-tui.py` | Legacy names: forward to `monitor.py` (Textual UI removed) |
-| `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |
-| `_engine_raw.py` | Input for `tools/build_engine.py` |
 
 ## Pointing at the log
 

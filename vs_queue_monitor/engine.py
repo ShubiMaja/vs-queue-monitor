@@ -114,44 +114,18 @@ class QueueMonitorEngine:
         self.active_popup: Optional[Any] = None
         self.active_completion_popup: Optional[Any] = None
         self.graph_points: deque[tuple[float, int]] = deque(maxlen=MAX_GRAPH_POINTS)
-        self.graph_canvas: Optional[Any] = None
         self.current_point: Optional[tuple[float, int]] = None
         self.graph_points_drawn: list[tuple[float, int]] = []
-        self._graph_hover_point: Optional[tuple[float, int]] = None
-        self.graph_tooltip: Optional[Any] = None
-        self._warnings_kpi_frame: Optional[Any] = None
-        self.history_text: Optional[Any] = None
-        self.status_frame: Optional[Any] = None
-        self._status_body_wrap: Optional[Any] = None
-        self._status_sep: Optional[Any] = None
-        self._status_tab_btn: Optional[Any] = None
-        self._fit_status_collapsed_job: Optional[str] = None
-        self.history_frame: Optional[Any] = None
-        self._history_body: Optional[Any] = None
-        self._history_sep: Optional[Any] = None
-        self.panes: Optional[Any] = None
-        self.start_stop_button: Optional[Any] = None
-        self._settings_win: Optional[Any] = None
-        self._about_win: Optional[Any] = None
-        self._graph_y_scale_btn: Optional[Any] = None
-        self._history_tab_btn: Optional[Any] = None
-        self._fit_history_collapsed_job: Optional[str] = None
-        self._pane_drag_threshold_job: Optional[str] = None
         self._pred_speed_scale: float = 1.0
         self._stale_slots_accounted: int = 0
         self._starting: bool = False
         self._start_seq: int = 0
-        self._loading_spinner: Optional[Any] = None
-        self._settings_btn: Optional[Any] = None
         self._queue_progress_value: float = 0.0
-        self._status_value_label: Optional[Any] = None
-        self._position_emoji_label: Optional[Any] = None
         self._position_one_reached_at: Optional[float] = None
         self._connect_phase_started_epoch: Optional[float] = None
         self._progress_at_front_entry: Optional[float] = None
         self._left_connect_queue_detected: bool = False
         self._persist_config_job: Optional[str] = None
-        self._configure_resize_job: Optional[str] = None
         self._last_queue_run_session: int = -1
         self._last_queue_position_change_epoch: Optional[float] = None
         self._last_queue_line_epoch: Optional[float] = None
@@ -290,52 +264,17 @@ class QueueMonitorEngine:
 
     def _set_status_line(self, text: str, *, danger: bool = False) -> None:
         self.status_var.set(text)
-        if self._status_value_label is not None:
-            self._status_value_label.configure(fg=UI_DANGER if danger else UI_SUMMARY_VALUE)
 
     def _set_position_display(self, pos: Optional[int]) -> None:
-        """KPI digits at full size; celebration emoji at position 0 (past queue wait in log)."""
+        """KPI digits for queue position (web UI reads ``position_var``)."""
         if pos is None:
             self.position_var.set('—')
         else:
             self.position_var.set(str(pos))
-        if self._position_emoji_label is not None:
-            self._position_emoji_label.configure(text='🎉' if pos == 0 else '')
 
     def _refresh_warnings_kpi(self) -> None:
-        """Configured CSV thresholds (GUI builds widgets; headless no-op)."""
-        fr = getattr(self, '_warnings_kpi_frame', None)
-        if fr is None:
-            return
-        try:
-            import tkinter as tk
-            if not fr.winfo_exists():
-                return
-        except Exception:
-            return
-        for w in fr.winfo_children():
-            w.destroy()
-        try:
-            thresholds = parse_alert_thresholds(self.alert_thresholds_var.get())
-        except ValueError:
-            import tkinter as tk
-            tk.Label(fr, text='—', bg=UI_SUMMARY_BG, fg=UI_TEXT_MUTED, font=KPI_VALUE_FONT, anchor='w').pack(side='left')
-            return
-        if not thresholds:
-            import tkinter as tk
-            tk.Label(fr, text='—', bg=UI_SUMMARY_BG, fg=UI_TEXT_MUTED, font=KPI_VALUE_FONT, anchor='w').pack(side='left')
-            return
-        pos: Optional[int] = self.last_position
-        if pos is None and self.current_point is not None:
-            pos = self.current_point[1]
-        fired = self._alert_thresholds_fired
-        import tkinter as tk
-        for i, t in enumerate(thresholds):
-            if i > 0:
-                tk.Label(fr, text='·', bg=UI_SUMMARY_BG, fg=UI_TEXT_MUTED, font=KPI_VALUE_FONT, anchor='w').pack(side='left', padx=(3, 3))
-            passed = pos is not None and pos <= t or t in fired
-            fg = UI_TEXT_MUTED if passed else UI_SUMMARY_VALUE
-            tk.Label(fr, text=str(t), bg=UI_SUMMARY_BG, fg=fg, font=KPI_VALUE_FONT, anchor='w').pack(side='left')
+        """Warnings rail is driven by the web snapshot; no desktop widgets to refresh."""
+        return
 
     def _try_start_after_browse(self) -> None:
         if self._starting:
@@ -1197,13 +1136,8 @@ class QueueMonitorEngine:
         return max(0.0, time.time() - start_t)
 
     def _sync_queue_progress_widget(self) -> None:
-        """Optional host widget (e.g. legacy ``ttk.Progressbar`` as ``_queue_progress``) mirrors :attr:`_queue_progress_value`."""
-        qp = getattr(self, '_queue_progress', None)
-        if qp is not None:
-            try:
-                qp.configure(value=float(self._queue_progress_value))
-            except Exception:
-                pass
+        """Progress value is exposed via WebSocket snapshot; no desktop widget."""
+        return
 
     def update_time_estimates(self) -> None:
         self._refresh_kpi_rate_header()

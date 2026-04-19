@@ -1,6 +1,6 @@
 /* global window */
 /**
- * Queue graph drawing — ports former Tk ``QueueMonitorApp.redraw_graph`` (vs_queue_monitor/gui.py).
+ * Queue graph drawing — Canvas 2D parity with the historical Tk graph (theme via GET /api/meta).
  * Theme numbers/colors come from GET /api/meta ``graph_theme`` (vs_queue_monitor.core).
  */
 (function (global) {

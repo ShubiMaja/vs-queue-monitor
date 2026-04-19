@@ -1,6 +1,6 @@
 # VS Queue Monitor — web UI parity
 
-The **only** user-facing surface is the **local web client** (`vs_queue_monitor/web/static/`) backed by **Starlette** + **`QueueMonitorEngine`**. Legacy Tk and Textual front ends were removed; behavior lives in the shared engine and these integration points:
+The **only** user-facing surface is the **local web client** (`vs_queue_monitor/web/static/`) backed by **Starlette** + **`QueueMonitorEngine`**. There is no separate Tk or Textual app; behavior lives in the engine and these integration points:
 
 | Concern | Where |
 |--------|--------|
