@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import socket
 import sys
@@ -51,6 +52,20 @@ def _gui_display_available() -> bool:
             or (os.environ.get("WAYLAND_DISPLAY") or "").strip()
         )
     return True
+
+
+def _open_browser_and_block(url: str) -> None:
+    """Open default browser once, then block so the uvicorn daemon thread keeps running."""
+
+    def _open() -> None:
+        time.sleep(0.3)
+        webbrowser.open(url)
+
+    threading.Thread(target=_open, daemon=True).start()
+    try:
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        pass
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -292,6 +307,9 @@ def run_web_server(
 
     try:
         import webview
+
+        # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
+        logging.getLogger("webview").setLevel(logging.CRITICAL)
     except ImportError:
         print(
             "Embedded web UI requires pywebview. Install:\n"
@@ -329,6 +347,13 @@ def run_web_server(
         webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
         webview.start()
     except Exception as exc:
-        print(f"Embedded window failed ({exc!r}). Open {url} in a browser, or use --web-browser.", file=sys.stderr)
-        return 1
+        print(
+            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
+            "or use a Python version with working wheels). Opening your default browser instead.\n"
+            f"  {url}\n"
+            "  Ctrl+C in this terminal stops the server.",
+            file=sys.stderr,
+        )
+        _open_browser_and_block(url)
+        return 0
     return 0

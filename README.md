@@ -70,7 +70,7 @@ pip install -r requirements.txt
 python monitor.py
 ```
 
-Opens the UI in a **single desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. Use **`--web-browser`** if you prefer your default external browser. Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
+Opens the UI in a **single desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. If the embedded shell cannot start (e.g. Windows without **pythonnet** / **pywin32**), the app **opens your default browser** to the same URL and keeps serving. Use **`--web-browser`** to skip trying the embedded window. Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
 
 The optional flag **`--web`** does the same as running with no UI flag (kept for scripts).
 
