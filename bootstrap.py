@@ -7,6 +7,9 @@ Usage (after download):
   python bootstrap.py --gui        # classic Tk window
   python3 bootstrap.py --tui
 
+After a full clone, Windows users can double-click «Run VS Queue Monitor.bat»
+in the project folder (see README).
+
 Pipe (no saved file; clones to ~/vs-queue-monitor by default):
   curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 
@@ -135,6 +138,27 @@ def _pip_install(py: Path, root: Path) -> None:
     _run([str(py), "-m", "pip", "install", "-r", str(req)], cwd=root)
 
 
+def _print_launch_hint(root: Path) -> None:
+    """Tell users which file to double-click / run after install."""
+    _eprint("")
+    _eprint("—" * 58)
+    _eprint("Run this app later from the project folder:")
+    if sys.platform == "win32":
+        bat = root / "Run VS Queue Monitor.bat"
+        if bat.is_file():
+            _eprint(f'  • Double-click: {bat.name}')
+        else:
+            _eprint("  • Double-click: Run VS Queue Monitor.bat  (included in a full git checkout)")
+        _eprint(rf"  • Or terminal: {root / '.venv' / 'Scripts' / 'python.exe'} monitor.py")
+    else:
+        sh = root / "run-vs-queue-monitor.sh"
+        if sh.is_file():
+            _eprint(f"  • Terminal: ./{sh.name}   (once: chmod +x {sh.name})")
+        _eprint("  • Or: python3 monitor.py")
+    _eprint("—" * 58)
+    _eprint("")
+
+
 def main() -> None:
     root = _find_project_root()
     if root is None:
@@ -147,6 +171,7 @@ def main() -> None:
 
     py = _ensure_venv(root)
     _pip_install(py, root)
+    _print_launch_hint(root)
 
     monitor = root / "monitor.py"
     args = [str(py), str(monitor), *sys.argv[1:]]
