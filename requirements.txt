@@ -1,0 +1,3 @@
+# Terminal UI (Textual). Used when you pass --tui/--text, set VS_QUEUE_MONITOR_UI=tui,
+# or run headless on Unix (no DISPLAY). The graphical app uses Tk only.
+textual>=0.47
