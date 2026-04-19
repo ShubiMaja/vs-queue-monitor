@@ -2,7 +2,11 @@
 
 One-page **web app** that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds — all **in your browser** (no backend).
 
-**Product & UX (high level):** [`docs/DESIGN.md`](docs/DESIGN.md) describes intended user journeys, product goals, information architecture, UX principles, **visual design** (colors, typography, layout), and **§1.1** — how a hypothetical terminal UI should stay **behaviorally** aligned with this web app while allowing justified presentation differences. This repository ships **only** the web client. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
+<<<<<<< Updated upstream
+<img width="1916" height="1072" alt="image" src="https://github.com/user-attachments/assets/648649c3-264c-4880-9e80-7a46efc4d746" />
+=======
+**Product & UX (high level):** [`docs/DESIGN.md`](docs/DESIGN.md) describes intended user journeys, product goals, information architecture, UX principles, **visual design** (colors, typography, layout), and **§1.1** — how a hypothetical terminal UI should stay **behaviorally** aligned with this web app while allowing justified presentation differences. For **architecture comparisons** (local web + SSH tunnel vs TUI vs native GUI), see [`docs/real-life-ui-patterns.md`](docs/real-life-ui-patterns.md). This repository ships **only** the web client. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
+>>>>>>> Stashed changes
 
 ## Disclaimer (read this)
 
