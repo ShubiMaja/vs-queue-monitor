@@ -130,6 +130,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines()[-400:],
         "pending_new_queue_session": engine._pending_new_queue_session,
+        "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
     }
 
 

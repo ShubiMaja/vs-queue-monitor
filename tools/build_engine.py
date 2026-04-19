@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "_engine_raw.py"
 OUT = ROOT / "vs_queue_monitor" / "engine.py"
 
-HEADER = '''"""Headless queue monitor logic (no Tk). Used by GUI and SSH-safe TUI."""
+HEADER = '''"""Headless queue monitor logic. Used by the local web UI (``vs_queue_monitor.web``)."""
 
 from __future__ import annotations
 

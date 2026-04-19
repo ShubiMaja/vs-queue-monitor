@@ -1,4 +1,4 @@
-"""Headless queue monitor logic (no Tk). Used by GUI and SSH-safe TUI."""
+"""Headless queue monitor logic. Used by the local web UI (``vs_queue_monitor.web``)."""
 
 from __future__ import annotations
 
@@ -31,10 +31,8 @@ except ImportError as exc:  # pragma: no cover
         raise SystemExit(
             "Do not run vs_queue_monitor/engine.py directly (it uses package-relative imports).\n"
             "Run one of these from the repo root instead:\n"
-            "  - python monitor.py   (default: embedded web UI on 127.0.0.1)\n"
+            "  - python monitor.py   (embedded web UI on 127.0.0.1)\n"
             "  - python -m vs_queue_monitor\n"
-            "  - python monitor.py --gui   (Tk window)\n"
-            "  - python monitor.py --tui   (terminal UI)\n"
             "  - python monitor.py --web-browser   (external browser instead of embedded window)\n"
         ) from exc
     raise
@@ -1199,7 +1197,7 @@ class QueueMonitorEngine:
         return max(0.0, time.time() - start_t)
 
     def _sync_queue_progress_widget(self) -> None:
-        """Tk GUI: optional ``ttk.Progressbar`` named ``_queue_progress`` mirrors :attr:`_queue_progress_value`."""
+        """Optional host widget (e.g. legacy ``ttk.Progressbar`` as ``_queue_progress``) mirrors :attr:`_queue_progress_value`."""
         qp = getattr(self, '_queue_progress', None)
         if qp is not None:
             try:

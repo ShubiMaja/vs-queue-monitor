@@ -5,7 +5,7 @@ alwaysApply: true
 
 # UX philosophy: seamless flow first
 
-When making UI/UX changes in this repo, bias toward the most **seamless** user flow. The shipping surfaces are **Tk** (`vs_queue_monitor/gui.py`) and **Textual** (`vs_queue_monitor/tui.py`), sharing `vs_queue_monitor/engine.py`.
+When making UI/UX changes in this repo, bias toward the most **seamless** user flow. The shipping UI is the **local web client** (`vs_queue_monitor/web/static/`) with `vs_queue_monitor/engine.py`.
 
 ## Principles (apply broadly)
 

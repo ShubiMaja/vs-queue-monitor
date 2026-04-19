@@ -3,9 +3,7 @@
 One-file launcher: find or clone the repo, create .venv, install deps, run monitor.py.
 
 Usage (after download):
-  python bootstrap.py              # default: embedded web UI
-  python bootstrap.py --gui        # classic Tk window
-  python3 bootstrap.py --tui
+  python bootstrap.py              # embedded web UI (local HTTP + webview or browser)
 
 After a full clone, Windows users can double-click «Run VS Queue Monitor.bat»
 in the project folder (see README).

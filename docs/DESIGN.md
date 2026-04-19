@@ -2,7 +2,7 @@
 
 This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a maintainable format.
 
-**Scope.** The shipping product is a **Python** application: **Tk** desktop GUI and **Textual** terminal UI, sharing one engine (`vs_queue_monitor/engine.py`). Behavior and vocabulary should stay aligned across GUI and TUI (see **§2**). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
+**Scope.** The shipping product is a **Python** application with a **local web UI** (Starlette on loopback + static client), sharing one engine (`vs_queue_monitor/engine.py`). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---
 
@@ -23,10 +23,10 @@ When connecting to a busy server, players often wait in a **connect queue**. The
 
 ### 1.3 Solution (what we provide)
 
-A desktop or terminal UI that:
+A local web UI that:
 
 - **Tails** the resolved client log and derives queue KPIs (position, elapsed, ETA, progress).
-- Visualizes the **current run** as a **time series** (step chart in GUI; TUI presents the same data within terminal constraints).
+- Visualizes the **current run** as a **time series** (step chart in the web client).
 - Fires optional **threshold** and **completion** alerts (in-app messages, sound, OS notifications where enabled).
 - Uses **native folder/file access** (browse dialog, `--path`, environment) so users can point at Vintage Story data paths without browser sandbox limits.
 
@@ -42,19 +42,17 @@ A desktop or terminal UI that:
 - Not an official Vintage Story product; log formats may change.
 - Not a general-purpose log analyzer; scope is **connect queue** + closely related states.
 
-### 1.6 Primary surfaces
+### 1.6 Primary surface
 
 | Surface | Role |
 |--------|------|
-| **Web UI** (`monitor.py` default, optional `--web`) | Primary experience: embedded desktop window (pywebview) + local HTTP on `127.0.0.1`; folder path, KPIs, graph, settings, tour. |
-| **Tk GUI** (`--gui`) | Same engine; classic Tk window for users who prefer it. |
-| **Textual TUI** (`--tui`) | Same engine; SSH-friendly; layout and charts adapt to terminal capabilities (see `docs/TUI-LIMITATIONS.md`). |
+| **Web UI** (`monitor.py` default, optional `--web`) | Embedded desktop window (pywebview) or browser + local HTTP on `127.0.0.1`; folder path, KPIs, graph, settings, tour. SSH: port-forward and open the same URL. |
 
 ---
 
-## 2. Parity contract (GUI vs TUI)
+## 2. Parity contract (engine vs web client)
 
-Parity is **behavior + language**, not pixels. See `docs/GUI-TUI-PARITY.md` for the mapping. The **engine** is shared; presentation differs where the terminal cannot reasonably match the windowed UI.
+Behavior and vocabulary come from the **shared engine**; the web client implements presentation and controls. See [`docs/UI-PARITY.md`](UI-PARITY.md) for integration details.
 
 ---
 
@@ -93,13 +91,13 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 
 | Area | Why it may differ | Requirement |
 |------|--------------------|-------------|
-| Chart | Terminal charts differ (ASCII/braille). | Same **time series for the current session**; labels may be compressed. |
-| Color | Limited palettes. | Map semantic roles (accent/muted/danger), not hex parity. |
-| Layout | Fixed grids, less drag-resize in TUI. | Preserve information order: control → KPIs → graph → detail. |
-| File access | Browse dialog vs text field. | Same resolution rules (`resolve_log_file`); same outcomes. |
-| Help | Modal vs inline text. | Same substance when explaining errors or paths. |
-| Notifications | OS APIs differ. | Same events (threshold, completion, interrupt) when enabled. |
-| Settings UI | Tk modal vs TUI screens. | Same persisted fields and defaults. |
+| Chart | Canvas vs future renderers. | Same **time series for the current session**. |
+| Color | Theme constraints. | Map semantic roles (accent/muted/danger). |
+| Layout | Responsive web layout. | Preserve information order: control → KPIs → graph → detail. |
+| File access | Text field (paste path). | Same resolution rules (`resolve_log_file`); same outcomes. |
+| Help | Modal in browser. | Same substance when explaining errors or paths. |
+| Notifications | Browser **Notification** API vs inline toasts. | Same events (threshold, completion, interrupt) when enabled. |
+| Settings UI | Web modal + inline editors. | Same persisted fields and defaults. |
 
 ### Not justified (bugs or explicit debt)
 
@@ -143,9 +141,9 @@ Aligned with [`.cursor/rules/ux-seamless-flow.mdc`](../.cursor/rules/ux-seamless
 
 ---
 
-## 5. Visual design system (Tk GUI)
+## 5. Visual design system (web UI)
 
-The GUI uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit): low glare, muted labels, high-contrast values, accent colors for data/progress, and semantic success/danger colors. Constants and widget styling live in `vs_queue_monitor/gui.py` (not a separate stylesheet).
+The web client uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit): low glare, muted labels, high-contrast values, accent colors for data/progress, and semantic success/danger colors. Styling lives in `vs_queue_monitor/web/static/styles.css` and structure in `index.html`.
 
 ### 5.1 Semantic roles
 
@@ -161,7 +159,7 @@ The GUI uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit)
 
 ### 5.3 Chart styling
 
-Framed plot area, grid lines, time axis, step series for queue position; log/linear Y where available; hover or tooltip for timestamp/position near the series (GUI).
+Framed plot area, time axis, step series for queue position; log/linear Y where available; hover readout for timestamp/position near the series.
 
 ### 5.4 Layout
 
@@ -247,17 +245,17 @@ Desired emotion: “I trust the direction of travel.”
 
 ## 8. Feature decisions captured from prompts (lossless)
 
-This section converts ad-hoc prompts into durable feature requests, with **request → decision → shipped**. The **implementation** is Python (`vs_queue_monitor/`). Some items originated from an earlier browser prototype; behavior is consolidated here and **shipped in GUI/TUI** where applicable.
+This section converts ad-hoc prompts into durable feature requests, with **request → decision → shipped**. The **implementation** is Python (`vs_queue_monitor/`). Some items originated from an earlier browser prototype; behavior is consolidated here and **shipped in the web UI** where applicable.
 
 ### 8.1 KPI tooltips & inline edits (reduce trips to Settings)
 
 - **FR: Progress should show exact percent**
   - **Decision**: Tooltip or label shows percent; bar stays simple.
-  - **Shipped**: GUI exposes percent in a tooltip or adjacent label where implemented.
+  - **Shipped**: Web UI shows percent next to the progress bar.
 
 - **FR: Key KPI settings editable in-place**
-  - **Decision**: Contextual editors for warnings, rolling window, poll interval where the GUI provides them.
-  - **Shipped**: Inline or popover editors in GUI; TUI uses settings screen (**o**).
+  - **Decision**: Contextual editors for warnings, rolling window, poll interval in the web UI.
+  - **Shipped**: Inline or popover editors; **o** opens Settings.
 
 - **FR: Compact save/cancel actions**
   - **Decision**: Small confirm/cancel affordances where inline edit exists.
@@ -266,20 +264,20 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Readable chart**
   - **Decision**: Framed plot, grid, time axis, step series, optional fill.
-  - **Shipped**: Tk canvas graph in GUI; TUI chart within terminal limits.
+  - **Shipped**: HTML canvas graph in the web client.
 
 - **FR: Live view behavior**
   - **Decision**: Session data retained; view can follow “now” while monitoring when enabled.
-  - **Shipped**: `graph_live_view` in saved config (default on). GUI extends the canvas X-axis to the current time while monitoring; TUI braille plot uses the same rule. Toggle in GUI (chart + Settings → Graph); TUI in Settings.
+  - **Shipped**: `graph_live_view` in saved config (default on). Web client extends the X-axis to the current time while monitoring when enabled. Toggle on chart and in Settings → Graph.
 
 - **FR: Hover / point feedback**
-  - **Decision**: Nearest-point feedback within a hit radius; **HiDPI**: scale hit radius by device pixel ratio in GUI.
+  - **Decision**: Nearest-point feedback on mouse move; **HiDPI**: canvas uses device pixel ratio.
 
 - **FR: Poll deltas**
   - **Decision**: Append each parsed queue reading as its own point with monotonic timestamps.
 
 - **FR: Graph resize**
-  - **Decision**: Pane resize triggers redraw (GUI).
+  - **Decision**: Window resize triggers canvas redraw.
 
 ### 8.3 Alerts, sounds, and History verbosity
 
@@ -289,7 +287,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Sound sources configurable**
   - **Decision**: Default WAVs, optional file paths, platform sounds where wired.
-  - **Shipped**: Per-channel options in Settings (GUI/TUI parity for fields).
+  - **Shipped**: Per-channel options in Settings (same persisted fields as engine).
 
 - **FR: Sound preview**
   - **Decision**: Preview respects Play/Stop semantics without overlapping alerts.
@@ -308,7 +306,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 ### 8.5 Tail activity
 
 - **FR: Subtle activity indicator**
-  - **Decision**: Optional pulse or indicator tied to new log bytes (GUI).
+  - **Decision**: Optional log-activity line tied to new log bytes (web client).
 
 ### 8.6 Settings
 
@@ -318,12 +316,12 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 ### 8.7 Onboarding
 
 - **FR: First-run clarity**
-  - **Decision**: Path field + browse + short help text; optional guided steps if added to GUI.
+  - **Decision**: Path field + short help text; optional guided tour in web client.
 
 ### 8.8 Notifications
 
 - **FR: Desktop notifications**
-  - **Decision**: Use OS notification APIs where available; mirror threshold/completion/interrupt events; test action in GUI.
+  - **Decision**: Browser **Notification** API where permitted; inline toasts always; mirror threshold/completion events.
 
 ---
 
@@ -333,7 +331,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - At a glance: position, status, rate, warnings, elapsed, estimated remaining, progress.
 - Graph: time series for the current session; log/linear Y where available.
-- Info/History are secondary and collapsible (GUI).
+- Info/History are secondary sections in the web layout.
 
 ### 9.2 Queue semantics (“done”)
 
@@ -381,7 +379,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **No server:** all state local on the user’s machine.
 - **Privacy:** log stays on device; nothing is uploaded by the app.
-- **Cross-platform:** Windows, macOS, Linux; TUI for SSH/headless scenarios.
+- **Cross-platform:** Windows, macOS, Linux; **SSH** via port-forward to the loopback server.
 
 ---
 
@@ -390,7 +388,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 | Doc | Role |
 |-----|------|
 | [`README.md`](../README.md) | Setup, run, troubleshooting, precise behavior. |
-| [`docs/GUI-TUI-PARITY.md`](GUI-TUI-PARITY.md) | GUI vs TUI mapping. |
+| [`docs/UI-PARITY.md`](UI-PARITY.md) | Web client ↔ engine mapping. |
 | `.cursor/rules/ux-seamless-flow.mdc` | Implementation bias for agents (seamless flows, actionable UI). |
 | This file | Product and UX intent: what the user experiences and why. |
 | `vs_queue_monitor/core.py`, `engine.py` | Parsing, queue semantics, tail I/O, config. |

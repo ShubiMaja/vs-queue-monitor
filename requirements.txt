@@ -1,7 +1,3 @@
-# Terminal UI (Textual). Used when you pass --tui/--text, set VS_QUEUE_MONITOR_UI=tui,
-# or run headless on Unix (no DISPLAY). The graphical app uses Tk only.
-textual>=0.47
-
 # Local web UI: Starlette + uvicorn serve the static client. pywebview = embedded desktop window
 # (skipped on Python 3.14+ until wheels exist; pip install pywebview when available, or use --web-browser).
 starlette>=0.37

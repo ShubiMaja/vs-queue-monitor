@@ -18,6 +18,7 @@ class WebMonitorHooks:
         self._timers: dict[str, threading.Timer] = {}
         self._timer_seq = 0
         self._history: deque[str] = deque(maxlen=4000)
+        self._completion_notify_seq = 0
 
     def attach_engine(self, engine: Any) -> None:
         self._engine = engine
@@ -93,6 +94,7 @@ class WebMonitorHooks:
         self.append_history(f"[alert] Position {position} — est. left: {eta_display}")
 
     def show_completion_popup(self) -> None:
+        self._completion_notify_seq += 1
         self.append_history("[completion] Past queue wait — connecting (position 0).")
 
     def destroy_active_popups(self) -> None:

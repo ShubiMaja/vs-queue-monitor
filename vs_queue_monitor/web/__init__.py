@@ -1,4 +1,4 @@
-"""Local web UI (Starlette) — optional interface alongside Tk/TUI."""
+"""Local web UI (Starlette + static client)."""
 
 from __future__ import annotations
 
