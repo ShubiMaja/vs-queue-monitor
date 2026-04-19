@@ -31,7 +31,7 @@
 |------|---------|
 | **Fastest first run** | Download & run **`bootstrap.py`** (clones repo, creates **`.venv`**, installs deps, starts the app). See commands below. |
 | **Already have a clone** | `pip install -r requirements.txt` → **`python monitor.py`** |
-| **Windows, run again later** | Double-click **`Run VS Queue Monitor.bat`** in the project folder |
+| **Windows, run again later** | Double-click **`Run VS Queue Monitor.bat`** or **`vsqm.cmd`** in the project folder; **Win+R** works with **`vsqm`** after adding the folder to PATH (below) |
 | **Classic windowed GUI** | `python monitor.py --gui` |
 | **SSH / no browser shell** | `python monitor.py --tui` |
 
@@ -77,11 +77,20 @@ Equivalent: `python -m vs_queue_monitor`. On Windows use `python` or `py` if nee
 
 | Situation | What to use |
 |-----------|-------------|
-| **Windows**, full git clone | Double-click **`Run VS Queue Monitor.bat`** in the project folder (uses `.venv` if present). |
+| **Windows**, full git clone | Double-click **`Run VS Queue Monitor.bat`** or **`vsqm.cmd`** (uses `.venv` if present). **Win+R:** add the folder to PATH, then run **`vsqm`**. |
 | **macOS / Linux**, full clone | **`./run-vs-queue-monitor.sh`** after `chmod +x run-vs-queue-monitor.sh` once, or **`python3 monitor.py`**. |
 | Any OS, terminal | **`python monitor.py`** from the project root (or **`.venv\Scripts\python.exe`** / **`.venv/bin/python`**). |
 
 Double-clicking **`monitor.py`** only works if `.py` files are associated with Python on your system; the **`.bat`** / **`.sh`** launchers are more predictable.
+
+#### Windows Run dialog (**Win+R**)
+
+The short launcher **`vsqm.cmd`** is made for the **Run** box (and for folders on `PATH`):
+
+1. **Optional — type `vsqm` from anywhere:** add your **clone folder** (the directory that contains `vsqm.cmd`) to your **user** `Path` — *Settings → System → About → Advanced system settings → Environment Variables → Path → Edit → New* — paste the folder path, OK out, **sign out or restart apps** so new shells see it.
+2. Press **Win+R**, type **`vsqm`**, press **Enter** (or use the full path in quotes if you did not add PATH: `"C:\path\to\vs-queue-monitor\vsqm.cmd"`).
+
+**`Run VS Queue Monitor.bat`** is a thin wrapper that calls **`vsqm.cmd`** so there is only one script to maintain.
 
 ### Default: embedded web app (`python monitor.py`)
 
@@ -145,7 +154,8 @@ python monitor.py --no-start
 | `vs_queue_monitor/web/` | Local Starlette app + static client (default UI) |
 | `vs_queue_monitor/cli.py` | Default web UI; `--gui` / `--tui` / `--web`, `--web-browser`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
-| `Run VS Queue Monitor.bat` | Windows: double-click to run (uses `.venv` if present) |
+| `vsqm.cmd` | Windows: short launcher for **Win+R** / PATH; runs `monitor.py` (uses `.venv` if present) |
+| `Run VS Queue Monitor.bat` | Windows: double-click; delegates to **`vsqm.cmd`** |
 | `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
 | `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |

@@ -149,6 +149,8 @@ def _print_launch_hint(root: Path) -> None:
             _eprint(f'  • Double-click: {bat.name}')
         else:
             _eprint("  • Double-click: Run VS Queue Monitor.bat  (included in a full git checkout)")
+        if (root / "vsqm.cmd").is_file():
+            _eprint("  • Win+R: add this folder to your user PATH, then run  vsqm   (see README)")
         _eprint(rf"  • Or terminal: {root / '.venv' / 'Scripts' / 'python.exe'} monitor.py")
     else:
         sh = root / "run-vs-queue-monitor.sh"
