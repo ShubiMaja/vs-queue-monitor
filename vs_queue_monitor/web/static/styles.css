@@ -83,6 +83,7 @@ body {
 .topbar__path {
   flex: 1 1 280px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -90,6 +91,16 @@ body {
   font-size: 0.8rem;
   color: var(--muted);
   white-space: nowrap;
+}
+.topbar__path-inp {
+  flex: 1 1 180px;
+  min-width: 120px;
+}
+.btn--browse {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  padding: 6px 10px;
 }
 .inp {
   flex: 1;

@@ -87,6 +87,34 @@ def _gui_display_available() -> bool:
     return True
 
 
+def _pick_path_sync(mode: str) -> str | None:
+    """Native folder or file dialog (Tk). Run via ``asyncio.to_thread`` from the Starlette worker."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        try:
+            root.attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        if mode == "file":
+            p = filedialog.askopenfilename(
+                parent=root,
+                title="Select Vintage Story client log",
+                filetypes=[("Log files", "*.log"), ("All files", "*.*")],
+            )
+        else:
+            p = filedialog.askdirectory(parent=root, mustexist=True)
+        return str(p).strip() if p else None
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+
 def _open_browser_and_block(url: str) -> None:
     """Open default browser once, then block so the uvicorn daemon thread keeps running."""
 
@@ -188,6 +216,45 @@ def _api_state(request: Request) -> JSONResponse:
     with lock:
         snap = build_snapshot(engine, hooks)
     return JSONResponse(snap)
+
+
+async def _api_pick_path(request: Request) -> JSONResponse:
+    """Open a native folder or file picker on the machine running Python (localhost UI)."""
+    if not _gui_display_available():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "No graphical display available for a native dialog (e.g. headless SSH). Paste the path instead.",
+            },
+            status_code=503,
+        )
+    try:
+        import tkinter  # noqa: F401
+    except ImportError:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "tkinter is not available (Python built without Tcl/Tk). Paste the path instead.",
+            },
+            status_code=503,
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
+    mode = str(body.get("mode", "folder")).strip().lower()
+    if mode not in ("folder", "file"):
+        return JSONResponse({"ok": False, "error": "mode must be 'folder' or 'file'"}, status_code=400)
+    try:
+        path = await asyncio.to_thread(_pick_path_sync, mode)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("pick_path dialog failed")
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+    if not path:
+        return JSONResponse({"ok": True, "path": None, "cancelled": True})
+    return JSONResponse({"ok": True, "path": path, "cancelled": False})
 
 
 async def _api_config(request: Request) -> JSONResponse:
@@ -299,6 +366,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
         Route("/api/state", _api_state, methods=["GET"]),
+        Route("/api/pick_path", _api_pick_path, methods=["POST"]),
         Route("/api/config", _api_config, methods=["POST"]),
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),

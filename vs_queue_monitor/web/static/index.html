@@ -54,7 +54,13 @@
       </div>
       <div class="topbar__path">
         <label for="inpPath">Logs folder</label>
-        <input type="text" id="inpPath" class="inp" autocomplete="off" placeholder="Path to VintagestoryData or Logs" />
+        <input type="text" id="inpPath" class="inp topbar__path-inp" autocomplete="off" placeholder="Path to VintagestoryData or Logs" />
+        <button type="button" class="btn btn--small btn--browse" id="btnBrowseFolder" title="Choose folder (opens on this PC)">
+          Folder…
+        </button>
+        <button type="button" class="btn btn--small btn--browse" id="btnBrowseFile" title="Choose a .log file (folder is inferred)">
+          Log file…
+        </button>
       </div>
       <div class="topbar__mid">
         <button type="button" class="btn btn--pill" id="btnNotify" title="Desktop notifications">Notifications</button>
@@ -212,7 +218,9 @@
         <div class="help-scroll">
           <p>
             This UI runs in your browser but the <strong>Python app</strong> reads log files from disk. Paste the
-            <strong>folder</strong> that contains <code>client-main.log</code> (or your data directory), then <strong>Start</strong>.
+            <strong>folder</strong> that contains <code>client-main.log</code> (or your data directory), or use
+            <strong>Folder…</strong> / <strong>Log file…</strong> in the header to open a system dialog on this computer
+            (requires Python with Tk). Then <strong>Start</strong>.
           </p>
           <h3 class="help-h3">Typical paths</h3>
           <ul class="help-list">
