@@ -126,6 +126,20 @@ python monitor.py --no-start
 | `bootstrap-windows.cmd` | Windows: `curl` + pipe to Python; **Win+R** one-liner in README; warns if Python missing |
 | `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
+| `requirements-dev.txt` | Optional: **pytest** + **Playwright** for UI smoke tests |
+| `tests/` | Playwright tests against the local web server |
+
+### UI tests (Playwright)
+
+Browser smoke tests spin up the same **Starlette** app used in production (no mocks) and open it in **Chromium**:
+
+```bash
+pip install -r requirements-dev.txt
+playwright install chromium
+python -m pytest tests/
+```
+
+Run **`python -m pytest tests/ --headed --slowmo 400`** to watch the browser. With the app already running (`python monitor.py`), use **`playwright codegen http://127.0.0.1:8765/`** to record steps and paste generated selectors.
 
 ## Pointing at the log
 

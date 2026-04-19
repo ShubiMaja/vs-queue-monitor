@@ -19,6 +19,9 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+playwright-report/
+test-results/
+
 .mypy_cache/
 .ruff_cache/
 
