@@ -53,6 +53,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Force the terminal UI (Textual). Implied when no GUI display (e.g. headless Linux).",
     )
+    ui.add_argument(
+        "--web",
+        action="store_true",
+        help="Local web UI in the browser (Starlette on 127.0.0.1; requires starlette & uvicorn).",
+    )
     parser.add_argument(
         "--path",
         dest="path",
@@ -64,12 +69,28 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not auto-start monitoring when the app opens",
     )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="TCP port for --web (default: 8765 or VS_QUEUE_MONITOR_WEB_PORT).",
+    )
     return parser
 
 
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
+    if args.web:
+        from .web import run_web_server
+
+        return run_web_server(
+            initial_path=args.path,
+            auto_start=not args.no_start,
+            port=args.web_port,
+            open_browser=True,
+        )
     auto_tui = _should_use_tui_auto()
     use_tui = bool(args.tui) or (not args.gui and auto_tui)
     if use_tui:

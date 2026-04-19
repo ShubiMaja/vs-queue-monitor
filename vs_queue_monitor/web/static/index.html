@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VS Queue Monitor (Web)</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="tourOverlay" class="tour-overlay hidden" aria-hidden="true">
+      <div class="tour-spotlight" id="tourSpotlight"></div>
+      <div class="tour-card" id="tourCard" role="dialog">
+        <div class="tour-card__head">
+          <span id="tourTitle" class="tour-card__title">Tour</span>
+          <span id="tourStepNum" class="muted"></span>
+        </div>
+        <p id="tourBody" class="tour-card__body"></p>
+        <div class="tour-card__actions">
+          <button type="button" class="btn btn--ghost" id="tourSkip">Skip</button>
+          <button type="button" class="btn btn--secondary" id="tourBack">Back</button>
+          <button type="button" class="btn btn--primary" id="tourNext">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">VS Queue Monitor</div>
+        <div class="brand__tagline">Local web UI · same engine as Tk/TUI</div>
+      </div>
+      <div class="topbar__path">
+        <label for="inpPath">Logs folder</label>
+        <input type="text" id="inpPath" class="inp" autocomplete="off" placeholder="Path to VintagestoryData or Logs" />
+      </div>
+      <div class="topbar__actions">
+        <button type="button" class="btn btn--secondary" id="btnTour" title="Guided tour">Tour</button>
+        <button type="button" class="btn btn--secondary" id="btnHelp">?</button>
+        <button type="button" class="btn btn--secondary" id="btnSettings">⚙</button>
+        <button type="button" class="btn btn--primary" id="btnStartStop">Start</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="kpi" id="secKpi">
+        <div class="kpi__cell" data-tour="pos">
+          <div class="kpi__label">POSITION</div>
+          <div class="kpi__val" id="kpiPos">—</div>
+        </div>
+        <div class="kpi__cell kpi__cell--grow" data-tour="status">
+          <div class="kpi__label">
+            STATUS
+            <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval">✎</button>
+          </div>
+          <div class="kpi__val kpi__val--sm" id="kpiStatus">—</div>
+          <div id="popPoll" class="popover hidden">
+            <label>Poll (seconds)</label>
+            <input type="text" id="inpPoll" class="inp inp--narrow" />
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--sm" id="btnPollOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnPollCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi__cell kpi__cell--wide" data-tour="rate">
+          <div class="kpi__label" id="kpiRateLabel">
+            <span id="kpiRateHdr">RATE</span>
+            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)">✎</button>
+          </div>
+          <div class="kpi__val" id="kpiRate">—</div>
+          <div id="popWindow" class="popover hidden">
+            <label>Rolling window (points)</label>
+            <input type="text" id="inpWindow" class="inp inp--narrow" />
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--sm" id="btnWindowOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnWindowCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi__cell kpi__cell--wide" data-tour="warn">
+          <div class="kpi__label">
+            WARNINGS
+            <button type="button" class="kpi__edit" id="btnEditWarn" title="Edit thresholds">✎</button>
+          </div>
+          <div class="kpi__warn" id="kpiWarnings">—</div>
+          <div id="popWarn" class="popover hidden">
+            <label>Thresholds (comma-separated)</label>
+            <input type="text" id="inpWarn" class="inp" />
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--sm" id="btnWarnOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnWarnCancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div class="kpi__cell">
+          <div class="kpi__label">ELAPSED</div>
+          <div class="kpi__val kpi__val--sm" id="kpiElapsed">—</div>
+        </div>
+        <div class="kpi__cell">
+          <div class="kpi__label">EST. REMAINING</div>
+          <div class="kpi__val kpi__val--sm" id="kpiRem">—</div>
+        </div>
+        <div class="kpi__cell" data-tour="prog">
+          <div class="kpi__label">PROGRESS</div>
+          <div class="progress"><div class="progress__fill" id="kpiProgFill"></div></div>
+          <div class="kpi__val kpi__val--sm" id="kpiProgTxt">0%</div>
+        </div>
+      </section>
+
+      <section class="graph-panel" data-tour="graph">
+        <div class="graph-toolbar">
+          <span class="muted" id="lblLogAct"></span>
+          <div class="graph-toolbar__btns">
+            <button type="button" class="btn btn--small" id="btnYScale">Y → log</button>
+            <button type="button" class="btn btn--small" id="btnLive">Live view: on</button>
+            <button type="button" class="btn btn--small" id="btnCopyPng">Copy graph as PNG</button>
+            <button type="button" class="btn btn--small" id="btnCopyTsv">Copy graph (TSV)</button>
+          </div>
+        </div>
+        <canvas id="graphCanvas" width="1100" height="280"></canvas>
+        <div class="graph-hint muted" id="graphHint">Move the mouse over the chart for time and position.</div>
+      </section>
+
+      <section class="info" data-tour="info">
+        <h3 class="section-title">Info</h3>
+        <div class="info__grid">
+          <div class="info__lbl">Last change</div>
+          <div id="infoLastCh" class="info__val">—</div>
+          <div class="info__lbl">Last threshold alert</div>
+          <div id="infoLastAl" class="info__val">—</div>
+          <div class="info__lbl">Resolved log path</div>
+          <div id="infoPath" class="info__val info__val--wrap">—</div>
+          <div class="info__lbl">Global rate</div>
+          <div id="infoGlo" class="info__val">—</div>
+        </div>
+      </section>
+
+      <section class="history" data-tour="hist">
+        <h3 class="section-title">History</h3>
+        <pre class="history__pre" id="historyPre"></pre>
+      </section>
+    </main>
+
+    <div id="modalHelp" class="modal hidden" role="dialog">
+      <div class="modal__backdrop" data-close="1"></div>
+      <div class="modal__box">
+        <h2>Help</h2>
+        <p>
+          Set the <strong>Logs folder</strong> (folder containing <code>client-main.log</code>), then <strong>Start</strong>.
+          Settings are saved to your config file (same as Tk).
+        </p>
+        <p class="muted" id="helpCfgPath"></p>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" data-close="1">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalSettings" class="modal hidden" role="dialog">
+      <div class="modal__backdrop" data-close="1"></div>
+      <div class="modal__box modal__box--wide">
+        <h2>Settings</h2>
+        <div class="form-grid">
+          <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
+          <label><input type="checkbox" id="chkPop" /> Warning popup (toast in web)</label>
+          <label><input type="checkbox" id="chkSnd" /> Warning sound (OS)</label>
+          <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
+          <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
+        </div>
+        <p class="muted">Sound files: use Tk or edit config JSON for paths (web parity for toggles).</p>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--secondary" id="btnReset">Reset defaults</button>
+          <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>
+          <button type="button" class="btn btn--ghost" data-close="1">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
