@@ -269,6 +269,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Live view behavior**
   - **Decision**: Session data retained; view can follow “now” while monitoring when enabled.
+  - **Shipped**: `graph_live_view` in saved config (default on). GUI extends the canvas X-axis to the current time while monitoring; TUI braille plot uses the same rule. Toggle in GUI (chart + Settings → Graph); TUI in Settings.
 
 - **FR: Hover / point feedback**
   - **Decision**: Nearest-point feedback within a hit radius; **HiDPI**: scale hit radius by device pixel ratio in GUI.

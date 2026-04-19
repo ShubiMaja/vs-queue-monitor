@@ -45,6 +45,10 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         self._bind_keyboard_shortcuts()
         self.bind("<Configure>", self._schedule_resize_refresh, add=True)
         self.graph_log_scale_var.trace_add("write", lambda *_: self._update_graph_y_scale_button_text())
+        self.graph_live_view_var.trace_add(
+            "write",
+            lambda *_: (self._update_graph_live_button_text(), self.redraw_graph()),
+        )
         self.show_log_var.trace_add("write", self._on_show_log_write)
         self.show_status_var.trace_add("write", self._on_show_status_write)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -188,6 +192,75 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         except Exception:
             pass
 
+    def open_help(self) -> None:
+        """Paths, config file, and project link (web help overlay analogue)."""
+        cfg = get_config_path()
+        body = (
+            f'{APP_DISPLAY_NAME}\n\n'
+            'Set the Logs folder (VintagestoryData\\Logs or the folder that contains client-main.log), '
+            'then press Start. The app resolves the active client log inside that folder.\n\n'
+            f'Settings file:\n{cfg}\n\n'
+            f'Documentation and source:\n{GITHUB_REPO_URL}'
+        )
+        messagebox.showinfo('Help', body, parent=self)
+
+    def copy_history_to_clipboard(self) -> None:
+        ht = self.history_text
+        ht.configure(state='normal')
+        try:
+            text = ht.get('1.0', 'end-1c')
+        finally:
+            ht.configure(state='disabled')
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.update()
+
+    def copy_graph_data_to_clipboard(self) -> None:
+        pts = list(self.graph_points)
+        if not pts:
+            messagebox.showinfo('Copy graph', 'No graph data yet.', parent=self)
+            return
+        lines = [f'{t}\t{p}' for t, p in pts]
+        block = 'epoch_seconds\tposition\n' + '\n'.join(lines)
+        self.clipboard_clear()
+        self.clipboard_append(block)
+        self.update()
+
+    def _maybe_show_first_run_tutorial(self) -> None:
+        if self.tutorial_done_var.get():
+            return
+        intro = (
+            'Quick tour:\n\n'
+            '• Set your Vintage Story Logs folder, then Start.\n'
+            '• Use Settings (⚙) for poll interval, warning thresholds, sounds, and graph options.\n'
+            '• History lists session events; the chart shows queue position over time.\n'
+            '• Live view (on the chart) keeps the time axis aligned with the current time while monitoring.\n\n'
+            'You can open Help (? Help) anytime.'
+        )
+        messagebox.showinfo('Welcome', intro, parent=self)
+        self.tutorial_done_var.set(True)
+        self.persist_config()
+
+    def _tick_log_activity_label(self) -> None:
+        self._log_activity_job = self.after(1000, self._tick_log_activity_label)
+        lbl = getattr(self, '_lbl_log_activity', None)
+        if lbl is None:
+            return
+        if not self.running:
+            lbl.configure(text='')
+            return
+        last = self._last_log_growth_epoch
+        now = time.time()
+        if last is None:
+            lbl.configure(text='Log: waiting for file activity')
+        elif now - last >= LOG_SILENCE_RECONNECT_SEC:
+            lbl.configure(text=f'Log quiet ≥{int(LOG_SILENCE_RECONNECT_SEC)}s (reconnecting or idle)')
+        else:
+            ago = max(0.0, now - last)
+            lbl.configure(text=f'Log active (last growth {ago:.0f}s ago)')
+        if self.running and self.graph_live_view_var.get() and self.graph_canvas is not None:
+            self.redraw_graph()
+
     def _configure_ttk_theme(self, style: ttk.Style) -> None:
         """Apply app-wide background and text colors (clam, Grafana-style dark)."""
         _bd = UI_SEPARATOR
@@ -278,6 +351,12 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         path_actions.grid(row=0, column=1, sticky='e')
         self._btn_browse_logs = ttk.Button(path_actions, text='📁  Browse…', command=self.browse_logs_folder)
         self._btn_browse_logs.pack(side='left', padx=(0, 4))
+        self._btn_help = ttk.Button(path_actions, text='?  Help', command=self.open_help)
+        self._btn_help.pack(side='left', padx=(0, 4))
+        self._btn_copy_hist = ttk.Button(path_actions, text='Copy History', command=self.copy_history_to_clipboard)
+        self._btn_copy_hist.pack(side='left', padx=(0, 4))
+        self._btn_copy_graph = ttk.Button(path_actions, text='Copy graph (TSV)', command=self.copy_graph_data_to_clipboard)
+        self._btn_copy_graph.pack(side='left', padx=(0, 4))
         self._loading_spinner = ttk.Progressbar(path_actions, mode='indeterminate', length=120)
         self._settings_btn = ttk.Button(path_actions, text='⚙  Settings', command=self.open_settings)
         self._settings_btn.pack(side='left', padx=(4, 0))
@@ -298,7 +377,8 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         graph_frame = self._graph_frame
         graph_frame.columnconfigure(0, weight=1)
         graph_frame.rowconfigure(0, weight=0)
-        graph_frame.rowconfigure(1, weight=1)
+        graph_frame.rowconfigure(1, weight=0)
+        graph_frame.rowconfigure(2, weight=1)
         summary = tk.Frame(graph_frame, bg=UI_SUMMARY_BG)
         summary.grid(row=0, column=0, sticky='ew', pady=(0, 0))
         for _c in range(8):
@@ -354,10 +434,21 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         self._queue_progress.pack(anchor='e', pady=(0, 0))
         self._bind_static_tooltip(self._lbl_progress_header, self._progress_tooltip_text)
         self._bind_static_tooltip(self._queue_progress, self._progress_tooltip_text)
+        _act_bar = tk.Frame(graph_frame, bg=UI_GRAPH_BG)
+        _act_bar.grid(row=1, column=0, sticky='ew', padx=(10, 0))
+        self._lbl_log_activity = tk.Label(
+            _act_bar,
+            text='',
+            bg=UI_GRAPH_BG,
+            fg=UI_TEXT_MUTED,
+            font=('Segoe UI', 9) if sys.platform.startswith('win') else ('TkDefaultFont', 9),
+            anchor='w',
+        )
+        self._lbl_log_activity.pack(side='left', padx=(4, 0))
         _gsp_l, _gsp_t, _gsp_r, _gsp_b = UI_GRAPH_STACK_PAD
         self._graph_stack_frame = tk.Frame(graph_frame, bg=UI_GRAPH_BG, bd=0, highlightthickness=0)
         graph_stack = self._graph_stack_frame
-        graph_stack.grid(row=1, column=0, sticky='nsew', padx=(_gsp_l, _gsp_r), pady=(_gsp_t, _gsp_b))
+        graph_stack.grid(row=2, column=0, sticky='nsew', padx=(_gsp_l, _gsp_r), pady=(_gsp_t, _gsp_b))
         graph_stack.rowconfigure(0, weight=1)
         graph_stack.columnconfigure(0, weight=1)
         self.graph_canvas = tk.Canvas(graph_stack, height=200, highlightthickness=0, background=UI_GRAPH_BG, bd=0, highlightbackground=UI_GRAPH_BG)
@@ -367,6 +458,18 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         self._graph_y_scale_btn.lift()
         self._update_graph_y_scale_button_text()
         self._bind_static_tooltip(self._graph_y_scale_btn, 'Linear: even spacing by position. Log: zoom the lower numbers on the chart.')
+        self._graph_live_btn = ttk.Button(
+            self.graph_canvas,
+            text='Live view: on',
+            style='GraphYScale.TButton',
+            command=self._toggle_graph_live_view,
+        )
+        self._graph_live_btn.lift()
+        self._update_graph_live_button_text()
+        self._bind_static_tooltip(
+            self._graph_live_btn,
+            'When on, the X-axis extends to the current time while monitoring (same as the web “live view”).',
+        )
         self.graph_canvas.bind('<Configure>', self._on_graph_canvas_configure)
         self.graph_canvas.bind('<Motion>', self.on_graph_motion)
         self.graph_canvas.bind('<Leave>', lambda _evt: self.hide_graph_tooltip())
@@ -442,6 +545,8 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         self.update_start_stop_button()
         self.after_idle(self._sync_collapsible_panes_after_map)
         self.after_idle(self._refresh_warnings_kpi)
+        self.after(120, self._maybe_show_first_run_tutorial)
+        self._log_activity_job = self.after(1000, self._tick_log_activity_label)
 
     def _sync_collapsible_panes_after_map(self) -> None:
         try:
@@ -553,6 +658,18 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         _cb_log_every = ttk.Checkbutton(history_fr, text='Log every position change', variable=self.show_every_change_var)
         _cb_log_every.pack(anchor='w')
         self._bind_static_tooltip(_cb_log_every, 'When on, append a History line each time your queue position changes. When off, skip those (alerts, completion, errors, and monitoring start still log).')
+        graph_fr = ttk.LabelFrame(outer, text='Graph', padding=(10, 8))
+        graph_fr.pack(fill='x', pady=(0, 8))
+        _cb_graph_live = ttk.Checkbutton(
+            graph_fr,
+            text='Live view (extend X-axis to current time while monitoring)',
+            variable=self.graph_live_view_var,
+        )
+        _cb_graph_live.pack(anchor='w')
+        self._bind_static_tooltip(
+            _cb_graph_live,
+            'When on, the chart’s time axis runs to “now” while monitoring so idle time after the last queue line is visible (same idea as the former web “live view”).',
+        )
         display_fr = ttk.LabelFrame(outer, text='Estimation', padding=(10, 8))
         display_fr.pack(fill='x', pady=(0, 10))
         _win_lbl = ttk.Label(display_fr, text='Rolling window (points)')
@@ -1137,10 +1254,14 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         bt(self._lbl_history_section_title, 'Show or hide History.')
         bt(self._history_tab_btn, 'Show or hide History.')
         bt(self.history_text, 'Session log.')
+        bt(self._btn_help, 'Paths, config file location, and project link.')
+        bt(self._btn_copy_hist, 'Copy the History panel to the clipboard.')
+        bt(self._btn_copy_graph, 'Copy graph samples as tab-separated epoch and position (paste into a spreadsheet).')
 
     def _bind_keyboard_shortcuts(self) -> None:
         self.bind('<Control-m>', self._shortcut_toggle_monitoring)
         self.bind('<Control-M>', self._shortcut_toggle_monitoring)
+        self.bind('<F1>', lambda _e: self.open_help())
 
         def on_space(evt: tk.Event) -> str | None:
             w = self.focus_get()
@@ -1169,11 +1290,42 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         self.graph_log_scale_var.set(not self.graph_log_scale_var.get())
         self.redraw_graph()
 
+    def _toggle_graph_live_view(self) -> None:
+        self.graph_live_view_var.set(not self.graph_live_view_var.get())
+
+    def _update_graph_live_button_text(self) -> None:
+        btn = getattr(self, '_graph_live_btn', None)
+        if btn is None:
+            return
+        if self.graph_live_view_var.get():
+            btn.configure(text='Live view: on')
+        else:
+            btn.configure(text='Live view: off')
+
+    def _graph_plot_time_range(self, points: list[tuple[float, int]]) -> tuple[float, float]:
+        """Shared X-axis window for drawing and hover (includes live view when monitoring)."""
+        if len(points) == 0:
+            return (0.0, 1.0)
+        if len(points) == 1:
+            t_mid = float(points[0][0])
+            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
+            t0 = t_mid - half
+            t1 = t_mid + half
+        else:
+            t0 = float(points[0][0])
+            t1 = float(points[-1][0])
+            if t1 <= t0:
+                t1 = t0 + 1e-06
+        if self.graph_live_view_var.get() and self.running:
+            t1 = max(t1, time.time())
+        return (t0, t1)
+
     def _position_graph_y_scale_button(self, _evt: object | None=None) -> None:
-        """Place Y-scale control at top-right inside the plot area (not canvas corner — avoids top margin clip)."""
+        """Place live-view and Y-scale controls at top-right inside the plot area."""
         canvas = self.graph_canvas
-        btn = self._graph_y_scale_btn
-        if canvas is None or btn is None:
+        btn_y = self._graph_y_scale_btn
+        btn_live = getattr(self, '_graph_live_btn', None)
+        if canvas is None or btn_y is None:
             return
         try:
             w = int(canvas.winfo_width())
@@ -1183,7 +1335,16 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             return
         x_right = w - GRAPH_CANVAS_PAD_RIGHT - GRAPH_Y_SCALE_BTN_INSET_X
         y_top = GRAPH_CANVAS_PAD_TOP + GRAPH_Y_SCALE_BTN_INSET_Y
-        btn.place_configure(x=x_right, y=y_top, anchor='ne')
+        btn_y.place_configure(x=x_right, y=y_top, anchor='ne')
+        if btn_live is not None:
+            try:
+                canvas.update_idletasks()
+                yw = int(btn_y.winfo_reqwidth())
+            except tk.TclError:
+                yw = 80
+            gap = 8
+            live_x = x_right - yw - gap
+            btn_live.place_configure(x=max(GRAPH_CANVAS_PAD_LEFT + 4, live_x), y=y_top, anchor='ne')
 
     def _on_graph_canvas_configure(self, _evt: object) -> None:
         self._position_graph_y_scale_button()
@@ -1218,16 +1379,7 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
             self._graph_hover_point = None
             canvas.create_text(x0 + 6, y0 + 6, anchor='nw', text='No data yet', fill=UI_GRAPH_EMPTY)
             return
-        if len(points) == 1:
-            t_mid = float(points[0][0])
-            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
-            t0 = t_mid - half
-            t1 = t_mid + half
-        else:
-            t0 = float(points[0][0])
-            t1 = float(points[-1][0])
-            if t1 <= t0:
-                t1 = t0 + 1e-06
+        t0, t1 = self._graph_plot_time_range(points)
         vals = [p for _t, p in points]
         vmin = min(vals)
         vmax = max(vals)
@@ -1403,14 +1555,7 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         pad_right = GRAPH_CANVAS_PAD_RIGHT
         plot_w = max(1, width - pad_left - pad_right)
         x = max(pad_left, min(pad_left + plot_w, evt.x))
-        t0 = float(points[0][0])
-        t1 = float(points[-1][0])
-        if len(points) == 1:
-            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
-            t0 = t0 - half
-            t1 = t1 + half
-        elif t1 <= t0:
-            t1 = t0 + 1e-06
+        t0, t1 = self._graph_plot_time_range(points)
         target_t = t0 + (x - pad_left) / plot_w * (t1 - t0)
         best = points[0]
         best_dt = abs(best[0] - target_t)
@@ -1564,6 +1709,13 @@ class QueueMonitorApp(QueueMonitorEngine, tk.Tk):
         popup.after(POPUP_COMPLETION_TIMEOUT_MS, lambda: popup.winfo_exists() and popup.destroy())
 
     def on_close(self) -> None:
+        j = getattr(self, '_log_activity_job', None)
+        if j is not None:
+            try:
+                self.after_cancel(j)
+            except Exception:
+                pass
+            self._log_activity_job = None
         if self._about_win is not None:
             try:
                 self._about_win.grab_release()

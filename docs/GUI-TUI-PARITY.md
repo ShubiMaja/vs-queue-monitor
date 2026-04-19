@@ -49,6 +49,10 @@ flowchart TD
 - **X ticks**: “nice” intervals from a candidate list; format `%H:%M:%S` or `%H:%M` by span; deduplicate nearby ticks in pixel space; **vertical grid** at interior major tick times only (`0 < idx < len(tick_times) - 1`).
 - **Minor x ticks**: short marks at minute-scale when span warrants.
 - **Marker** at latest point; optional hover cursor and tooltip.
+- **Live view** (`graph_live_view`, default on): X-axis `t1 = max(last sample time, now)` while monitoring so idle time after the last queue line is visible; GUI overlay button + Settings → Graph; TUI checkbox in Settings; same flag drives both.
+- **Single-point span**: one sample uses `SINGLE_POINT_GRAPH_SPAN_SEC` centered on its time (GUI + TUI).
+- **Help / copy / onboarding**: GUI — **? Help**, **Copy History**, **Copy graph (TSV)**, **F1**, first-run welcome; TUI — **F1** help modal, **c** / **v** clipboard (best-effort), welcome modal until OK (sets `tutorial_done`).
+- **Log activity**: GUI label above the chart; TUI **LOG** line in the metrics block — derived from last log file growth vs `LOG_SILENCE_RECONNECT_SEC`.
 
 ### Alerts and popups
 
@@ -58,7 +62,7 @@ flowchart TD
 
 ### Settings
 
-- **File**: `open_settings` in `gui.py` — polling, thresholds, sounds, completion, graph log scale, “show every change”, reset defaults.
+- **File**: `open_settings` in `gui.py` — polling, thresholds, sounds, completion, graph (log scale, live view), “show every change”, reset defaults.
 - **Persistence**: debounced `persist_config()` from `get_config_snapshot()`.
 
 ## TUI target spec
@@ -75,6 +79,9 @@ flowchart TD
 
 - **Space**: play/stop monitoring.
 - **o**: open Settings (same intent as GUI gear button).
+- **F1**: Help (paths, config file, shortcuts).
+- **c**: copy graph samples as TSV to the clipboard (best-effort).
+- **v**: copy session log lines to the clipboard (best-effort).
 - **h** / **l**: toggle History panel.
 - **g** / **m** / **p**: toggle Graph, KPI metrics strip, Path row.
 - **i**: toggle Info panel (when implemented).
