@@ -1247,9 +1247,4 @@
       }
     })
     .catch(function () {});
-
-  /** Fix Start button class — add btn--danger style */
-  const st = document.createElement("style");
-  st.textContent = ".btn--danger{background:#cf222e;border-color:#cf222e;}";
-  document.head.appendChild(st);
 })();

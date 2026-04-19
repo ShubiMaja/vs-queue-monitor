@@ -101,7 +101,7 @@ The default flow works on **Windows, macOS, and Linux** with a graphical session
 | **Linux** | A desktop with **X11** or **Wayland** (`DISPLAY` / `WAYLAND_DISPLAY`). You may need distro packages for WebKitGTK (e.g. Debian/Ubuntu: `gir1.2-webkit2-4.1`, `gtk3`; names vary — see [pywebview prerequisites](https://pywebview.idepy.com/guide/installation.html)). |
 | **Headless / SSH** | No embedded window; the app serves **`http://127.0.0.1:<port>/`** and prints how to use **`ssh -L`** or **`--web-browser`**. |
 
-The web client supports **inline editing** (✎ on poll interval, rolling window, thresholds), **Copy graph as PNG**, **Copy graph (TSV)**, **session Stats** (same scope as the Session graph dropdown) with **Copy stats**, **Copy history**, and a **guided spotlight tour** (runs once until completed; stored as `tutorial_done` in config). **Keyboard** (when not typing in a field): **Space** start/stop, **o** settings, **F1** help, **c** graph TSV, **v** copy session history.
+The web client supports **inline editing** (✎ on poll interval, rolling window, thresholds), **Copy graph as PNG**, **Copy graph (TSV)**, **session Stats** (same scope as the Session graph dropdown) with **Copy stats**, **Copy history**, and a **guided spotlight tour** (runs once until completed; stored as `tutorial_done` in config). Layout and controls follow a single dark theme with consistent spacing, focus rings, and modal/dialog semantics. **Keyboard** (when not typing in a field): **Space** start/stop, **o** settings, **F1** help, **c** graph TSV, **v** copy session history.
 
 ### Without auto-start
 
