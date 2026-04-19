@@ -19,8 +19,8 @@ Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
 the README one-liner; it checks for ``py`` / ``python`` before piping this script.
 
 Pipe (no saved file; clones to ~/vs-queue-monitor by default). Prefer the README
-one-liners: they ``cd`` to Downloads before ``curl``. On Windows, ``bootstrap-windows.cmd``
-also switches to Downloads before fetching.
+one-liners: they change to your profile/home before ``curl``. On Windows,
+``bootstrap-windows.cmd`` does the same before fetching.
 
   curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 
