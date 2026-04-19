@@ -7,6 +7,22 @@ import threading
 from typing import Generator
 
 import pytest
+
+# Real Chromium often reports permission as granted/denied before our UI runs, so the
+# notification modal (default only) never appears. Stub Notification for modal tests.
+NOTIFICATION_STUB_DEFAULT_GRANT = """
+(function () {
+  function FakeNotification(title, opts) {
+    this.title = title || "";
+    this.body = opts && opts.body ? opts.body : "";
+  }
+  FakeNotification.permission = "default";
+  FakeNotification.requestPermission = function () {
+    return Promise.resolve("granted");
+  };
+  window.Notification = FakeNotification;
+})();
+"""
 import uvicorn
 
 from vs_queue_monitor.engine import QueueMonitorEngine

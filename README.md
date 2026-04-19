@@ -141,7 +141,7 @@ python -m pytest tests/
 
 Run **`python -m pytest tests/ --headed --slowmo 400`** to watch the browser. With the app already running (`python monitor.py`), use **`playwright codegen http://127.0.0.1:8765/`** to record steps and paste generated selectors.
 
-**Layout checks** (`tests/test_ui_visual.py`): several **viewport widths** (mobile through desktop), **no horizontal document overflow**, **top bar** overflow check, **information architecture** (KPI labels, graph canvas, **Info** / **History** titles), and a **long log path** via `POST /api/config` to ensure the path summary still fits. For **full-page PNGs** under pytest’s temp dir, run with **`VSQM_PLAYWRIGHT_SCREENSHOTS=1`**.
+**Layout checks** (`tests/test_ui_visual.py`): several **viewport widths** (mobile through desktop), **no horizontal document overflow**, **top bar** overflow check, **information architecture** (KPI labels, graph canvas, **Info** / **History** titles), and a **long log path** via `POST /api/config` to ensure the path summary still fits. **`tests/test_notifications_ui.py`** covers the **desktop notification** modal and bell (Chromium’s real `Notification.permission` is stubbed so the default-only UI paths are deterministic). For **full-page PNGs** under pytest’s temp dir, run with **`VSQM_PLAYWRIGHT_SCREENSHOTS=1`**.
 
 ## Pointing at the log
 
