@@ -35,6 +35,7 @@ except ImportError as exc:  # pragma: no cover
             "  - python -m vs_queue_monitor\n"
             "  - python monitor.py --gui   (force Tk)\n"
             "  - python monitor.py --tui   (force terminal UI)\n"
+            "  - python monitor.py --web   (local browser UI)\n"
         ) from exc
     raise
 

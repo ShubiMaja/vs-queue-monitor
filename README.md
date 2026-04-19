@@ -1,9 +1,10 @@
 # VS Queue Monitor
 
-**Python** app that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds. Two interfaces share the same engine:
+**Python** app that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds. Three front ends share the same engine:
 
 - **Tk desktop GUI** — graph, KPIs, sounds, OS notifications (default on Windows).
 - **Textual terminal UI** (`--tui`) — SSH-friendly; no display required.
+- **Local web UI** (`--web`) — browser at `http://127.0.0.1:8765/`; inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (requires `starlette` + `uvicorn` from `requirements.txt`).
 
 **Product and UX:** [`docs/DESIGN.md`](docs/DESIGN.md). **GUI vs TUI:** [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md), [`docs/UI-UX-PARITY.md`](docs/UI-UX-PARITY.md), [`docs/TUI-LIMITATIONS.md`](docs/TUI-LIMITATIONS.md). **Architecture notes:** [`docs/real-life-ui-patterns.md`](docs/real-life-ui-patterns.md).
 
@@ -20,7 +21,8 @@
 
 - **Python 3.10+**
 - **Tkinter** — for the GUI (`python monitor.py` / `--gui` on Windows by default).
-- **Textual** — `pip install -r requirements.txt`; used only for `--tui`.
+- **Textual** — `pip install -r requirements.txt`; used for `--tui`.
+- **Starlette + uvicorn** — same install; used for `--web`.
 
 ## Quick start
 
@@ -45,6 +47,17 @@ python monitor.py --tui
 
 On Linux/macOS without `DISPLAY`, the app may pick the TUI automatically unless you set `VS_QUEUE_MONITOR_UI=gui` or pass `--gui`.
 
+### Web (browser)
+
+```bash
+pip install -r requirements.txt
+python monitor.py --web
+```
+
+Opens the UI in your default browser (localhost only). Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. **Ctrl+C** in the terminal stops the server.
+
+The web client supports **inline editing** (✎ on poll interval, rolling window, thresholds), **Copy graph as PNG**, **Copy graph (TSV)**, and a **guided spotlight tour** (runs once until completed; stored as `tutorial_done` in config, same key as the Tk welcome dialog).
+
 **TUI shortcuts:** **Space** start/stop, **o** settings, **F1** help, **c** copy graph (TSV), **v** copy session log, **q** quit — full list in [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md). Legacy: `python monitor-tui.py` = `python monitor.py --tui`.
 
 **GUI:** **F1** opens Help (paths and config location). **Copy History** / **Copy graph (TSV)** copy to the clipboard. **Live view** (on the chart and under Settings → Graph) keeps the time axis aligned with the current time while monitoring. A short welcome dialog runs once until dismissed (stored as `tutorial_done` in config).
@@ -63,6 +76,7 @@ python monitor.py --no-start
 | `vs_queue_monitor/engine.py` | Shared monitor logic |
 | `vs_queue_monitor/gui.py` | Tk UI |
 | `vs_queue_monitor/tui.py` | Textual UI |
+| `vs_queue_monitor/web/` | Local Starlette app + static browser client (`--web`) |
 | `vs_queue_monitor/cli.py` | `--gui` / `--tui`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
 | `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |
