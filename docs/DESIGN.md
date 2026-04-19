@@ -1,8 +1,8 @@
-# VS Queue Monitor — product & UX design (web)
+# VS Queue Monitor — product & UX design
 
-This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a more maintainable, professional design format.
+This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a maintainable format.
 
-**Scope.** The canonical product experience is the **browser** client (no backend), with the constraints of the **File System Access API** and browser notifications. The repository also ships a **Python** app (Tk + Textual TUI) that should stay **behaviorally** aligned with this document where noted (see **§1.1**). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
+**Scope.** The shipping product is a **Python** application: **Tk** desktop GUI and **Textual** terminal UI, sharing one engine (`vs_queue_monitor/engine.py`). Behavior and vocabulary should stay aligned across GUI and TUI (see **§2**). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---
 
@@ -10,7 +10,7 @@ This is the **design contract** for VS Queue Monitor: product intent, UX princip
 
 ### 1.1 One-line product
 
-A **local-first, browser-based assistant** that reads the Vintage Story **client log** and turns it into a **glanceable dashboard**: queue position, movement over time, rough wait estimates, and optional alerts — **without uploading logs** or requiring a server.
+A **local-first** assistant that reads the Vintage Story **client log** and turns it into a **glanceable dashboard**: queue position, movement over time, rough wait estimates, and optional alerts — **without uploading logs** or requiring a network service.
 
 ### 1.2 Problem statement
 
@@ -23,12 +23,12 @@ When connecting to a busy server, players often wait in a **connect queue**. The
 
 ### 1.3 Solution (what we provide)
 
-A browser UI that:
+A desktop or terminal UI that:
 
-- **Tails** the chosen log file and derives queue KPIs (position, elapsed, ETA, progress).
-- Visualizes the **current run** as a **time series** (step chart).
-- Fires optional **threshold** and **completion** alerts (toast + sound + desktop notifications where supported).
-- Provides in-context **help and recovery** for browser/OS file access limitations.
+- **Tails** the resolved client log and derives queue KPIs (position, elapsed, ETA, progress).
+- Visualizes the **current run** as a **time series** (step chart in GUI; TUI presents the same data within terminal constraints).
+- Fires optional **threshold** and **completion** alerts (in-app messages, sound, OS notifications where enabled).
+- Uses **native folder/file access** (browse dialog, `--path`, environment) so users can point at Vintage Story data paths without browser sandbox limits.
 
 ### 1.4 Audience
 
@@ -42,19 +42,18 @@ A browser UI that:
 - Not an official Vintage Story product; log formats may change.
 - Not a general-purpose log analyzer; scope is **connect queue** + closely related states.
 
-### 1.6 Primary surface
+### 1.6 Primary surfaces
 
 | Surface | Role |
 |--------|------|
-| **Web app** (e.g. `dist/index.html` in Chromium) | The **primary and only** shipped UI: pick log, monitor, settings, help, and notifications as supported by the browser. |
-
-Design must assume File System Access constraints (picker availability, secure origin, permissions, protected paths): the product should **recover gracefully** and never imply we can read paths the browser cannot expose.
+| **Tk GUI** (`monitor.py` / `--gui`) | Primary graphical experience: browse folder, KPIs, graph, settings, sounds, notifications. |
+| **Textual TUI** (`--tui`) | Same engine; SSH-friendly; layout and charts adapt to terminal capabilities (see `docs/TUI-LIMITATIONS.md`). |
 
 ---
 
-## 2. Parity contract (GUI vs TUI / alternate clients)
+## 2. Parity contract (GUI vs TUI)
 
-This repo implements the **web** client only. If alternate UIs exist in forks or future work, parity is defined as **behavior + language**, not pixels.
+Parity is **behavior + language**, not pixels. See `docs/GUI-TUI-PARITY.md` for the mapping. The **engine** is shared; presentation differs where the terminal cannot reasonably match the windowed UI.
 
 ---
 
@@ -66,7 +65,7 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 
 - **Title**: \<short name\>
 - **Symptom**: \<what the user sees\>
-- **Trigger**: \<when it happens / log conditions / browser conditions\>
+- **Trigger**: \<when it happens / log conditions / UI conditions\>
 - **Root cause**: \<the actual bug, not the visible effect\>
 - **Fix**: \<what code changed and why\>
 - **Verify**:
@@ -80,7 +79,7 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 - **Seeding/replay** (initial load shows wrong start/current, missing timestamps causing insane rates, duplicate points)
 - **Live view / time axis** (empty runaway, frozen axis, jumpy scaling)
 - **Interrupted/stale detection** (false interruptions, stuck status, recovery behavior)
-- **History verbosity/perf** (too many points/lines, UI stalls, logEveryChange behavior)
+- **History verbosity/perf** (too many points/lines, UI stalls, “log every position change” behavior)
 
 ### Must stay aligned (behavioral parity)
 
@@ -95,11 +94,11 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 |------|--------------------|-------------|
 | Chart | Terminal charts differ (ASCII/braille). | Same **time series for the current session**; labels may be compressed. |
 | Color | Limited palettes. | Map semantic roles (accent/muted/danger), not hex parity. |
-| Layout | Fixed grids, no drag-resize. | Preserve information order: control → KPIs → graph → detail. |
-| File access | Direct paths vs browser picker tokens. | Same user outcome; recovery differs (symlink docs vs in-app Help). |
-| Help | Modal vs inline text. | Same substance: why picks fail + how to expose logs safely. |
-| Notifications | Different OS mechanisms. | Same events (threshold, completion, interrupt) when enabled. |
-| Settings UI | Modal vs config file. | Same persisted fields and defaults. |
+| Layout | Fixed grids, less drag-resize in TUI. | Preserve information order: control → KPIs → graph → detail. |
+| File access | Browse dialog vs text field. | Same resolution rules (`resolve_log_file`); same outcomes. |
+| Help | Modal vs inline text. | Same substance when explaining errors or paths. |
+| Notifications | OS APIs differ. | Same events (threshold, completion, interrupt) when enabled. |
+| Settings UI | Tk modal vs TUI screens. | Same persisted fields and defaults. |
 
 ### Not justified (bugs or explicit debt)
 
@@ -115,13 +114,13 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 
 1. **Glanceable truth:** One screen answers “where, moving, how long, what next.”
 2. **Trust:** Honest copy about estimates and log-derived inference.
-3. **Low ceremony:** Open → pick log; monitoring starts; Stop/Start pauses/resumes; depth (Info/History/Settings) is optional.
-4. **Resilience:** Cancellation/denial/protected paths are expected; UI always offers the next step.
+3. **Low ceremony:** Launch → set **Logs folder** (or browse); monitoring starts; Stop/Start pauses/resumes; depth (Info/History/Settings) is optional.
+4. **Resilience:** Missing log file, wrong folder, or unreadable paths are expected early; the UI stays actionable until `client-main.log` appears.
 
 ### 3.2 Success looks like
 
 - Users understand **position**, **monitoring state**, **elapsed**, and **rough remaining** at a glance.
-- No dead ends: blocked picks include actionable recovery (Help, copyable commands, retry).
+- No dead ends: invalid paths show clear errors; **Waiting for log file** is understandable.
 - Completion UX aligns with **log-backed “past queue wait”**, not “position 1”.
 
 ---
@@ -132,69 +131,55 @@ Aligned with [`.cursor/rules/ux-seamless-flow.mdc`](../.cursor/rules/ux-seamless
 
 | Principle | What it means here |
 |-----------|--------------------|
-| **Low friction** | Minimal steps from open page → monitoring; remember last log when policy allows. |
-| **In-context guidance** | Recovery lives in toasts/banners/help modal (not only README). |
-| **Actionable errors** | Cancel/deny/protected path always offers retry/guide/copy-command route. |
+| **Low friction** | Minimal steps from launch → monitoring; remember last folder path in config when possible. |
+| **In-context guidance** | Errors and status lines point to what to change (path, Start, Settings). |
+| **Actionable errors** | Bad paths and missing files are explained with next steps (browse, fix path). |
 | **Calm dashboard** | KPIs + one chart are primary; detail is collapsible. |
 | **Honest states** | At front ≠ completed; interrupted ≠ monitoring; missing file ≠ no queue. |
 | **No fake precision** | ETAs/rates are estimates; UI copy must not oversell accuracy. |
-| **Gesture-safe** | Picker/permission actions are explicit (buttons), not auto-popups. |
+| **Explicit control** | Start/Stop and browse actions are deliberate; no mystery automation. |
 | **Consistent vocabulary** | Same words for the same states across KPIs/graph/history/alerts. |
 
 ---
 
-## 5. Visual design system (web)
+## 5. Visual design system (Tk GUI)
 
-The UI uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit): low glare, muted labels, high-contrast values, one accent family for data/progress/links, and semantic success/danger colors.
+The GUI uses a **dark monitoring dashboard** aesthetic (Grafana-inspired spirit): low glare, muted labels, high-contrast values, accent colors for data/progress, and semantic success/danger colors. Constants and widget styling live in `vs_queue_monitor/gui.py` (not a separate stylesheet).
 
-### 5.1 Tokens (CSS variables)
+### 5.1 Semantic roles
 
-Tokens live in [`styles.css`](../styles.css) on `:root` and are semantic:
-
-| Token | Typical use |
-|-------|-------------|
-| `--bg-app`, `--bg-app-mid` | Page background: cool base + subtle radial highlights. |
-| `--bg-card`, `--bg-card-2`, `--bg-inset` | Cards and inset panels (history, inputs). |
-| `--text`, `--text-bright` | Copy vs KPI values/titles. |
-| `--muted` | Labels/hints/footer; scan hierarchy via uppercase micro-labels. |
-| `--sep`, `--border-card` | Dividers and card hairlines (soft rgba). |
-| `--shadow-card` | Elevation + inset highlight (cards/modals/toasts). |
-| `--accent`, `--accent-soft` | Primary accent (links/progress/chart); focus rings. |
-| `--link` | Links. |
-| `--btn`, `--btn-active` | Neutral buttons. |
-| `--btn-primary`, `--btn-primary-active` | Positive “go” actions (green). |
-| `btn--stop` / stop tokens | Stop while monitoring: warm/amber distinct from Start. |
-| `--danger` | Errors/danger emphasis. |
-| `--ok` | Success-adjacent accents. |
+- **Background / cards:** layered dark surfaces for panels and history.
+- **Text:** primary copy vs bright values for KPIs.
+- **Muted:** labels, footnotes, secondary timestamps.
+- **Accent:** graph line, progress, primary actions.
+- **Danger / OK:** threshold warnings vs completed-positive states.
 
 ### 5.2 Typography
 
-- UI: `system-ui` (`--sans`)
-- Data: monospace (`--mono`) for paths, history, numeric settings/code-like text
+- System UI fonts for chrome; monospaced font for paths, history lines, and numeric detail where it aids scanning.
 
 ### 5.3 Chart styling
 
-Canvas graph uses the same system: framed plot, soft grids, muted axis labels, cyan-tinted series line and markers, gradient fill under the step series.
+Framed plot area, grid lines, time axis, step series for queue position; log/linear Y where available; hover or tooltip for timestamp/position near the series (GUI).
 
 ### 5.4 Layout
 
-- Max width ~1280px; centered to avoid ultrawide sprawl.
-- Cards with rounded corners and soft elevation.
-- Sticky top bar keeps primary controls reachable.
+- Resizable panes (sashes) where implemented; graph sized for readability on typical displays.
+- Primary actions and KPI strip remain visible while scrolling history.
 
 ---
 
-## 6. Information architecture (one-page app)
+## 6. Information architecture (main dashboard)
 
 Mental model (stable and scan-friendly):
 
-1. **Header:** identity, Pick log, Help, Settings, notification enablement.
-2. **Control strip:** Start/Stop, permission/grant flows.
+1. **Path / browse:** set Vintage Story data folder (or legacy file path → parent).
+2. **Control strip:** Start/Stop, optional status.
 3. **KPI strip:** position, status, rate, warnings, elapsed, remaining, progress.
 4. **Graph:** time series for the current session/run.
 5. **Info (secondary):** supporting context.
 6. **History (secondary):** narrative events + optional per-step queue changes.
-7. **Settings (advanced):** rarely used; prefer inline edits for frequent tweaks.
+7. **Settings (advanced):** rarely used; inline edits for frequent tweaks where implemented.
 
 Progressive disclosure: first-time users need (1–4); power users expand (5–7).
 
@@ -206,27 +191,27 @@ Progressive disclosure: first-time users need (1–4); power users expand (5–7
 
 | Phase | Experience |
 |------|------------|
-| First open | One clear action: **Pick log**. Monitoring starts after a successful pick. |
-| After pick | Status explains what’s being watched; chart + KPIs seed from the current session. |
-| While monitoring | KPIs + chart update on a sensible cadence; states are honest and consistent. |
+| First launch | Set **Logs folder** (browse or paste); Start monitoring; or wait until `client-main.log` exists. |
+| After path resolves | Status shows resolved file; chart + KPIs seed from the current session. |
+| While monitoring | KPIs + chart update on the poll interval; states are honest and consistent. |
 | Alerts | Noticeable but non-hostile; recorded in History. |
-| Return visit | Restore is low-friction when permissions allow; otherwise one obvious “grant/allow” action. |
-| Something goes wrong | Actionable recovery: toasts/banners + Help generator. |
+| Return visit | Restored path from config; monitoring can auto-start per settings. |
+| Something goes wrong | Clear status (Interrupted, missing file, no queue lines) and recovery by reconnect or path fix. |
 
 ### 7.1 First-time setup
 
-1. Open the app.
-2. Pick `client-main.log`.
-3. If a gesture/permission is required on reload, show one obvious action (grant/allow).
-4. Seed KPIs + chart from the current run.
+1. Launch the app.
+2. Choose the Vintage Story **data** folder (or pass `--path`).
+3. If `client-main.log` is not there yet, stay in **Waiting for log file** until it appears.
+4. Seed KPIs + chart from the current run when the log is readable.
 
-Desired emotion: “I know what to click; nothing scary happened.”
+Desired emotion: “I know what to set; nothing scary happened.”
 
 ### 7.2 Returning user
 
-- Restore the saved handle when policy allows; otherwise request permission with clear UI.
+- Config restores the last folder path; user can browse again if the install moved.
 
-Desired emotion: “It remembered me.”
+Desired emotion: “It remembered my folder.”
 
 ### 7.3 Active monitoring
 
@@ -255,166 +240,88 @@ Desired emotion: “I trust the direction of travel.”
 
 ### 7.7 New queue after interrupt
 
-- If a new session appears, offer **Adopt new run** (re-seed) vs Not now.
+- If a new session appears, offer to **adopt** the new run (re-seed) vs dismiss.
 
 ---
 
 ## 8. Feature decisions captured from prompts (lossless)
 
-This section converts ad-hoc prompts into durable feature requests, with **request → decision → shipped**.
+This section converts ad-hoc prompts into durable feature requests, with **request → decision → shipped**. The **implementation** is Python (`vs_queue_monitor/`). Some items originated from an earlier browser prototype; behavior is consolidated here and **shipped in GUI/TUI** where applicable.
 
 ### 8.1 KPI tooltips & inline edits (reduce trips to Settings)
 
-- **FR: Progress bar should show exact percent**
-  - **Request**: Add informative tooltips, e.g. percentage over the progress bar.
-  - **Decision**: Keep a simple bar; hover reveals exact percent (plus minimal context).
-  - **Shipped**: Tooltip with current percent; must not obscure controls.
+- **FR: Progress should show exact percent**
+  - **Decision**: Tooltip or label shows percent; bar stays simple.
+  - **Shipped**: GUI exposes percent in a tooltip or adjacent label where implemented.
 
-- **FR: Make key KPI settings editable in-place**
-  - **Request**: Make relevant settings interactive (warnings, rolling window, refresh).
-  - **Decision**: Use contextual KPI popovers for frequently tuned values; keep Settings modal for advanced items.
-  - **Shipped**:
-    - WARNINGS: inline popover CSV editor.
-    - RATE: inline popover editor for AVG window points.
-    - STATUS: inline popover editor for refresh/poll seconds (shown in label).
+- **FR: Key KPI settings editable in-place**
+  - **Decision**: Contextual editors for warnings, rolling window, poll interval where the GUI provides them.
+  - **Shipped**: Inline or popover editors in GUI; TUI uses settings screen (**o**).
 
-- **FR: Inline popover actions should be icon-only**
-  - **Request**: Use save/cancel icons in popovers.
-  - **Decision**: Compact ✓/× with `title`/`aria-label`.
-  - **Shipped**: ✓/× instead of Save/Cancel text.
+- **FR: Compact save/cancel actions**
+  - **Decision**: Small confirm/cancel affordances where inline edit exists.
 
 ### 8.2 Visualization & graph (Grafana-inspired)
 
-- **FR: Grafana-inspired panel polish**
-  - **Request**: Improve the chart with Grafana-like readability.
-  - **Decision**: Framed plot, readable grid, compact axes, hover crosshair, area fill.
-  - **Shipped**: Frame + grid + ticks + gradient fill + hover crosshair.
+- **FR: Readable chart**
+  - **Decision**: Framed plot, grid, time axis, step series, optional fill.
+  - **Shipped**: Tk canvas graph in GUI; TUI chart within terminal limits.
 
-- **FR: Show time on the X axis**
-  - **Request**: X axis should show time.
-  - **Decision**: Compact HH:MM:SS ticks.
-  - **Shipped**: Bottom time ticks.
+- **FR: Live view behavior**
+  - **Decision**: Session data retained; view can follow “now” while monitoring when enabled.
 
-- **FR: One “Live view” toggle (X-axis motion only), default on**
-  - **Request**: Single toggle; live view on by default; “constant motion”.
-  - **Decision**: Full-session history remains the data range; live view advances X-axis to “now” while monitoring.
-  - **Shipped**: `Live view: on/off`, default on; affects X-axis motion only.
+- **FR: Hover / point feedback**
+  - **Decision**: Nearest-point feedback within a hit radius; **HiDPI**: scale hit radius by device pixel ratio in GUI.
 
-- **FR: Hover should reveal real update points (no crosshair snapping)**
-  - **Request**: Crosshair stays under mouse; the traveling dot snaps; only show when near a real update; snap to minor dots too.
-  - **Decision**: Crosshair follows pointer; hover marker snaps to nearest real point only within a small radius. Every log-derived update line is a point (even unchanged position).
-  - **Shipped**: Pointer crosshair + proximity-based point snapping; minor updates recorded as points.
+- **FR: Poll deltas**
+  - **Decision**: Append each parsed queue reading as its own point with monotonic timestamps.
 
-- **FR: Graph must not “jump” over intermediate updates**
-  - **Request**: Avoid 40 → 34 style jumps.
-  - **Decision**: Parse poll deltas and append each reading as its own point (monotonic timestamps).
-  - **Shipped**: Poll delta parsing appends all readings.
-
-- **FR: Graph hover must work reliably on HiDPI**
-  - **Request**: Hover/snap unreliable on some displays.
-  - **Decision**: Hit-testing uses CSS-pixel radius scaled by DPR.
-  - **Shipped**: DPI-safe hit radius.
-
-- **FR: Graph should be resizable (at least vertically)**
-  - **Request**: Vertical resize.
-  - **Decision**: Resizable card; immediate redraw via resize observation.
-  - **Shipped**: Vertical resize + redraw.
-
-- **FR: Copy a snapshot of the graph**
-  - **Request**: Copy graph image to clipboard.
-  - **Decision**: Copy PNG when supported; download fallback with clear messaging.
-  - **Shipped**: Snapshot action with clipboard PNG + download fallback.
+- **FR: Graph resize**
+  - **Decision**: Pane resize triggers redraw (GUI).
 
 ### 8.3 Alerts, sounds, and History verbosity
 
 - **FR: Log every position change by default**
-  - **Request**: Enable by default.
-  - **Decision**: Default favors auditability; user can reduce noise.
-  - **Shipped**: Default on (web config), respecting user overrides.
+  - **Decision**: Default **on** for auditability; user can reduce noise.
+  - **Shipped**: Default `show_every_change` true in engine config unless overridden.
 
-- **FR: Sound sources should be visible and configurable**
-  - **Request**: Show current source; allow URL/local/default/built-in.
-  - **Decision**: Each alert channel supports default shipped clip, URL, local file stored in browser, and built-in tones fallback.
-  - **Shipped**: Per-channel controls in Settings.
+- **FR: Sound sources configurable**
+  - **Decision**: Default WAVs, optional file paths, platform sounds where wired.
+  - **Shipped**: Per-channel options in Settings (GUI/TUI parity for fields).
 
-- **FR: Sound preview should toggle Play/Stop**
-  - **Request**: Preview must stop and not overlap.
-  - **Decision**: Preview is independent of enable toggles; Play toggles to Stop and halts playback cleanly.
-  - **Shipped**: Stateful preview with Play/Stop behavior.
+- **FR: Sound preview**
+  - **Decision**: Preview respects Play/Stop semantics without overlapping alerts.
 
-- **FR: Separate disconnected/interrupted alert channel**
-  - **Request**: Dedicated alert for Interrupted.
-  - **Decision**: Interrupt is a distinct channel (toast + sound + desktop notification when enabled).
-  - **Shipped**: Dedicated interrupt toggles and sound source.
+- **FR: Interrupted as distinct alerts**
+  - **Decision**: Interrupt channel separate from threshold/completion when enabled.
 
 ### 8.4 KPI polish and motion discipline
 
-- **FR: Warnings should not animate unless something happened**
-  - **Request**: No continuous marquee.
-  - **Decision**: Motion is an event cue; marquee briefly after alert fires (and only if overflow requires it).
-  - **Shipped**: Gated marquee.
+- **FR: Warnings rail**
+  - **Decision**: Avoid gratuitous animation; scroll/pan when thresholds overflow.
 
-- **FR: Warnings should be side-scrollable**
-  - **Request**: Pan left/right with wheel/trackpad.
-  - **Decision**: Prefer direct manipulation; keep scroll arrows discoverable on hover.
-  - **Shipped**: Horizontal pan + hover-revealed arrows.
+- **FR: Status color-coded**
+  - **Decision**: Semantic colors for monitoring / at front / completed / interrupted / danger.
 
-- **FR: Warning thresholds editable inline**
-  - **Request**: No weird edit mode; keep main rail calm.
-  - **Decision**: Read-only rail; open a small contextual editor with chips + CSV add.
-  - **Shipped**: WARNINGS popover editor.
+### 8.5 Tail activity
 
-- **FR: Status should be color-coded**
-  - **Request**: Make status glanceable.
-  - **Decision**: Map states to semantic roles: info/warn/done/danger/ok.
-  - **Shipped**: Status value styling classes.
+- **FR: Subtle activity indicator**
+  - **Decision**: Optional pulse or indicator tied to new log bytes (GUI).
 
-### 8.5 Tail activity indicator
+### 8.6 Settings
 
-- **FR: Tail indicator should be subtle**
-  - **Request**: Softer, near graph; avoid redundant motion.
-  - **Decision**: Quiet “armed” indicator; pulse minimized/disabled when graph already conveys motion.
-  - **Shipped**: Subtle indicator; pulse disabled.
+- **FR: Settings grouped**
+  - **Decision**: Modal or dedicated screen; not mixed into primary KPI row unnecessarily.
 
-### 8.6 Settings as a modal
+### 8.7 Onboarding
 
-- **FR: Settings should be a top-right modal**
-  - **Request**: Settings in a popup dialog.
-  - **Decision**: Keep dashboard focused; settings are secondary.
-  - **Shipped**: Settings modal opened from top-right.
+- **FR: First-run clarity**
+  - **Decision**: Path field + browse + short help text; optional guided steps if added to GUI.
 
-### 8.7 Onboarding & guidance
+### 8.8 Notifications
 
-- **FR: First-run guided tutorial**
-  - **Request**: Gated steps; require log pick; guide warnings + rate; start monitoring on completion; skippable; persistent.
-  - **Decision**: First-run onboarding with resume behavior (minimize to complete actions, then resume).
-  - **Shipped**: Tutorial overlay with gating + “resume tutorial” affordance.
-
-### 8.8 Notifications clarity
-
-- **FR: Desktop notifications should be actionable**
-  - **Request**: Indicate click-to-focus; include action button when possible.
-  - **Decision**: Copy must tell the user they can click; action label like “Open monitor” where supported; click focuses existing tab or opens app.
-  - **Shipped**: Click-to-open copy + service worker click focus/open handling.
-
-### 8.9 Help generator (copy/paste quality)
-
-- **FR: Remove Windows `/J` guidance**
-  - **Request**: Use only hard links for a file.
-  - **Decision**: Windows generator produces only `mklink /H` for a file; no folder links.
-  - **Shipped**: `/H` only.
-
-- **FR: Command output should be clean (no `REM` noise)**
-  - **Request**: Copy buffer should be runnable.
-  - **Decision**: Keep guidance minimal; avoid comment spam.
-  - **Shipped**: Clean command output.
-
-### 8.10 Secure origin requirement (browser reality)
-
-- **FR: “Non-packed index.html is not usable”**
-  - **Request**: File picking doesn’t work when opened directly.
-  - **Decision**: Be explicit: picking and service-worker-backed notifications may be unavailable on `file://` / non-secure origins; instruct `http://localhost` (or `https://`) and avoid silent failure.
-  - **Shipped**: Clear guidance and toasts to open via localhost for picker reliability.
+- **FR: Desktop notifications**
+  - **Decision**: Use OS notification APIs where available; mirror threshold/completion/interrupt events; test action in GUI.
 
 ---
 
@@ -423,8 +330,8 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 ### 9.1 Dashboard (main view)
 
 - At a glance: position, status, rate, warnings, elapsed, estimated remaining, progress.
-- Graph: time series for the current session; log/linear Y improves readability during long waits.
-- Info/History are secondary and collapsible.
+- Graph: time series for the current session; log/linear Y where available.
+- Info/History are secondary and collapsible (GUI).
 
 ### 9.2 Queue semantics (“done”)
 
@@ -434,7 +341,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 ### 9.3 Monitoring lifecycle
 
-- Monitoring starts on successful pick or explicit Start after Stop.
+- Monitoring starts on successful start with resolved log, or waits for file creation.
 - Stop ends polling; state resolves clearly.
 - Seeding after start should produce meaningful history/graph for the current run.
 - Interrupted/stale/reconnecting states are visible and do not pretend the queue is advancing.
@@ -443,14 +350,13 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - Warnings: downward crossings; once per threshold per run.
 - Completion: log-backed end-of-queue-wait; distinct from thresholds.
-- Toasts work without notification permission; desktop notifications are optional; sounds are optional and user-controlled.
+- In-app messages always available; OS notifications and sounds optional.
 
 ### 9.5 Estimation (ETA, rate, progress)
 
 - ETA/rate degrade gracefully when data is thin.
 - At position 1, remaining time stays meaningful where the model supports it.
 - Progress reaches full only at true completion (past queue).
-- Prefer stability and comprehensibility over noisy flicker (dwell/windowing serve this).
 
 ### 9.6 History verbosity
 
@@ -459,23 +365,21 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 ### 9.7 Settings & persistence
 
-- Local persistence only (browser storage).
-- Changes feel safe: debounced save, validation, easy recovery.
+- Local persistence only (`config.json` via `vs_queue_monitor.core`).
+- Changes feel safe: validation and explicit save where applicable.
 
-### 9.8 Help & path friction
+### 9.8 Paths
 
-- Explain “why” when blocked: browser/OS policy, not user blame.
-- Provide Windows vs macOS/Linux guidance.
-- Offer generated commands from user-pasted paths; keep in-app copy/paste friendly.
+- Prefer **folder** paths; resolve `client-main.log` with `resolve_log_file`.
+- Do not require the log file to exist before accepting a valid data directory.
 
 ---
 
 ## 10. Constraints we design around
 
-- **No server:** all state local.
-- **Security:** user gestures and secure origins are required for some features; flows must teach this.
-- **Privacy:** log stays on device.
-- **Deploys:** optional `version.json` enables a lightweight “update available” nudge without a backend.
+- **No server:** all state local on the user’s machine.
+- **Privacy:** log stays on device; nothing is uploaded by the app.
+- **Cross-platform:** Windows, macOS, Linux; TUI for SSH/headless scenarios.
 
 ---
 
@@ -483,9 +387,10 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 | Doc | Role |
 |-----|------|
-| [`README.md`](../README.md) | Setup, run, troubleshooting, precise behavior for contributors. |
+| [`README.md`](../README.md) | Setup, run, troubleshooting, precise behavior. |
+| [`docs/GUI-TUI-PARITY.md`](GUI-TUI-PARITY.md) | GUI vs TUI mapping. |
 | `.cursor/rules/ux-seamless-flow.mdc` | Implementation bias for agents (seamless flows, actionable UI). |
 | This file | Product and UX intent: what the user experiences and why. |
-| `app.js` | Exact parsing, state machine, strings, and edge cases. |
+| `vs_queue_monitor/core.py`, `engine.py` | Parsing, queue semantics, tail I/O, config. |
 
 When user-visible behavior changes, update **README** (and this doc if intent/journeys change) in the same change set.
