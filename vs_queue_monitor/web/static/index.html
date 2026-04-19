@@ -202,11 +202,13 @@
           <div class="kpi__label">REMAINING</div>
           <div class="kpi__val kpi__val--sm" id="kpiRem">—</div>
         </div>
-        <div class="kpi__cell" data-tour="prog">
-          <div class="kpi__label">
-            PROGRESS <span id="kpiProgPct">(0%)</span>
+        <div class="kpi__cell kpi__cell--progress" data-tour="prog">
+          <div class="kpi__label kpi__label--nowrap">
+            PROGRESS <span class="muted kpi__prog-pct" id="kpiProgPct">(0%)</span>
           </div>
-          <div class="progress"><div class="progress__fill" id="kpiProgFill"></div></div>
+          <div class="kpi__val kpi__val--progress" title="Estimated progress through the current queue wait">
+            <div class="progress progress--kpi"><div class="progress__fill" id="kpiProgFill"></div></div>
+          </div>
         </div>
       </section>
 

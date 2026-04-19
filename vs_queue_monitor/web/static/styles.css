@@ -468,10 +468,12 @@ select.inp:focus-visible {
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 2px;
+  align-items: stretch;
 }
 .kpi__cell {
   --kpi-label-h: 1.75rem;
   --kpi-value-minh: 2.5rem;
+  --kpi-card-gap: 6px;
   position: relative;
   background: var(--card);
   border: 1px solid var(--line);
@@ -479,9 +481,12 @@ select.inp:focus-visible {
   padding: 10px 12px;
   min-width: 0;
   max-width: 100%;
+  min-height: calc(var(--kpi-label-h) + var(--kpi-card-gap) + var(--kpi-value-minh));
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--kpi-card-gap);
+  justify-content: flex-start;
 }
 .kpi__cell--grow {
   grid-column: span 2;
@@ -539,6 +544,35 @@ select.inp:focus-visible {
 }
 .kpi__val--sm {
   font-size: 1.125rem;
+}
+.kpi__val--empty,
+.kpi__warn.kpi__val--empty {
+  color: var(--muted);
+  font-weight: 500;
+}
+.kpi__label--nowrap {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.kpi__prog-pct {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+/* Same box model as numeric KPI values: bar is vertically centered in the value band */
+.kpi__val--progress {
+  flex: 1 1 auto;
+  min-height: var(--kpi-value-minh);
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  width: 100%;
+  padding: 0;
+}
+.kpi__val--progress .progress--kpi {
+  margin-top: 0;
+  width: 100%;
+  flex: 0 0 auto;
+  align-self: stretch;
 }
 .kpi__warn-rail {
   margin-top: 0;
@@ -634,7 +668,7 @@ select.inp:focus-visible {
   margin-bottom: 8px;
 }
 .graph-toolbar--split {
-  align-items: flex-end;
+  align-items: center;
 }
 .graph-toolbar__left {
   display: flex;
@@ -656,9 +690,14 @@ select.inp:focus-visible {
   padding: 4px 8px;
 }
 .graph-toolbar__mid {
-  flex: 1 1 140px;
+  flex: 1 1 120px;
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--muted);
+  opacity: 0.92;
+  max-width: min(300px, 42vw);
+  min-width: 0;
 }
 .graph-toolbar__btns {
   display: flex;
@@ -834,12 +873,6 @@ select.inp:focus-visible {
   border-radius: 3px;
   margin-top: 6px;
   overflow: hidden;
-}
-/* Same vertical footprint as other KPI values: pad so the 6px track sits centered in --kpi-value-minh */
-.kpi__cell > .progress {
-  margin-top: 0;
-  box-sizing: content-box;
-  padding: calc((var(--kpi-value-minh) - 6px) / 2) 0;
 }
 .progress__fill {
   height: 100%;
