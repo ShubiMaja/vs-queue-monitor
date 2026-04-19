@@ -54,6 +54,11 @@
     for (i = 0; i < points.length; i += step) {
       out.push(points[i]);
     }
+    var last = points[points.length - 1];
+    var tail = out[out.length - 1];
+    if (!tail || tail[0] !== last[0]) {
+      out.push(last);
+    }
     return out;
   }
 
@@ -170,6 +175,7 @@
       canvas._drawState = {
         points: [],
         drawn: [],
+        rawPoints: [],
         t0: 0,
         t1: 1,
         x0: x0,
@@ -178,12 +184,14 @@
         y1: y1,
         plotW: plotW,
         plotH: plotH,
+        logScale: false,
         theme: th,
       };
       return;
     }
 
-    var tr = graphPlotTimeRange(points, liveView, running, th.single_point_graph_span_sec);
+    var rangePts = rawPoints.length ? rawPoints : points;
+    var tr = graphPlotTimeRange(rangePts, liveView, running, th.single_point_graph_span_sec);
     var t0 = tr[0];
     var t1 = tr[1];
     var span = t1 - t0;
@@ -482,6 +490,7 @@
     canvas._drawState = {
       points: points,
       drawn: points,
+      rawPoints: rawPoints,
       t0: t0,
       t1: t1,
       x0: x0,
