@@ -2,7 +2,7 @@
 
 One-page **web app** that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds — all **in your browser** (no backend).
 
-**Product & UX (high level):** [`docs/DESIGN.md`](docs/DESIGN.md) describes intended user journeys, product goals, information architecture, UX principles, **visual design** (colors, typography, layout), and **§1.1** — how a hypothetical terminal UI should stay **behaviorally** aligned with this web app while allowing justified presentation differences. This repository ships **only** the web client. This README is the operational and technical reference (setup, usage, troubleshooting, and precise behavior).
+**Product & UX (high level):** [`docs/DESIGN.md`](docs/DESIGN.md) describes intended user journeys, product goals, information architecture, UX principles, **visual design** (colors, typography, layout), and **§1.1** — how alternate UIs (including the in-repo Python clients) should stay **behaviorally** aligned with this web app while allowing justified presentation differences. The **primary** shipped experience is the browser build (`dist/` / GitHub Pages). The repo also includes an optional **Python** Tk GUI and **Textual** TUI (`vs_queue_monitor/`, `monitor.py`). This README is the operational and technical reference for the **web** app (setup, usage, troubleshooting, and precise behavior); see `docs/GUI-TUI-PARITY.md` for desktop/TUI mapping.
 
 ## Disclaimer (read this)
 
@@ -14,9 +14,43 @@ One-page **web app** that tails the **Vintage Story** client log, tracks **conne
 
 ## Requirements
 
+### Web app (primary)
+
 - **Microsoft Edge or Google Chrome** (Chromium).
   - **Live tail requires** the File System Access API (`showOpenFilePicker`), which is not reliably available in Firefox/Safari.
-- **No backend and no local server**: the app is shipped as a **single HTML file** you open directly.
+- **No backend** for the static build: use the hosted Pages URL or open `dist/index.html` locally. Development uses `npm install` / `npm run build` (and optionally `npm run dev`).
+
+### Optional: Python desktop and terminal UI
+
+- **Python 3.10+** with **Tkinter** (GUI) and dependencies from `requirements.txt` (includes **Textual** for `--tui`; the GUI does not load Textual).
+- After `pip install -r requirements.txt`, run `python monitor.py` / `python -m vs_queue_monitor`. See [Install Python and Tkinter](#install-python-and-tkinter).
+
+### Project layout
+
+| Path | Role |
+|------|------|
+| `app.js`, `index.html`, `styles.css` | Web UI sources; build with npm → `dist/` |
+| `dist/` | Web build output (gitignored; deploy via GitHub Actions; see `docs/WEB-PLATFORM.md`) |
+| `node_modules/` | npm dependencies (gitignored; run `npm install` after clone) |
+| `docs/DESIGN.md` | Web product & UX design contract |
+| `docs/WEB-PLATFORM.md` | Web hosting, build/repo policy, and engineering reference |
+| `vs_queue_monitor/core.py` | Parsing, config, log I/O — **no UI** |
+| `vs_queue_monitor/engine.py` | Shared queue monitor logic (`QueueMonitorEngine`) — **no Tk** |
+| `vs_queue_monitor/gui.py` | Tk desktop UI (`QueueMonitorApp` + engine) |
+| `vs_queue_monitor/cli.py` | CLI (`--gui` / `--tui`) and startup |
+| `vs_queue_monitor/tui.py` | Textual terminal UI (engine only — **SSH-safe**, no Tk) |
+| `monitor.py` | Thin entrypoint; same as `python -m vs_queue_monitor` |
+| `tools/` | `build_engine.py` regenerates `engine.py` from `_engine_raw.py`; `strip_gui.py` is an optional AST helper for refactors |
+| `_engine_raw.py` | Input for `tools/build_engine.py` — keep in sync if you use the generator |
+| `docs/GUI-TUI-PARITY.md` | Tk vs Textual target (layout, graph, alerts, settings) |
+| `docs/UI-UX-PARITY.md` | Product UI/UX parity spec (includes mockups) |
+| `docs/TUI-LIMITATIONS.md` | Forced differences due to terminal/SSH limitations |
+
+**Cursor / VS Code:** `.vscode/launch.json` can run `monitor.py` with `--gui` and `VS_QUEUE_MONITOR_UI=gui`; `.vscode/settings.json` may set the same for the **integrated terminal** so **Run and Debug** defaults to the Tk GUI when you work on Python. For the TUI: `python monitor.py --tui` or clear `VS_QUEUE_MONITOR_UI` on a headless shell.
+
+**Note:** `vs_queue_monitor/engine.py` is not meant to be executed directly. Use `monitor.py` / `python -m vs_queue_monitor`.
+
+The Textual UI uses the same `QueueMonitorEngine` as the GUI (headless hooks). No Tk or `DISPLAY` is required for `--tui`. The **o** shortcut opens **Settings** (poll, thresholds, rolling window, graph scale, alerts); values persist to `config.json` like the GUI. See `docs/GUI-TUI-PARITY.md` for mapping.
 
 ## Quick start
 
@@ -252,6 +286,16 @@ The status string reflects tail-of-log classification, for example:
 ## Settings storage
 
 Settings are saved in your browser’s **`localStorage`** under the key `vsqm_web_config_v1`.
+
+## Install Python and Tkinter
+
+Only needed for the **optional** Python Tk GUI (`python monitor.py` / `--gui`).
+
+1. Install **Python 3.10+** from [python.org](https://www.python.org/downloads/). On Windows, enable **Add python.exe to PATH** and keep **tcl/tk** (needed for Tk).
+2. In the repo: `pip install -r requirements.txt`
+3. Run `python monitor.py` (Windows) or `python3 monitor.py` (macOS/Linux).
+
+On Linux, install **`python3-tk`** / **`python3-tkinter`** from your distro if Tk is missing. **Textual** (for `--tui`) comes from `requirements.txt`.
 
 ## License / game
 
