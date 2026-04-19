@@ -140,10 +140,7 @@
   }
 
   function redrawGraphOnly() {
-    var c = $("graphCanvas");
-    if (c && window._displayState) {
-      drawGraph(c, window._displayState);
-    }
+    resizeCanvas();
   }
 
   /** Duration for stats (H:MM:SS or M:SS), same logic as legacy web UI. */
@@ -861,11 +858,84 @@
     });
   }
 
+  function nearestPointIndexByTime(pts, targetT) {
+    var n = pts.length;
+    if (!n) {
+      return -1;
+    }
+    var lo = 0;
+    var hi = n;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (pts[mid][0] < targetT) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    var i = lo;
+    var candidates = [];
+    if (i < n) {
+      candidates.push(i);
+    }
+    if (i > 0) {
+      candidates.push(i - 1);
+    }
+    var best = candidates[0];
+    var bestDt = Math.abs(pts[best][0] - targetT);
+    var k;
+    for (k = 1; k < candidates.length; k++) {
+      var j = candidates[k];
+      var dt = Math.abs(pts[j][0] - targetT);
+      if (dt < bestDt) {
+        bestDt = dt;
+        best = j;
+      }
+    }
+    return best;
+  }
+
+  function formatGraphTooltipHint(st, pt, idx, series) {
+    var ts = VSQMGraph.fmtTooltipTs(pt[0]);
+    var n = series.length;
+    var posStr = String(pt[1]);
+    var lines = [ts, "pos " + posStr, "sample " + (idx + 1) + " of " + n];
+    lines.push(st.logScale ? "y-scale: log" : "y-scale: linear");
+    var sel = $("selSession");
+    if (sel && sel.value === "latest") {
+      lines.push("session: latest (live)");
+    } else if (sel && sel.selectedIndex >= 0) {
+      var opt = sel.options[sel.selectedIndex];
+      lines.push("session: " + (opt ? opt.textContent.trim() : sel.value));
+    }
+    if (idx > 0) {
+      var prev = series[idx - 1];
+      var dt = pt[0] - prev[0];
+      var dp = pt[1] - prev[1];
+      if (dt > 1e-6) {
+        lines.push(
+          "Δt " +
+            dt.toFixed(2) +
+            "s  Δpos " +
+            (dp >= 0 ? "+" : "") +
+            dp +
+            "  slope " +
+            (dp / dt).toFixed(2) +
+            "/s",
+        );
+      } else {
+        lines.push("Δt —  Δpos " + (dp >= 0 ? "+" : "") + dp);
+      }
+    }
+    return lines.join("\n");
+  }
+
   function setupGraphCanvas() {
     const c = $("graphCanvas");
     c.addEventListener("mousemove", function (ev) {
       const st = c._drawState;
-      if (!st || !st.drawn || !st.drawn.length) {
+      const series = (st && st.rawPoints && st.rawPoints.length ? st.rawPoints : st && st.drawn) || [];
+      if (!st || !series.length) {
         return;
       }
       const rect = c.getBoundingClientRect();
@@ -876,23 +946,18 @@
       const t0 = st.t0;
       const t1 = st.t1;
       const targetT = t0 + ((x - padL) / plotW) * (t1 - t0);
-      let best = st.drawn[0];
-      let bestDt = Math.abs(best[0] - targetT);
-      let i;
-      for (i = 1; i < st.drawn.length; i++) {
-        const dt = Math.abs(st.drawn[i][0] - targetT);
-        if (dt < bestDt) {
-          bestDt = dt;
-          best = st.drawn[i];
-        }
+      const idx = nearestPointIndexByTime(series, targetT);
+      if (idx < 0) {
+        return;
       }
-      const ts = VSQMGraph.fmtTooltipTs(best[0]);
-      $("graphHint").textContent = ts + "\npos " + best[1];
+      const best = series[idx];
+      $("graphHint").textContent = formatGraphTooltipHint(st, best, idx, series);
       window._graphHover = [best[0], best[1]];
       redrawGraphOnly();
     });
     c.addEventListener("mouseleave", function () {
-      $("graphHint").textContent = "Move the mouse over the chart for time and position.";
+      $("graphHint").textContent =
+        "Move the mouse over the chart for time, position, sample index, scale, session, and Δ / slope vs the previous sample.";
       window._graphHover = null;
       redrawGraphOnly();
     });
