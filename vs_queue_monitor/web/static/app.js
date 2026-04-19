@@ -1161,25 +1161,36 @@
     var btn = $("btnNotify");
     var hint = $("notifyHint");
     function syncHint() {
-      var st = "prompt";
-      var label = "Desktop notifications — click to allow";
-      var hintText = "Click to allow";
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
+      var st = "pending";
+      var label = "Desktop notifications — allow in browser";
+      var hintText = "Allow in browser";
       if (typeof Notification === "undefined") {
         st = "unsupported";
-        label = "Desktop notifications — not supported in this web view";
-        hintText = "Not supported";
+        label = "Desktop notifications — not available in this host";
+        hintText = "Unavailable";
+      } else if (!popOn) {
+        st = "off";
+        label = "Desktop notifications — off (enable Warning popup in Settings)";
+        hintText = "Off";
       } else if (Notification.permission === "granted") {
-        st = "granted";
-        label = "Desktop notifications — allowed";
-        hintText = "Allowed";
+        st = "live";
+        label = "Desktop notifications — on and allowed";
+        hintText = "On";
       } else if (Notification.permission === "denied") {
-        st = "denied";
-        label = "Desktop notifications — blocked";
+        st = "blocked";
+        label = "Desktop notifications — blocked by browser";
         hintText = "Blocked";
+      } else {
+        st = "pending";
+        label = "Desktop notifications — click to allow in browser";
+        hintText = "Allow in browser";
       }
       if (btn) {
         btn.setAttribute("data-state", st);
         btn.setAttribute("aria-label", label);
+        btn.title = label;
       }
       if (hint) {
         hint.textContent = hintText;
@@ -1188,11 +1199,17 @@
     }
     notifySyncHint = syncHint;
     function onNotifyClick() {
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
       if (typeof Notification === "undefined") {
         toast(
           "This embedded window has no Notifications API (e.g. old WebView). On Windows, install WebView2 Runtime; or run: python monitor.py --web-browser",
           "warn",
         );
+        return;
+      }
+      if (!popOn) {
+        toast("Turn on Warning popup in Settings (⚙) first — then allow browser notifications here.", "warn");
         return;
       }
       if (Notification.permission === "granted") {
