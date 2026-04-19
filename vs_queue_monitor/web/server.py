@@ -297,7 +297,7 @@ def run_web_server(
             "Embedded web UI requires pywebview. Install:\n"
             "  pip install pywebview\n"
             "Or open your system browser instead:\n"
-            f"  python monitor.py --web --web-browser\n"
+            "  python monitor.py --web-browser\n"
             f"Serving at {url} (Ctrl+C to stop).",
             file=sys.stderr,
         )
@@ -310,7 +310,7 @@ def run_web_server(
             "Skipping embedded window.\n"
             f"  Server: {url}\n"
             f"  Remote access: ssh -L {p}:127.0.0.1:{p} user@host  then open that URL in a browser.\n"
-            "  Local browser on this machine: python monitor.py --web --web-browser",
+            "  Local browser on this machine: python monitor.py --web-browser",
             file=sys.stderr,
         )
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")

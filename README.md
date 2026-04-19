@@ -2,9 +2,9 @@
 
 **Python** app that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds. Three front ends share the same engine:
 
-- **Tk desktop GUI** — graph, KPIs, sounds, OS notifications (default on Windows).
+- **Local web UI** (default) — **`python monitor.py`** opens an **embedded desktop window** (pywebview) on `http://127.0.0.1:8765/`; use **`--web-browser`** for your default external browser instead. Inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (requires `starlette`, `uvicorn`, and `pywebview` from `requirements.txt`).
+- **Tk desktop GUI** (`--gui`) — classic window; graph, KPIs, sounds, OS notifications.
 - **Textual terminal UI** (`--tui`) — SSH-friendly; no display required.
-- **Local web UI** (`--web`) — **embedded desktop window** (pywebview) on `http://127.0.0.1:8765/` by default; use `--web-browser` for your default external browser. Inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (requires `starlette`, `uvicorn`, and `pywebview` from `requirements.txt`).
 
 **Product and UX:** [`docs/DESIGN.md`](docs/DESIGN.md). **GUI vs TUI:** [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md), [`docs/UI-UX-PARITY.md`](docs/UI-UX-PARITY.md), [`docs/TUI-LIMITATIONS.md`](docs/TUI-LIMITATIONS.md). **Architecture notes:** [`docs/real-life-ui-patterns.md`](docs/real-life-ui-patterns.md).
 
@@ -20,9 +20,9 @@
 ## Requirements
 
 - **Python 3.10+**
-- **Tkinter** — for the GUI (`python monitor.py` / `--gui` on Windows by default).
-- **Textual** — `pip install -r requirements.txt`; used for `--tui`.
-- **Starlette + uvicorn + pywebview** — same install; used for `--web` (embedded window by default).
+- **Starlette + uvicorn + pywebview** — `pip install -r requirements.txt`; used for the **default** embedded web UI.
+- **Tkinter** — for **`--gui`** only (classic window).
+- **Textual** — same install; used for **`--tui`**.
 
 ## Quick start
 
@@ -51,7 +51,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-mon
 python bootstrap.py
 ```
 
-Pass the same flags as usual, e.g. `python bootstrap.py --web`, `python bootstrap.py --tui`, `python bootstrap.py --path "%APPDATA%\VintagestoryData"`.
+Pass the same flags as usual, e.g. `python bootstrap.py` (default web UI), `python bootstrap.py --gui`, `python bootstrap.py --tui`, `python bootstrap.py --path "%APPDATA%\VintagestoryData"`.
 
 ### Manual install (existing clone)
 
@@ -62,34 +62,22 @@ python monitor.py
 
 Equivalent: `python -m vs_queue_monitor`. On Windows use `python` or `py` if needed.
 
-### GUI (Tk)
-
-- **Windows:** `python monitor.py` opens the window by default.
-- **macOS / Linux:** `python3 monitor.py --gui` if you have a display.
-- **VS Code / Cursor:** Run and Debug → **VS Queue Monitor: Run GUI (Python)** (see [`.vscode/launch.json`](.vscode/launch.json)).
-
-### TUI (Textual)
-
-```bash
-python monitor.py --tui
-```
-
-On Linux/macOS without `DISPLAY`, the app may pick the TUI automatically unless you set `VS_QUEUE_MONITOR_UI=gui` or pass `--gui`.
-
-### Web (embedded window)
+### Default: embedded web app (`python monitor.py`)
 
 ```bash
 pip install -r requirements.txt
-python monitor.py --web
+python monitor.py
 ```
 
-Opens the UI in a **desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. Use **`--web-browser`** if you prefer the old behavior (default OS browser). Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
+Opens the UI in a **single desktop window** (pywebview / system webview) pointed at `http://127.0.0.1:8765/` — not a separate browser app. Use **`--web-browser`** if you prefer your default external browser. Use `--web-port 9000` or env `VS_QUEUE_MONITOR_WEB_PORT` to change the port. Closing the window stops the app; **Ctrl+C** in the terminal also stops the server.
+
+The optional flag **`--web`** does the same as running with no UI flag (kept for scripts).
 
 If `pywebview` is not installed (or `pip install` failed on a very new Python version), the server still runs and stderr explains how to install it or use **`--web-browser`**.
 
-#### `--web` cross-platform (embedded window)
+#### Cross-platform (embedded window)
 
-The same **`python monitor.py --web`** flow works on **Windows, macOS, and Linux** with a graphical session. [pywebview](https://pywebview.idepy.com/) uses the **native webview** on each OS (Edge **WebView2** on Windows, **WKWebView** on macOS, **WebKitGTK** on typical Linux desktops). The HTTP server always binds **`127.0.0.1`** only.
+The default flow works on **Windows, macOS, and Linux** with a graphical session. [pywebview](https://pywebview.idepy.com/) uses the **native webview** on each OS (Edge **WebView2** on Windows, **WKWebView** on macOS, **WebKitGTK** on typical Linux desktops). The HTTP server always binds **`127.0.0.1`** only.
 
 | OS | Typical prerequisites |
 |----|------------------------|
@@ -99,6 +87,17 @@ The same **`python monitor.py --web`** flow works on **Windows, macOS, and Linux
 | **Headless / SSH** | No embedded window; the app serves **`http://127.0.0.1:<port>/`** and prints how to use **`ssh -L`** or **`--web-browser`**. |
 
 The web client supports **inline editing** (✎ on poll interval, rolling window, thresholds), **Copy graph as PNG**, **Copy graph (TSV)**, and a **guided spotlight tour** (runs once until completed; stored as `tutorial_done` in config, same key as the Tk welcome dialog).
+
+### GUI (Tk, optional)
+
+- **All platforms:** `python monitor.py --gui` for the classic Tk window.
+- **VS Code / Cursor:** Run and Debug → **VS Queue Monitor: Run Tk GUI** (see [`.vscode/launch.json`](.vscode/launch.json)).
+
+### TUI (Textual)
+
+```bash
+python monitor.py --tui
+```
 
 **TUI shortcuts:** **Space** start/stop, **o** settings, **F1** help, **c** copy graph (TSV), **v** copy session log, **q** quit — full list in [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md). Legacy: `python monitor-tui.py` = `python monitor.py --tui`.
 
@@ -118,8 +117,8 @@ python monitor.py --no-start
 | `vs_queue_monitor/engine.py` | Shared monitor logic |
 | `vs_queue_monitor/gui.py` | Tk UI |
 | `vs_queue_monitor/tui.py` | Textual UI |
-| `vs_queue_monitor/web/` | Local Starlette app + static browser client (`--web`) |
-| `vs_queue_monitor/cli.py` | `--gui` / `--tui` / `--web`, `--web-browser`, `--path`, `--no-start` |
+| `vs_queue_monitor/web/` | Local Starlette app + static client (default UI) |
+| `vs_queue_monitor/cli.py` | Default web UI; `--gui` / `--tui` / `--web`, `--web-browser`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
 | `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |
@@ -148,8 +147,12 @@ If no log exists yet, status stays **Waiting for log file** until the game creat
 
 | Argument | Meaning |
 |----------|---------|
-| `--gui` | Force Tk window |
-| `--tui` / `--text` | Force Textual TUI |
+| *(none)* | **Default:** embedded web UI (pywebview on `127.0.0.1`) |
+| `--web` | Same as default (explicit; for scripts) |
+| `--web-browser` | Web UI in your default external browser instead of an embedded window |
+| `--web-port PORT` | TCP port for the web UI (default `8765` or `VS_QUEUE_MONITOR_WEB_PORT`) |
+| `--gui` | Tk window instead of the default web UI |
+| `--tui` / `--text` | Textual TUI instead of the default web UI |
 | `--path PATH` | Initial **Logs folder** (directory; resolves to `client-main.log` inside) |
 | `--no-start` | Open without auto-starting monitoring |
 
@@ -158,7 +161,7 @@ If no log exists yet, status stays **Waiting for log file** until the game creat
 ### Windows
 
 1. Install **Python** from [python.org](https://www.python.org/downloads/) (enable PATH; include **tcl/tk**).
-2. In the project folder: `pip install -r requirements.txt` then `python monitor.py`.
+2. In the project folder: `pip install -r requirements.txt` then `python monitor.py` (embedded web UI by default; use `--gui` for Tk).
 
 ### macOS
 
@@ -171,6 +174,8 @@ sudo apt update && sudo apt install python3 python3-tk
 pip install -r requirements.txt
 python3 monitor.py
 ```
+
+(`python3 monitor.py` starts the **embedded web UI** by default; use `--gui` for Tk or `--tui` for the terminal UI.)
 
 ## Log file (game output)
 
