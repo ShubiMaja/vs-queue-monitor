@@ -26,3 +26,7 @@ When making UI/UX changes in this repo, bias toward the most **seamless** user f
 
 - **No network backend** for core monitoring: local log read and local config only.
 - **Don’t fake certainty**: ETAs and rates are estimates from logs; copy must stay honest.
+
+## See also
+
+- **`visual-language.mdc`**: Lean primary UI; pair with tooltips, Help, and guided tour so visuals can replace verbose inline copy without hiding information.

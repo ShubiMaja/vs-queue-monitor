@@ -18,8 +18,9 @@ Apply when analyzing **user-facing UI** (this repo: `vs_queue_monitor/web/static
 ## Before analyzing
 
 1. If present, read **`.cursor/rules/ux-seamless-flow.mdc`** and align recommendations with seamless-flow principles (minimize steps, in-context help, recoverable errors, no dead ends).
-2. Skim **`README.md`** sections that describe **dashboard behavior** so analysis does not contradict documented intent.
-3. Prefer **evidence from implementation** over assumptions: markup structure, CSS layout/tokens, JS event flows, Playwright/visual tests.
+2. If present, read **`.cursor/rules/visual-language.mdc`** for **visual language vs. copy**: lean surfaces paired with tooltips, Help, and tour—not permanent noise.
+3. Skim **`README.md`** sections that describe **dashboard behavior** so analysis does not contradict documented intent.
+4. Prefer **evidence from implementation** over assumptions: markup structure, CSS layout/tokens, JS event flows, Playwright/visual tests.
 
 ## Investigation order
 
@@ -50,6 +51,7 @@ Cover each area briefly; skip if not applicable. Tie observations to **files or 
 | **Friction & flow** | Extra steps? Context switches? Modal detours on the happy path? Recovery from bad path / empty data? |
 | **Feedback** | Loading, success, failure, live status—clear and adjacent to the control? |
 | **Visual cohesion** | Typography, spacing, button hierarchy, density vs clutter. |
+| **Visual language** | Does layout/color/iconography reduce needless words? Is omitted inline copy still available via tooltips, Help, or tour where needed? |
 | **Accessibility** | Focus, keyboard, screen reader names, modal focus trap, native anti-patterns (`prompt`, etc.). |
 | **Responsive** | Narrow/wide behavior; horizontal overflow; touch targets. |
 | **Trust & copy** | Honest about uncertainty (ETAs, estimates)—especially for monitoring tools. |
