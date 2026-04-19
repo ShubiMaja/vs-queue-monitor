@@ -19,6 +19,9 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+playwright-report/
+test-results/
+
 .mypy_cache/
 .ruff_cache/
 
@@ -35,10 +38,3 @@ Thumbs.db
 # Local env / secrets
 .env
 .env.*
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*

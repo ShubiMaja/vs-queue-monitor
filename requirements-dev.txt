@@ -1,0 +1,6 @@
+# Optional dev / CI: browser UI smoke tests (Playwright).
+# Install: pip install -r requirements-dev.txt && playwright install chromium
+-r requirements.txt
+pytest>=8
+pytest-base-url>=2.1
+pytest-playwright>=0.5
