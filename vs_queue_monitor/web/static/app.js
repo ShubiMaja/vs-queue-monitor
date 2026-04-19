@@ -10,6 +10,7 @@
   const PAD_B = 32;
 
   let lastAlertPrev = "";
+  var lastCompletionSeq = null;
   var LS_PATH = "vsqm_web_last_path";
   var _restoreOnce = false;
 
@@ -267,6 +268,17 @@
       }
     }
     lastAlertPrev = la;
+
+    const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
+    if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
+      toast("Past queue wait — connecting (position 0).", "");
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("VS Queue Monitor", { body: "Past queue wait — connecting (position 0)." });
+        } catch (e) {}
+      }
+    }
+    lastCompletionSeq = cseq;
 
     $("inpPath").value = s.source_path || "";
     try {
@@ -942,6 +954,58 @@
 
   window.addEventListener("resize", resizeCanvas);
 
+  function setupKeyboardShortcuts() {
+    document.addEventListener("keydown", function (ev) {
+      const t = ev.target;
+      const tag = t && t.tagName ? String(t.tagName) : "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) {
+        return;
+      }
+      if (ev.code === "Space") {
+        ev.preventDefault();
+        postToggle().catch(function (e) {
+          toast(String(e), "warn");
+        });
+        return;
+      }
+      if (ev.key === "F1") {
+        ev.preventDefault();
+        $("btnHelp").click();
+        return;
+      }
+      if (ev.key === "o" || ev.key === "O") {
+        if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+          ev.preventDefault();
+          $("modalSettings").classList.remove("hidden");
+        }
+        return;
+      }
+      if (ev.key === "c" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        $("btnCopyTsv").click();
+        return;
+      }
+      if (ev.key === "v" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        const hp = $("historyPre");
+        const txt = hp ? hp.textContent || "" : "";
+        if (!txt.trim()) {
+          toast("No history to copy", "warn");
+          return;
+        }
+        navigator.clipboard.writeText(txt).then(
+          function () {
+            toast("Session history copied");
+          },
+          function () {
+            toast("Clipboard failed", "warn");
+          },
+        );
+        return;
+      }
+    });
+  }
+
   setupChrome();
   setupPopovers();
   setupGraphCanvas();
@@ -949,6 +1013,7 @@
   setupNewQueueModal();
   setupNotifications();
   setupHelpCmd();
+  setupKeyboardShortcuts();
   setupTour();
   connectWs();
   fetch("/api/meta")
