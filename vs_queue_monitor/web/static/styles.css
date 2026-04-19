@@ -513,17 +513,19 @@ select.inp:focus-visible {
   color: var(--warn-pass);
 }
 
+/* Fixed + JS placement: KPI strip uses overflow-x:auto which clips absolute popovers. */
 .popover {
-  position: absolute;
-  z-index: 50;
-  top: 100%;
+  position: fixed;
+  z-index: 95;
+  top: 0;
   left: 0;
-  margin-top: var(--space-2);
+  margin-top: 0;
   padding: var(--space-3);
   background: #252b33;
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
   box-shadow: var(--shadow-elevated);
 }
 .popover label {
