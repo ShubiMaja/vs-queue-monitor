@@ -1018,6 +1018,12 @@ select.inp:focus-visible {
   line-height: 1.45;
   margin: 0 0 12px;
 }
+.settings-h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 14px 0 8px;
+  color: var(--muted);
+}
 .settings-field {
   display: block;
   font-size: 0.8rem;

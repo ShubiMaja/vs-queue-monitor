@@ -110,7 +110,7 @@ def test_graph_toolbar_buttons_align(page: Page, base_url: str, w: int, h: int, 
     # Toolbar can wrap on narrow widths; alignment must hold within each row.
     assert_centers_aligned_within_each_row(
         page,
-        ["#btnYScale", "#btnLive", "#btnCopyPng", "#btnCopyTsv"],
+        ["#btnCopyPng", "#btnCopyTsv"],
         row_merge_px=8.0,
         tol_px=1.25,
     )

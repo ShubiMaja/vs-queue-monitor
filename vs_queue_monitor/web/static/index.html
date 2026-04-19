@@ -230,8 +230,6 @@
             <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
           </div>
           <div class="graph-toolbar__btns">
-            <button type="button" class="btn btn--small" id="btnYScale">Y → log</button>
-            <button type="button" class="btn btn--small" id="btnLive">Live view: on</button>
             <button
               type="button"
               class="btn btn--small btn--icon-label"
@@ -380,6 +378,11 @@
           <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
           <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
           <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
+        </div>
+        <h3 class="settings-h3">Chart</h3>
+        <div class="form-grid">
+          <label><input type="checkbox" id="chkGraphLog" /> Logarithmic Y axis</label>
+          <label><input type="checkbox" id="chkGraphLive" /> Live view (follow newest samples)</label>
         </div>
         <label class="settings-field">Warning sound file (optional)</label>
         <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
