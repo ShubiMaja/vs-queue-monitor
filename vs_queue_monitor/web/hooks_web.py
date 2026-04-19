@@ -6,8 +6,6 @@ import threading
 from collections import deque
 from typing import Any, Callable, Optional
 
-from .. import APP_DISPLAY_NAME
-from ..desktop_notify import try_notify
 from ..refs import BoolRef, StrRef
 
 
@@ -94,20 +92,10 @@ class WebMonitorHooks:
 
     def show_threshold_popup(self, position: int, eta_display: str) -> None:
         self.append_history(f"[alert] Position {position} — est. left: {eta_display}")
-        try_notify(
-            APP_DISPLAY_NAME,
-            f"Threshold alert: position {position} — est. remaining {eta_display}",
-            app_name=APP_DISPLAY_NAME,
-        )
 
     def show_completion_popup(self) -> None:
         self._completion_notify_seq += 1
         self.append_history("[completion] Past queue wait — connecting (position 0).")
-        try_notify(
-            APP_DISPLAY_NAME,
-            "Past queue wait — connecting (position 0).",
-            app_name=APP_DISPLAY_NAME,
-        )
 
     def destroy_active_popups(self) -> None:
         pass
