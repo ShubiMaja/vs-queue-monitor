@@ -100,7 +100,7 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 | Layout | Responsive web layout. | Preserve information order: control → KPIs → graph → detail. |
 | File access | Text field (paste path). | Same resolution rules (`resolve_log_file`); same outcomes. |
 | Help | Modal in browser. | Same substance when explaining errors or paths. |
-| Notifications | Browser **Notification** API vs inline toasts. | Same events (threshold, completion, interrupt) when enabled. |
+| Notifications | Browser **Notification** API vs inline toasts; header switch toggles persisted **popup** flag; Settings holds **Send test**. | Same events (threshold, completion, interrupt) when enabled. |
 | Settings UI | Web modal + inline editors. | Same persisted fields and defaults. |
 
 ### Not justified (bugs or explicit debt)
@@ -326,6 +326,9 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Desktop notifications**
   - **Decision**: Browser **Notification** API where permitted; inline toasts always; mirror threshold/completion events.
+  - **Decision (header switch)**: The top-bar control is a **real on/off** for the same persisted **`popup_enabled`** flag as **Settings → Warning popup** (toast + desktop notification when the browser allows). It is **not** only a permission prompt: when the browser has already **granted** permission and the switch is **on** (live), another click **turns alerts off** by patching config; when **off** but permission is still **granted**, a click can turn alerts **back on** without opening Settings. Browser permission cannot be revoked from JS; the switch reflects **app intent** plus **permission state** (e.g. blocked vs pending vs live).
+  - **Decision (test banner)**: **Send test notification** lives in **Settings** (near Warning popup) so the header control stays a clear power toggle, not a mixed “test + toggle” action.
+  - **Decision (visual language)**: The switch uses the same **small corner radius** as other top-bar **buttons** (not a full pill), so the chrome reads as one family of controls.
 
 ---
 
