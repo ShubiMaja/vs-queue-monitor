@@ -362,11 +362,17 @@ select.inp:focus-visible {
   gap: var(--space-5);
 }
 
+/* KPI row: avoid horizontal overflow — grid min track + span-2 fights narrow widths. */
 .kpi {
+  container-type: inline-size;
+  container-name: kpi;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
   gap: var(--space-3);
   margin: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 .kpi__cell {
   position: relative;
@@ -374,12 +380,21 @@ select.inp:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: var(--space-3) 14px;
+  min-width: 0;
+  max-width: 100%;
 }
 .kpi__cell--grow {
   grid-column: span 2;
 }
 .kpi__cell--wide {
   grid-column: span 2;
+}
+/* When the KPI strip is narrow, span-2 would force extra implicit columns — drop to span 1. */
+@container kpi (max-width: 620px) {
+  .kpi__cell--grow,
+  .kpi__cell--wide {
+    grid-column: span 1;
+  }
 }
 @media (max-width: 800px) {
   .kpi__cell--grow,
@@ -392,8 +407,10 @@ select.inp:focus-visible {
   color: var(--muted);
   letter-spacing: 0.04em;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 .kpi__edit {
   font-size: 0.75rem;
@@ -417,6 +434,9 @@ select.inp:focus-visible {
   font-size: 1.35rem;
   font-weight: 600;
   margin-top: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .kpi__val--sm {
   font-size: 1rem;
