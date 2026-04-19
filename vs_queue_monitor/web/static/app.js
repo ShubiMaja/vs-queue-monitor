@@ -596,11 +596,26 @@
       if (pth) lsSetPath(pth);
     } catch (e) {}
 
-    $("btnYScale").textContent = s.graph_log_scale ? "Y → log" : "Y → linear";
-    $("btnLive").textContent = s.graph_live_view ? "Live view: on" : "Live view: off";
+    var btnY = $("btnYScale");
+    if (btnY) {
+      btnY.textContent = s.graph_log_scale ? "Y → log" : "Y → linear";
+      btnY.title = s.graph_log_scale ? "Use linear Y scale" : "Use logarithmic Y scale";
+    }
+    var btnL = $("btnLive");
+    if (btnL) {
+      btnL.textContent = s.graph_live_view ? "Live view: on" : "Live view: off";
+      btnL.title = s.graph_live_view
+        ? "Live view follows the newest samples"
+        : "Live view off (fixed time window)";
+    }
 
-    $("btnStartStop").textContent = s.running ? "Stop" : "Start";
-    $("btnStartStop").className = s.running ? "btn btn--danger" : "btn btn--primary";
+    var btnSS = $("btnStartStop");
+    if (btnSS) {
+      btnSS.textContent = s.running ? "Stop" : "Start";
+      btnSS.className = s.running ? "btn btn--danger" : "btn btn--primary";
+      btnSS.title = s.running ? "Stop monitoring" : "Start monitoring";
+      btnSS.setAttribute("aria-label", s.running ? "Stop monitoring" : "Start monitoring");
+    }
 
     const logEl = $("lblLogAct");
     if (logEl) {

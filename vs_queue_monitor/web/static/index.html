@@ -126,10 +126,10 @@
         </button>
       </div>
       <div class="topbar__actions">
-        <button type="button" class="btn btn--secondary" id="btnTour" title="Guided tour">Tour</button>
-        <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help">?</button>
-        <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings">⚙</button>
-        <button type="button" class="btn btn--primary" id="btnStartStop">Start</button>
+        <button type="button" class="btn btn--secondary" id="btnTour" title="Guided tour (first-time walkthrough)">Tour</button>
+        <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help" title="Help (F1)">?</button>
+        <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings" title="Settings (o)">⚙</button>
+        <button type="button" class="btn btn--primary" id="btnStartStop" aria-label="Start monitoring">Start</button>
       </div>
     </header>
 
@@ -142,7 +142,7 @@
         <div class="kpi__cell" data-tour="status">
           <div class="kpi__label">
             STATUS
-            <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval">✎</button>
+            <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval" aria-label="Edit poll interval">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiStatus">—</div>
           <div id="popPoll" class="popover hidden">
@@ -157,7 +157,7 @@
         <div class="kpi__cell" data-tour="rate">
           <div class="kpi__label" id="kpiRateLabel">
             <span id="kpiRateHdr">RATE</span>
-            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)">✎</button>
+            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)" aria-label="Edit rolling window (points)">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiRate">—</div>
           <div id="popWindow" class="popover hidden">
@@ -172,8 +172,8 @@
         <div class="kpi__cell" data-tour="warn">
           <div class="kpi__label">
             WARNINGS
-            <button type="button" class="kpi__edit" id="btnAddWarn" title="Add one threshold">+</button>
-            <button type="button" class="kpi__edit" id="btnEditWarn" title="Edit all thresholds">✎</button>
+            <button type="button" class="kpi__edit" id="btnAddWarn" title="Add one threshold" aria-label="Add threshold">+</button>
+            <button type="button" class="kpi__edit" id="btnEditWarn" title="Edit all thresholds" aria-label="Edit all thresholds">✎</button>
           </div>
           <div class="kpi__warn-rail" id="kpiWarnRail">
             <div class="kpi__warn" id="kpiWarnings">—</div>
