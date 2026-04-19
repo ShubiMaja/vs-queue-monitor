@@ -505,6 +505,13 @@ select.inp:focus-visible {
   min-height: var(--kpi-label-h);
   flex-shrink: 0;
 }
+/* Keep RATE header on one line so KPI label baselines stay aligned across the row */
+#kpiRateLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 .kpi__edit {
   font-size: 0.75rem;
   min-width: 24px;
@@ -655,7 +662,7 @@ select.inp:focus-visible {
 .graph-toolbar {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px 12px;
   margin-bottom: 8px;
@@ -669,8 +676,9 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 14px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 .graph-toolbar__left {
   display: flex;
@@ -687,7 +695,9 @@ select.inp:focus-visible {
 }
 .graph-session-select {
   min-width: 0;
-  flex: 1 1 10rem;
+  /* Do not grow: a full-width select next to “Session” left a huge gap before chart actions */
+  flex: 0 1 auto;
+  width: auto;
   max-width: min(320px, 100%);
   font-size: 0.85rem;
   padding: 4px 8px;
@@ -707,7 +717,6 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   gap: 6px;
   flex: 0 0 auto;
-  margin-left: auto;
 }
 #graphCanvas {
   width: 100%;
@@ -720,7 +729,8 @@ select.inp:focus-visible {
 }
 .graph-hint {
   font-size: 0.8rem;
-  margin-top: 8px;
+  margin-top: 10px;
+  padding-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -748,7 +758,7 @@ select.inp:focus-visible {
 /* Info + History: two panes with matching compact column headers (see web-ui parity). */
 .info-history {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 38%);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: stretch;
 }
