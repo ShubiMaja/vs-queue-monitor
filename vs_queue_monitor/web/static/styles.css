@@ -619,6 +619,29 @@ select.inp:focus-visible {
   color: var(--muted);
   font-weight: 600;
 }
+
+/* Info grid + session history side-by-side (no separate “Info” page header). */
+.info-history {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 38%);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+.info-history__main {
+  min-width: 0;
+}
+.info-history__side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 160px;
+}
+@media (max-width: 900px) {
+  .info-history {
+    grid-template-columns: 1fr;
+  }
+}
+
 .info__grid {
   display: grid;
   grid-template-columns: minmax(100px, 140px) 1fr;
@@ -667,8 +690,11 @@ select.inp:focus-visible {
   gap: 8px;
   margin-bottom: 8px;
 }
-.history__head .section-title {
+.history__label {
   margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .history__pre {
@@ -677,7 +703,9 @@ select.inp:focus-visible {
   background: #11161c;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  max-height: min(40vh, 280px);
+  flex: 1;
+  min-height: 120px;
+  max-height: min(50vh, 320px);
   overflow: auto;
   font-size: 0.8rem;
   line-height: 1.45;
