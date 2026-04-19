@@ -30,7 +30,7 @@ For implementation mapping (APIs, shortcuts, hooks), see [`UI-PARITY.md`](UI-PAR
 
 - **KPI strip**: Position, Status, Rate (rolling header), Warnings, Elapsed, Remaining, Progress
 - **Queue graph** (canvas): step series, log/linear Y, live view, hover readout
-- **Info** and **History** blocks (see layout in `web/static/index.html`)
+- **Info** and **History** panes with matching compact column titles (uppercase, single-line), then grid + log (see `web/static/index.html`)
 
 ## Interaction spec (web)
 
