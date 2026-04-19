@@ -110,6 +110,15 @@
   }
 
   function fmtTooltipTs(tSec) {
+    var dj =
+      typeof global !== "undefined" && global.dayjs
+        ? global.dayjs
+        : typeof window !== "undefined" && window.dayjs
+          ? window.dayjs
+          : null;
+    if (dj) {
+      return dj.unix(tSec).format("YYYY-MM-DD HH:mm:ss");
+    }
     var d = new Date(tSec * 1000);
     return (
       d.getFullYear() +

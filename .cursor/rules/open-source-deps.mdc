@@ -10,5 +10,5 @@ When adding or refactoring code in this repo:
 1. **Python:** Prefer the **standard library** when it is clear, tested, and maintainable for the task.
 2. **PyPI:** Choose **mature, permissively licensed open-source** packages; record them in `requirements.txt` with sensible minimum versions.
 3. **Document user-facing deps:** If a new dependency affects install size, platform support, or how users run the app, update `README.md` in the same change set.
-4. **Web UI:** The shipping client is **static HTML/CSS/JS** served by **Starlette**; avoid introducing a proprietary UI SDK or a heavy closed toolchain unless there is an explicit product decision.
+4. **Web UI:** The shipping client is **static HTML/CSS/JS** served by **Starlette**. Prefer **mature MIT/BSD OSS** for non-trivial behavior (dates, etc.): add **vendored minified bundles** under `vs_queue_monitor/web/static/vendor/`, document them in `vendor/README.md`, and load them from `index.html` before `app.js`. Avoid proprietary UI SDKs or closed toolchains unless there is an explicit product decision.
 5. **Avoid** proprietary SDKs, undocumented closed components, or copying large algorithm blocks from random sources when a **maintained OSS library** covers the same need with a stable API.
