@@ -2,7 +2,7 @@
 
 **Python** app that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds. Three front ends share the same engine:
 
-- **Local web UI** (default) — **`python monitor.py`** opens an **embedded desktop window** (pywebview) on `http://127.0.0.1:8765/`; use **`--web-browser`** for your default external browser instead. Inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (requires `starlette`, `uvicorn`, and `pywebview` from `requirements.txt`).
+- **Local web UI** (default) — **`python monitor.py`** serves the UI on `http://127.0.0.1:8765/` (embedded window via **pywebview** when available; otherwise your browser). Inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (`starlette` + `uvicorn`; **pywebview** on Python 3.13 and older in `requirements.txt`).
 - **Tk desktop GUI** (`--gui`) — classic window; graph, KPIs, sounds, OS notifications.
 - **Textual terminal UI** (`--tui`) — SSH-friendly; no display required.
 
@@ -26,6 +26,16 @@
 - **Textual** — same install; used for **`--tui`**.
 
 ## Quick start
+
+| Goal | Do this |
+|------|---------|
+| **Fastest first run** | Download & run **`bootstrap.py`** (clones repo, creates **`.venv`**, installs deps, starts the app). See commands below. |
+| **Already have a clone** | `pip install -r requirements.txt` → **`python monitor.py`** |
+| **Windows, run again later** | Double-click **`Run VS Queue Monitor.bat`** in the project folder |
+| **Classic windowed GUI** | `python monitor.py --gui` |
+| **SSH / no browser shell** | `python monitor.py --tui` |
+
+Then: paste your **Vintage Story data or Logs folder** (the one that contains or sits above **`client-main.log`**), press **Start**.
 
 ### One command from a single file (smooth setup)
 
