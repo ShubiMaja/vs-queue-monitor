@@ -50,7 +50,7 @@ A local web UI that:
 
 ### 1.7 Third-party code (open source)
 
-The product **relies on open-source stacks** where practical: Python stdlib for core logic, **Starlette** and **uvicorn** for the local web server, **pywebview** for the optional desktop host. Prefer **mature OSS on PyPI** over vendored or ad-hoc copies when the tradeoff is reasonable. Do not introduce **proprietary SDKs** or closed, undocumented components as required dependencies.
+The product **relies on open-source stacks** where practical: Python stdlib for core logic, **Starlette** and **uvicorn** for the local web server, **pywebview** for the optional desktop host. The web client may ship **vendored** MIT/BSD bundles under `vs_queue_monitor/web/static/vendor/` (documented in `vendor/README.md`) when a small, maintained library beats ad-hoc code and a no-build-step install is required. Prefer **mature OSS on PyPI** for the Python side when the tradeoff is reasonable. Do not introduce **proprietary SDKs** or closed, undocumented components as required dependencies.
 
 ---
 
@@ -163,7 +163,7 @@ The web client uses a **dark monitoring dashboard** aesthetic (Grafana-inspired 
 
 ### 5.3 Chart styling
 
-Framed plot area, time axis, step series for queue position; log/linear Y where available; hover readout for timestamp/position near the series.
+Framed plot area, time axis, step series for queue position; log/linear Y where available; on hover, a **tooltip** shows at least **timestamp and position** near the pointer (additional lines for sample index, scale, session, and deltas are allowed).
 
 ### 5.4 Layout
 
@@ -333,7 +333,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 ### 9.1 Dashboard (main view)
 
-- At a glance: position, status, rate, warnings, elapsed, estimated remaining, progress.
+- At a glance: position, status, rate, warnings, elapsed, **remaining** (rough estimate; KPI label **REMAINING**), progress.
 - Graph: time series for the current session; log/linear Y where available.
 - Info/History are secondary sections in the web layout.
 
