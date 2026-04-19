@@ -981,7 +981,7 @@
     function onNotifyClick() {
       if (typeof Notification === "undefined") {
         toast(
-          "This window does not expose the Notifications API. Use your system browser for desktop alerts: python monitor.py --web-browser",
+          "This embedded window has no Notifications API (e.g. old WebView). On Windows, install WebView2 Runtime; or run: python monitor.py --web-browser",
           "warn",
         );
         return;

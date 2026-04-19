@@ -17,7 +17,7 @@
 
 - **Python 3.10+**
 - **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
-- **Desktop alerts** use the browser **Notifications** API (`Notification.requestPermission()` + `new Notification()`). Allow notifications for `http://127.0.0.1:…` when prompted (bell in the header). The embedded **pywebview** shell may not support this API; use **`python monitor.py --web-browser`** for a normal browser session if you need system toasts.
+- **Desktop alerts** use the standard **Notifications** API (`Notification.requestPermission()` + `new Notification()`). Click the **bell** in the header to allow notifications for `http://127.0.0.1:…`. On **Windows**, the embedded window uses **Microsoft Edge WebView2** (Chromium), not the legacy IE control, so the API matches a normal browser; the app also attaches WebView2’s **notification permission** handler (otherwise the host blocks toasts by default). Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the window fails to start. Use **`python monitor.py --web-browser`** if you prefer your installed browser. Optional: set **`VSQM_WEBVIEW_GUI`** to change the pywebview backend (default `edgechromium` on Windows).
 - **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
 
 ## Quick start

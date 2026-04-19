@@ -32,6 +32,31 @@ _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _webview_profile_dir() -> str:
+    """Persistent WebView2 user data (permissions, like a browser profile)."""
+    p = get_config_path().parent / "webview_profile"
+    try:
+        p.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    return str(p)
+
+
+def _pywebview_start_kwargs() -> dict[str, Any]:
+    """Prefer Edge WebView2 on Windows so the page gets Chromium + Web Notifications API."""
+    if sys.platform != "win32":
+        return {}
+    gui = os.environ.get("VSQM_WEBVIEW_GUI", "edgechromium").strip()
+    kw: dict[str, Any] = {"private_mode": False}
+    if gui:
+        kw["gui"] = gui
+    try:
+        kw["storage_path"] = _webview_profile_dir()
+    except Exception:
+        pass
+    return kw
+
+
 def _build_fingerprint() -> str:
     """Short git SHA, env override, or VERSION (parity with static ``feature/change-to-web-ui`` builds)."""
     fp = os.environ.get("VSQM_BUILD_FINGERPRINT", "").strip()
@@ -456,8 +481,20 @@ def run_web_server(
         return 1
 
     try:
+        from .webview_win import schedule_webview2_notification_permission
+
         webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
-        webview.start()
+        start_kw = _pywebview_start_kwargs()
+        schedule_webview2_notification_permission()
+        try:
+            webview.start(**start_kw)
+        except Exception as inner_exc:
+            logging.getLogger(__name__).warning(
+                "webview.start(%s) failed (%s); retrying with pywebview defaults",
+                start_kw,
+                inner_exc,
+            )
+            webview.start()
     except Exception as exc:
         print(
             "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
