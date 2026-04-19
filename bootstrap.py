@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-One-file launcher: find or clone the repo, create .venv, install deps, run monitor.py.
+One-file launcher: find or clone the repo, create .venv, install deps, optional run.
 
 Usage (after download):
   python bootstrap.py              # embedded web UI (local HTTP + webview or browser)
 
+On Windows, after pip install, creates a Desktop shortcut to ``vs-queue-monitor.cmd`` unless
+``VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT`` is set. If stdin is a TTY (e.g. you ran
+``python bootstrap.py`` from a terminal), asks ``Start VS Queue Monitor now? [Y/n]``.
+Piped installs (``curl ... | python -``) start the app without prompting. Set
+``VS_QUEUE_MONITOR_SKIP_RUN=1`` to exit after install without starting.
+
 After a full clone, Windows users can double-click «Run VS Queue Monitor.bat»
-or use Win+R with ``vsqm.cmd`` (see README). If Python is not installed, those
+or use Win+R with ``vs-queue-monitor.cmd`` (see README). If Python is not installed, those
 launchers warn you, open the Python install page, and exit.
 
 Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
@@ -25,6 +31,9 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Display name for Windows desktop shortcut (keep in sync with vs_queue_monitor.APP_DISPLAY_NAME).
+_APP_SHORTCUT_STEM = "VS Queue Monitor"
 
 # Canonical upstream (forks: set VS_QUEUE_MONITOR_REPO to a git URL).
 REPO_URL = os.environ.get("VS_QUEUE_MONITOR_REPO", "https://github.com/ShubiMaja/vs-queue-monitor.git")
@@ -140,6 +149,94 @@ def _pip_install(py: Path, root: Path) -> None:
     _run([str(py), "-m", "pip", "install", "-r", str(req)], cwd=root)
 
 
+def _windows_desktop_dir() -> Path | None:
+    """Resolve the user Desktop folder (handles OneDrive / localized profiles)."""
+    try:
+        r = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if r.returncode == 0 and r.stdout:
+            p = Path(r.stdout.strip())
+            if p.is_dir():
+                return p
+    except OSError:
+        pass
+    fallback = Path.home() / "Desktop"
+    return fallback if fallback.is_dir() else None
+
+
+def _ps_single_quoted(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
+
+
+def _create_windows_desktop_shortcut(root: Path) -> None:
+    """Create a .lnk on the Desktop pointing at vs-queue-monitor.cmd (or legacy vsqm.cmd / .bat)."""
+    if sys.platform != "win32":
+        return
+    if os.environ.get("VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        _eprint("Skipping desktop shortcut (VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT is set).")
+        return
+    launcher = root / "vs-queue-monitor.cmd"
+    if not launcher.is_file():
+        launcher = root / "vsqm.cmd"
+    if not launcher.is_file():
+        launcher = root / "Run VS Queue Monitor.bat"
+    if not launcher.is_file():
+        _eprint("(No vs-queue-monitor.cmd / Run VS Queue Monitor.bat — skipping desktop shortcut.)")
+        return
+    desktop = _windows_desktop_dir()
+    if desktop is None:
+        _eprint("(Could not resolve Desktop — skipping shortcut.)")
+        return
+    lnk = desktop / f"{_APP_SHORTCUT_STEM}.lnk"
+    ps = (
+        "$ws = New-Object -ComObject WScript.Shell; "
+        f"$s = $ws.CreateShortcut({_ps_single_quoted(str(lnk))}); "
+        f"$s.TargetPath = {_ps_single_quoted(str(launcher.resolve()))}; "
+        f"$s.WorkingDirectory = {_ps_single_quoted(str(root.resolve()))}; "
+        f"$s.Description = {_ps_single_quoted(_APP_SHORTCUT_STEM + ' — Vintage Story queue monitor')}; "
+        "$s.Save()"
+    )
+    r = subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+        cwd=root,
+        check=False,
+    )
+    if r.returncode == 0:
+        _eprint(f"Desktop shortcut: {lnk}")
+    else:
+        _eprint("(Could not create desktop shortcut; you can run vs-queue-monitor.cmd from the install folder.)")
+
+
+def _should_run_monitor_after_install() -> bool:
+    """Respect VS_QUEUE_MONITOR_SKIP_RUN; if stdin is a TTY, ask to start now."""
+    sk = os.environ.get("VS_QUEUE_MONITOR_SKIP_RUN", "").strip().lower()
+    if sk in ("1", "true", "yes", "y"):
+        return False
+    if not sys.stdin.isatty():
+        return True
+    try:
+        reply = input("Start VS Queue Monitor now? [Y/n]: ")
+    except EOFError:
+        return True
+    r = (reply or "").strip().lower()
+    return r in ("", "y", "yes")
+
+
 def _print_launch_hint(root: Path) -> None:
     """Tell users which file to double-click / run after install."""
     _eprint("")
@@ -151,8 +248,8 @@ def _print_launch_hint(root: Path) -> None:
             _eprint(f'  • Double-click: {bat.name}')
         else:
             _eprint("  • Double-click: Run VS Queue Monitor.bat  (included in a full git checkout)")
-        if (root / "vsqm.cmd").is_file():
-            _eprint("  • Win+R: add this folder to your user PATH, then run  vsqm   (see README)")
+        if (root / "vs-queue-monitor.cmd").is_file():
+            _eprint("  • Win+R: add this folder to your user PATH, then run  vs-queue-monitor   (see README)")
         _eprint(rf"  • Or terminal: {root / '.venv' / 'Scripts' / 'python.exe'} monitor.py")
     else:
         sh = root / "run-vs-queue-monitor.sh"
@@ -175,7 +272,12 @@ def main() -> None:
 
     py = _ensure_venv(root)
     _pip_install(py, root)
+    _create_windows_desktop_shortcut(root)
     _print_launch_hint(root)
+
+    if not _should_run_monitor_after_install():
+        _eprint("Not starting the app (you can use the Desktop shortcut or run vs-queue-monitor.cmd later).")
+        raise SystemExit(0)
 
     monitor = root / "monitor.py"
     args = [str(py), str(monitor), *sys.argv[1:]]

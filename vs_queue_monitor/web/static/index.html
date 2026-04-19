@@ -158,7 +158,7 @@
             <span id="kpiRateHdr">RATE</span>
             <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)">✎</button>
           </div>
-          <div class="kpi__val" id="kpiRate">—</div>
+          <div class="kpi__val kpi__val--sm" id="kpiRate">—</div>
           <div id="popWindow" class="popover hidden">
             <label>Rolling window (points)</label>
             <input type="text" id="inpWindow" class="inp inp--narrow" />
@@ -203,9 +203,10 @@
           <div class="kpi__val kpi__val--sm" id="kpiRem">—</div>
         </div>
         <div class="kpi__cell" data-tour="prog">
-          <div class="kpi__label">PROGRESS</div>
+          <div class="kpi__label">
+            PROGRESS <span id="kpiProgPct">(0%)</span>
+          </div>
           <div class="progress"><div class="progress__fill" id="kpiProgFill"></div></div>
-          <div class="kpi__val kpi__val--sm" id="kpiProgTxt">0%</div>
         </div>
       </section>
 
@@ -259,10 +260,18 @@
 
       <section class="info-history" data-tour="info">
         <div class="info-history__main">
-          <div class="info-history__head">
-            <span class="info-history__title muted">Info</span>
-          </div>
-          <div class="info__grid">
+          <div class="info-history__card">
+            <div class="info-history__head">
+              <span class="info-history__title muted">Info</span>
+              <button type="button" class="btn btn--small btn--icon-label" id="btnCopyStats" title="Copy stats to clipboard" aria-label="Copy session stats">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Stats</span>
+              </button>
+            </div>
+            <div class="info__grid">
             <div class="info__lbl">Stats</div>
             <div class="info__val">
               <div class="info-stats">
@@ -273,13 +282,6 @@
                   <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
                   <div><span class="muted">Avg Rate</span> <span id="infoStatAvg">—</span></div>
                 </div>
-                <button type="button" class="btn btn--small btn--icon-label" id="btnCopyStats" title="Copy stats to clipboard" aria-label="Copy session stats">
-                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                  <span>Stats</span>
-                </button>
               </div>
             </div>
             <div class="info__lbl">Last change</div>
@@ -291,19 +293,22 @@
             <div class="info__lbl">Global rate</div>
             <div id="infoGlo" class="info__val">—</div>
           </div>
+          </div>
         </div>
         <aside class="info-history__side" data-tour="hist" aria-label="Session history">
-          <div class="info-history__head">
-            <span class="info-history__title muted">History</span>
-            <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <span>Copy</span>
-            </button>
+          <div class="info-history__card info-history__card--side">
+            <div class="info-history__head">
+              <span class="info-history__title muted">History</span>
+              <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
+                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Copy</span>
+              </button>
+            </div>
+            <pre class="history__pre" id="historyPre"></pre>
           </div>
-          <pre class="history__pre" id="historyPre"></pre>
         </aside>
       </section>
     </main>

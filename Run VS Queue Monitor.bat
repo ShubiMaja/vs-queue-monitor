@@ -1,4 +1,4 @@
 @echo off
-REM Delegates to vsqm.cmd (short name for Win+R / PATH). See README.
-call "%~dp0vsqm.cmd" %*
+REM Delegates to vs-queue-monitor.cmd. See README.
+call "%~dp0vs-queue-monitor.cmd" %*
 exit /b %ERRORLEVEL%

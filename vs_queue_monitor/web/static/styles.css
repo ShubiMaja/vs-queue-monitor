@@ -122,6 +122,17 @@ body {
     align-items: center;
   }
 }
+/* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
+.topbar .btn {
+  min-height: 36px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.field-row--path .btn {
+  min-height: 36px;
+}
 .btn--pill {
   border-radius: 999px;
   font-size: 0.8rem;
@@ -283,12 +294,14 @@ body {
 .path-summary {
   flex: 1 1 0;
   min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   width: 100%;
   max-width: 100%;
   text-align: left;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: #11161c;
@@ -682,11 +695,24 @@ select.inp:focus-visible {
   display: flex;
   flex-direction: column;
 }
+.info-history__card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.info-history__card--side {
+  min-height: 160px;
+}
 .info-history__side {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 160px;
 }
 .info-history__head {
   display: flex;
@@ -694,11 +720,11 @@ select.inp:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 6px 8px;
-  margin: 0 0 8px;
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
   min-width: 0;
-}
-.info-history__main .info-history__head {
-  justify-content: flex-start;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
 }
 .info-history__head .btn {
   flex-shrink: 0;
@@ -717,9 +743,6 @@ select.inp:focus-visible {
   text-overflow: ellipsis;
   min-width: 0;
 }
-.info-history__main .info-history__title {
-  flex: 0 1 auto;
-}
 @media (max-width: 900px) {
   .info-history {
     grid-template-columns: 1fr;
@@ -736,6 +759,13 @@ select.inp:focus-visible {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
 }
+.info-history__card .info__grid {
+  flex: 1;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
 @media (max-width: 520px) {
   .info__grid {
     grid-template-columns: 1fr;
@@ -750,20 +780,13 @@ select.inp:focus-visible {
 }
 
 .info-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 10px 14px;
+  min-width: 0;
 }
 .info-stats__rows {
   display: grid;
   gap: 4px;
   font-size: 0.85rem;
   min-width: 0;
-}
-.info-stats .btn {
-  flex-shrink: 0;
-  align-self: flex-start;
 }
 
 .history__pre {
@@ -779,6 +802,12 @@ select.inp:focus-visible {
   font-size: 0.8rem;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+.info-history__card .history__pre {
+  border: none;
+  border-radius: 0;
+  min-height: 120px;
+  flex: 1;
 }
 
 .progress {
