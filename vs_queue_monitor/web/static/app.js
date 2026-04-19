@@ -12,6 +12,9 @@
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
+  /** From snapshot: Python plyer can show real OS toasts (pywebview often lacks Web Notifications). */
+  var osNotifyCapable = false;
+  var notifySyncHint = null;
 
   var HELP_CMD_WIN =
     'mklink /J "%USERPROFILE%\\Desktop\\VintagestoryData" "%APPDATA%\\VintagestoryData"';
@@ -395,10 +398,20 @@
     $("infoPath").textContent = s.resolved_path || "—";
     $("infoGlo").textContent = s.global_rate || "—";
 
+    if (typeof s.os_notify_capable === "boolean") {
+      osNotifyCapable = s.os_notify_capable;
+    }
+
     const la = s.last_alert || "";
     if (la && la !== lastAlertPrev) {
       toast(la, "warn");
-      if (s.popup_enabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      /* OS toasts come from Python (plyer) in show_threshold_popup when popup_enabled — Web Notifications are unreliable in embedded webview. */
+      if (
+        s.popup_enabled &&
+        !osNotifyCapable &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
         try {
           new Notification("VS Queue Monitor", { body: la });
         } catch (e) {}
@@ -409,7 +422,11 @@
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
       toast("Past queue wait — connecting (position 0).", "");
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      if (
+        !osNotifyCapable &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
         try {
           new Notification("VS Queue Monitor", { body: "Past queue wait — connecting (position 0)." });
         } catch (e) {}
@@ -488,6 +505,7 @@
       fv.textContent = "v" + (s.version || "") + (bf ? " (" + bf + ")" : "");
     }
 
+    if (notifySyncHint) notifySyncHint();
     resizeCanvas();
   }
 
@@ -916,15 +934,19 @@
     function syncHint() {
       var st = "prompt";
       var label = "Desktop notifications — click to enable";
-      var hintText = "Click to enable";
-      if (typeof Notification === "undefined") {
+      var hintText = "Click to test";
+      if (osNotifyCapable) {
+        st = "granted";
+        label = "Desktop notifications — native OS (Python). Click to send a test toast.";
+        hintText = "Native OS";
+      } else if (typeof Notification === "undefined") {
         st = "unsupported";
         label = "Desktop notifications — not supported in this browser";
         hintText = "Not supported";
       } else if (Notification.permission === "granted") {
         st = "granted";
-        label = "Desktop notifications — on";
-        hintText = "On";
+        label = "Desktop notifications — browser permission on";
+        hintText = "Browser on";
       } else if (Notification.permission === "denied") {
         st = "denied";
         label = "Desktop notifications — blocked in browser";
@@ -939,7 +961,32 @@
         hint.classList.remove("hidden");
       }
     }
+    notifySyncHint = syncHint;
     function onNotifyClick() {
+      if (osNotifyCapable) {
+        fetch("/api/notify_test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            body: "Test — VS Queue Monitor will use OS notifications for threshold and completion alerts.",
+          }),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (j) {
+            if (j.ok) {
+              toast("Native notification sent — check the Windows notification area (or system tray).");
+            } else {
+              toast("Native notification failed. Try: pip install plyer  then restart the app.", "warn");
+            }
+            syncHint();
+          })
+          .catch(function () {
+            toast("Could not reach the server for native notifications.", "warn");
+          });
+        return;
+      }
       if (typeof Notification === "undefined") {
         toast("Desktop notifications are not supported in this embedded view. Try: python monitor.py --web-browser", "warn");
         return;
