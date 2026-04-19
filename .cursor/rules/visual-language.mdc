@@ -1,0 +1,34 @@
+---
+description: Visual language and simplicity — lean UI with tooltips, Help, and tour
+alwaysApply: true
+---
+
+# Visual language and simplicity
+
+When designing or changing the **web client** (`vs_queue_monitor/web/static/`), treat **visual language** as a first-class way to communicate: layout, spacing, typography, color role, icons, and density carry meaning and can **replace long blocks of copy** on the main surface.
+
+## Core idea
+
+- **Show less, imply more**: A calm dashboard beats a wall of labels. Prefer **scannable structure** (alignment, grouping, emphasis) over explanatory sentences in the default view.
+- **Do not hide accountability**: Anything removed from inline copy should still be **reachable** elsewhere—see below.
+
+## Pair lean chrome with disclosure
+
+Relying on visuals alone fails for first visits, rare actions, and accessibility. Combine a quieter UI with:
+
+1. **`title` attributes and short hints** on controls where the icon or abbreviation is not self-explanatory.
+2. **`aria-label` / accessible names** on icon-only controls (required for screen readers; reinforces intent for everyone).
+3. **Help** (`?`) for paths, shortcuts, and operational detail.
+4. **Guided tour** for the first-run story and where things live.
+
+Together, these let the **primary layout stay simple** without leaving users lost.
+
+## Guardrails
+
+- **No information removal**: Simplify *presentation*, not *availability*. Critical constraints (honest estimates, WIP warnings) stay where policy already requires them.
+- **Not color-only**: Status and warnings need text, icon, or pattern—not hue alone.
+- **Progressive disclosure**: Put depth in Help, settings, tooltips, and tour—not in permanent banner text.
+
+## Relation to other rules
+
+- **`ux-seamless-flow.mdc`**: Seamless flow still wins; visual simplicity must not add mystery on the happy path or dead-end on errors.
