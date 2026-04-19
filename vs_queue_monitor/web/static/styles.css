@@ -651,7 +651,7 @@ select.inp:focus-visible {
   font-weight: 600;
 }
 
-/* Info grid + session history side-by-side (no separate “Info” page header). */
+/* Info + History: two panes with matching compact column headers (see web-ui parity). */
 .info-history {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 38%);
@@ -660,12 +660,46 @@ select.inp:focus-visible {
 }
 .info-history__main {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .info-history__side {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 160px;
+}
+.info-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 8px;
+  margin: 0 0 8px;
+  min-width: 0;
+}
+.info-history__main .info-history__head {
+  justify-content: flex-start;
+}
+.info-history__head .btn {
+  flex-shrink: 0;
+}
+.info-history__title {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.info-history__main .info-history__title {
+  flex: 0 1 auto;
 }
 @media (max-width: 900px) {
   .info-history {
@@ -711,21 +745,6 @@ select.inp:focus-visible {
 .info-stats .btn {
   flex-shrink: 0;
   align-self: flex-start;
-}
-
-.history__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.history__label {
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .history__pre {
