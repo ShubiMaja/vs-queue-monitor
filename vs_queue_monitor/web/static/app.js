@@ -63,6 +63,29 @@
     return !!(rb && !rb.classList.contains("hidden"));
   }
 
+  function focusElSoon(el) {
+    if (!el) return;
+    setTimeout(function () {
+      try {
+        el.focus();
+      } catch (e) {}
+    }, 0);
+  }
+
+  function closeHelpModal() {
+    var mh = $("modalHelp");
+    if (!mh || mh.classList.contains("hidden")) return;
+    mh.classList.add("hidden");
+    focusElSoon($("btnHelp"));
+  }
+
+  function closeSettingsModal() {
+    var ms = $("modalSettings");
+    if (!ms || ms.classList.contains("hidden")) return;
+    ms.classList.add("hidden");
+    focusElSoon($("btnSettings"));
+  }
+
   /** Header shows only whether a path is configured; the full path is in Info and in tooltip / aria-label. */
   function syncPathDisplay() {
     var inp = $("inpPath");
@@ -1338,9 +1361,11 @@
         .then(function (m) {
           $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
           $("modalHelp").classList.remove("hidden");
+          focusElSoon($("btnHelpOk"));
         })
         .catch(function () {
           $("modalHelp").classList.remove("hidden");
+          focusElSoon($("btnHelpOk"));
         });
     };
   }
@@ -1422,16 +1447,14 @@
           if (bd) bd.click();
           return;
         }
-        var mh = $("modalHelp");
-        if (mh && !mh.classList.contains("hidden")) {
+        if ($("modalHelp") && !$("modalHelp").classList.contains("hidden")) {
           ev.preventDefault();
-          mh.classList.add("hidden");
+          closeHelpModal();
           return;
         }
-        var ms = $("modalSettings");
-        if (ms && !ms.classList.contains("hidden")) {
+        if ($("modalSettings") && !$("modalSettings").classList.contains("hidden")) {
           ev.preventDefault();
-          ms.classList.add("hidden");
+          closeSettingsModal();
           return;
         }
         var tour = $("tourOverlay");
@@ -1554,11 +1577,16 @@
 
     $("btnSettings").onclick = function () {
       $("modalSettings").classList.remove("hidden");
+      focusElSoon($("chkEvery"));
     };
     document.querySelectorAll("[data-close]").forEach(function (el) {
       el.addEventListener("click", function () {
+        var helpWas = $("modalHelp") && !$("modalHelp").classList.contains("hidden");
+        var setWas = $("modalSettings") && !$("modalSettings").classList.contains("hidden");
         $("modalHelp").classList.add("hidden");
         $("modalSettings").classList.add("hidden");
+        if (helpWas) focusElSoon($("btnHelp"));
+        else if (setWas) focusElSoon($("btnSettings"));
       });
     });
     $("btnSaveSettings").onclick = function () {
@@ -1576,6 +1604,7 @@
       postConfig(patch)
         .then(function () {
           $("modalSettings").classList.add("hidden");
+          focusElSoon($("btnSettings"));
           toast("Settings saved");
         })
         .catch(function (e) {
@@ -1620,6 +1649,7 @@
         if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
           ev.preventDefault();
           $("modalSettings").classList.remove("hidden");
+          focusElSoon($("chkEvery"));
         }
         return;
       }
