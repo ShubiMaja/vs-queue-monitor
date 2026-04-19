@@ -17,7 +17,13 @@
       </div>
     </div>
 
-    <div id="modalNewQueue" class="modal hidden" role="dialog" aria-modal="true">
+    <div
+      id="modalNewQueue"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalNewQueueTitle"
+    >
       <div class="modal__backdrop" id="modalNewQueueBackdrop"></div>
       <div class="modal__box">
         <h2 id="modalNewQueueTitle">New queue run detected</h2>
@@ -33,7 +39,7 @@
 
     <div id="tourOverlay" class="tour-overlay hidden" aria-hidden="true">
       <div class="tour-spotlight" id="tourSpotlight"></div>
-      <div class="tour-card" id="tourCard" role="dialog">
+      <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
         <div class="tour-card__head">
           <span id="tourTitle" class="tour-card__title">Tour</span>
           <span id="tourStepNum" class="muted"></span>
@@ -53,14 +59,25 @@
         <div class="brand__tagline">Local web UI · Vintage Story queue monitor</div>
       </div>
       <div class="topbar__path">
-        <label for="inpPath">Logs folder</label>
-        <input type="text" id="inpPath" class="inp topbar__path-inp" autocomplete="off" placeholder="Path to VintagestoryData or Logs" />
-        <button type="button" class="btn btn--small btn--browse" id="btnBrowseFolder" title="Choose folder (opens on this PC)">
-          Folder…
-        </button>
-        <button type="button" class="btn btn--small btn--browse" id="btnBrowseFile" title="Choose a .log file (folder is inferred)">
-          Log file…
-        </button>
+        <div class="field-block field-block--grow">
+          <label class="field-label" for="inpPath">Logs folder</label>
+          <div class="field-row">
+            <input
+              type="text"
+              id="inpPath"
+              class="inp field-row__input"
+              autocomplete="off"
+              placeholder="Path to VintagestoryData or Logs"
+              enterkeyhint="done"
+            />
+            <button type="button" class="btn btn--small btn--browse" id="btnBrowseFolder" title="Choose folder (opens on this PC)">
+              Folder…
+            </button>
+            <button type="button" class="btn btn--small btn--browse" id="btnBrowseFile" title="Choose a .log file (folder is inferred)">
+              Log file…
+            </button>
+          </div>
+        </div>
       </div>
       <div class="topbar__mid">
         <button type="button" class="btn btn--pill" id="btnNotify" title="Desktop notifications">Notifications</button>
@@ -68,8 +85,8 @@
       </div>
       <div class="topbar__actions">
         <button type="button" class="btn btn--secondary" id="btnTour" title="Guided tour">Tour</button>
-        <button type="button" class="btn btn--secondary" id="btnHelp">?</button>
-        <button type="button" class="btn btn--secondary" id="btnSettings">⚙</button>
+        <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help">?</button>
+        <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings">⚙</button>
         <button type="button" class="btn btn--primary" id="btnStartStop">Start</button>
       </div>
     </header>
@@ -90,8 +107,8 @@
             <label>Poll (seconds)</label>
             <input type="text" id="inpPoll" class="inp inp--narrow" />
             <div class="popover__row">
-              <button type="button" class="btn btn--primary btn--sm" id="btnPollOk">OK</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnPollCancel">Cancel</button>
+              <button type="button" class="btn btn--primary btn--small" id="btnPollOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnPollCancel">Cancel</button>
             </div>
           </div>
         </div>
@@ -105,8 +122,8 @@
             <label>Rolling window (points)</label>
             <input type="text" id="inpWindow" class="inp inp--narrow" />
             <div class="popover__row">
-              <button type="button" class="btn btn--primary btn--sm" id="btnWindowOk">OK</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnWindowCancel">Cancel</button>
+              <button type="button" class="btn btn--primary btn--small" id="btnWindowOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnWindowCancel">Cancel</button>
             </div>
           </div>
         </div>
@@ -123,16 +140,16 @@
             <label>Thresholds (comma-separated)</label>
             <input type="text" id="inpWarn" class="inp" />
             <div class="popover__row">
-              <button type="button" class="btn btn--primary btn--sm" id="btnWarnOk">OK</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnWarnCancel">Cancel</button>
+              <button type="button" class="btn btn--primary btn--small" id="btnWarnOk">OK</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnWarnCancel">Cancel</button>
             </div>
           </div>
           <div id="popWarnAdd" class="popover hidden">
             <label>Add threshold (position)</label>
             <input type="text" id="inpWarnAdd" class="inp inp--narrow" inputmode="numeric" />
             <div class="popover__row">
-              <button type="button" class="btn btn--primary btn--sm" id="btnWarnAddOk">Add</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="btnWarnAddCancel">Cancel</button>
+              <button type="button" class="btn btn--primary btn--small" id="btnWarnAddOk">Add</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnWarnAddCancel">Cancel</button>
             </div>
           </div>
         </div>
@@ -152,14 +169,14 @@
       </section>
 
       <section class="graph-panel" data-tour="graph">
-        <div class="graph-toolbar graph-toolbar--split">
+        <div class="graph-toolbar graph-toolbar--split" role="toolbar" aria-label="Chart and export">
           <div class="graph-toolbar__left">
             <label class="graph-session-label muted" for="selSession">Session</label>
             <select id="selSession" class="inp graph-session-select" title="Graph scope (KPIs stay live)">
               <option value="latest">Latest session (auto)</option>
             </select>
           </div>
-          <span class="muted graph-toolbar__mid" id="lblLogAct"></span>
+          <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
           <div class="graph-toolbar__btns">
             <button type="button" class="btn btn--small" id="btnYScale">Y → log</button>
             <button type="button" class="btn btn--small" id="btnLive">Live view: on</button>
@@ -211,10 +228,10 @@
       </section>
     </main>
 
-    <div id="modalHelp" class="modal hidden" role="dialog">
+    <div id="modalHelp" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalHelpHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--help">
-        <h2>Help</h2>
+        <h2 id="modalHelpHeading">Help</h2>
         <div class="help-scroll">
           <p>
             This UI runs in your browser but the <strong>Python app</strong> reads log files from disk. Paste the
@@ -246,10 +263,10 @@
       </div>
     </div>
 
-    <div id="modalSettings" class="modal hidden" role="dialog">
+    <div id="modalSettings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalSettingsHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--wide">
-        <h2>Settings</h2>
+        <h2 id="modalSettingsHeading">Settings</h2>
         <div class="form-grid">
           <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
           <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>

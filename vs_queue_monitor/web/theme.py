@@ -1,4 +1,4 @@
-"""Theme tokens from ``vs_queue_monitor.core`` for the static web client (parity with former Tk GUI)."""
+"""Theme tokens from ``vs_queue_monitor.core`` for the static web client (dashboard + graph)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from .. import core as c
 
 
 def graph_theme_dict() -> dict[str, Any]:
-    """Numeric and hex constants used by ``graph_canvas.js`` (mirrors ``gui.redraw_graph``)."""
+    """Numeric and hex constants used by ``graph_canvas.js`` (aligned with ``core`` graph palette)."""
     return {
         "max_draw_points": c.MAX_DRAW_POINTS,
         "single_point_graph_span_sec": c.SINGLE_POINT_GRAPH_SPAN_SEC,
