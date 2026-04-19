@@ -101,6 +101,117 @@
     }
   }
 
+  /** Duration for stats (H:MM:SS or M:SS), same logic as legacy web UI. */
+  function formatDurationHms(totalSeconds) {
+    if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) {
+      return "—";
+    }
+    var s = Math.floor(totalSeconds);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var ss = s % 60;
+    if (h > 0) {
+      return h + ":" + String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+    }
+    return m + ":" + String(ss).padStart(2, "0");
+  }
+
+  /**
+   * Stats for the currently displayed graph (same scope as Session / Copy graph TSV).
+   * Ported from feature/change-to-web-ui computeSelectedSessionStats.
+   */
+  function computeGraphSessionStats() {
+    var pts = (window._displayState && window._displayState.graph_points) || [];
+    if (!pts.length) {
+      return {
+        startPos: null,
+        endPos: null,
+        cleared: null,
+        seconds: null,
+        minutes: null,
+        avgMinPerPos: null,
+      };
+    }
+    var startPos = null;
+    var startT = null;
+    var i;
+    for (i = 0; i < pts.length; i++) {
+      if (pts[i][1] > 1) {
+        startPos = pts[i][1];
+        startT = pts[i][0];
+        break;
+      }
+    }
+    if (startPos == null) {
+      startPos = pts[0][1];
+      startT = pts[0][0];
+    }
+    var endPos = pts[pts.length - 1][1];
+    var endT = pts[pts.length - 1][0];
+    var seconds = startT != null && endT != null ? Math.max(0, endT - startT) : null;
+    var minutes = seconds != null ? seconds / 60 : null;
+    var cleared = startPos != null && endPos != null ? Math.max(0, startPos - endPos) : null;
+    var avgMinPerPos =
+      minutes != null && minutes > 0 && cleared != null && cleared > 0 ? minutes / cleared : null;
+    return { startPos: startPos, endPos: endPos, cleared: cleared, seconds: seconds, minutes: minutes, avgMinPerPos: avgMinPerPos };
+  }
+
+  function renderSessionStats() {
+    var stats = computeGraphSessionStats();
+    var elS = $("infoStatStart");
+    var elE = $("infoStatEnd");
+    var elC = $("infoStatCleared");
+    var elSp = $("infoStatSpan");
+    var elA = $("infoStatAvg");
+    if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
+    if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
+    if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
+    if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
+    if (elA) {
+      elA.textContent =
+        stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos";
+    }
+  }
+
+  function copyStatsToClipboard() {
+    var stats = computeGraphSessionStats();
+    var text =
+      "Start Pos: " + (stats.startPos == null ? "—" : stats.startPos) + "\n" +
+      "End Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
+      "Pos Delta: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
+      "Duration: " +
+      (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
+      "\n" +
+      "Avg Rate: " +
+      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos") +
+      "\n";
+    navigator.clipboard.writeText(text).then(
+      function () {
+        toast("Stats copied");
+      },
+      function () {
+        toast("Could not copy stats (clipboard permission)", "warn");
+      },
+    );
+  }
+
+  function copyHistoryToClipboard() {
+    var hp = $("historyPre");
+    var txt = hp ? hp.textContent || "" : "";
+    if (!txt.trim()) {
+      toast("No history to copy", "warn");
+      return;
+    }
+    navigator.clipboard.writeText(txt).then(
+      function () {
+        toast("Session history copied");
+      },
+      function () {
+        toast("Clipboard failed", "warn");
+      },
+    );
+  }
+
   function formatSessionStart(epoch) {
     if (epoch == null || !isFinite(epoch)) {
       return "—";
@@ -220,6 +331,7 @@
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();
+        renderSessionStats();
       }
     });
   }
@@ -355,6 +467,7 @@
 
     rebuildSessionDropdown(s);
     window._displayState = buildDisplayState(s);
+    renderSessionStats();
     var fv = $("footerVersion");
     if (fv) {
       var bf = s.build_fingerprint || "";
@@ -431,6 +544,13 @@
         html:
           "<p><strong>✎</strong> on the RATE header edits the rolling window (points). Larger = smoother ETA, slower to react.</p>",
         sel: "#kpiRateLabel",
+      },
+      {
+        title: "Session stats",
+        html:
+          "<p><strong>Stats</strong> summarize the <strong>same graph</strong> as the Session dropdown (per queue run).</p>" +
+          "<p>Use <strong>Copy stats</strong> and <strong>Copy history</strong> for plain-text clipboard export.</p>",
+        sel: "#infoStatsRows",
       },
       {
         title: "Chart & alerts",
@@ -942,6 +1062,19 @@
       );
     };
 
+    var bs = $("btnCopyStats");
+    if (bs) {
+      bs.onclick = function () {
+        copyStatsToClipboard();
+      };
+    }
+    var bh = $("btnCopyHistory");
+    if (bh) {
+      bh.onclick = function () {
+        copyHistoryToClipboard();
+      };
+    }
+
     $("btnSettings").onclick = function () {
       $("modalSettings").classList.remove("hidden");
     };
@@ -1027,20 +1160,7 @@
       }
       if (ev.key === "v" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
         ev.preventDefault();
-        const hp = $("historyPre");
-        const txt = hp ? hp.textContent || "" : "";
-        if (!txt.trim()) {
-          toast("No history to copy", "warn");
-          return;
-        }
-        navigator.clipboard.writeText(txt).then(
-          function () {
-            toast("Session history copied");
-          },
-          function () {
-            toast("Clipboard failed", "warn");
-          },
-        );
+        copyHistoryToClipboard();
         return;
       }
     });
@@ -1073,6 +1193,7 @@
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();
+        renderSessionStats();
       }
     })
     .catch(function () {});
