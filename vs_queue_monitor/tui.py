@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+import subprocess
 import sys
+import time
 from datetime import datetime
 from typing import Optional
 
-from . import APP_DISPLAY_NAME, VERSION
+from . import APP_DISPLAY_NAME, GITHUB_REPO_URL, VERSION
 from .core import (
     DEFAULT_PATH,
     GRAPH_LOG_GAMMA,
@@ -27,9 +29,28 @@ from .core import (
     UI_TEXT_MUTED,
     parse_alert_thresholds,
     save_config,
+    SINGLE_POINT_GRAPH_SPAN_SEC,
+    LOG_SILENCE_RECONNECT_SEC,
 )
 from .engine import QueueMonitorEngine
 from .hooks import HeadlessMonitorHooks
+
+
+def _clipboard_set(text: str) -> bool:
+    """Best-effort clipboard for TUI copy actions (no extra dependencies)."""
+    if sys.platform == 'win32':
+        try:
+            subprocess.run(['clip'], input=text.encode('utf-8'), check=False)
+            return True
+        except Exception:
+            pass
+    for cmd in (['xclip', '-selection', 'clipboard'], ['wl-copy']):
+        try:
+            subprocess.run(cmd, input=text.encode('utf-8'), check=False)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def _gui_graph_y_tick_values(vmin: int, vmax: int) -> list[int]:
@@ -130,6 +151,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         log_scale: bool = True,
         show_labels: bool = True,
         cursor_time: Optional[float] = None,
+        live_view: bool = True,
+        running: bool = False,
         line_color: str = UI_GRAPH_LINE,
         grid_color: str = UI_GRAPH_GRID,
         label_color: str = UI_GRAPH_TEXT,
@@ -152,11 +175,19 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
         vals = [int(p) for _t, p in points]
         if not times:
             return "\n".join(["—"] * lines_n)
-        t0 = times[0]
-        t1 = times[-1]
-        if t1 <= t0:
-            # Degenerate: no span; fall back to constant.
-            return "\n".join(["⠤" * cols for _ in range(lines_n)])
+        if len(times) == 1:
+            t_mid = times[0]
+            half = SINGLE_POINT_GRAPH_SPAN_SEC / 2.0
+            t0 = t_mid - half
+            t1 = t_mid + half
+        else:
+            t0 = times[0]
+            t1 = times[-1]
+            if t1 <= t0:
+                # Degenerate: no span; fall back to constant.
+                return "\n".join(["⠤" * cols for _ in range(lines_n)])
+        if live_view and running:
+            t1 = max(float(t1), time.time())
 
         # Determine overall range from samples.
         lo, hi = min(vals), max(vals)
@@ -426,6 +457,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             Binding("i", "toggle_info", "Info", priority=True),
             Binding("left", "cursor_left", "Cursor left", priority=True),
             Binding("right", "cursor_right", "Cursor right", priority=True),
+            Binding("f1", "open_help", "Help", priority=True),
+            Binding("c", "copy_graph_tsv", "Copy graph", priority=True),
+            Binding("v", "copy_history", "Copy log", priority=True),
         ]
 
         def __init__(self, initial_path: str = "", auto_start: bool = True) -> None:
@@ -439,6 +473,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
             self._path_hidden: bool = False
             self._info_collapsed: bool = False
             self._cursor_idx: Optional[int] = None
+            self._history_text_buffer: list[str] = []
 
         def compose(self) -> ComposeResult:
             with Vertical(id="topbar_panel"):
@@ -456,7 +491,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     yield Static("[bold white on #5794f2] Settings [/]", id="settings_btn")
 
             with Vertical(id="status_graph_panel"):
-                yield Static("Status / graph", id="status_graph_title")
+                yield Static("Status / graph  (F1 help · c graph · v log)", id="status_graph_title")
                 with Vertical(id="status_graph_body"):
                     yield Static("", id="metrics")
                     if Rule is not None:
@@ -472,6 +507,9 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 yield RichLog(id="log", highlight=True, markup=True)
 
         def _headless_append_history(self, message: str) -> None:
+            self._history_text_buffer.append(message)
+            if len(self._history_text_buffer) > 8000:
+                self._history_text_buffer = self._history_text_buffer[-4000:]
             try:
                 self.query_one("#log", RichLog).write_line(message)
             except Exception:
@@ -502,6 +540,65 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 self.action_toggle_history()
             elif wid_id == "info_header":
                 self.action_toggle_info()
+
+        class _HelpScreen(ModalScreen[None]):
+            DEFAULT_CSS = """
+            _HelpScreen { align: center middle; }
+            _HelpScreen > #dlg { width: 90%; max-width: 96; border: solid $primary; padding: 1 2; background: $panel; }
+            """
+
+            def compose(self) -> ComposeResult:
+                from textual.containers import Vertical
+                from textual.widgets import Button, Static
+
+                from .core import get_config_path
+
+                cfg_path = str(get_config_path())
+                body = (
+                    f"{APP_DISPLAY_NAME}\n\n"
+                    "Set the Logs folder path (the folder that contains client-main.log), then Start.\n"
+                    f"\nConfig file:\n{cfg_path}\n\n"
+                    f"Docs & source:\n{GITHUB_REPO_URL}\n\n"
+                    "Keys: Space play/stop · o settings · F1 this help · c copy graph TSV · v copy session log"
+                )
+                yield Vertical(Static(body), Button("Close", id="close", variant="primary"), id="dlg")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "close":
+                    self.app.pop_screen()
+
+        class _TutorialScreen(ModalScreen[None]):
+            DEFAULT_CSS = """
+            _TutorialScreen { align: center middle; }
+            _TutorialScreen > #dlg { width: 90%; max-width: 96; border: solid $primary; padding: 1 2; background: $panel; }
+            """
+
+            def __init__(self, engine: QueueMonitorEngine) -> None:
+                super().__init__()
+                self._engine = engine
+
+            def compose(self) -> ComposeResult:
+                from textual.containers import Vertical
+                from textual.widgets import Button, Static
+
+                txt = (
+                    "Welcome\n\n"
+                    "• Set your Vintage Story Logs folder, then Start (Space).\n"
+                    "• o — Settings (poll, thresholds, sounds, graph live view).\n"
+                    "• F1 — Help. c — copy graph as TSV. v — copy session log text.\n"
+                    "• Live view extends the graph time axis to “now” while monitoring.\n"
+                )
+                yield Vertical(Static(txt), Button("OK", id="ok", variant="primary"), id="dlg")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "ok":
+                    e = self._engine
+                    e.tutorial_done_var.set(True)
+                    try:
+                        save_config(e.get_config_snapshot())
+                    except Exception:
+                        pass
+                    self.app.pop_screen()
 
         class _SettingsScreen(ModalScreen[None]):
             DEFAULT_CSS = """
@@ -552,6 +649,11 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                         id="graph_log_scale",
                     ),
                     Checkbox(
+                        "Graph live view (X-axis to now while monitoring)",
+                        value=bool(e.graph_live_view_var.get()),
+                        id="graph_live_view",
+                    ),
+                    Checkbox(
                         "Log every position change in History",
                         value=bool(e.show_every_change_var.get()),
                         id="show_every_change",
@@ -597,6 +699,7 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     e.avg_window_var.set(self.query_one("#avg_window", Input).value.strip())
                     e.alert_sound_path_var.set(self.query_one("#alert_sound_path", Input).value.strip())
                     e.graph_log_scale_var.set(bool(self.query_one("#graph_log_scale", Checkbox).value))
+                    e.graph_live_view_var.set(bool(self.query_one("#graph_live_view", Checkbox).value))
                     e.show_every_change_var.set(bool(self.query_one("#show_every_change", Checkbox).value))
                     e.popup_enabled_var.set(bool(self.query_one("#popup_enabled", Checkbox).value))
                     e.sound_enabled_var.set(bool(self.query_one("#sound_enabled", Checkbox).value))
@@ -652,6 +755,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                 self.call_later(eng.start_monitoring)
             self._apply_history_collapsed()
             self._apply_panel_visibility()
+            if not eng.tutorial_done_var.get():
+                self.call_later(lambda: self.push_screen(self._TutorialScreen(eng)))
 
         def _apply_history_collapsed(self) -> None:
             try:
@@ -762,6 +867,15 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     f"[{UI_ACCENT_REMAINING}]EST. REMAINING[/] {rem}    "
                     f"[{UI_ACCENT_PROGRESS}]PROGRESS[/] {prog:.0f}%"
                 )
+                if eng.running:
+                    last_g = eng._last_log_growth_epoch
+                    now = time.time()
+                    if last_g is None:
+                        metrics_text += f"\n[{UI_TEXT_MUTED}]LOG[/] waiting for file activity"
+                    elif now - last_g >= LOG_SILENCE_RECONNECT_SEC:
+                        metrics_text += f"\n[{UI_TEXT_MUTED}]LOG[/] quiet ≥{int(LOG_SILENCE_RECONNECT_SEC)}s"
+                    else:
+                        metrics_text += f"\n[{UI_TEXT_MUTED}]LOG[/] active ({now - last_g:.0f}s ago)"
                 # Cursor info (GUI hover analogue).
                 if pts:
                     idx = self._cursor_idx
@@ -804,6 +918,8 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
                     log_scale=bool(eng.graph_log_scale_var.get()),
                     show_labels=True,
                     cursor_time=(pts[self._cursor_idx][0] if (pts and self._cursor_idx is not None) else None),
+                    live_view=bool(eng.graph_live_view_var.get()),
+                    running=bool(eng.running),
                 )
                 self.query_one("#graph", Static).update(graph)
             except Exception as exc:
@@ -870,6 +986,52 @@ def run_tui(initial_path: str = "", auto_start: bool = True) -> int:
 
         def action_refresh_view(self) -> None:
             self._refresh_metrics()
+
+        def action_open_help(self) -> None:
+            self.push_screen(self._HelpScreen())
+
+        def action_copy_graph_tsv(self) -> None:
+            eng = self._engine
+            if eng is None:
+                return
+            pts = list(eng.graph_points)
+            if not pts:
+                try:
+                    self.notify("No graph data yet", severity="warning")
+                except Exception:
+                    pass
+                return
+            lines = [f"{t}\t{p}" for t, p in pts]
+            block = "epoch_seconds\tposition\n" + "\n".join(lines)
+            if _clipboard_set(block):
+                try:
+                    self.notify("Graph copied (TSV)", severity="information")
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.notify("Clipboard unavailable; copy from terminal selection", severity="warning")
+                except Exception:
+                    pass
+
+        def action_copy_history(self) -> None:
+            if not self._history_text_buffer:
+                try:
+                    self.notify("No log lines yet", severity="warning")
+                except Exception:
+                    pass
+                return
+            block = "\n".join(self._history_text_buffer)
+            if _clipboard_set(block):
+                try:
+                    self.notify("Session log copied", severity="information")
+                except Exception:
+                    pass
+            else:
+                try:
+                    self.notify("Clipboard unavailable", severity="warning")
+                except Exception:
+                    pass
 
         def action_quit(self) -> None:
             eng = self._engine

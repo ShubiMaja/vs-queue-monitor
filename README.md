@@ -45,7 +45,9 @@ python monitor.py --tui
 
 On Linux/macOS without `DISPLAY`, the app may pick the TUI automatically unless you set `VS_QUEUE_MONITOR_UI=gui` or pass `--gui`.
 
-**TUI shortcuts:** **Space** start/stop, **o** settings, **q** quit — full list in [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md). Legacy: `python monitor-tui.py` = `python monitor.py --tui`.
+**TUI shortcuts:** **Space** start/stop, **o** settings, **F1** help, **c** copy graph (TSV), **v** copy session log, **q** quit — full list in [`docs/GUI-TUI-PARITY.md`](docs/GUI-TUI-PARITY.md). Legacy: `python monitor-tui.py` = `python monitor.py --tui`.
+
+**GUI:** **F1** opens Help (paths and config location). **Copy History** / **Copy graph (TSV)** copy to the clipboard. **Live view** (on the chart and under Settings → Graph) keeps the time axis aligned with the current time while monitoring. A short welcome dialog runs once until dismissed (stored as `tutorial_done` in config).
 
 ### Without auto-start
 
