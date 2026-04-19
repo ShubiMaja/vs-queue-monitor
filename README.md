@@ -23,23 +23,31 @@ Install first—details about libraries and behavior are in [Runtime requirement
 - **Git** (the bootstrap flow clones this repo; usually already installed).
 - **Network** access to GitHub (to download the bootstrap script and clone).
 
+### Run from your Downloads folder
+
+**Before any `curl` download**, switch to your system Downloads directory—otherwise the fetch can fail on some setups. Use **`%USERPROFILE%\Downloads`** on Windows and **`$HOME/Downloads`** on macOS/Linux (create the folder if it does not exist). The commands below assume you already **`cd`**’d there.
+
 **One command** — clones the app (default `%USERPROFILE%\vs-queue-monitor` on Windows, `~/vs-queue-monitor` elsewhere), creates `.venv`, installs dependencies, adds a **Desktop** shortcut on Windows, then asks whether to start the app (only when you run `bootstrap.py` from an interactive terminal; **piped** one-liners start the monitor immediately after install).
 
 **Windows** (requires **Python 3.10+** on PATH as `py` or `python`; `curl` is included on Windows 10+):
 
 ```bat
+cd /d "%USERPROFILE%\Downloads"
 curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" | py -3 -
 ```
 
-Use `python` instead of `py -3` if you do not have the `py` launcher. **If Python is not installed yet**, run this instead (downloads a helper that opens the Python installer page when needed):
+Use `python` instead of `py -3` if you do not have the `py` launcher. **If Python is not installed yet**, run this instead (downloads a helper into Downloads, then runs it; opens the Python installer page when needed):
 
 ```bat
-cmd /c curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd" -o "%TEMP%\vs-queue-monitor-bootstrap.cmd" && "%TEMP%\vs-queue-monitor-bootstrap.cmd"
+cd /d "%USERPROFILE%\Downloads"
+curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd" -o "vs-queue-monitor-bootstrap.cmd" && call vs-queue-monitor-bootstrap.cmd
 ```
 
 **macOS / Linux:**
 
 ```bash
+mkdir -p "$HOME/Downloads"
+cd "$HOME/Downloads"
 curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 ```
 
@@ -78,12 +86,16 @@ Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the hea
 **Alternatives (save `bootstrap.py` first)**
 
 ```bash
+mkdir -p "$HOME/Downloads"
+cd "$HOME/Downloads"
 curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
 ```
 
 **Windows (PowerShell, save file then run)**
 
 ```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\Downloads" | Out-Null
+Set-Location "$env:USERPROFILE\Downloads"
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py
 python bootstrap.py
 ```
