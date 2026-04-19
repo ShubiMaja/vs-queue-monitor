@@ -51,6 +51,18 @@
     return document.getElementById(id);
   }
 
+  /** True while a modal, tour, or restore banner is visible — block global single-key shortcuts. */
+  function uiBlockingLayerOpen() {
+    var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "tourOverlay"];
+    var i;
+    for (i = 0; i < ids.length; i++) {
+      var el = $(ids[i]);
+      if (el && !el.classList.contains("hidden")) return true;
+    }
+    var rb = $("restoreBanner");
+    return !!(rb && !rb.classList.contains("hidden"));
+  }
+
   /** Header shows only whether a path is configured; the full path is in Info and in tooltip / aria-label. */
   function syncPathDisplay() {
     var inp = $("inpPath");
@@ -696,7 +708,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p>Hover the chart for a <strong>tooltip</strong> (time, position, and details). <strong>Copy PNG / TSV</strong> for sharing.</p>" +
+          "<p>Tap or hover the chart for a <strong>tooltip</strong> (time, position, and details). <strong>Copy PNG / TSV</strong> for sharing.</p>" +
           "<p>Use the <strong>bell</strong> in the header to turn desktop alerts on or off (localhost).</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -1420,6 +1432,13 @@
         if (ms && !ms.classList.contains("hidden")) {
           ev.preventDefault();
           ms.classList.add("hidden");
+          return;
+        }
+        var tour = $("tourOverlay");
+        if (tour && !tour.classList.contains("hidden")) {
+          ev.preventDefault();
+          var sk = $("tourSkip");
+          if (sk) sk.click();
         }
       },
       true,
@@ -1584,6 +1603,7 @@
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) {
         return;
       }
+      if (uiBlockingLayerOpen()) return;
       if (ev.code === "Space") {
         ev.preventDefault();
         postToggle().catch(function (e) {
