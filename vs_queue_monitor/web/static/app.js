@@ -72,17 +72,29 @@
     }, 0);
   }
 
+  function showEl(el) {
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.setAttribute("aria-hidden", "false");
+  }
+
+  function hideEl(el) {
+    if (!el) return;
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+  }
+
   function closeHelpModal() {
     var mh = $("modalHelp");
     if (!mh || mh.classList.contains("hidden")) return;
-    mh.classList.add("hidden");
+    hideEl(mh);
     focusElSoon($("btnHelp"));
   }
 
   function closeSettingsModal() {
     var ms = $("modalSettings");
     if (!ms || ms.classList.contains("hidden")) return;
-    ms.classList.add("hidden");
+    hideEl(ms);
     focusElSoon($("btnSettings"));
   }
 
@@ -462,6 +474,7 @@
     }
     $("restoreBannerDetail").textContent = "Resume last folder path? " + saved;
     rb.classList.remove("hidden");
+    focusElSoon($("btnResumePath"));
   }
 
   function setKpiMetric(el, raw, emptyTitle) {
@@ -621,7 +634,7 @@
     var mnq = $("modalNewQueue");
     if (mnq) {
       if (s.pending_new_queue_session != null && s.pending_new_queue_session !== undefined) {
-        mnq.classList.remove("hidden");
+        showEl(mnq);
         var nb = $("modalNewQueueBody");
         if (nb)
           nb.innerHTML =
@@ -631,7 +644,7 @@
             "</strong>. Load it? This resets the chart and threshold alerts for the new run.</p>";
         focusElSoon($("btnNewQueueYes"));
       } else {
-        mnq.classList.add("hidden");
+        hideEl(mnq);
       }
     }
 
@@ -786,6 +799,7 @@
 
     function show() {
       overlay.classList.remove("hidden");
+      overlay.setAttribute("aria-hidden", "false");
       const step = steps[idx];
       title.textContent = step.title;
       body.innerHTML = step.html || "";
@@ -793,13 +807,16 @@
       btnBack.style.display = idx ? "inline-block" : "none";
       btnNext.textContent = idx === steps.length - 1 ? "Done" : "Next";
       placeCard();
+      focusElSoon($("tourNext"));
     }
 
     function hide() {
       overlay.classList.add("hidden");
+      overlay.setAttribute("aria-hidden", "true");
       overlay.classList.remove("active");
       card.style.transform = "";
       postConfig({ tutorial_done: true }).catch(function () {});
+      focusElSoon($("btnTour"));
     }
 
     btnNext.onclick = function () {
@@ -1205,6 +1222,7 @@
       dismiss.onclick = function () {
         var rb = $("restoreBanner");
         if (rb) rb.classList.add("hidden");
+        focusElSoon($("pathSummary"));
       };
     if (resume)
       resume.onclick = function () {
@@ -1220,7 +1238,12 @@
           .then(function () {
             var rb = $("restoreBanner");
             if (rb) rb.classList.add("hidden");
-            if (!wasRunning) return postToggle();
+            if (!wasRunning) {
+              return postToggle().then(function () {
+                focusElSoon($("btnStartStop"));
+              });
+            }
+            focusElSoon($("btnStartStop"));
           })
           .catch(function (err) {
             toast(String(err.message || err), "warn");
@@ -1367,11 +1390,11 @@
         })
         .then(function (m) {
           $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
-          $("modalHelp").classList.remove("hidden");
+          showEl($("modalHelp"));
           focusElSoon($("btnHelpOk"));
         })
         .catch(function () {
-          $("modalHelp").classList.remove("hidden");
+          showEl($("modalHelp"));
           focusElSoon($("btnHelpOk"));
         });
     };
@@ -1384,7 +1407,7 @@
     var ps = $("pathSummary");
 
     function closePathModal() {
-      if (modal) modal.classList.add("hidden");
+      if (modal) hideEl(modal);
       if (ps) ps.focus();
     }
 
@@ -1392,7 +1415,7 @@
       var v = inpModal ? String(inpModal.value || "").trim() : "";
       if (inpHidden) inpHidden.value = v;
       syncPathDisplay();
-      if (modal) modal.classList.add("hidden");
+      if (modal) hideEl(modal);
       postConfig({ source_path: v }).catch(function (e) {
         toast(String(e.message || e), "warn");
       });
@@ -1402,7 +1425,7 @@
     if (ps) {
       ps.onclick = function () {
         if (inpModal && inpHidden) inpModal.value = inpHidden.value;
-        if (modal) modal.classList.remove("hidden");
+        if (modal) showEl(modal);
         if (inpModal) {
           setTimeout(function () {
             inpModal.focus();
@@ -1437,7 +1460,7 @@
 
   /** Keep Tab cycling within an open dialog (WCAG-friendly). */
   function setupModalTabTrap() {
-    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings"];
+    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "tourOverlay"];
     document.addEventListener(
       "keydown",
       function (ev) {
@@ -1630,15 +1653,15 @@
     }
 
     $("btnSettings").onclick = function () {
-      $("modalSettings").classList.remove("hidden");
+      showEl($("modalSettings"));
       focusElSoon($("chkEvery"));
     };
     document.querySelectorAll("[data-close]").forEach(function (el) {
       el.addEventListener("click", function () {
         var helpWas = $("modalHelp") && !$("modalHelp").classList.contains("hidden");
         var setWas = $("modalSettings") && !$("modalSettings").classList.contains("hidden");
-        $("modalHelp").classList.add("hidden");
-        $("modalSettings").classList.add("hidden");
+        hideEl($("modalHelp"));
+        hideEl($("modalSettings"));
         if (helpWas) focusElSoon($("btnHelp"));
         else if (setWas) focusElSoon($("btnSettings"));
       });
@@ -1657,7 +1680,7 @@
       if (ics) patch.completion_sound_path = ics.value.trim();
       postConfig(patch)
         .then(function () {
-          $("modalSettings").classList.add("hidden");
+          hideEl($("modalSettings"));
           focusElSoon($("btnSettings"));
           toast("Settings saved");
         })
@@ -1702,7 +1725,7 @@
       if (ev.key === "o" || ev.key === "O") {
         if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
           ev.preventDefault();
-          $("modalSettings").classList.remove("hidden");
+          showEl($("modalSettings"));
           focusElSoon($("chkEvery"));
         }
         return;
