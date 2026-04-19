@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import socket
+import sys
 import threading
+import time
 import webbrowser
 from pathlib import Path
 from typing import Any, Optional
@@ -17,12 +20,23 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from .. import VERSION
+from .. import APP_DISPLAY_NAME, VERSION
 from ..core import get_config_path, parse_alert_thresholds
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
 
 _STATIC = Path(__file__).resolve().parent / "static"
+
+
+def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=0.35):
+                return True
+        except OSError:
+            time.sleep(0.05)
+    return False
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -86,6 +100,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines()[-400:],
+        "pending_new_queue_session": engine._pending_new_queue_session,
     }
 
 
@@ -166,6 +181,24 @@ def _api_reset(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+async def _api_new_queue(request: Request) -> JSONResponse:
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
+    accept = bool(body.get("accept"))
+    try:
+        with lock:
+            engine.resolve_new_queue_offer(accept)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -196,6 +229,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/config", _api_config, methods=["POST"]),
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
+        Route("/api/new_queue", _api_new_queue, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
@@ -206,7 +240,20 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     return app
 
 
-def run_web_server(initial_path: str = "", auto_start: bool = True, port: Optional[int] = None, open_browser: bool = True) -> int:
+def run_web_server(
+    initial_path: str = "",
+    auto_start: bool = True,
+    port: Optional[int] = None,
+    *,
+    open_external_browser: bool = False,
+) -> int:
+    """Serve the static web client on loopback.
+
+    By default opens an **embedded** desktop window (pywebview) instead of a separate browser.
+    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to restore the old behavior.
+    """
+    import uvicorn
+
     lock = threading.RLock()
     hooks = WebMonitorHooks(lock)
     engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
@@ -217,18 +264,45 @@ def run_web_server(initial_path: str = "", auto_start: bool = True, port: Option
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
 
     app = create_app(engine, hooks, lock)
+    url = f"http://127.0.0.1:{p}/"
 
-    if open_browser:
+    if open_external_browser:
 
         def _open() -> None:
-            import time
-
             time.sleep(0.35)
-            webbrowser.open(f"http://127.0.0.1:{p}/")
+            webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        return 0
 
-    import uvicorn
+    try:
+        import webview
+    except ImportError:
+        print(
+            "Embedded web UI requires pywebview. Install:\n"
+            "  pip install pywebview\n"
+            "Or open your system browser instead:\n"
+            f"  python monitor.py --web --web-browser\n"
+            f"Serving at {url} (Ctrl+C to stop).",
+            file=sys.stderr,
+        )
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        return 0
 
-    uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+    def _serve() -> None:
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+
+    th = threading.Thread(target=_serve, daemon=True, name="vsqm-uvicorn")
+    th.start()
+    if not _wait_for_tcp("127.0.0.1", p):
+        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
+        return 1
+
+    try:
+        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
+        webview.start()
+    except Exception as exc:
+        print(f"Embedded window failed ({exc!r}). Open {url} in a browser, or use --web-browser.", file=sys.stderr)
+        return 1
     return 0
