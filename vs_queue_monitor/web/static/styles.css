@@ -61,16 +61,19 @@ body {
   border: 0;
 }
 
-/* Top bar: always stacked CSS grid — avoids single-row flex overflow at any viewport width. */
+/*
+ * Top bar: one horizontal row on wide screens (brand | path | bell | actions).
+ * Below --topbar-stack-max stacks to avoid overflow on small windows.
+ */
 .topbar {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
   box-sizing: border-box;
-  padding: 12px min(16px, 4vw);
+  padding: 10px min(16px, 4vw);
   background: var(--card);
   border-bottom: 1px solid var(--line);
-  gap: 10px 12px;
+  gap: 8px 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -95,7 +98,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   min-width: 0;
   max-width: 100%;
 }
@@ -109,6 +112,13 @@ body {
   justify-content: flex-end;
   min-width: 0;
   max-width: 100%;
+}
+@media (min-width: 900px) {
+  .topbar {
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto auto;
+    grid-template-areas: "brand path mid actions";
+    align-items: center;
+  }
 }
 .notify-hint {
   font-size: 0.75rem;
@@ -214,6 +224,13 @@ body {
   font-size: 1.1rem;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+@media (min-width: 900px) {
+  .brand__tagline {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 .brand__tagline {
   font-size: 0.75rem;
@@ -362,12 +379,10 @@ select.inp:focus-visible {
   gap: var(--space-5);
 }
 
-/* KPI row: avoid horizontal overflow — grid min track + span-2 fights narrow widths. */
+/* KPI strip: responsive grid; min-width 0 on cells stops long text from widening the page. */
 .kpi {
-  container-type: inline-size;
-  container-name: kpi;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: var(--space-3);
   margin: 0;
   min-width: 0;
@@ -389,13 +404,6 @@ select.inp:focus-visible {
 .kpi__cell--wide {
   grid-column: span 2;
 }
-/* When the KPI strip is narrow, span-2 would force extra implicit columns — drop to span 1. */
-@container kpi (max-width: 620px) {
-  .kpi__cell--grow,
-  .kpi__cell--wide {
-    grid-column: span 1;
-  }
-}
 @media (max-width: 800px) {
   .kpi__cell--grow,
   .kpi__cell--wide {
@@ -407,7 +415,6 @@ select.inp:focus-visible {
   color: var(--muted);
   letter-spacing: 0.04em;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -435,8 +442,7 @@ select.inp:focus-visible {
   font-weight: 600;
   margin-top: 4px;
   min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 .kpi__val--sm {
   font-size: 1rem;
