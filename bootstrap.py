@@ -3,8 +3,8 @@
 One-file launcher: find or clone the repo, create .venv, install deps, run monitor.py.
 
 Usage (after download):
-  python bootstrap.py
-  python bootstrap.py --web
+  python bootstrap.py              # default: embedded web UI
+  python bootstrap.py --gui        # classic Tk window
   python3 bootstrap.py --tui
 
 Pipe (no saved file; clones to ~/vs-queue-monitor by default):

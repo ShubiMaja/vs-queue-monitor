@@ -1,6 +1,6 @@
 # Real-life examples: local web + SSH vs TUI + GUI
 
-Reference catalog for **architecture discussions** (local HTTP + embedded webview or browser, **SSH** workflows). The **shipping** app is **Python** with **Tk**, **Textual**, and **`python monitor.py --web`** (Starlette on **127.0.0.1** + **pywebview** on Windows / macOS / Linux desktops, or **--web-browser** / SSH tunnel). This doc does not describe UI layout in detail.
+Reference catalog for **architecture discussions** (local HTTP + embedded webview or browser, **SSH** workflows). The **shipping** default is **`python monitor.py`** → Starlette on **127.0.0.1** + **pywebview** (Windows / macOS / Linux desktops), or **`--web-browser`** / **SSH** tunnel. Optional **Tk** (`--gui`) and **Textual** (`--tui`). This doc does not describe UI layout in detail.
 
 See [`DESIGN.md`](DESIGN.md) for product intent and [`README.md`](../README.md) for how to run the app.
 
@@ -56,4 +56,4 @@ Examples: VS Code, many chat apps — web tech inside a native shell; tradeoffs 
 
 ## Map to VS Queue Monitor
 
-**`python monitor.py --web`** already runs a **local HTTP server on `127.0.0.1`** and the same **`vs_queue_monitor`** engine as Tk/TUI. The UI opens in an **embedded** desktop window where pywebview is supported; otherwise use **`--web-browser`** or forward the port (**`ssh -L`**) and open **`http://127.0.0.1:<port>/`** in a browser on your machine. Without **`--web`**, the default is still **Tk** (or **Textual** when headless).
+**`python monitor.py`** (same as optional **`--web`**) runs a **local HTTP server on `127.0.0.1`** and the same **`vs_queue_monitor`** engine as Tk/TUI. The UI opens in an **embedded** desktop window where pywebview is supported; otherwise use **`--web-browser`** or forward the port (**`ssh -L`**) and open **`http://127.0.0.1:<port>/`** in a browser on your machine. Use **`--gui`** or **`--tui`** for the other front ends.

@@ -46,7 +46,8 @@ A desktop or terminal UI that:
 
 | Surface | Role |
 |--------|------|
-| **Tk GUI** (`monitor.py` / `--gui`) | Primary graphical experience: browse folder, KPIs, graph, settings, sounds, notifications. |
+| **Web UI** (`monitor.py` default, optional `--web`) | Primary experience: embedded desktop window (pywebview) + local HTTP on `127.0.0.1`; folder path, KPIs, graph, settings, tour. |
+| **Tk GUI** (`--gui`) | Same engine; classic Tk window for users who prefer it. |
 | **Textual TUI** (`--tui`) | Same engine; SSH-friendly; layout and charts adapt to terminal capabilities (see `docs/TUI-LIMITATIONS.md`). |
 
 ---

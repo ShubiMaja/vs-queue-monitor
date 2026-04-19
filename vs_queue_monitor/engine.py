@@ -31,11 +31,11 @@ except ImportError as exc:  # pragma: no cover
         raise SystemExit(
             "Do not run vs_queue_monitor/engine.py directly (it uses package-relative imports).\n"
             "Run one of these from the repo root instead:\n"
-            "  - python monitor.py\n"
+            "  - python monitor.py   (default: embedded web UI on 127.0.0.1)\n"
             "  - python -m vs_queue_monitor\n"
-            "  - python monitor.py --gui   (force Tk)\n"
-            "  - python monitor.py --tui   (force terminal UI)\n"
-            "  - python monitor.py --web   (local web UI; embedded window, or --web-browser)\n"
+            "  - python monitor.py --gui   (Tk window)\n"
+            "  - python monitor.py --tui   (terminal UI)\n"
+            "  - python monitor.py --web-browser   (external browser instead of embedded window)\n"
         ) from exc
     raise
 

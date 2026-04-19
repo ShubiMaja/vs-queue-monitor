@@ -2,7 +2,26 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "VS Queue Monitor: Run GUI (Python)",
+      "name": "VS Queue Monitor: Run (default web UI)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "VS Queue Monitor: Run web UI — no auto-start",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["--no-start"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "VS Queue Monitor: Run Tk GUI",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/monitor.py",
@@ -15,7 +34,7 @@
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "VS Queue Monitor: Run GUI — no auto-start",
+      "name": "VS Queue Monitor: Run Tk GUI — no auto-start",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/monitor.py",
