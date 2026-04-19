@@ -144,7 +144,7 @@ body {
   opacity: 0.92;
 }
 
-/* Desktop notification permission — bell states */
+/* Desktop notifications: green bell = Settings on + browser granted; yellow = on, need permission; crossed = off / denied / unsupported */
 .btn-notify {
   min-width: 42px;
   min-height: 36px;
@@ -155,6 +155,9 @@ body {
   cursor: pointer;
   position: relative;
   z-index: 2;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
 }
 /* Clicks must hit the <button>; inner SVG/spans can steal events in WebView / Safari. */
 .btn-notify * {
@@ -169,27 +172,32 @@ body {
 .btn-notify__glyph svg {
   display: block;
 }
-.btn-notify[data-state="unsupported"] .btn-notify__glyph--unsupported {
+.btn-notify[data-state="live"] .btn-notify__glyph--bell,
+.btn-notify[data-state="pending"] .btn-notify__glyph--bell {
   display: inline-flex;
 }
-.btn-notify[data-state="prompt"] .btn-notify__glyph--prompt {
+.btn-notify[data-state="blocked"] .btn-notify__glyph--crossed,
+.btn-notify[data-state="off"] .btn-notify__glyph--crossed,
+.btn-notify[data-state="unsupported"] .btn-notify__glyph--crossed {
   display: inline-flex;
 }
-.btn-notify[data-state="granted"] .btn-notify__glyph--granted {
-  display: inline-flex;
+.btn-notify[data-state="live"] {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.1);
 }
-.btn-notify[data-state="denied"] .btn-notify__glyph--denied {
-  display: inline-flex;
+.btn-notify[data-state="pending"] {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.08);
 }
-.btn-notify[data-state="granted"] {
-  color: var(--accent);
-  border-color: rgba(87, 148, 242, 0.45);
-  background: rgba(87, 148, 242, 0.08);
-}
-.btn-notify[data-state="denied"],
+.btn-notify[data-state="blocked"],
+.btn-notify[data-state="off"],
 .btn-notify[data-state="unsupported"] {
   color: var(--muted);
-  opacity: 0.9;
+  opacity: 0.88;
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .restore-banner {
