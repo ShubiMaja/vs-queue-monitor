@@ -14,7 +14,7 @@ The **only** user-facing surface is the **local web client** (`vs_queue_monitor/
 | Threshold ranges (`3-1`, …) | `parse_alert_thresholds` in `core.py` |
 | Version / build fingerprint | Snapshot + `GET /api/meta` · env `VS_QUEUE_MONITOR_BUILD_FINGERPRINT` optional (legacy: `VSQM_BUILD_FINGERPRINT`) |
 | Dashboard chrome (CSS variables) | `GET /api/meta` → `chrome_theme` (`theme.py`) |
-| Threshold / completion toasts + optional **Notification** API | `app.js` (`applyState`) |
+| Threshold / completion toasts + optional **Notification** API | `app.js` (`applyState`); header **`#btnNotify`** toggles **`popup_enabled`** via `POST /api/config`; **Send test notification** in Settings |
 | New queue run while **Interrupted** | Modal + `POST /api/new_queue` |
 | Settings persisted | `POST /api/config` (same keys as `config.json` elsewhere) |
 | Keyboard (when focus is not in a text field) | **Space** start/stop · **F1** help · **o** settings · **c** copy graph TSV · **v** copy session history (buttons for stats/history too) |
