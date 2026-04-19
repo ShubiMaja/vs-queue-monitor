@@ -629,6 +629,7 @@
             "<p>Session id <strong>" +
             String(s.pending_new_queue_session) +
             "</strong>. Load it? This resets the chart and threshold alerts for the new run.</p>";
+        focusElSoon($("btnNewQueueYes"));
       } else {
         mnq.classList.add("hidden");
       }
@@ -1232,9 +1233,15 @@
     var no = $("btnNewQueueNo");
     var bd = $("modalNewQueueBackdrop");
     function submit(accept) {
-      postNewQueue(accept).catch(function (err) {
-        toast(String(err.message || err), "warn");
-      });
+      postNewQueue(accept)
+        .then(function () {
+          setTimeout(function () {
+            focusElSoon($("btnStartStop"));
+          }, 0);
+        })
+        .catch(function (err) {
+          toast(String(err.message || err), "warn");
+        });
     }
     if (yes) yes.onclick = function () {
       submit(true);
@@ -1426,6 +1433,53 @@
         }
       });
     }
+  }
+
+  /** Keep Tab cycling within an open dialog (WCAG-friendly). */
+  function setupModalTabTrap() {
+    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings"];
+    document.addEventListener(
+      "keydown",
+      function (ev) {
+        if (ev.key !== "Tab") return;
+        var ae = document.activeElement;
+        if (!ae || !ae.closest) return;
+        var i;
+        var root = null;
+        for (i = 0; i < modalIds.length; i++) {
+          var m = $(modalIds[i]);
+          if (m && !m.classList.contains("hidden") && m.contains(ae)) {
+            root = m;
+            break;
+          }
+        }
+        if (!root) return;
+        var nodes = root.querySelectorAll(
+          'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        );
+        var focusables = [];
+        var j;
+        for (j = 0; j < nodes.length; j++) {
+          var el = nodes[j];
+          var st = window.getComputedStyle(el);
+          if (st.visibility === "hidden" || st.display === "none") continue;
+          focusables.push(el);
+        }
+        if (focusables.length === 0) return;
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (ev.shiftKey) {
+          if (ae === first) {
+            ev.preventDefault();
+            last.focus();
+          }
+        } else if (ae === last) {
+          ev.preventDefault();
+          first.focus();
+        }
+      },
+      true,
+    );
   }
 
   function setupModalEscape() {
@@ -1675,6 +1729,7 @@
   setupNotifications();
   setupHelpCmd();
   setupPathModal();
+  setupModalTabTrap();
   setupModalEscape();
   setupKeyboardShortcuts();
   setupTour();
