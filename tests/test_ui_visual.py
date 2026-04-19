@@ -123,10 +123,19 @@ def test_optional_full_page_screenshots(
         "yes",
     ):
         pytest.skip("Set VSQM_PLAYWRIGHT_SCREENSHOTS=1 to capture screenshots")
-    out_dir = tmp_path / "ui-shots"
-    out_dir.mkdir()
+    # Stable path so the agent/user can review artifacts after the run.
+    # pytest tmp_path is great for CI, but hard to locate in interactive work.
+    out_dir = Path("test-results") / "ui-shots"
+    out_dir.mkdir(parents=True, exist_ok=True)
     for width, height, name in _VIEWPORTS:
         page.set_viewport_size({"width": width, "height": height})
         page.goto(base_url)
         assert_no_horizontal_overflow(page)
-        page.screenshot(path=str(out_dir / f"dashboard-{name}-{width}x{height}.png"), full_page=True)
+        page.screenshot(
+            path=str(out_dir / f"dashboard-{name}-{width}x{height}.png"),
+            full_page=True,
+        )
+        # Key panels for quick visual diffing.
+        page.locator(".topbar").screenshot(path=str(out_dir / f"topbar-{name}-{width}.png"))
+        page.locator("#secKpi").screenshot(path=str(out_dir / f"kpi-{name}-{width}.png"))
+        page.locator(".graph-panel").screenshot(path=str(out_dir / f"graph-{name}-{width}.png"))
