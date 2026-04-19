@@ -168,6 +168,21 @@
       <section class="info" data-tour="info">
         <h3 class="section-title">Info</h3>
         <div class="info__grid">
+          <div class="info__lbl">Stats</div>
+          <div class="info__val">
+            <div class="info-stats">
+              <div class="info-stats__rows" id="infoStatsRows">
+                <div><span class="muted">Start Pos</span> <span id="infoStatStart">—</span></div>
+                <div><span class="muted">End Pos</span> <span id="infoStatEnd">—</span></div>
+                <div><span class="muted">Pos Delta</span> <span id="infoStatCleared">—</span></div>
+                <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
+                <div><span class="muted">Avg Rate</span> <span id="infoStatAvg">—</span></div>
+              </div>
+              <button type="button" class="btn btn--small" id="btnCopyStats" title="Copy stats to clipboard">
+                Copy stats
+              </button>
+            </div>
+          </div>
           <div class="info__lbl">Last change</div>
           <div id="infoLastCh" class="info__val">—</div>
           <div class="info__lbl">Last threshold alert</div>
@@ -180,7 +195,12 @@
       </section>
 
       <section class="history" data-tour="hist">
-        <h3 class="section-title">History</h3>
+        <div class="history__head">
+          <h3 class="section-title">History</h3>
+          <button type="button" class="btn btn--small" id="btnCopyHistory" title="Copy history to clipboard">
+            Copy history
+          </button>
+        </div>
         <pre class="history__pre" id="historyPre"></pre>
       </section>
     </main>

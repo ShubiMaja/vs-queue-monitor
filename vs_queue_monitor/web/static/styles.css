@@ -330,6 +330,35 @@ body {
   word-break: break-all;
 }
 
+.info-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+}
+.info-stats__rows {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+.info-stats .btn {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.history__head .section-title {
+  margin: 0;
+}
+
 .history__pre {
   margin: 0;
   padding: 12px;
