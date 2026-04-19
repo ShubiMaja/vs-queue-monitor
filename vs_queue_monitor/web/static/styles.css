@@ -31,6 +31,7 @@
 
 html {
   color-scheme: dark;
+  overflow-x: clip;
 }
 
 body {
@@ -41,6 +42,7 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 /* Screen-reader only (WCAG accessible names for icon-only controls) */
@@ -56,24 +58,79 @@ body {
   border: 0;
 }
 
+/* Stacked rows on smaller widths so the path row never forces horizontal scroll. */
 .topbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  box-sizing: border-box;
   padding: 12px 16px;
   background: var(--card);
   border-bottom: 1px solid var(--line);
+  gap: 10px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand actions"
+    "mid mid"
+    "path path";
+  align-items: center;
+}
+.topbar > .brand {
+  grid-area: brand;
+  min-width: 0;
+}
+.topbar > .topbar__path {
+  grid-area: path;
+  min-width: 0;
+  width: 100%;
 }
 .topbar__mid {
+  grid-area: mid;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 0 auto;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.topbar > .topbar__actions {
+  grid-area: actions;
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+@media (min-width: 1100px) {
+  .topbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .topbar > .brand {
+    flex: 0 1 240px;
+    min-width: 0;
+  }
+  .topbar > .topbar__path {
+    flex: 1 1 0%;
+    min-width: 0;
+    width: auto;
+  }
+  .topbar__mid {
+    flex: 0 0 auto;
+  }
+  .topbar > .topbar__actions {
+    flex: 0 0 auto;
+    max-width: none;
+  }
 }
 .notify-hint {
   font-size: 0.75rem;
-  max-width: 200px;
+  max-width: min(200px, 100%);
+  overflow-wrap: anywhere;
 }
 .btn--pill {
   border-radius: 999px;
@@ -166,9 +223,9 @@ body {
 .brand__tagline {
   font-size: 0.75rem;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .topbar__path {
-  flex: 1 1 280px;
   min-width: 0;
 }
 
@@ -194,10 +251,12 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  width: 100%;
 }
 .field-row__input {
-  flex: 1 1 180px;
-  min-width: 140px;
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 .btn--browse {
   flex-shrink: 0;
