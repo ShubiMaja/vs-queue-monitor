@@ -48,6 +48,10 @@ A local web UI that:
 |--------|------|
 | **Web UI** (`monitor.py` default, optional `--web`) | Embedded desktop window (pywebview) or browser + local HTTP on `127.0.0.1`; folder path, KPIs, graph, settings, tour. SSH: port-forward and open the same URL. |
 
+### 1.7 Third-party code (open source)
+
+The product **relies on open-source stacks** where practical: Python stdlib for core logic, **Starlette** and **uvicorn** for the local web server, **pywebview** for the optional desktop host. Prefer **mature OSS on PyPI** over vendored or ad-hoc copies when the tradeoff is reasonable. Do not introduce **proprietary SDKs** or closed, undocumented components as required dependencies.
+
 ---
 
 ## 2. Parity contract (engine vs web client)

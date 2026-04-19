@@ -1,6 +1,6 @@
 # Web platform — local server + static client
 
-The shipping app is **`python monitor.py`** → **Starlette** on **`127.0.0.1`** + the static UI under **`vs_queue_monitor/web/static/`**. The **`feature/change-to-web-ui`** branch in git history is a **standalone static** prototype (browser-only log parsing); capabilities that made sense for the Python-backed product are **ported here** (session dropdown, threshold ranges, build fingerprint, footer version).
+The shipping app is **`python monitor.py`** → **Starlette** on **`127.0.0.1`** + the static UI under **`vs_queue_monitor/web/static/`**. The stack is **open source** (Starlette, uvicorn, optional pywebview); prefer adding other **mature OSS** dependencies over proprietary or ad-hoc alternatives when extending the server or tooling. The **`feature/change-to-web-ui`** branch in git history is a **standalone static** prototype (browser-only log parsing); capabilities that made sense for the Python-backed product are **ported here** (session dropdown, threshold ranges, build fingerprint, footer version).
 
 ## Parity points integrated from `feature/change-to-web-ui`
 
