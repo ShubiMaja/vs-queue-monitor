@@ -73,6 +73,20 @@
     });
   }
 
+  /** Native folder/file dialog via Python (Tk) on the machine running the app. */
+  function pickPath(mode) {
+    return fetch("/api/pick_path", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: mode }),
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok) throw new Error(j.error || r.statusText);
+        return j;
+      });
+    });
+  }
+
   function applyChromeTheme(chrome) {
     if (!chrome || typeof chrome !== "object") {
       return;
@@ -527,7 +541,7 @@
       {
         title: "Logs folder",
         html:
-          '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> folder path, then <strong>Start</strong>.</p>' +
+          '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> path, or use <strong>Folder…</strong> / <strong>Log file…</strong> for a system dialog on this PC.</p>' +
           "<p class=\"muted\">Typical: Windows <code>%APPDATA%\\\\VintagestoryData</code> · macOS <code>~/Library/Application Support/VintagestoryData</code> · Linux <code>~/.config/VintagestoryData</code></p>" +
           '<p class="muted">Open <strong>?</strong> for symlink help if a folder is hard to reach.</p>',
         sel: ".topbar__path",
@@ -1012,6 +1026,42 @@
         toast(String(e), "warn");
       });
     };
+    var bf = $("btnBrowseFolder");
+    if (bf) {
+      bf.onclick = function () {
+        pickPath("folder")
+          .then(function (j) {
+            if (j.cancelled) return;
+            if (!j.path) return;
+            $("inpPath").value = j.path;
+            return postConfig({ source_path: $("inpPath").value.trim() });
+          })
+          .then(function () {
+            if ($("inpPath").value.trim()) toast("Path set from folder picker");
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
+      };
+    }
+    var bfile = $("btnBrowseFile");
+    if (bfile) {
+      bfile.onclick = function () {
+        pickPath("file")
+          .then(function (j) {
+            if (j.cancelled) return;
+            if (!j.path) return;
+            $("inpPath").value = j.path;
+            return postConfig({ source_path: $("inpPath").value.trim() });
+          })
+          .then(function () {
+            if ($("inpPath").value.trim()) toast("Path set from file picker");
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
+      };
+    }
     $("btnYScale").onclick = function () {
       const g = window._lastState && window._lastState.graph_log_scale;
       postConfig({ graph_log_scale: !g }).catch(function (e) {

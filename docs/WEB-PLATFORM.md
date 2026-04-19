@@ -15,7 +15,7 @@ The shipping app is **`python monitor.py`** → **Starlette** on **`127.0.0.1`**
 ## Not ported (different architecture)
 
 - **GitHub Pages** / `npm run build` / **service worker** PWA — optional follow-up; the default product is the local Python server.
-- **File picker + in-browser log parsing** — replaced by server-side tailing via pasted folder path.
+- **In-browser** file parsing (no Python) — replaced by server-side tailing. **Native** folder/file pick is available via **`POST /api/pick_path`** (Tk on the host running `monitor.py`), not `input type=file` in the page.
 
 ## Release fingerprint
 
