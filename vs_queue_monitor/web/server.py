@@ -390,6 +390,10 @@ async def _api_config(request: Request) -> JSONResponse:
             if "tutorial_done" in body:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
             engine.persist_config()
+            # Match native folder browse: re-resolve the log and seed the graph so ``current_log_file``
+            # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).
+            if "source_path" in body:
+                engine._try_start_after_browse()
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     except Exception as exc:
