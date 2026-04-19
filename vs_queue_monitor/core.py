@@ -227,7 +227,7 @@ UI_GRAPH_MARKER = "#6b9bd6"
 UI_GRAPH_HOVER_CURSOR = "#f0f4f8"
 # X-axis small marks between major time labels (minute-scale; step widens when too dense).
 UI_GRAPH_MINOR_TICK = "#3a4250"
-UI_GRAPH_EMPTY = "#6e7680"
+UI_GRAPH_EMPTY = "#9fa7b3"
 UI_TOOLTIP_BG = "#1f2329"
 UI_TOOLTIP_FG = "#d8d9da"
 # Primary transport: large play (green) / stop (red) control, top-left.

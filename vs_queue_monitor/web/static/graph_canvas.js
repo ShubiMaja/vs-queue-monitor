@@ -23,7 +23,7 @@
     ui_graph_marker: "#6b9bd6",
     ui_graph_hover_cursor: "#f0f4f8",
     ui_graph_minor_tick: "#3a4250",
-    ui_graph_empty: "#6e7680",
+    ui_graph_empty: "#9fa7b3",
   };
 
   function mergeTheme(t) {
@@ -180,7 +180,12 @@
     if (!points.length) {
       ctx.fillStyle = th.ui_graph_empty;
       ctx.font = "14px system-ui,Segoe UI,sans-serif";
-      ctx.fillText("No data yet", x0 + 6, y0 + 20);
+      var emptyMsg = "No data yet";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(emptyMsg, x0 + plotW / 2, y0 + plotH / 2);
+      ctx.textAlign = "start";
+      ctx.textBaseline = "alphabetic";
       canvas._drawState = {
         points: [],
         drawn: [],
