@@ -5,6 +5,11 @@ handles ``PermissionRequested`` and sets **Allow** (unlike a normal browser tab)
 pywebview does not wire this up, so ``Notification`` may exist but permission
 never succeeds. We attach a handler after CoreWebView2 is ready.
 
+We **poll quickly** for CoreWebView2 instead of a fixed long delay: if the user
+clicks the bell and calls ``Notification.requestPermission()`` before our handler
+exists, WebView2 can **deny** by default and desktop alerts never work for that
+session.
+
 See: WebView2Feedback #4488 (notifications blocked by default).
 """
 
@@ -18,76 +23,95 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_POLL_SEC = 0.05
+_DEADLINE_SEC = 25.0
+
 
 def schedule_webview2_notification_permission() -> None:
-    """Start a background thread that attaches PermissionRequested on the main WebView2."""
+    """Background thread: attach PermissionRequested on the main WebView2 as soon as possible."""
     if sys.platform != "win32":
         return
 
     def worker() -> None:
-        time.sleep(2.0)
-        try:
-            import webview
-        except Exception:
-            return
-        if not getattr(webview, "windows", None):
-            return
-        try:
-            w = webview.windows[0]
-        except (IndexError, AttributeError):
-            return
-        native = getattr(w, "native", None)
-        if native is None:
-            return
-        ctrl = getattr(native, "webview", None)
-        if ctrl is None:
-            return
-        try:
-            core = ctrl.CoreWebView2
-        except Exception:
-            return
-        if core is None:
-            return
-
-        try:
+        deadline = time.monotonic() + _DEADLINE_SEC
+        attached = False
+        kind_cls: Any = None
+        state_cls: Any = None
+        while time.monotonic() < deadline and not attached:
             try:
-                import clr  # type: ignore[import-untyped]
+                import webview
             except Exception:
                 return
-            from webview.util import interop_dll_path  # type: ignore[import-untyped]
-
-            clr.AddReference(interop_dll_path("Microsoft.Web.WebView2.Core.dll"))
-            from Microsoft.Web.WebView2.Core import (  # type: ignore[import-not-found]
-                CoreWebView2PermissionKind,
-                CoreWebView2PermissionState,
-            )
-        except Exception as exc:
-            logger.debug("WebView2 notification patch: could not load Core types: %s", exc)
-            return
-
-        def on_permission(sender: Any, args: Any) -> None:
+            if not getattr(webview, "windows", None):
+                time.sleep(_POLL_SEC)
+                continue
             try:
-                if args.PermissionKind == CoreWebView2PermissionKind.Notifications:
-                    args.State = CoreWebView2PermissionState.Allow
+                w = webview.windows[0]
+            except (IndexError, AttributeError):
+                time.sleep(_POLL_SEC)
+                continue
+            native = getattr(w, "native", None)
+            if native is None:
+                time.sleep(_POLL_SEC)
+                continue
+            ctrl = getattr(native, "webview", None)
+            if ctrl is None:
+                time.sleep(_POLL_SEC)
+                continue
+            try:
+                core = ctrl.CoreWebView2
             except Exception:
+                time.sleep(_POLL_SEC)
+                continue
+            if core is None:
+                time.sleep(_POLL_SEC)
+                continue
+
+            if kind_cls is None:
                 try:
-                    if "Notification" in str(args.PermissionKind):
-                        args.State = CoreWebView2PermissionState.Allow
+                    import clr  # type: ignore[import-untyped]
+                    from webview.util import interop_dll_path  # type: ignore[import-untyped]
+
+                    clr.AddReference(interop_dll_path("Microsoft.Web.WebView2.Core.dll"))
+                    from Microsoft.Web.WebView2.Core import (  # type: ignore[import-not-found]
+                        CoreWebView2PermissionKind,
+                        CoreWebView2PermissionState,
+                    )
+
+                    kind_cls = CoreWebView2PermissionKind
+                    state_cls = CoreWebView2PermissionState
+                except Exception as exc:
+                    logger.debug("WebView2 notification patch: could not load Core types: %s", exc)
+                    return
+
+            def on_permission(sender: Any, args: Any, *, _k: Any = kind_cls, _s: Any = state_cls) -> None:
+                try:
+                    if args.PermissionKind == _k.Notifications:
+                        args.State = _s.Allow
                 except Exception:
-                    pass
+                    try:
+                        if "Notification" in str(args.PermissionKind):
+                            args.State = _s.Allow
+                    except Exception:
+                        pass
 
-        def attach() -> None:
+            def attach() -> None:
+                try:
+                    core.PermissionRequested += on_permission
+                    logger.debug("WebView2: PermissionRequested handler attached for notifications")
+                except Exception as exc:
+                    logger.debug("WebView2: could not attach PermissionRequested: %s", exc)
+
             try:
-                core.PermissionRequested += on_permission
-                logger.debug("WebView2: PermissionRequested handler attached for notifications")
+                from System import Action  # type: ignore[import-untyped]
+
+                ctrl.Invoke(Action(attach))
+                attached = True
             except Exception as exc:
-                logger.debug("WebView2: could not attach PermissionRequested: %s", exc)
+                logger.debug("WebView2: Invoke for PermissionRequested failed: %s", exc)
+                time.sleep(_POLL_SEC)
 
-        try:
-            from System import Action  # type: ignore[import-untyped]
-
-            ctrl.Invoke(Action(attach))
-        except Exception as exc:
-            logger.debug("WebView2: Invoke for PermissionRequested failed: %s", exc)
+        if not attached:
+            logger.debug("WebView2 notification patch: CoreWebView2 not ready within %.0fs", _DEADLINE_SEC)
 
     threading.Thread(target=worker, daemon=True, name="vsqm-webview2-notify").start()

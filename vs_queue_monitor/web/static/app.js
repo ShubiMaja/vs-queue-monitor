@@ -435,18 +435,29 @@
       alertMsg !== "—"
     ) {
       toast(alertMsg, "warn");
-      if (
-        s.popup_enabled &&
-        typeof Notification !== "undefined" &&
-        Notification.permission === "granted"
-      ) {
-        try {
-          new Notification("VS Queue Monitor", { body: alertMsg });
-        } catch (e) {
-          toast(
-            "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
-            "warn",
-          );
+      if (s.popup_enabled && typeof Notification !== "undefined") {
+        if (Notification.permission === "granted") {
+          try {
+            new Notification("VS Queue Monitor", {
+              body: alertMsg,
+              tag: "vsqm-threshold",
+            });
+          } catch (e) {
+            toast(
+              "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+              "warn",
+            );
+          }
+        } else if (Notification.permission === "default") {
+          try {
+            if (sessionStorage.getItem("vsqm_desktop_hint") !== "1") {
+              sessionStorage.setItem("vsqm_desktop_hint", "1");
+              toast(
+                "Tray notification: click the bell in the header once to allow system alerts (embedded window).",
+                "",
+              );
+            }
+          } catch (e) {}
         }
       }
     }
