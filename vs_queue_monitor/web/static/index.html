@@ -138,7 +138,7 @@
           <div class="kpi__label">POSITION</div>
           <div class="kpi__val kpi__val--sm" id="kpiPos">—</div>
         </div>
-        <div class="kpi__cell kpi__cell--grow" data-tour="status">
+        <div class="kpi__cell" data-tour="status">
           <div class="kpi__label">
             STATUS
             <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval">✎</button>
@@ -153,7 +153,7 @@
             </div>
           </div>
         </div>
-        <div class="kpi__cell kpi__cell--wide" data-tour="rate">
+        <div class="kpi__cell" data-tour="rate">
           <div class="kpi__label" id="kpiRateLabel">
             <span id="kpiRateHdr">RATE</span>
             <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)">✎</button>
@@ -168,7 +168,7 @@
             </div>
           </div>
         </div>
-        <div class="kpi__cell kpi__cell--wide" data-tour="warn">
+        <div class="kpi__cell" data-tour="warn">
           <div class="kpi__label">
             WARNINGS
             <button type="button" class="kpi__edit" id="btnAddWarn" title="Add one threshold">+</button>
@@ -214,13 +214,15 @@
 
       <section class="graph-panel" data-tour="graph">
         <div class="graph-toolbar graph-toolbar--split" role="toolbar" aria-label="Chart and export">
-          <div class="graph-toolbar__left">
-            <label class="graph-session-label muted" for="selSession">Session</label>
-            <select id="selSession" class="inp graph-session-select" title="Graph scope (KPIs stay live)">
-              <option value="latest">Latest session (auto)</option>
-            </select>
+          <div class="graph-toolbar__cluster">
+            <div class="graph-toolbar__left">
+              <label class="graph-session-label muted" for="selSession">Session</label>
+              <select id="selSession" class="inp graph-session-select" title="Graph scope (KPIs stay live)">
+                <option value="latest">Latest session (auto)</option>
+              </select>
+            </div>
+            <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
           </div>
-          <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
           <div class="graph-toolbar__btns">
             <button type="button" class="btn btn--small" id="btnYScale">Y → log</button>
             <button type="button" class="btn btn--small" id="btnLive">Live view: on</button>

@@ -455,11 +455,11 @@ select.inp:focus-visible {
   min-width: 0;
 }
 
-/* KPI strip: minmax(0,…) tracks + optional horizontal scroll — avoids spilling past the viewport. */
+/* KPI strip: equal seven columns on wide screens; auto-fit when narrow */
 .kpi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(6.5rem, 100%), 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(7.25rem, 100%), 1fr));
+  gap: 8px;
   margin: 0;
   min-width: 0;
   width: 100%;
@@ -470,15 +470,20 @@ select.inp:focus-visible {
   padding-bottom: 2px;
   align-items: stretch;
 }
+@media (min-width: 1100px) {
+  .kpi {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
 .kpi__cell {
-  --kpi-label-h: 1.75rem;
-  --kpi-value-minh: 2.5rem;
-  --kpi-card-gap: 6px;
+  --kpi-label-h: 1.5rem;
+  --kpi-value-minh: 2.1rem;
+  --kpi-card-gap: 4px;
   position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 8px 10px;
   min-width: 0;
   max-width: 100%;
   min-height: calc(var(--kpi-label-h) + var(--kpi-card-gap) + var(--kpi-value-minh));
@@ -487,18 +492,6 @@ select.inp:focus-visible {
   flex-direction: column;
   gap: var(--kpi-card-gap);
   justify-content: flex-start;
-}
-.kpi__cell--grow {
-  grid-column: span 2;
-}
-.kpi__cell--wide {
-  grid-column: span 2;
-}
-@media (max-width: 1100px) {
-  .kpi__cell--grow,
-  .kpi__cell--wide {
-    grid-column: span 1;
-  }
 }
 .kpi__label {
   font-size: 0.7rem;
@@ -532,7 +525,7 @@ select.inp:focus-visible {
 }
 /* One size for all KPI values so the row lines up across cards */
 .kpi__val {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.25;
   margin-top: 0;
@@ -543,7 +536,7 @@ select.inp:focus-visible {
   overflow-wrap: break-word;
 }
 .kpi__val--sm {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
 }
 .kpi__val--empty,
 .kpi__warn.kpi__val--empty {
@@ -584,7 +577,7 @@ select.inp:focus-visible {
   padding-bottom: 0;
 }
 .kpi__warn {
-  font-size: 1.125rem;
+  font-size: 1.05rem;
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -664,11 +657,20 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 10px 12px;
   margin-bottom: 8px;
 }
 .graph-toolbar--split {
   align-items: center;
+}
+/* Session + log status grouped so wide windows do not leave a dead center gap */
+.graph-toolbar__cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .graph-toolbar__left {
   display: flex;
@@ -676,7 +678,8 @@ select.inp:focus-visible {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1 1 min(220px, 100%);
+  flex: 0 1 auto;
+  max-width: min(380px, 100%);
 }
 .graph-session-label {
   font-size: 0.75rem;
@@ -685,24 +688,26 @@ select.inp:focus-visible {
 .graph-session-select {
   min-width: 0;
   flex: 1 1 10rem;
-  max-width: min(420px, 100%);
+  max-width: min(320px, 100%);
   font-size: 0.85rem;
   padding: 4px 8px;
 }
 .graph-toolbar__mid {
-  flex: 1 1 120px;
-  text-align: center;
+  flex: 0 1 auto;
+  text-align: left;
   font-size: 0.72rem;
   line-height: 1.35;
   color: var(--muted);
   opacity: 0.92;
-  max-width: min(300px, 42vw);
+  max-width: min(280px, 100%);
   min-width: 0;
 }
 .graph-toolbar__btns {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 #graphCanvas {
   width: 100%;
