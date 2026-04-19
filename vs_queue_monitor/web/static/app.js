@@ -761,7 +761,7 @@
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong> (time, position, and details). <strong>Copy PNG / TSV</strong> for sharing.</p>" +
-          "<p>Use the <strong>bell</strong> in the header to turn desktop alerts on or off (localhost).</p>" +
+          "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts; when it’s on (green), click again to <strong>send a test</strong>.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
       },
@@ -1299,27 +1299,34 @@
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
       var st = "pending";
-      var label = "Desktop notifications — click to allow";
+      var label = "Desktop notifications — click to allow in the browser";
+      var hint = "Notifications pending — click to allow the browser prompt";
       if (typeof Notification === "undefined") {
         st = "unsupported";
         label = "Desktop notifications — not available in this host";
+        hint = label;
       } else if (!popOn) {
         st = "off";
-        label = "Desktop notifications — off (enable Warning popup in Settings)";
+        label = "Desktop notifications off — enable Warning popup in Settings first";
+        hint = "Notifications off — turn on Warning popup in Settings (⚙), then use this switch";
       } else if (Notification.permission === "granted") {
         st = "live";
-        label = "Desktop notifications — on";
+        label = "Desktop notifications on — click to send a test notification";
+        hint = "Notifications on — click to send a test alert";
       } else if (Notification.permission === "denied") {
         st = "blocked";
-        label = "Desktop notifications — blocked";
+        label = "Desktop notifications blocked — change site permission in the browser";
+        hint = label;
       } else {
         st = "pending";
-        label = "Desktop notifications — click to allow (same as any website)";
+        label = "Desktop notifications — click to allow in the browser";
+        hint = "Notifications pending — click to allow the browser prompt";
       }
       if (btn) {
         btn.setAttribute("data-state", st);
+        btn.setAttribute("aria-checked", st === "live" ? "true" : "false");
         btn.setAttribute("aria-label", label);
-        btn.title = label;
+        btn.title = hint;
       }
     }
     notifySyncHint = syncHint;
@@ -1373,7 +1380,7 @@
         return;
       }
       if (!popOn) {
-        toast("Turn on Warning popup in Settings (⚙) first — then use the bell here.", "warn");
+        toast("Turn on Warning popup in Settings (⚙) first — then use the notification switch.", "warn");
         return;
       }
       if (Notification.permission === "granted") {
