@@ -996,36 +996,20 @@
     return best;
   }
 
-  function formatGraphTooltipHint(st, pt, idx, series) {
+  function formatGraphTooltipHint(pt, idx, series) {
     var ts = VSQMGraph.fmtTooltipTs(pt[0]);
-    var n = series.length;
     var posStr = String(pt[1]);
-    var lines = [ts + "  ·  pos " + posStr, "sample " + (idx + 1) + " of " + n];
-    lines.push(st.logScale ? "y-scale: log" : "y-scale: linear");
-    var sel = $("selSession");
-    if (sel && sel.value === "latest") {
-      lines.push("session: latest (live)");
-    } else if (sel && sel.selectedIndex >= 0) {
-      var opt = sel.options[sel.selectedIndex];
-      lines.push("session: " + (opt ? opt.textContent.trim() : sel.value));
-    }
+    var lines = [ts + "  ·  pos " + posStr];
     if (idx > 0) {
       var prev = series[idx - 1];
       var dt = pt[0] - prev[0];
       var dp = pt[1] - prev[1];
       if (dt > 1e-6) {
-        lines.push(
-          "Δt " +
-            dt.toFixed(2) +
-            "s  Δpos " +
-            (dp >= 0 ? "+" : "") +
-            dp +
-            "  slope " +
-            (dp / dt).toFixed(2) +
-            "/s",
-        );
+        var dpStr = (dp >= 0 ? "+" : "") + dp;
+        var extra = dp !== 0 ? "  (" + (dp / dt).toFixed(3) + "/s)" : "";
+        lines.push("vs prev: " + dpStr + " in " + dt.toFixed(2) + "s" + extra);
       } else {
-        lines.push("Δt —  Δpos " + (dp >= 0 ? "+" : "") + dp);
+        lines.push("vs prev: " + (dp >= 0 ? "+" : "") + dp);
       }
     }
     return lines.join("\n");
@@ -1096,7 +1080,7 @@
         return;
       }
       const best = series[idx];
-      showGraphTooltip(ev, formatGraphTooltipHint(st, best, idx, series));
+      showGraphTooltip(ev, formatGraphTooltipHint(best, idx, series));
       window._graphHover = [best[0], best[1]];
       redrawGraphOnly();
     });
