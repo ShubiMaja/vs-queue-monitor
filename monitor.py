@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 VS Queue Monitor — Vintage Story client log queue monitor (project id: vs-queue-monitor).
-Version: 1.0.172
+Version: 1.0.173
 
 Cross-platform app that watches a Vintage Story client log for queue
 position changes and raises configurable threshold alerts (popup + sound).
