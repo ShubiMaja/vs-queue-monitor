@@ -47,10 +47,6 @@
     } catch (e) {}
   }
 
-  var HELP_CMD_WIN =
-    'mklink /J "%USERPROFILE%\\Desktop\\VintagestoryData" "%APPDATA%\\VintagestoryData"';
-  var HELP_CMD_UNIX = 'ln -s "$HOME/.config/VintagestoryData" "$HOME/Desktop/VintagestoryData"';
-
   function $(id) {
     return document.getElementById(id);
   }
@@ -673,7 +669,7 @@
         html:
           '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> path, or use the <strong>folder</strong> / <strong>log file</strong> icons for a system dialog on this PC.</p>' +
           "<p class=\"muted\">Typical: Windows <code>%APPDATA%\\\\VintagestoryData</code> · macOS <code>~/Library/Application Support/VintagestoryData</code> · Linux <code>~/.config/VintagestoryData</code></p>" +
-          '<p class="muted">Open <strong>?</strong> for symlink help if a folder is hard to reach.</p>',
+          '<p class="muted">Open <strong>?</strong> for paths and where the config file lives.</p>',
         sel: ".topbar__path",
       },
       {
@@ -1322,46 +1318,7 @@
   }
 
   function setupHelpCmd() {
-    var pre = $("preHelpCmd");
-    var win = $("btnHelpWin");
-    var unix = $("btnHelpUnix");
-    function showWin() {
-      if (pre) pre.textContent = HELP_CMD_WIN;
-      if (win) win.classList.add("btn--tab-active");
-      if (unix) unix.classList.remove("btn--tab-active");
-    }
-    function showUnix() {
-      if (pre) pre.textContent = HELP_CMD_UNIX;
-      if (unix) unix.classList.add("btn--tab-active");
-      if (win) win.classList.remove("btn--tab-active");
-    }
-    if (win)
-      win.onclick = function (e) {
-        e.stopPropagation();
-        showWin();
-      };
-    if (unix)
-      unix.onclick = function (e) {
-        e.stopPropagation();
-        showUnix();
-      };
-    var copy = $("btnHelpCopyCmd");
-    if (copy)
-      copy.onclick = function (e) {
-        e.stopPropagation();
-        var t = pre ? pre.textContent : "";
-        if (!t) return;
-        navigator.clipboard.writeText(t).then(
-          function () {
-            toast("Command copied");
-          },
-          function () {
-            toast("Clipboard failed", "warn");
-          },
-        );
-      };
     $("btnHelp").onclick = function () {
-      showWin();
       fetch("/api/meta")
         .then(function (r) {
           return r.json();
