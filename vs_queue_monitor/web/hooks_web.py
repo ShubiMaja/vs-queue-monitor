@@ -68,10 +68,10 @@ class WebMonitorHooks:
         self.append_history(f"{title}: {message}")
 
     def ask_yes_no(self, title: str, message: str) -> bool:
-        # Match TUI: auto-adopt new queue; web client could add a modal later via WS.
-        if "New queue detected" in (title or ""):
-            self.append_history("[web] New queue detected — loading new run.")
-            return True
+        return True
+
+    def new_queue_dialog_async(self) -> bool:
+        """Engine defers to :meth:`~vs_queue_monitor.engine.QueueMonitorEngine.resolve_new_queue_offer`."""
         return True
 
     def append_history(self, message: str) -> None:

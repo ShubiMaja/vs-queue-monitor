@@ -10,6 +10,12 @@
   const PAD_B = 32;
 
   let lastAlertPrev = "";
+  var LS_PATH = "vsqm_web_last_path";
+  var _restoreOnce = false;
+
+  var HELP_CMD_WIN =
+    'mklink /J "%USERPROFILE%\\Desktop\\VintagestoryData" "%APPDATA%\\VintagestoryData"';
+  var HELP_CMD_UNIX = 'ln -s "$HOME/.config/VintagestoryData" "$HOME/Desktop/VintagestoryData"';
 
   function $(id) {
     return document.getElementById(id);
@@ -51,6 +57,19 @@
   function postReset() {
     return fetch("/api/reset_defaults", { method: "POST" }).then(function (r) {
       return r.json();
+    });
+  }
+
+  function postNewQueue(accept) {
+    return fetch("/api/new_queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accept: !!accept }),
+    }).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok) throw new Error(j.error || r.statusText);
+        return j;
+      });
     });
   }
 
@@ -193,6 +212,22 @@
     canvas._drawState = { points: points, t0: t0, t1: t1, x0: x0, x1: x1, y0: y0, y1: y1, plotW: plotW, plotH: plotH, yOf: yOf, logScale: logScale, vmin: vmin, vmax: vmax };
   }
 
+  function tryRestoreBanner(s) {
+    var rb = $("restoreBanner");
+    if (!rb) return;
+    var saved = "";
+    try {
+      saved = (localStorage.getItem(LS_PATH) || "").trim();
+    } catch (e) {}
+    var cur = (s.source_path || "").trim();
+    if (!saved || cur) {
+      rb.classList.add("hidden");
+      return;
+    }
+    $("restoreBannerDetail").textContent = "Resume last folder path? " + saved;
+    rb.classList.remove("hidden");
+  }
+
   function applyState(s) {
     $("kpiPos").textContent = s.position || "—";
     $("kpiStatus").textContent = s.status || "—";
@@ -225,10 +260,19 @@
     const la = s.last_alert || "";
     if (la && la !== lastAlertPrev) {
       toast(la, "warn");
+      if (s.popup_enabled && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("VS Queue Monitor", { body: la });
+        } catch (e) {}
+      }
     }
     lastAlertPrev = la;
 
     $("inpPath").value = s.source_path || "";
+    try {
+      var pth = (s.source_path || "").trim();
+      if (pth) localStorage.setItem(LS_PATH, pth);
+    } catch (e) {}
 
     $("btnYScale").textContent = s.graph_log_scale ? "Y → log" : "Y → linear";
     $("btnLive").textContent = s.graph_live_view ? "Live view: on" : "Live view: off";
@@ -259,6 +303,32 @@
     $("chkSnd").checked = !!s.sound_enabled;
     $("chkCompPop").checked = !!s.completion_popup;
     $("chkCompSnd").checked = !!s.completion_sound;
+
+    var iws = $("inpSetWarnSound");
+    if (iws) iws.value = s.alert_sound_path || "";
+    var ics = $("inpSetCompSound");
+    if (ics) ics.value = s.completion_sound_path || "";
+
+    var mnq = $("modalNewQueue");
+    if (mnq) {
+      if (s.pending_new_queue_session != null && s.pending_new_queue_session !== undefined) {
+        mnq.classList.remove("hidden");
+        var nb = $("modalNewQueueBody");
+        if (nb)
+          nb.innerHTML =
+            "<p>A new queue session was detected in the log while you were in <strong>Interrupted</strong> state.</p>" +
+            "<p>Session id <strong>" +
+            String(s.pending_new_queue_session) +
+            "</strong>. Load it? This resets the chart and threshold alerts for the new run.</p>";
+      } else {
+        mnq.classList.add("hidden");
+      }
+    }
+
+    if (!_restoreOnce) {
+      _restoreOnce = true;
+      tryRestoreBanner(s);
+    }
 
     const c = $("graphCanvas");
     drawGraph(c, s);
@@ -303,12 +373,44 @@
 
   function setupTour() {
     const steps = [
-      { title: "Welcome", body: "This local web UI uses the same engine as the desktop app. No data leaves your machine.", sel: null },
-      { title: "Logs folder", body: "Paste your Vintage Story Logs folder (or data path), then Start.", sel: ".topbar__path" },
-      { title: "KPI row", body: "Use ✎ next to STATUS, RATE, or WARNINGS for inline edits (poll, rolling window, thresholds).", sel: "#secKpi" },
-      { title: "Chart", body: "Hover for time/position. Copy as PNG or TSV for spreadsheets.", sel: "#graphCanvas" },
-      { title: "Info & history", body: "Details below the chart; session log at the bottom.", sel: ".info" },
-      { title: "Done", body: "Open ⚙ for more toggles. Enjoy!", sel: null },
+      {
+        title: "Welcome",
+        html:
+          '<p class="tutorial-lead"><strong>~2 minutes</strong> — set your logs folder, tune warnings and rolling window, then start.</p>' +
+          "<ul class=\"tutorial-list\"><li>Paste the <strong>folder</strong> that contains <code>client-main.log</code> (Python reads the disk; nothing is uploaded).</li>" +
+          "<li>Warnings default to <strong>10, 5, 1</strong> (alerts on downward crossings).</li>" +
+          "<li>Rolling window defaults to <strong>10</strong> points.</li></ul>",
+        sel: null,
+      },
+      {
+        title: "Logs folder",
+        html:
+          '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> folder path, then <strong>Start</strong>.</p>' +
+          "<p class=\"muted\">Typical: Windows <code>%APPDATA%\\\\VintagestoryData</code> · macOS <code>~/Library/Application Support/VintagestoryData</code> · Linux <code>~/.config/VintagestoryData</code></p>" +
+          '<p class="muted">Open <strong>?</strong> for symlink help if a folder is hard to reach.</p>',
+        sel: ".topbar__path",
+      },
+      {
+        title: "Warnings",
+        html:
+          "<p>Milestones that trigger alerts as you approach the front.</p>" +
+          '<p>Use <strong>+</strong> to add one threshold or <strong>✎</strong> to edit the full list.</p>',
+        sel: "#kpiWarnRail",
+      },
+      {
+        title: "Rolling rate",
+        html:
+          "<p><strong>✎</strong> on the RATE header edits the rolling window (points). Larger = smoother ETA, slower to react.</p>",
+        sel: "#kpiRateLabel",
+      },
+      {
+        title: "Chart & alerts",
+        html:
+          "<p>Hover the chart for time and position. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
+          "<p>Enable <strong>Notifications</strong> in the header (localhost) for desktop alerts when thresholds fire.</p>" +
+          "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
+        sel: "#graphCanvas",
+      },
     ];
     let idx = 0;
     const overlay = $("tourOverlay");
@@ -360,7 +462,7 @@
       overlay.classList.remove("hidden");
       const step = steps[idx];
       title.textContent = step.title;
-      body.textContent = step.body;
+      body.innerHTML = step.html || "";
       stepNum.textContent = idx + 1 + " / " + steps.length;
       btnBack.style.display = idx ? "inline-block" : "none";
       btnNext.textContent = idx === steps.length - 1 ? "Done" : "Next";
@@ -414,6 +516,7 @@
       $("popPoll").classList.toggle("hidden");
       $("popWindow").classList.add("hidden");
       $("popWarn").classList.add("hidden");
+      $("popWarnAdd").classList.add("hidden");
       $("inpPoll").value = window._lastState ? window._lastState.poll_sec : "2";
     };
     $("btnPollOk").onclick = function () {
@@ -434,6 +537,7 @@
       $("popWindow").classList.toggle("hidden");
       $("popPoll").classList.add("hidden");
       $("popWarn").classList.add("hidden");
+      $("popWarnAdd").classList.add("hidden");
       $("inpWindow").value = window._lastState ? window._lastState.avg_window : "12";
     };
     $("btnWindowOk").onclick = function () {
@@ -449,11 +553,20 @@
       $("popWindow").classList.add("hidden");
     };
 
+    $("btnAddWarn").onclick = function (e) {
+      e.stopPropagation();
+      $("popWarnAdd").classList.toggle("hidden");
+      $("popPoll").classList.add("hidden");
+      $("popWindow").classList.add("hidden");
+      $("popWarn").classList.add("hidden");
+      $("inpWarnAdd").value = "";
+    };
     $("btnEditWarn").onclick = function (e) {
       e.stopPropagation();
       $("popWarn").classList.toggle("hidden");
       $("popPoll").classList.add("hidden");
       $("popWindow").classList.add("hidden");
+      $("popWarnAdd").classList.add("hidden");
       $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
     };
     $("btnWarnOk").onclick = function () {
@@ -469,12 +582,57 @@
       $("popWarn").classList.add("hidden");
     };
 
+    function mergeAlertThresholdsString(raw, addN) {
+      const set = {};
+      (raw || "")
+        .replace(/,/g, " ")
+        .split(/\s+/)
+        .forEach(function (p) {
+          const n = parseInt(p, 10);
+          if (!isNaN(n) && n >= 1) set[n] = true;
+        });
+      if (!isNaN(addN) && addN >= 1) set[addN] = true;
+      const arr = Object.keys(set)
+        .map(Number)
+        .sort(function (a, b) {
+          return b - a;
+        });
+      if (!arr.length) throw new Error("Add at least one threshold (e.g. 10, 5, 1).");
+      return arr.join(", ");
+    }
+    $("btnWarnAddOk").onclick = function () {
+      const n = parseInt(($("inpWarnAdd").value || "").trim(), 10);
+      if (isNaN(n) || n < 1) {
+        toast("Enter a queue position ≥ 1", "warn");
+        return;
+      }
+      const raw = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
+      let merged;
+      try {
+        merged = mergeAlertThresholdsString(raw, n);
+      } catch (err) {
+        toast(String(err.message || err), "warn");
+        return;
+      }
+      postConfig({ alert_thresholds: merged })
+        .then(function () {
+          $("popWarnAdd").classList.add("hidden");
+        })
+        .catch(function (err) {
+          toast(String(err.message || err), "warn");
+        });
+    };
+    $("btnWarnAddCancel").onclick = function () {
+      $("popWarnAdd").classList.add("hidden");
+    };
+
     document.body.addEventListener("click", function () {
       $("popPoll").classList.add("hidden");
       $("popWindow").classList.add("hidden");
       $("popWarn").classList.add("hidden");
+      $("popWarnAdd").classList.add("hidden");
     });
-    ["popPoll", "popWindow", "popWarn"].forEach(function (id) {
+    ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
       const el = $(id);
       if (el)
         el.addEventListener("click", function (e) {
@@ -515,6 +673,165 @@
     c.addEventListener("mouseleave", function () {
       $("graphHint").textContent = "Move the mouse over the chart for time and position.";
     });
+  }
+
+  function setupRestoreBanner() {
+    var dismiss = $("btnDismissRestore");
+    var resume = $("btnResumePath");
+    if (dismiss)
+      dismiss.onclick = function () {
+        var rb = $("restoreBanner");
+        if (rb) rb.classList.add("hidden");
+      };
+    if (resume)
+      resume.onclick = function () {
+        var saved = "";
+        try {
+          saved = (localStorage.getItem(LS_PATH) || "").trim();
+        } catch (e) {}
+        if (!saved) return;
+        var wasRunning = window._lastState && window._lastState.running;
+        $("inpPath").value = saved;
+        postConfig({ source_path: saved })
+          .then(function () {
+            var rb = $("restoreBanner");
+            if (rb) rb.classList.add("hidden");
+            if (!wasRunning) return postToggle();
+          })
+          .catch(function (err) {
+            toast(String(err.message || err), "warn");
+          });
+      };
+  }
+
+  function setupNewQueueModal() {
+    var yes = $("btnNewQueueYes");
+    var no = $("btnNewQueueNo");
+    var bd = $("modalNewQueueBackdrop");
+    function submit(accept) {
+      postNewQueue(accept).catch(function (err) {
+        toast(String(err.message || err), "warn");
+      });
+    }
+    if (yes) yes.onclick = function () {
+      submit(true);
+    };
+    if (no) no.onclick = function () {
+      submit(false);
+    };
+    if (bd) bd.onclick = function () {
+      submit(false);
+    };
+  }
+
+  function setupNotifications() {
+    var btn = $("btnNotify");
+    var hint = $("notifyHint");
+    function syncHint() {
+      if (!hint) return;
+      if (typeof Notification === "undefined") {
+        hint.textContent = "Not supported";
+        hint.classList.remove("hidden");
+        return;
+      }
+      if (Notification.permission === "granted") {
+        hint.textContent = "On";
+        hint.classList.remove("hidden");
+      } else if (Notification.permission === "denied") {
+        hint.textContent = "Blocked in browser";
+        hint.classList.remove("hidden");
+      } else {
+        hint.textContent = "Click to enable";
+        hint.classList.remove("hidden");
+      }
+    }
+    if (btn)
+      btn.onclick = function () {
+        if (typeof Notification === "undefined") {
+          toast("Desktop notifications are not supported in this browser", "warn");
+          return;
+        }
+        if (Notification.permission === "granted") {
+          try {
+            new Notification("VS Queue Monitor", { body: "Notifications are enabled." });
+          } catch (e) {}
+          syncHint();
+          return;
+        }
+        if (Notification.permission === "denied") {
+          toast("Notifications are blocked — change the site permission in the browser", "warn");
+          syncHint();
+          return;
+        }
+        Notification.requestPermission()
+          .then(function (p) {
+            syncHint();
+            if (p === "granted") {
+              try {
+                new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
+              } catch (e) {}
+            }
+          })
+          .catch(function () {
+            syncHint();
+          });
+      };
+    syncHint();
+  }
+
+  function setupHelpCmd() {
+    var pre = $("preHelpCmd");
+    var win = $("btnHelpWin");
+    var unix = $("btnHelpUnix");
+    function showWin() {
+      if (pre) pre.textContent = HELP_CMD_WIN;
+      if (win) win.classList.add("btn--tab-active");
+      if (unix) unix.classList.remove("btn--tab-active");
+    }
+    function showUnix() {
+      if (pre) pre.textContent = HELP_CMD_UNIX;
+      if (unix) unix.classList.add("btn--tab-active");
+      if (win) win.classList.remove("btn--tab-active");
+    }
+    if (win)
+      win.onclick = function (e) {
+        e.stopPropagation();
+        showWin();
+      };
+    if (unix)
+      unix.onclick = function (e) {
+        e.stopPropagation();
+        showUnix();
+      };
+    var copy = $("btnHelpCopyCmd");
+    if (copy)
+      copy.onclick = function (e) {
+        e.stopPropagation();
+        var t = pre ? pre.textContent : "";
+        if (!t) return;
+        navigator.clipboard.writeText(t).then(
+          function () {
+            toast("Command copied");
+          },
+          function () {
+            toast("Clipboard failed", "warn");
+          },
+        );
+      };
+    $("btnHelp").onclick = function () {
+      showWin();
+      fetch("/api/meta")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (m) {
+          $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
+          $("modalHelp").classList.remove("hidden");
+        })
+        .catch(function () {
+          $("modalHelp").classList.remove("hidden");
+        });
+    };
   }
 
   function setupChrome() {
@@ -573,19 +890,6 @@
       );
     };
 
-    $("btnHelp").onclick = function () {
-      fetch("/api/meta")
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (m) {
-          $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
-          $("modalHelp").classList.remove("hidden");
-        })
-        .catch(function () {
-          $("modalHelp").classList.remove("hidden");
-        });
-    };
     $("btnSettings").onclick = function () {
       $("modalSettings").classList.remove("hidden");
     };
@@ -596,13 +900,18 @@
       });
     });
     $("btnSaveSettings").onclick = function () {
-      postConfig({
+      var patch = {
         show_every_change: $("chkEvery").checked,
         popup_enabled: $("chkPop").checked,
         sound_enabled: $("chkSnd").checked,
         completion_popup: $("chkCompPop").checked,
         completion_sound: $("chkCompSnd").checked,
-      })
+      };
+      var iws = $("inpSetWarnSound");
+      var ics = $("inpSetCompSound");
+      if (iws) patch.alert_sound_path = iws.value.trim();
+      if (ics) patch.completion_sound_path = ics.value.trim();
+      postConfig(patch)
         .then(function () {
           $("modalSettings").classList.add("hidden");
           toast("Settings saved");
@@ -636,6 +945,10 @@
   setupChrome();
   setupPopovers();
   setupGraphCanvas();
+  setupRestoreBanner();
+  setupNewQueueModal();
+  setupNotifications();
+  setupHelpCmd();
   setupTour();
   connectWs();
   fetch("/api/meta")

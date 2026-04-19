@@ -32,6 +32,46 @@ body {
   background: var(--card);
   border-bottom: 1px solid var(--line);
 }
+.topbar__mid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.notify-hint {
+  font-size: 0.75rem;
+  max-width: 200px;
+}
+.btn--pill {
+  border-radius: 999px;
+  font-size: 0.8rem;
+  padding: 4px 12px;
+}
+
+.restore-banner {
+  background: #2b3a52;
+  border-bottom: 1px solid var(--accent);
+  padding: 10px 16px;
+}
+.restore-banner.hidden {
+  display: none;
+}
+.restore-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.restore-banner__msg {
+  font-size: 0.9rem;
+}
+.restore-banner__actions {
+  display: flex;
+  gap: 8px;
+}
 .brand__title {
   font-weight: 700;
   font-size: 1.1rem;
@@ -151,10 +191,16 @@ body {
 .kpi__val--sm {
   font-size: 1rem;
 }
-.kpi__warn {
+.kpi__warn-rail {
   margin-top: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.kpi__warn {
   font-size: 0.95rem;
   line-height: 1.4;
+  white-space: nowrap;
 }
 .warn-on {
   color: var(--text);
@@ -304,6 +350,62 @@ body {
 .modal__box--wide {
   max-width: 520px;
 }
+.modal__box--help {
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.help-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 4px;
+}
+.help-h3 {
+  font-size: 0.85rem;
+  margin: 14px 0 6px;
+  color: var(--muted);
+}
+.help-list {
+  margin: 0 0 8px 1rem;
+  padding: 0;
+  line-height: 1.5;
+}
+.help-pre {
+  background: #11161c;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.help-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+.btn--tab.btn--tab-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.modal__text {
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+.settings-field {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 10px;
+}
+.settings-inp {
+  width: 100%;
+  margin-bottom: 4px;
+}
 .modal__actions {
   margin-top: 16px;
   display: flex;
@@ -389,6 +491,17 @@ body {
   margin: 0;
   line-height: 1.5;
   font-size: 0.95rem;
+}
+.tutorial-lead {
+  margin: 0 0 10px;
+}
+.tutorial-list {
+  margin: 0 0 0 1.1rem;
+  padding: 0;
+  line-height: 1.55;
+}
+.tutorial-list li {
+  margin-bottom: 6px;
 }
 .tour-card__actions {
   margin-top: 14px;
