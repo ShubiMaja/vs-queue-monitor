@@ -48,7 +48,7 @@ Apply when editing `monitor.py`, `README.md`, or related files in this project. 
 
 ## ETA
 
-- At **position `1`**, still show **EST. REMAINING** using a **one-step** model (and fallback when speed unknown), not `—`.
+- At **position `1`**, still show **REMAINING** using a **one-step** model (and fallback when speed unknown), not `—`.
 
 ## Defaults
 

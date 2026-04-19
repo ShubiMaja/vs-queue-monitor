@@ -28,7 +28,7 @@ For implementation mapping (APIs, shortcuts, hooks), see [`UI-PARITY.md`](UI-PAR
 
 ### Main area
 
-- **KPI strip**: Position, Status, Rate (rolling header), Warnings, Elapsed, Est. remaining, Progress
+- **KPI strip**: Position, Status, Rate (rolling header), Warnings, Elapsed, Remaining, Progress
 - **Queue graph** (canvas): step series, log/linear Y, live view, hover readout
 - **Info** and **History** blocks (see layout in `web/static/index.html`)
 
