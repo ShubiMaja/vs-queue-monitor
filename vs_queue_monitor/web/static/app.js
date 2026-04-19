@@ -939,37 +939,61 @@
         hint.classList.remove("hidden");
       }
     }
-    if (btn)
-      btn.onclick = function () {
-        if (typeof Notification === "undefined") {
-          toast("Desktop notifications are not supported in this browser", "warn");
-          return;
-        }
-        if (Notification.permission === "granted") {
-          try {
-            new Notification("VS Queue Monitor", { body: "Notifications are enabled." });
-          } catch (e) {}
+    function onNotifyClick() {
+      if (typeof Notification === "undefined") {
+        toast("Desktop notifications are not supported in this embedded view. Try: python monitor.py --web-browser", "warn");
+        return;
+      }
+      if (Notification.permission === "granted") {
+        try {
+          new Notification("VS Queue Monitor", { body: "Notifications are enabled." });
+        } catch (e) {}
+        toast("Test notification sent — check the system tray if you do not see a banner.");
+        syncHint();
+        return;
+      }
+      if (Notification.permission === "denied") {
+        toast("Notifications are blocked — change the site permission for this origin in your browser.", "warn");
+        syncHint();
+        return;
+      }
+      toast("Allow notifications when your browser prompts…");
+      try {
+        var req = Notification.requestPermission();
+        if (req && typeof req.then === "function") {
+          req
+            .then(function (p) {
+              syncHint();
+              if (p === "granted") {
+                try {
+                  new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
+                } catch (e) {}
+                toast("Notifications enabled.");
+              } else if (p === "denied") {
+                toast("Notifications were denied.", "warn");
+              }
+            })
+            .catch(function () {
+              syncHint();
+              toast("Could not request notification permission.", "warn");
+            });
+        } else {
           syncHint();
-          return;
+          if (Notification.permission === "granted") {
+            try {
+              new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
+            } catch (e) {}
+            toast("Notifications enabled.");
+          }
         }
-        if (Notification.permission === "denied") {
-          toast("Notifications are blocked — change the site permission in the browser", "warn");
-          syncHint();
-          return;
-        }
-        Notification.requestPermission()
-          .then(function (p) {
-            syncHint();
-            if (p === "granted") {
-              try {
-                new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
-              } catch (e) {}
-            }
-          })
-          .catch(function () {
-            syncHint();
-          });
-      };
+      } catch (e) {
+        syncHint();
+        toast("Could not request notification permission.", "warn");
+      }
+    }
+    if (btn) {
+      btn.addEventListener("click", onNotifyClick);
+    }
     syncHint();
   }
 
