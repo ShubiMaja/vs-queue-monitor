@@ -23,24 +23,24 @@ Install first—details about libraries and behavior are in [Runtime requirement
 - **Git** (the bootstrap flow clones this repo; usually already installed).
 - **Network** access to GitHub (to download the bootstrap script and clone).
 
-**One command** — paste a single line into **Command Prompt** or **Win+R** (Windows) or your terminal (macOS/Linux). Each line **`mkdir`’s / `cd`’s into your Downloads folder first** so `curl` runs from a reliable location—you do not need to change directories yourself. Then it clones the app (default `%USERPROFILE%\vs-queue-monitor` on Windows, `~/vs-queue-monitor` elsewhere), creates `.venv`, installs dependencies, adds a **Desktop** shortcut on Windows, and asks whether to start the app when stdin is a TTY (**piped** one-liners start the monitor immediately after install).
+**One command** — paste a single line into **Command Prompt** or **Win+R** (Windows) or your terminal (macOS/Linux). Each line **`cd`’s to your user profile folder** (`%USERPROFILE%` / `$HOME`) so `curl` runs from a normal writable location—you do not need to change directories yourself. Then it clones the app (default `%USERPROFILE%\vs-queue-monitor` on Windows, `~/vs-queue-monitor` elsewhere), creates `.venv`, installs dependencies, adds a **Desktop** shortcut on Windows, and asks whether to start the app when stdin is a TTY (**piped** one-liners start the monitor immediately after install).
 
 **Windows** (`curl` is included on Windows 10+; use **`python`** instead of **`py -3`** if you do not have the `py` launcher — edit the last part of the line):
 
 ```bat
-cmd /c "mkdir \"%USERPROFILE%\Downloads\" 2>nul & cd /d \"%USERPROFILE%\Downloads\" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | py -3 -"
+cmd /c "cd /d \"%USERPROFILE%\" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | py -3 -"
 ```
 
-**If Python is not installed yet**, use this one line instead (downloads and runs the helper from Downloads; opens the Python installer page when needed):
+**If Python is not installed yet**, use this one line instead (downloads and runs the helper under your profile; opens the Python installer page when needed):
 
 ```bat
-cmd /c "mkdir \"%USERPROFILE%\Downloads\" 2>nul & cd /d \"%USERPROFILE%\Downloads\" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
+cmd /c "cd /d \"%USERPROFILE%\" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
 ```
 
 **macOS / Linux:**
 
 ```bash
-mkdir -p "$HOME/Downloads" && cd "$HOME/Downloads" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
+cd "$HOME" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 ```
 
 Optional: install only, no launch — `VS_QUEUE_MONITOR_SKIP_RUN=1` before the command. Skip the Desktop shortcut — `VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT=1` (Windows). Override install folder — `VS_QUEUE_MONITOR_HOME` (see **Bootstrap** below).
@@ -78,13 +78,13 @@ Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the hea
 **Alternatives (save `bootstrap.py` first)**
 
 ```bash
-mkdir -p "$HOME/Downloads" && cd "$HOME/Downloads" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
+cd "$HOME" && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
 ```
 
 **Windows (PowerShell, one line)**
 
 ```powershell
-$d="$env:USERPROFILE\Downloads"; New-Item -ItemType Directory -Force -Path $d | Out-Null; Set-Location $d; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py; python bootstrap.py
+Set-Location $env:USERPROFILE; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py; python bootstrap.py
 ```
 
 After a git clone you can run `bootstrap-windows.cmd` instead: it checks for `py` / `python` before piping to `bootstrap.py` (same behavior as piping `bootstrap.py` when Python is present).

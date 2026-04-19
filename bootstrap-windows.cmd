@@ -1,11 +1,9 @@
 @echo off
 REM One-line Windows bootstrap: clone (if needed), venv, pip, run monitor.py.
 REM Requires Python 3.10+ on PATH as "py" or "python". See README (Win+R flow).
-REM curl is reliable when the current directory is the user Downloads folder.
+REM Run curl from the user profile (writable, always present).
 setlocal
-if not exist "%USERPROFILE%\Downloads" mkdir "%USERPROFILE%\Downloads" 2>nul
-cd /d "%USERPROFILE%\Downloads" 2>nul
-if errorlevel 1 cd /d "%USERPROFILE%"
+cd /d "%USERPROFILE%"
 if not defined VS_QUEUE_MONITOR_BOOTSTRAP_URL (
   set "VS_QUEUE_MONITOR_BOOTSTRAP_URL=https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py"
 )
