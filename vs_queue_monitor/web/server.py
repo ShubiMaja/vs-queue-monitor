@@ -32,6 +32,45 @@ _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _package_install_parent() -> Path:
+    """Directory containing the ``vs_queue_monitor`` package (project root or ``site-packages``)."""
+    return _REPO_ROOT
+
+
+def _windows_server_child_command(
+    port: int,
+    initial_path: str,
+    auto_start: bool,
+) -> tuple[list[str], str]:
+    """Build ``argv`` and **cwd** for the uvicorn child so ``-m vs_queue_monitor`` resolves even when
+    the parent process was started with an unrelated working directory (e.g. Win+R, Explorer).
+    """
+    parent = _package_install_parent()
+    monitor_py = parent / "monitor.py"
+    if monitor_py.is_file():
+        cmd: list[str] = [
+            sys.executable,
+            str(monitor_py),
+            "--vs-queue-monitor-server-only",
+            "--web-port",
+            str(port),
+        ]
+    else:
+        cmd = [
+            sys.executable,
+            "-m",
+            "vs_queue_monitor",
+            "--vs-queue-monitor-server-only",
+            "--web-port",
+            str(port),
+        ]
+    if initial_path:
+        cmd.extend(["--path", initial_path])
+    if not auto_start:
+        cmd.append("--no-start")
+    return cmd, str(parent)
+
+
 def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
     """Read env var; prefer ``primary``, then legacy names (e.g. old ``VSQM_*``)."""
     v = os.environ.get(primary, "").strip()
@@ -473,16 +512,13 @@ def _run_windows_split_console_webview(
 
     logging.getLogger("webview").setLevel(logging.CRITICAL)
 
-    cmd = [sys.executable, "-m", "vs_queue_monitor", "--vs-queue-monitor-server-only", "--web-port", str(p)]
-    if initial_path:
-        cmd.extend(["--path", initial_path])
-    if not auto_start:
-        cmd.append("--no-start")
+    cmd, child_cwd = _windows_server_child_command(p, initial_path, auto_start)
 
     creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
     try:
         proc = subprocess.Popen(
             cmd,
+            cwd=child_cwd,
             creationflags=creationflags,
         )
     except OSError as exc:
@@ -491,6 +527,14 @@ def _run_windows_split_console_webview(
 
     if not _wait_for_tcp("127.0.0.1", p):
         print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
+        early = proc.poll()
+        if early is not None:
+            print(
+                f"The server subprocess exited immediately (code {early}). "
+                "Check the other console window for ImportError or missing dependencies, "
+                "or run: python monitor.py --vs-queue-monitor-server-only",
+                file=sys.stderr,
+            )
         if proc.poll() is None:
             proc.terminate()
             try:
