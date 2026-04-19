@@ -29,7 +29,7 @@ For implementation mapping (APIs, shortcuts, hooks), see [`UI-PARITY.md`](UI-PAR
 ### Main area
 
 - **KPI strip**: Position, Status, Rate (rolling header), Warnings, Elapsed, Remaining, Progress
-- **Queue graph** (canvas): step series, log/linear Y, live view, hover readout
+- **Queue graph** (canvas): step series, log/linear Y, live view, hover **tooltip** (at least time + position; may include more)
 - **Info** and **History** panes with matching compact column titles (uppercase, single-line), then grid + log (see `web/static/index.html`)
 
 ## Interaction spec (web)
@@ -37,7 +37,7 @@ For implementation mapping (APIs, shortcuts, hooks), see [`UI-PARITY.md`](UI-PAR
 - **Start/Stop**: button, **Space** (when not typing in a field).
 - **Path**: change event persists via `POST /api/config`.
 - **Settings**: modal; **o** opens; same persisted fields as `config.json`.
-- **Graph**: **c** copies TSV; **Copy PNG** button; mouse move shows time · position.
+- **Graph**: **c** copies TSV; **Copy PNG** button; mouse move shows a tooltip with **at least** time and position (extra detail allowed).
 - **History**: **v** copies session log text when not in a field.
 - **Help**: **F1** opens paths / config location.
 
