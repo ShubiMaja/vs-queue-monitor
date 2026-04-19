@@ -13,16 +13,15 @@
 - **Work in progress:** Features, UI, saved settings, and behavior can change at any time.
 - **AI-assisted code:** Much of this codebase was produced or refactored with AI / coding assistants. Validate paths, alerts, ETAs, and log interpretation yourself.
 
-## Requirements
-
-- **Python 3.10+**
-- **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
-- **Desktop alerts** use the standard **Notifications** API (`Notification.requestPermission()` + `new Notification()`). The header **bell** is **green** when Warning popup is on and the browser allowed notifications, **amber** when Warning popup is on but permission is still needed, and **crossed** when alerts are off in Settings, blocked in the browser, or unavailable. Click it to allow or send a test (`http://127.0.0.1:…`). **Threshold** toasts and system notifications use the **same human-readable text** as the engine (not just a timestamp). **In-app toasts** appear whenever a threshold fires; **system tray** banners use the same **standard web Notifications API** as any site (`Notification.requestPermission()` from the **bell**, then `new Notification()` when alerts fire), plus **Settings → Warning popup** and OS notification settings. On **Windows**, embedded **WebView2** (Chromium) attaches a **permission** handler so the host does not block requests before you allow them. If permission is granted but nothing appears, check **Windows Settings → System → Notifications** for **Edge WebView2** / the app host. Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the window fails to start. Use **`python monitor.py --web-browser`** if you prefer your installed browser. Optional: set **`VS_QUEUE_MONITOR_WEBVIEW_GUI`** to change the pywebview backend (default `edgechromium` on Windows; legacy: **`VSQM_WEBVIEW_GUI`**).
-- **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
-
-**Dependency policy:** Prefer the **Python standard library** when it fits the job. Beyond that, use **well-maintained, permissively licensed open-source** packages on PyPI (the local UI is **Starlette** + **uvicorn**; optional embedded shell **pywebview**). New runtime dependencies belong in `requirements.txt` and, when they affect install or how users run the app, in this README in the same change. The web client is **plain JS** (no npm build for the default flow) with **vendored open-source** bundles under [`vs_queue_monitor/web/static/vendor/`](vs_queue_monitor/web/static/vendor/) (e.g. **Day.js**, MIT, for date/time formatting); see `vendor/README.md` for versions.
-
 ## Quick start
+
+Install first—details about libraries and behavior are in [Runtime requirements](#runtime-requirements) below.
+
+### What you need first
+
+- **Python 3.10+** on your PATH (`python`, `py`, or `python3`).
+- **Git** (the bootstrap flow clones this repo; usually already installed).
+- **Network** access to GitHub (to download the bootstrap script and clone).
 
 **One command** — clones the app (default `%USERPROFILE%\vs-queue-monitor` on Windows, `~/vs-queue-monitor` elsewhere), creates `.venv`, installs dependencies, adds a **Desktop** shortcut on Windows, then asks whether to start the app (only when you run `bootstrap.py` from an interactive terminal; **piped** one-liners start the monitor immediately after install).
 
@@ -92,6 +91,17 @@ python bootstrap.py
 After a git clone you can run `bootstrap-windows.cmd` instead: it checks for `py` / `python` before piping to `bootstrap.py` (same behavior as piping `bootstrap.py` when Python is present).
 
 Log path: folder above or containing `client-main.log` — [Pointing at the log](#pointing-at-the-log).
+
+## Runtime requirements
+
+These apply **after** you install (via bootstrap or `pip install -r requirements.txt`). For the fastest path to a running app, use [Quick start](#quick-start) above.
+
+- **Python 3.10+** — same bar as [What you need first](#what-you-need-first); the app and tests target this baseline.
+- **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
+- **Desktop alerts** use the standard **Notifications** API (`Notification.requestPermission()` + `new Notification()`). The header **bell** is **green** when Warning popup is on and the browser allowed notifications, **amber** when Warning popup is on but permission is still needed, and **crossed** when alerts are off in Settings, blocked in the browser, or unavailable. Click it to allow or send a test (`http://127.0.0.1:…`). **Threshold** toasts and system notifications use the **same human-readable text** as the engine (not just a timestamp). **In-app toasts** appear whenever a threshold fires; **system tray** banners use the same **standard web Notifications API** as any site (`Notification.requestPermission()` from the **bell**, then `new Notification()` when alerts fire), plus **Settings → Warning popup** and OS notification settings. On **Windows**, embedded **WebView2** (Chromium) attaches a **permission** handler so the host does not block requests before you allow them. If permission is granted but nothing appears, check **Windows Settings → System → Notifications** for **Edge WebView2** / the app host. Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the window fails to start. Use **`python monitor.py --web-browser`** if you prefer your installed browser. Optional: set **`VS_QUEUE_MONITOR_WEBVIEW_GUI`** to change the pywebview backend (default `edgechromium` on Windows; legacy: **`VSQM_WEBVIEW_GUI`**).
+- **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
+
+**Dependency policy:** Prefer the **Python standard library** when it fits the job. Beyond that, use **well-maintained, permissively licensed open-source** packages on PyPI (the local UI is **Starlette** + **uvicorn**; optional embedded shell **pywebview**). New runtime dependencies belong in `requirements.txt` and, when they affect install or how users run the app, in this README in the same change. The web client is **plain JS** (no npm build for the default flow) with **vendored open-source** bundles under [`vs_queue_monitor/web/static/vendor/`](vs_queue_monitor/web/static/vendor/) (e.g. **Day.js**, MIT, for date/time formatting); see `vendor/README.md` for versions.
 
 ### Default web UI
 
