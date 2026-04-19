@@ -518,7 +518,7 @@
     };
   }
 
-  global.VSQMGraph = {
+  global.VsQueueMonitorGraph = {
     draw: draw,
     mergeTheme: mergeTheme,
     fmtTooltipTs: fmtTooltipTs,

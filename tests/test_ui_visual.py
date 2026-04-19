@@ -10,6 +10,13 @@ import pytest
 from playwright.sync_api import Page, expect
 
 # Narrow phone, tablet, just below / above CSS topbar breakpoint (900px), desktop
+def _env_playwright_screenshots() -> str:
+    v = os.environ.get("VS_QUEUE_MONITOR_PLAYWRIGHT_SCREENSHOTS", "").strip()
+    if v:
+        return v.lower()
+    return os.environ.get("VSQM_PLAYWRIGHT_SCREENSHOTS", "").strip().lower()
+
+
 _VIEWPORTS: list[tuple[int, int, str]] = [
     (390, 820, "mobile"),
     (768, 900, "tablet"),
@@ -116,13 +123,10 @@ def test_optional_full_page_screenshots(
     base_url: str,
     tmp_path: Path,
 ) -> None:
-    """Set VSQM_PLAYWRIGHT_SCREENSHOTS=1 to write PNGs under test-results/ for manual review."""
-    if os.environ.get("VSQM_PLAYWRIGHT_SCREENSHOTS", "").strip() not in (
-        "1",
-        "true",
-        "yes",
-    ):
-        pytest.skip("Set VSQM_PLAYWRIGHT_SCREENSHOTS=1 to capture screenshots")
+    """Set VS_QUEUE_MONITOR_PLAYWRIGHT_SCREENSHOTS=1 to write PNGs under test-results/ for manual review."""
+    shot = _env_playwright_screenshots()
+    if shot not in ("1", "true", "yes"):
+        pytest.skip("Set VS_QUEUE_MONITOR_PLAYWRIGHT_SCREENSHOTS=1 to capture screenshots")
     # Stable path so the agent/user can review artifacts after the run.
     # pytest tmp_path is great for CI, but hard to locate in interactive work.
     out_dir = Path("test-results") / "ui-shots"

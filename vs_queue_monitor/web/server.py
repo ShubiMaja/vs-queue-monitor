@@ -32,6 +32,18 @@ _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
+    """Read env var; prefer ``primary``, then legacy names (e.g. old ``VSQM_*``)."""
+    v = os.environ.get(primary, "").strip()
+    if v:
+        return v
+    for leg in legacy:
+        v = os.environ.get(leg, "").strip()
+        if v:
+            return v
+    return default
+
+
 def _webview_profile_dir() -> str:
     """Persistent WebView2 user data (permissions, like a browser profile)."""
     p = get_config_path().parent / "webview_profile"
@@ -46,7 +58,7 @@ def _pywebview_start_kwargs() -> dict[str, Any]:
     """Prefer Edge WebView2 on Windows so the page gets Chromium + Web Notifications API."""
     if sys.platform != "win32":
         return {}
-    gui = os.environ.get("VSQM_WEBVIEW_GUI", "edgechromium").strip()
+    gui = _env_pref("VS_QUEUE_MONITOR_WEBVIEW_GUI", "VSQM_WEBVIEW_GUI", default="edgechromium").strip()
     kw: dict[str, Any] = {"private_mode": False}
     if gui:
         kw["gui"] = gui
@@ -59,7 +71,7 @@ def _pywebview_start_kwargs() -> dict[str, Any]:
 
 def _build_fingerprint() -> str:
     """Short git SHA, env override, or VERSION (parity with static ``feature/change-to-web-ui`` builds)."""
-    fp = os.environ.get("VSQM_BUILD_FINGERPRINT", "").strip()
+    fp = _env_pref("VS_QUEUE_MONITOR_BUILD_FINGERPRINT", "VSQM_BUILD_FINGERPRINT").strip()
     if fp:
         return fp
     try:
@@ -389,6 +401,26 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
             pass
 
 
+def _init_web_stack(
+    initial_path: str = "",
+    auto_start: bool = True,
+    port: Optional[int] = None,
+) -> tuple[Starlette, QueueMonitorEngine, WebMonitorHooks, threading.RLock, int, str]:
+    """Build engine + Starlette app; ``auto_start`` schedules monitoring like ``run_web_server``."""
+    lock = threading.RLock()
+    hooks = WebMonitorHooks(lock)
+    engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
+    hooks.attach_engine(engine)
+    if auto_start:
+        hooks.schedule(300, engine.start_monitoring)
+
+    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
+
+    app = create_app(engine, hooks, lock)
+    url = f"http://127.0.0.1:{p}/"
+    return app, engine, hooks, lock, p, url
+
+
 def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
@@ -408,6 +440,109 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     return app
 
 
+def run_web_server_process(
+    initial_path: str = "",
+    auto_start: bool = True,
+    port: Optional[int] = None,
+) -> int:
+    """Foreground uvicorn only (used by the Windows server console subprocess)."""
+    import uvicorn
+
+    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
+    print(
+        "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
+        f"Listening on {url}\n",
+        flush=True,
+    )
+    try:
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
+    except KeyboardInterrupt:
+        return 0
+    return 0
+
+
+def _run_windows_split_console_webview(
+    initial_path: str,
+    auto_start: bool,
+    port: Optional[int],
+    p: int,
+    url: str,
+) -> int:
+    """Windows: separate CMD window runs uvicorn; this process runs only pywebview."""
+    import webview
+
+    logging.getLogger("webview").setLevel(logging.CRITICAL)
+
+    cmd = [sys.executable, "-m", "vs_queue_monitor", "--vs-queue-monitor-server-only", "--web-port", str(p)]
+    if initial_path:
+        cmd.extend(["--path", initial_path])
+    if not auto_start:
+        cmd.append("--no-start")
+
+    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            creationflags=creationflags,
+        )
+    except OSError as exc:
+        print(f"Could not start server console process: {exc}", file=sys.stderr)
+        return 1
+
+    if not _wait_for_tcp("127.0.0.1", p):
+        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        return 1
+
+    print(
+        "Opening embedded window — HTTP server logs are in the other console window (Ctrl+C there stops the server).",
+        flush=True,
+    )
+    try:
+        from .webview_win import schedule_webview2_notification_permission
+
+        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
+        start_kw = _pywebview_start_kwargs()
+        schedule_webview2_notification_permission()
+        try:
+            webview.start(**start_kw)
+        except Exception as inner_exc:
+            logging.getLogger(__name__).warning(
+                "webview.start(%s) failed (%s); retrying with pywebview defaults",
+                start_kw,
+                inner_exc,
+            )
+            webview.start()
+    except Exception:
+        print(
+            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
+            "or use a Python version with working wheels). Opening your default browser instead.\n"
+            f"  {url}\n"
+            "  Leave the server console window open while you use the app.",
+            file=sys.stderr,
+        )
+        webbrowser.open(url)
+        try:
+            proc.wait()
+        except KeyboardInterrupt:
+            if proc.poll() is None:
+                proc.terminate()
+        return 0
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+    return 0
+
+
 def run_web_server(
     initial_path: str = "",
     auto_start: bool = True,
@@ -419,29 +554,26 @@ def run_web_server(
 
     By default opens an **embedded** desktop window (pywebview) instead of a separate browser.
     Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to restore the old behavior.
+
+    On **Windows**, embedded mode uses a **second console** process for uvicorn (visible server
+    logs) and this process runs only pywebview. Set ``VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE=1`` (legacy: ``VSQM_DISABLE_SPLIT_CONSOLE``) to use a
+    single process (uvicorn thread + webview) instead.
     """
     import uvicorn
 
-    lock = threading.RLock()
-    hooks = WebMonitorHooks(lock)
-    engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
-    hooks.attach_engine(engine)
-    if auto_start:
-        hooks.schedule(300, engine.start_monitoring)
-
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
-
-    app = create_app(engine, hooks, lock)
     url = f"http://127.0.0.1:{p}/"
 
     if open_external_browser:
+        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
+        p, url = p2, url2
 
         def _open() -> None:
             time.sleep(0.35)
             webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
     try:
@@ -450,6 +582,8 @@ def run_web_server(
         # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
         logging.getLogger("webview").setLevel(logging.CRITICAL)
     except ImportError:
+        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
+        p, url = p2, url2
         print(
             "Embedded web UI requires pywebview. Install:\n"
             "  pip install pywebview\n"
@@ -458,10 +592,12 @@ def run_web_server(
             f"Serving at {url} (Ctrl+C to stop).",
             file=sys.stderr,
         )
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
     if not _gui_display_available():
+        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
+        p, url = p2, url2
         print(
             "No desktop display detected (headless or SSH without X11/Wayland). "
             "Skipping embedded window.\n"
@@ -470,13 +606,22 @@ def run_web_server(
             "  Local browser on this machine: python monitor.py --web-browser",
             file=sys.stderr,
         )
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
-    def _serve() -> None:
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="warning")
+    if (
+        sys.platform == "win32"
+        and _env_pref("VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE", "VSQM_DISABLE_SPLIT_CONSOLE").lower()
+        not in ("1", "true", "yes", "y")
+    ):
+        return _run_windows_split_console_webview(initial_path, auto_start, port, p, url)
 
-    th = threading.Thread(target=_serve, daemon=True, name="vsqm-uvicorn")
+    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
+
+    def _serve() -> None:
+        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
+
+    th = threading.Thread(target=_serve, daemon=True, name="vs-queue-monitor-uvicorn")
     th.start()
     if not _wait_for_tcp("127.0.0.1", p):
         print("ERROR: Local web server did not become ready in time.", file=sys.stderr)

@@ -7,12 +7,45 @@
 
   var lastAlertSeq = null;
   var lastCompletionSeq = null;
-  var LS_PATH = "vsqm_web_last_path";
-  var LS_SESSION = "vsqm_selected_session_v1";
+  var LS_PATH = "vs_queue_monitor_web_last_path";
+  var LS_PATH_LEGACY = "vsqm_web_last_path";
+  var LS_SESSION = "vs_queue_monitor_selected_session_v1";
+  var LS_SESSION_LEGACY = "vsqm_selected_session_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
   var notifySyncHint = null;
+
+  function lsGetPath() {
+    try {
+      var v = localStorage.getItem(LS_PATH);
+      if (v != null && v !== "") return v;
+      return localStorage.getItem(LS_PATH_LEGACY);
+    } catch (e) {
+      return null;
+    }
+  }
+  function lsSetPath(val) {
+    try {
+      localStorage.setItem(LS_PATH, val);
+      localStorage.removeItem(LS_PATH_LEGACY);
+    } catch (e) {}
+  }
+  function lsGetSession() {
+    try {
+      var v = localStorage.getItem(LS_SESSION);
+      if (v != null && v !== "") return v;
+      return localStorage.getItem(LS_SESSION_LEGACY);
+    } catch (e) {
+      return null;
+    }
+  }
+  function lsSetSession(val) {
+    try {
+      localStorage.setItem(LS_SESSION, val);
+      localStorage.removeItem(LS_SESSION_LEGACY);
+    } catch (e) {}
+  }
 
   var HELP_CMD_WIN =
     'mklink /J "%USERPROFILE%\\Desktop\\VintagestoryData" "%APPDATA%\\VintagestoryData"';
@@ -22,31 +55,19 @@
     return document.getElementById(id);
   }
 
-  /** Short label for the header (folder or file name only — not the full path). */
-  function formatPathSummary(fullPath) {
-    var t = (fullPath || "").trim();
-    if (!t) return "Not set";
-    t = t.replace(/\\/g, "/").replace(/\/+$/, "");
-    var parts = t.split("/").filter(function (x) {
-      return x.length;
-    });
-    var base = parts.length ? parts[parts.length - 1] : t;
-    if (base.length > 40) base = base.slice(0, 37) + "…";
-    return base;
-  }
-
+  /** Header shows only whether a path is configured; the full path is in Info and in tooltip / aria-label. */
   function syncPathDisplay() {
     var inp = $("inpPath");
     var tx = $("pathSummaryText");
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
-    if (tx) tx.textContent = formatPathSummary(raw);
+    if (tx) tx.textContent = raw ? "Path set" : "Not set";
     if (btn) {
       btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
       btn.setAttribute(
         "aria-label",
         raw
-          ? "Log source " + formatPathSummary(raw) + ". Click to edit full path."
+          ? "Log source path set. Full path: " + raw + ". Click to edit."
           : "Log source not set. Click to paste path.",
       );
     }
@@ -129,14 +150,14 @@
   }
 
   function drawGraph(canvas, state) {
-    if (!window.VSQMGraph) {
+    if (!window.VsQueueMonitorGraph) {
       return;
     }
     var ctx = canvas.getContext("2d");
     if (!ctx) {
       return;
     }
-    VSQMGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover);
+    VsQueueMonitorGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover);
   }
 
   function redrawGraphOnly() {
@@ -156,6 +177,17 @@
       return h + ":" + String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
     }
     return m + ":" + String(ss).padStart(2, "0");
+  }
+
+  /** Graph tooltip: sub-second as N.NNs, otherwise same as stats (e.g. 1:33, 1:05:02). */
+  function formatTooltipDuration(sec) {
+    if (sec == null || !Number.isFinite(sec) || sec < 0) {
+      return "—";
+    }
+    if (sec < 1) {
+      return sec.toFixed(2) + "s";
+    }
+    return formatDurationHms(sec);
   }
 
   /**
@@ -335,7 +367,7 @@
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
       try {
-        var saved = (localStorage.getItem(LS_SESSION) || "").trim();
+        var saved = (lsGetSession() || "").trim();
         if (saved) {
           selectedSessionKey = saved;
         }
@@ -359,7 +391,7 @@
       selectedSessionKey = "latest";
     }
     try {
-      localStorage.setItem(LS_SESSION, selectedSessionKey);
+      lsSetSession(selectedSessionKey);
     } catch (e) {}
   }
 
@@ -371,7 +403,7 @@
     sel.addEventListener("change", function () {
       selectedSessionKey = sel.value || "latest";
       try {
-        localStorage.setItem(LS_SESSION, selectedSessionKey);
+        lsSetSession(selectedSessionKey);
       } catch (e) {}
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
@@ -386,7 +418,7 @@
     if (!rb) return;
     var saved = "";
     try {
-      saved = (localStorage.getItem(LS_PATH) || "").trim();
+      saved = (lsGetPath() || "").trim();
     } catch (e) {}
     var cur = (s.source_path || "").trim();
     if (!saved || cur) {
@@ -407,7 +439,8 @@
     $("kpiRem").textContent = s.remaining || "—";
     const prog = Math.max(0, Math.min(100, s.progress || 0));
     $("kpiProgFill").style.width = prog + "%";
-    $("kpiProgTxt").textContent = Math.round(prog) + "%";
+    var pp = $("kpiProgPct");
+    if (pp) pp.textContent = "(" + Math.round(prog) + "%)";
 
     const w = s.warnings || [];
     const kw = $("kpiWarnings");
@@ -443,7 +476,7 @@
         try {
           new Notification("VS Queue Monitor", {
             body: alertMsg,
-            tag: "vsqm-threshold",
+            tag: "vs-queue-monitor-threshold",
           });
         } catch (e) {
           toast(
@@ -479,7 +512,7 @@
     syncPathDisplay();
     try {
       var pth = (s.source_path || "").trim();
-      if (pth) localStorage.setItem(LS_PATH, pth);
+      if (pth) lsSetPath(pth);
     } catch (e) {}
 
     $("btnYScale").textContent = s.graph_log_scale ? "Y → log" : "Y → linear";
@@ -1000,7 +1033,7 @@
   }
 
   function formatGraphTooltipHint(pt, idx, series) {
-    var ts = VSQMGraph.fmtTooltipTs(pt[0]);
+    var ts = VsQueueMonitorGraph.fmtTooltipTs(pt[0]);
     var posStr = String(pt[1]);
     var lines = [ts + "  ·  pos " + posStr];
     if (idx > 0) {
@@ -1010,7 +1043,9 @@
       if (dt > 1e-6) {
         var dpStr = (dp >= 0 ? "+" : "") + dp;
         var extra = dp !== 0 ? "  (" + (dp / dt).toFixed(3) + "/s)" : "";
-        lines.push("vs prev: " + dpStr + " in " + dt.toFixed(2) + "s" + extra);
+        lines.push(
+          "vs prev: " + dpStr + "  ·  position length: " + formatTooltipDuration(dt) + extra,
+        );
       } else {
         lines.push("vs prev: " + (dp >= 0 ? "+" : "") + dp);
       }
@@ -1106,7 +1141,7 @@
       resume.onclick = function () {
         var saved = "";
         try {
-          saved = (localStorage.getItem(LS_PATH) || "").trim();
+          saved = (lsGetPath() || "").trim();
         } catch (e) {}
         if (!saved) return;
         var wasRunning = window._lastState && window._lastState.running;

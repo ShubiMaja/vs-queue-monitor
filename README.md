@@ -17,75 +17,85 @@
 
 - **Python 3.10+**
 - **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
-- **Desktop alerts** use the standard **Notifications** API (`Notification.requestPermission()` + `new Notification()`). The header **bell** is **green** when Warning popup is on and the browser allowed notifications, **amber** when Warning popup is on but permission is still needed, and **crossed** when alerts are off in Settings, blocked in the browser, or unavailable. Click it to allow or send a test (`http://127.0.0.1:…`). **Threshold** toasts and system notifications use the **same human-readable text** as the engine (not just a timestamp). **In-app toasts** appear whenever a threshold fires; **system tray** banners use the same **standard web Notifications API** as any site (`Notification.requestPermission()` from the **bell**, then `new Notification()` when alerts fire), plus **Settings → Warning popup** and OS notification settings. On **Windows**, embedded **WebView2** (Chromium) attaches a **permission** handler so the host does not block requests before you allow them. If permission is granted but nothing appears, check **Windows Settings → System → Notifications** for **Edge WebView2** / the app host. Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the window fails to start. Use **`python monitor.py --web-browser`** if you prefer your installed browser. Optional: set **`VSQM_WEBVIEW_GUI`** to change the pywebview backend (default `edgechromium` on Windows).
+- **Desktop alerts** use the standard **Notifications** API (`Notification.requestPermission()` + `new Notification()`). The header **bell** is **green** when Warning popup is on and the browser allowed notifications, **amber** when Warning popup is on but permission is still needed, and **crossed** when alerts are off in Settings, blocked in the browser, or unavailable. Click it to allow or send a test (`http://127.0.0.1:…`). **Threshold** toasts and system notifications use the **same human-readable text** as the engine (not just a timestamp). **In-app toasts** appear whenever a threshold fires; **system tray** banners use the same **standard web Notifications API** as any site (`Notification.requestPermission()` from the **bell**, then `new Notification()` when alerts fire), plus **Settings → Warning popup** and OS notification settings. On **Windows**, embedded **WebView2** (Chromium) attaches a **permission** handler so the host does not block requests before you allow them. If permission is granted but nothing appears, check **Windows Settings → System → Notifications** for **Edge WebView2** / the app host. Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) if the window fails to start. Use **`python monitor.py --web-browser`** if you prefer your installed browser. Optional: set **`VS_QUEUE_MONITOR_WEBVIEW_GUI`** to change the pywebview backend (default `edgechromium` on Windows; legacy: **`VSQM_WEBVIEW_GUI`**).
 - **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
 
 **Dependency policy:** Prefer the **Python standard library** when it fits the job. Beyond that, use **well-maintained, permissively licensed open-source** packages on PyPI (the local UI is **Starlette** + **uvicorn**; optional embedded shell **pywebview**). New runtime dependencies belong in `requirements.txt` and, when they affect install or how users run the app, in this README in the same change. The web client is **plain JS** (no npm build for the default flow) with **vendored open-source** bundles under [`vs_queue_monitor/web/static/vendor/`](vs_queue_monitor/web/static/vendor/) (e.g. **Day.js**, MIT, for date/time formatting); see `vendor/README.md` for versions.
 
 ## Quick start
 
-```bash
-pip install -r requirements.txt
-python monitor.py
-```
+**One command** — clones the app (default `%USERPROFILE%\vs-queue-monitor` on Windows, `~/vs-queue-monitor` elsewhere), creates `.venv`, installs dependencies, adds a **Desktop** shortcut on Windows, then asks whether to start the app (only when you run `bootstrap.py` from an interactive terminal; **piped** one-liners start the monitor immediately after install).
 
-Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, the **folder** and **log file** icons open a native picker on the machine running Python (Tk); click the path summary or paste in the prompt to set a path.
-
-| | |
-|--|--|
-| Windows | `vsqm.cmd` / `Run VS Queue Monitor.bat` · `Win+R` → `vsqm` if the repo directory is on user **`Path`** · else `"…\vs-queue-monitor\vsqm.cmd"` |
-| macOS / Linux | `./run-vs-queue-monitor.sh` or `python3 monitor.py` |
-
-### Windows: Run dialog (Win+R)
-
-**If Python is not installed** — `vsqm.cmd`, `Run VS Queue Monitor.bat`, and `bootstrap-windows.cmd` print a short message, open the **Python for Windows** download page in your browser, and exit after you press a key. Install **Python 3.10+**, enable **Add python.exe to PATH** during setup (or add it later), then run again.
-
-**If Python is already installed** — from a full clone (or after bootstrap has run once):
-
-1. Press **Win+R** (Run).
-2. **Paste** the launcher: either `vsqm` (if the repo folder is on your user **Path**) or the full path to `vsqm.cmd`, e.g. `C:\Users\You\vs-queue-monitor\vsqm.cmd`.
-3. Press **Enter**.
-4. **Wait** — first launch may create `.venv` and install packages (can take a minute).
-5. The **app opens** (embedded window when `pywebview` is available, otherwise your browser).
-
-**First-time install from the web (no clone yet)** — paste this in **Win+R** (downloads the helper script to `%TEMP%` and runs it; requires `curl`, included on Windows 10+):
+**Windows** (requires **Python 3.10+** on PATH as `py` or `python`; `curl` is included on Windows 10+):
 
 ```bat
-cmd /c curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd" -o "%TEMP%\vsqm-bootstrap.cmd" && "%TEMP%\vsqm-bootstrap.cmd"
+curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" | py -3 -
 ```
 
-Same checks apply: without Python you get the warning and the install link; with Python, bootstrap clones to `%USERPROFILE%\vs-queue-monitor` (override with `VS_QUEUE_MONITOR_HOME`), sets up the venv, and starts the monitor.
+Use `python` instead of `py -3` if you do not have the `py` launcher. **If Python is not installed yet**, run this instead (downloads a helper that opens the Python installer page when needed):
 
-**Bootstrap** — default clone `~/vs-queue-monitor`; `VS_QUEUE_MONITOR_HOME` overrides. Forks: `VS_QUEUE_MONITOR_REPO`, `VS_QUEUE_MONITOR_BRANCH`. Non-`main` branch: fix the raw URL path (e.g. `feature%2Funified-approach`). For `bootstrap-windows.cmd`, set `VS_QUEUE_MONITOR_BOOTSTRAP_URL` to the raw `bootstrap.py` URL on your branch if needed.
-
-**macOS / Linux**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
+```bat
+cmd /c curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd" -o "%TEMP%\vs-queue-monitor-bootstrap.cmd" && "%TEMP%\vs-queue-monitor-bootstrap.cmd"
 ```
 
-**Pipe (no `bootstrap.py` on disk)**
+**macOS / Linux:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 ```
 
-**Windows (PowerShell)**
+Optional: install only, no launch — `VS_QUEUE_MONITOR_SKIP_RUN=1` before the command. Skip the Desktop shortcut — `VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT=1` (Windows). Override install folder — `VS_QUEUE_MONITOR_HOME` (see **Bootstrap** below).
+
+`python bootstrap.py` accepts the same arguments as `monitor.py` (e.g. `--path "%APPDATA%\VintagestoryData"`, `--web-browser`).
+
+### Already cloned or developing
+
+```bash
+pip install -r requirements.txt
+python monitor.py
+```
+
+Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, the **folder** and **log file** icons open a native picker on the machine running Python (Tk); click the path status or paste in the prompt to set a path.
+
+| | |
+|--|--|
+| Windows | `vs-queue-monitor.cmd` / `Run VS Queue Monitor.bat` · `Win+R` → `vs-queue-monitor` if the repo directory is on user **`Path`** · else `"…\vs-queue-monitor\vs-queue-monitor.cmd"` |
+| macOS / Linux | `./run-vs-queue-monitor.sh` or `python3 monitor.py` |
+
+### Windows: Run dialog (Win+R) after install
+
+**If Python is not installed** — `vs-queue-monitor.cmd`, `Run VS Queue Monitor.bat`, and `bootstrap-windows.cmd` print a short message, open the **Python for Windows** download page in your browser, and exit after you press a key. Install **Python 3.10+**, enable **Add python.exe to PATH** during setup (or add it later), then run again.
+
+**If Python is already installed** — from a full clone (or after bootstrap has run once):
+
+1. Press **Win+R** (Run).
+2. **Paste** the launcher: either `vs-queue-monitor` (if the repo folder is on your user **Path**) or the full path to `vs-queue-monitor.cmd`, e.g. `C:\Users\You\vs-queue-monitor\vs-queue-monitor.cmd`.
+3. Press **Enter**.
+4. **Wait** — first launch may create `.venv` and install packages (can take a minute).
+5. The **app opens** (embedded window when `pywebview` is available, otherwise your browser).
+
+**Bootstrap** — default clone `~/vs-queue-monitor`; `VS_QUEUE_MONITOR_HOME` overrides. Forks: `VS_QUEUE_MONITOR_REPO`, `VS_QUEUE_MONITOR_BRANCH`. Non-`main` branch: fix the raw URL path (e.g. `feature%2Funified-approach`). For `bootstrap-windows.cmd`, set `VS_QUEUE_MONITOR_BOOTSTRAP_URL` to the raw `bootstrap.py` URL on your branch if needed.
+
+**Alternatives (save `bootstrap.py` first)**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py -o bootstrap.py && python3 bootstrap.py
+```
+
+**Windows (PowerShell, save file then run)**
 
 ```powershell
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py
 python bootstrap.py
 ```
 
-After a git clone you can run `bootstrap-windows.cmd` instead: it checks for `py` / `python` before piping to `bootstrap.py` (same behavior as the **Win+R** one-liner above).
-
-`python bootstrap.py` forwards the same flags as `monitor.py` (e.g. `--path "%APPDATA%\VintagestoryData"`, `--web-browser`).
+After a git clone you can run `bootstrap-windows.cmd` instead: it checks for `py` / `python` before piping to `bootstrap.py` (same behavior as piping `bootstrap.py` when Python is present).
 
 Log path: folder above or containing `client-main.log` — [Pointing at the log](#pointing-at-the-log).
 
 ### Default web UI
 
-`http://127.0.0.1:8765/` — webview when available; otherwise the default browser. **`--web-browser`** skips embedded. **`--web-port`** / **`VS_QUEUE_MONITOR_WEB_PORT`**. **Ctrl+C** stops the server. **`--web`** is a no-op alias for scripts.
+`http://127.0.0.1:8765/` — **embedded webview** when available (preferred on Windows/macOS/Linux desktops); otherwise your **default browser**. On **Windows**, the embedded path opens a **second console window** that runs the HTTP server (uvicorn logs, **Ctrl+C** stops the server there) and a separate **pywebview** window for the UI—so you always see server output. Set **`VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE=1`** (legacy: `VSQM_DISABLE_SPLIT_CONSOLE`) to keep a single process (uvicorn background thread + webview) like other platforms. **`--web-browser`** uses one terminal for the server and opens the UI in an external browser. **`--web-port`** / **`VS_QUEUE_MONITOR_WEB_PORT`**. **Ctrl+C** in the foreground process stops what that process owns. **`--web`** is a no-op alias for scripts.
 
 Without a working `pywebview` install, stderr describes **`--web-browser`** or installing `pywebview`.
 
@@ -121,8 +131,9 @@ python monitor.py --no-start
 | `vs_queue_monitor/web/` | Local Starlette app + static client (only UI) |
 | `vs_queue_monitor/cli.py` | Web UI; `--web`, `--web-browser`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
-| `vsqm.cmd` | Windows: short launcher for **Win+R** / PATH; runs `monitor.py` (uses `.venv` if present) |
-| `Run VS Queue Monitor.bat` | Windows: double-click; delegates to **`vsqm.cmd`** |
+| `vs-queue-monitor.cmd` | Windows: launcher for **Win+R** / PATH; runs `monitor.py` (uses `.venv` if present) |
+| `vsqm.cmd` | Compatibility shim — calls **`vs-queue-monitor.cmd`** |
+| `Run VS Queue Monitor.bat` | Windows: double-click; delegates to **`vs-queue-monitor.cmd`** |
 | `bootstrap-windows.cmd` | Windows: `curl` + pipe to Python; **Win+R** one-liner in README; warns if Python missing |
 | `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
@@ -141,7 +152,7 @@ python -m pytest tests/
 
 Run **`python -m pytest tests/ --headed --slowmo 400`** to watch the browser. With the app already running (`python monitor.py`), use **`playwright codegen http://127.0.0.1:8765/`** to record steps and paste generated selectors.
 
-**Layout checks** (`tests/test_ui_visual.py`): several **viewport widths** (mobile through desktop), **no horizontal document overflow**, **top bar** overflow check, **information architecture** (KPI labels, graph canvas, **Info** / **History** titles), and a **long log path** via `POST /api/config` to ensure the path summary still fits. **`tests/test_notifications_ui.py`** checks the **bell** + standard web notification flow (Chromium’s `Notification` is stubbed in tests so permission is deterministic). For **full-page PNGs** under pytest’s temp dir, run with **`VSQM_PLAYWRIGHT_SCREENSHOTS=1`**.
+**Layout checks** (`tests/test_ui_visual.py`): several **viewport widths** (mobile through desktop), **no horizontal document overflow**, **top bar** overflow check, **information architecture** (KPI labels, graph canvas, **Info** / **History** titles), and a **long log path** via `POST /api/config` to ensure the path summary still fits. **`tests/test_notifications_ui.py`** checks the **bell** + standard web notification flow (Chromium’s `Notification` is stubbed in tests so permission is deterministic). For **full-page PNGs** under pytest’s temp dir, run with **`VS_QUEUE_MONITOR_PLAYWRIGHT_SCREENSHOTS=1`** (legacy: `VSQM_PLAYWRIGHT_SCREENSHOTS`).
 
 ## Pointing at the log
 

@@ -114,4 +114,4 @@ def schedule_webview2_notification_permission() -> None:
         if not attached:
             logger.debug("WebView2 notification patch: CoreWebView2 not ready within %.0fs", _DEADLINE_SEC)
 
-    threading.Thread(target=worker, daemon=True, name="vsqm-webview2-notify").start()
+    threading.Thread(target=worker, daemon=True, name="vs-queue-monitor-webview2-notify").start()

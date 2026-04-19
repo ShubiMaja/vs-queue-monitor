@@ -53,7 +53,7 @@ def live_server_url() -> Generator[str, None, None]:
     def run() -> None:
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
-    thread = threading.Thread(target=run, daemon=True, name="vsqm-test-uvicorn")
+    thread = threading.Thread(target=run, daemon=True, name="vs-queue-monitor-test-uvicorn")
     thread.start()
     if not _wait_for_tcp("127.0.0.1", port, timeout_sec=30.0):
         pytest.fail("Test server did not start in time")
