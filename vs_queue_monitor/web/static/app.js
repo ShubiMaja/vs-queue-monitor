@@ -393,6 +393,10 @@
     try {
       lsSetSession(selectedSessionKey);
     } catch (e) {}
+    sel.title =
+      sessions.length > 0
+        ? "Plot a past queue run from the log tail; KPIs above stay live."
+        : "More queue sessions appear here when the log has more than one run in the saved tail.";
   }
 
   function setupSessionSelect() {
@@ -429,14 +433,39 @@
     rb.classList.remove("hidden");
   }
 
+  function setKpiMetric(el, raw, emptyTitle) {
+    if (!el) return;
+    var t = raw == null || raw === "" ? "—" : String(raw);
+    el.textContent = t;
+    if (t === "—") {
+      el.classList.add("kpi__val--empty");
+      if (emptyTitle) el.title = emptyTitle;
+    } else {
+      el.classList.remove("kpi__val--empty");
+      el.removeAttribute("title");
+    }
+  }
+
   function applyState(s) {
-    $("kpiPos").textContent = s.position || "—";
-    $("kpiStatus").textContent = s.status || "—";
+    setKpiMetric(
+      $("kpiPos"),
+      s.position,
+      "No queue position in the log yet — start monitoring or check the log path.",
+    );
+    setKpiMetric($("kpiStatus"), s.status, "Engine status — idle until monitoring starts.");
     var rh = $("kpiRateHdr");
     if (rh) rh.textContent = s.rate_header || "RATE";
-    $("kpiRate").textContent = s.queue_rate || "—";
-    $("kpiElapsed").textContent = s.elapsed || "—";
-    $("kpiRem").textContent = s.remaining || "—";
+    setKpiMetric(
+      $("kpiRate"),
+      s.queue_rate,
+      "No rate yet — need more queue movement in the rolling window.",
+    );
+    setKpiMetric($("kpiElapsed"), s.elapsed, "Timer starts once queue timing is available.");
+    setKpiMetric(
+      $("kpiRem"),
+      s.remaining,
+      "No ETA yet — need more samples or movement in the log.",
+    );
     const prog = Math.max(0, Math.min(100, s.progress || 0));
     $("kpiProgFill").style.width = prog + "%";
     var pp = $("kpiProgPct");
@@ -452,7 +481,15 @@
       sp.className = row.passed ? "warn-off" : "warn-on";
       kw.appendChild(sp);
     });
-    if (!w.length) kw.textContent = "—";
+    if (!w.length) {
+      kw.textContent = "—";
+      kw.classList.add("kpi__val--empty");
+      kw.title =
+        "Threshold positions — configure under Settings; values show when the queue crosses them.";
+    } else {
+      kw.classList.remove("kpi__val--empty");
+      kw.removeAttribute("title");
+    }
 
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
