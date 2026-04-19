@@ -596,18 +596,10 @@
       if (pth) lsSetPath(pth);
     } catch (e) {}
 
-    var btnY = $("btnYScale");
-    if (btnY) {
-      btnY.textContent = s.graph_log_scale ? "Y → log" : "Y → linear";
-      btnY.title = s.graph_log_scale ? "Use linear Y scale" : "Use logarithmic Y scale";
-    }
-    var btnL = $("btnLive");
-    if (btnL) {
-      btnL.textContent = s.graph_live_view ? "Live view: on" : "Live view: off";
-      btnL.title = s.graph_live_view
-        ? "Live view follows the newest samples"
-        : "Live view off (fixed time window)";
-    }
+    var chkGL = $("chkGraphLog");
+    if (chkGL) chkGL.checked = !!s.graph_log_scale;
+    var chkGV = $("chkGraphLive");
+    if (chkGV) chkGV.checked = !!s.graph_live_view;
 
     var btnSS = $("btnStartStop");
     if (btnSS) {
@@ -760,7 +752,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p>Tap or hover the chart for a <strong>tooltip</strong> (time, position, and details). <strong>Copy PNG / TSV</strong> for sharing.</p>" +
+          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and <strong>live view</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts; when it’s on (green), click again to <strong>send a test</strong>.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -1611,18 +1603,6 @@
           });
       };
     }
-    $("btnYScale").onclick = function () {
-      const g = window._lastState && window._lastState.graph_log_scale;
-      postConfig({ graph_log_scale: !g }).catch(function (e) {
-        toast(String(e), "warn");
-      });
-    };
-    $("btnLive").onclick = function () {
-      const g = window._lastState && window._lastState.graph_live_view;
-      postConfig({ graph_live_view: !g }).catch(function (e) {
-        toast(String(e), "warn");
-      });
-    };
     $("btnCopyPng").onclick = function () {
       const c = $("graphCanvas");
       c.toBlob(function (blob) {
@@ -1695,6 +1675,8 @@
         sound_enabled: $("chkSnd").checked,
         completion_popup: $("chkCompPop").checked,
         completion_sound: $("chkCompSnd").checked,
+        graph_log_scale: $("chkGraphLog").checked,
+        graph_live_view: $("chkGraphLive").checked,
       };
       var iws = $("inpSetWarnSound");
       var ics = $("inpSetCompSound");
