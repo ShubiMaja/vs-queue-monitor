@@ -2,7 +2,7 @@
 
 This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a more maintainable, professional design format.
 
-**Scope.** This repository ships a **browser-only web app** (no backend). The design assumes the constraints of the **File System Access API** and browser notifications. Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
+**Scope.** The canonical product experience is the **browser** client (no backend), with the constraints of the **File System Access API** and browser notifications. The repository also ships a **Python** app (Tk + Textual TUI) that should stay **behaviorally** aligned with this document where noted (see **§1.1**). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---
 

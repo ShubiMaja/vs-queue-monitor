@@ -9,6 +9,32 @@
       "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "VS Queue Monitor: Run GUI (Python)",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["--gui"],
+      "env": {
+        "VS_QUEUE_MONITOR_UI": "gui"
+      },
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "VS Queue Monitor: Run GUI — no auto-start",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/monitor.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": ["--gui", "--no-start"],
+      "env": {
+        "VS_QUEUE_MONITOR_UI": "gui"
+      },
+      "cwd": "${workspaceFolder}"
     }
   ]
 }
