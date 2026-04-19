@@ -70,10 +70,10 @@ body {
   max-width: 100%;
   overflow-x: hidden;
   box-sizing: border-box;
-  padding: 10px min(16px, 4vw);
+  padding: 6px min(12px, 3vw);
   background: var(--card);
   border-bottom: 1px solid var(--line);
-  gap: 8px 12px;
+  gap: 6px 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -124,14 +124,14 @@ body {
 }
 /* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
 .topbar .btn {
-  min-height: 36px;
+  min-height: 30px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .field-row--path .btn {
-  min-height: 36px;
+  min-height: 30px;
 }
 .btn--pill {
   border-radius: 999px;
@@ -154,9 +154,9 @@ body {
 
 /* Desktop notifications: green bell = Settings on + browser granted; yellow = on, need permission; crossed = off / denied / unsupported */
 .btn-notify {
-  min-width: 42px;
-  min-height: 36px;
-  padding: 6px 10px;
+  min-width: 36px;
+  min-height: 30px;
+  padding: 4px 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -238,7 +238,8 @@ body {
 }
 .brand__title {
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1rem;
+  line-height: 1.2;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -250,7 +251,8 @@ body {
   }
 }
 .brand__tagline {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1.25;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -262,7 +264,7 @@ body {
 .field-block {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 4px;
   width: 100%;
 }
 .field-block--grow {
@@ -294,14 +296,14 @@ body {
 .path-summary {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 36px;
+  min-height: 30px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
   width: 100%;
   max-width: 100%;
   text-align: left;
-  padding: 8px 12px;
+  padding: 5px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: #11161c;

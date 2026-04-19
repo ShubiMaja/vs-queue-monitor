@@ -54,7 +54,7 @@ pip install -r requirements.txt
 python monitor.py
 ```
 
-Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, the **folder** and **log file** icons open a native picker on the machine running Python (Tk); click the path status or paste in the prompt to set a path.
+Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`. In the header, the **folder** and **log file** icons open a native picker on the machine running Python (Tk); click the path status or paste in the prompt to set a path. **Saving the path** (picker, prompt, or restore banner) **restarts monitoring** so the resolved log file and queue **session** list update.
 
 | | |
 |--|--|
