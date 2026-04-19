@@ -78,8 +78,8 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "brand actions"
-    "mid mid"
-    "path path";
+    "path path"
+    "mid mid";
   align-items: center;
 }
 .topbar > .brand {
@@ -101,6 +101,7 @@ body {
   flex-wrap: nowrap;
   min-width: 0;
   max-width: 100%;
+  overflow: hidden;
 }
 .topbar > .topbar__actions {
   grid-area: actions;
@@ -115,7 +116,8 @@ body {
 }
 @media (min-width: 900px) {
   .topbar {
-    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto auto;
+    /* minmax(0, …) on path + mid so long hint / path labels can shrink instead of overflowing the viewport */
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, auto) auto;
     grid-template-areas: "brand path mid actions";
     align-items: center;
   }
@@ -123,7 +125,11 @@ body {
 .notify-hint {
   font-size: 0.75rem;
   max-width: min(200px, 100%);
-  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .btn--pill {
   border-radius: 999px;
@@ -158,6 +164,7 @@ body {
   border: 1px solid var(--line);
   background: transparent;
   color: var(--muted);
+  flex-shrink: 0;
 }
 /* Clicks must hit the <button>; inner SVG/spans can steal events in WebView / Safari. */
 .btn-notify * {
@@ -274,15 +281,21 @@ body {
   min-width: 0;
   width: 100%;
 }
+/* Keep path + browse icons on one row; path button shrinks with ellipsis */
+.field-row--path {
+  flex-wrap: nowrap;
+}
 .field-row__input {
   flex: 1 1 10rem;
   min-width: 0;
 }
 .path-summary {
-  flex: 1 1 10rem;
+  flex: 1 1 0;
   min-width: 0;
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  max-width: 100%;
   text-align: left;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
@@ -292,6 +305,11 @@ body {
   font: inherit;
   line-height: 1.35;
   cursor: pointer;
+  overflow: hidden;
+}
+.path-summary__text {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
