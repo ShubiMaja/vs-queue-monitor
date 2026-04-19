@@ -1739,9 +1739,9 @@ body{
 /* This file is the single-file build output. Source of truth lives in the repo root (index.html/app.js/styles.css). */
 
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.18";
+const APP_VERSION = "2.1.19";
 // Manual build fingerprint so we can confirm which file is actually running.
-const BUILD_FINGERPRINT = "e39dfea";
+const BUILD_FINGERPRINT = "5071d90";
 
 /** Desktop notification icon (same-origin). */
 const NOTIFICATION_ICON_URL = "./assets/icon.svg";
@@ -1891,7 +1891,7 @@ const ui = {
   logActivityLed: $("logActivityLed"),
 };
 
-ui.footerVersion.textContent = `v${APP_VERSION}`;
+ui.footerVersion.textContent = `v${APP_VERSION} (${BUILD_FINGERPRINT})`;
 
 // If the page was reloaded due to a code update, notify the user and avoid false "Interrupted"
 // based on stale tail content from a previous run.
@@ -2424,9 +2424,7 @@ function makeInlineField(inputEl, opts) {
 
 function wireSettingsInlineEditing() {
   // Numeric/text fields
-if (ui.inpPollSec) makeInlineField(ui.inpPollSec);
   if (ui.inpThresholds) makeInlineField(ui.inpThresholds);
-if (ui.inpWindowPoints) makeInlineField(ui.inpWindowPoints);
 
   // Sound URLs stay editable as-is (power users); show inline view for consistency.
   makeInlineField(ui.inpWarnSoundUrl, { format: () => ui.warnSoundSummary?.textContent || "—" });
@@ -7466,10 +7464,6 @@ ui.btnRateEdit?.addEventListener("click", (e) => {
 });
 
 ui.btnRateWindowOk?.addEventListener("click", () => commitRateWindowPopover());
-ui.btnRateWindowCancel?.addEventListener("click", () => {
-  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = rateWindowPrev;
-  closeRateWindowPopover();
-});
 ui.inpRateWindowPoints?.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -7479,19 +7473,6 @@ ui.inpRateWindowPoints?.addEventListener("keydown", (e) => {
     e.preventDefault();
     commitRateWindowPopover();
   }
-});
-
-ui.btnRateWindowMinus?.addEventListener("click", () => {
-  if (ui.inpRateWindowPoints) {
-    ui.inpRateWindowPoints.value = String(Math.max(2, (Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) - 1));
-  }
-  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) - 1);
-});
-ui.btnRateWindowPlus?.addEventListener("click", () => {
-  if (ui.inpRateWindowPoints) {
-    ui.inpRateWindowPoints.value = String((Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) + 1);
-  }
-  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) + 1);
 });
 
 document.addEventListener("click", (e) => {
@@ -7525,21 +7506,6 @@ ui.inpStatusRefreshSec?.addEventListener("keydown", (e) => {
     e.preventDefault();
     commitStatusRefreshPopover();
   }
-});
-
-ui.btnStatusRefreshMinus?.addEventListener("click", () => {
-  if (ui.inpStatusRefreshSec) {
-    ui.inpStatusRefreshSec.value = String(
-      Math.max(0.2, (Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) - 0.2)
-    );
-  }
-  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) - 0.2);
-});
-ui.btnStatusRefreshPlus?.addEventListener("click", () => {
-  if (ui.inpStatusRefreshSec) {
-    ui.inpStatusRefreshSec.value = String((Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) + 0.2);
-  }
-  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) + 0.2);
 });
 document.addEventListener("click", (e) => {
   if (!statusRefreshEditOpen) return;
@@ -7743,11 +7709,23 @@ bindEnterToSave(ui.inpWarnSoundUrl);
 bindEnterToSave(ui.inpCompletionSoundUrl);
 bindEnterToSave(ui.inpInterruptSoundUrl);
 
-// Settings modal steppers (Status refresh + Rate AVG window)
-ui.btnPollSecMinus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) - 0.2));
-ui.btnPollSecPlus?.addEventListener("click", () => applyPollSec((config.pollSec ?? 2) + 0.2));
-ui.btnWindowPointsMinus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) - 1));
-ui.btnWindowPointsPlus?.addEventListener("click", () => applyWindowPoints((config.windowPoints ?? 10) + 1));
+// Inline steppers in KPI popovers (Status refresh + Rate AVG window)
+ui.btnStatusRefreshMinus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = String(Math.max(0.2, (Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) - 0.2));
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) - 0.2);
+});
+ui.btnStatusRefreshPlus?.addEventListener("click", () => {
+  if (ui.inpStatusRefreshSec) ui.inpStatusRefreshSec.value = String((Number.parseFloat(ui.inpStatusRefreshSec.value || "") || (config.pollSec ?? 2)) + 0.2);
+  applyPollSec((Number.parseFloat(ui.inpStatusRefreshSec?.value || "") || (config.pollSec ?? 2)) + 0.2);
+});
+ui.btnRateWindowMinus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = String(Math.max(2, (Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) - 1));
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) - 1);
+});
+ui.btnRateWindowPlus?.addEventListener("click", () => {
+  if (ui.inpRateWindowPoints) ui.inpRateWindowPoints.value = String((Number.parseInt(ui.inpRateWindowPoints.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+  applyWindowPoints((Number.parseInt(ui.inpRateWindowPoints?.value || "", 10) || (config.windowPoints ?? 10)) + 1);
+});
 
 // Auto-save on change (debounced). This is the primary persistence mechanism.
 for (const el of [
@@ -7967,27 +7945,6 @@ ui.graphCanvas.addEventListener("mousemove", (e) => {
 });
 
 drawGraph();
-
-// Build fingerprint (helps confirm which dist file is running).
-try {
-  const fp = document.createElement("div");
-  fp.textContent = "build 5071d90";
-  fp.style.position = "fixed";
-  fp.style.left = "10px";
-  fp.style.bottom = "10px";
-  fp.style.zIndex = "9999";
-  fp.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace";
-  fp.style.fontSize = "12px";
-  fp.style.opacity = "0.6";
-  fp.style.pointerEvents = "none";
-  fp.style.background = "rgba(0,0,0,0.25)";
-  fp.style.color = "#fff";
-  fp.style.padding = "4px 6px";
-  fp.style.borderRadius = "6px";
-  document.body.appendChild(fp);
-} catch {
-  // ignore
-}
 
 
 </script>

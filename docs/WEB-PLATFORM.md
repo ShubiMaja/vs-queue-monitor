@@ -1,6 +1,6 @@
 # Web platform — engineering & release reference
 
-The repository ships a **browser-hosted** queue monitor (static build) alongside the Python desktop and TUI apps. This note is for **release**, **engineering**, and **product** readers who need hosting facts, repo policy, and behavioral context without spelunking chat logs.
+This branch ships a **browser-hosted** queue monitor (static build). This note is for **release**, **engineering**, and **product** readers who need hosting facts, repo policy, and behavioral context without spelunking chat logs.
 
 ---
 
@@ -65,10 +65,6 @@ npm run build
 |--------------|--------|
 | `node_modules/` | **Ignored** — do not commit. After clone, run `npm install`. Verify ignore: `git check-ignore -v node_modules`. |
 | `dist/` | **Ignored** — CI builds for Pages; avoid committing unless there is an explicit reason. To record a build in git, use `git add -f …` only deliberately. |
-
-### Desktop app version (Python entrypoint)
-
-Release discipline for the **Python** app: bump the patch version in **`monitor.py`** — both the `VERSION` constant and the `Version:` line in the module docstring — when making commits that change tracked product files, unless maintainers agree to skip for a trivial-only change.
 
 ---
 

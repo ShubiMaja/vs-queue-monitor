@@ -1,50 +1,39 @@
 ---
-description: VS Queue Monitor — log semantics, UI behavior, single-file/assets, and docs (lessons from ongoing development)
+description: VS Queue Monitor (web) — log semantics, UI behavior, and docs
 alwaysApply: true
 ---
 
-# VS Queue Monitor — agent guidance
+# VS Queue Monitor — agent guidance (web branch)
 
-Apply when editing `monitor.py`, `README.md`, or related files in this project. Complements **git-commit** (version bump, README before commit, py_compile).
+Apply when editing **`app.js`**, **`README.md`**, **`docs/DESIGN.md`**, or related web sources. Complements **git-commit** (version bump in `app.js`, README, `npm run build`).
 
-## Single-file delivery and window icon
+## Primary artifact
 
-- **Primary artifact:** Users often ship **only** `monitor.py`. Do not add **runtime** dependencies on files next to the script (e.g. loading `assets/` at startup) unless the feature is optional and clearly degraded when missing.
-- **Embedded icon:** The window icon is a **GIF** in **`_APP_ICON_GIF_B64`**, loaded with `tk.PhotoImage(data=...)` and `iconphoto(True, ...)`. Keep a strong reference on the app instance (e.g. `self._app_icon_image`) so Tcl does not GC the image. Catch `tk.TclError` if the display cannot use it. **Do not** call `_apply_window_icon` (or similar) without defining it.
-- **Repo copy:** `assets/app_icon.gif` is the **same bytes** as the embed, for editing, PyInstaller, or regeneration. **`assets/README.txt`** describes how to re-embed after changing the GIF. After replacing the icon, update **`_APP_ICON_GIF_B64`** in the same change set; do not leave the file and the constant out of sync.
-- **Keep it proportionate:** Prefer the embedded GIF + optional `assets/` mirror over Pillow generators, large PNG tooling, or extra scripts in the repo for a simple icon. Base64 in source is acceptable here as an explicit single-file tradeoff.
-- **Git:** Commit only intentional files (e.g. `assets/app_icon.gif`, not stray experimental `.ico`/`.png` unless they are part of the agreed workflow).
-
-## Shell (Windows)
-
-- In PowerShell, chain commands with **`;`**, not `&&` (older Windows PowerShell does not treat `&&` as a command separator).
+- This branch ships a **static web client** (`index.html` + `app.js` + `styles.css`, built to `dist/`). Assets under **`assets/`** are copied into `dist/` by the build. Do not assume a backend; all state is local to the browser unless explicitly documented otherwise.
 
 ## Queue position and “done” state
 
 - **Position `0`** means the log shows **past connect-queue wait** (post-queue patterns on lines **after** the last queue-position line), not merely “position ≤ 1”. Map raw ≤1 + post-queue signal → `0` for KPI/graph.
-- **Completion** (sound/popup), **Completed** status, **100% progress**, and celebration emoji should align with **past-queue detection** / position `0`, not only hitting position `1` (long waits at `1` are normal).
-- **`POST_QUEUE_PROGRESS_LINE_RES`**: include **connecting / loading** lines (e.g. mod pre-start), not only “fully connected.” Same phrase can appear **before** queue lines on cold connect — only count matches **strictly after** the final queue line in the tail (`tail_has_post_queue_after_last_queue_line`).
+- **Completion** (toast/sound), **Completed** status, **100% progress**, and celebration should align with **past-queue detection** / position `0`, not only hitting position `1` (long waits at `1` are normal).
 
 ## Log resolution and paths
 
-- **`resolve_log_file`**: Prefer **strict** client-log discovery — **do not** fall back to arbitrary `*.log` files; that makes wrong folders look valid.
-- **`expand_logs_folder_path`**: **Browse** and **Start** require an **existing** directory; a **client log file is optional** at first. If none resolves, start in **Waiting for log file** and keep polling until `resolve_log_file` succeeds.
-- Do not require `resolve_log_file` to succeed before accepting a browsed folder (users may point at data dir before VS creates `client-main.log`).
+- Prefer **strict** client-log discovery — do not fall back to arbitrary `*.log` files in a folder; that makes wrong folders look valid.
+- **Browse** / pick flows follow browser security rules (File System Access API, secure origins). When the user cannot pick a path, recovery copy lives in README and in-app help — keep them aligned.
 
 ## Settings must match code
 
 - **“Log every position change”**: When **off**, **omit** routine queue lines from History entirely — not just a different message. When **on**, log each transition.
-- **Web (`app.js`):** Default **`logEveryChange`** is **true** (each position transition is appended to History when the client emits queue lines).
-- **Python:** Default **`show_every_change`** is **false** unless configured otherwise.
+- **Web (`app.js`):** Default **`logEveryChange`** is **true** unless configured otherwise.
 
 ## Interrupted mode
 
-- While **Interrupted**, **freeze** KPI **Rate** / **Global Rate** display (e.g. snapshot strings at interrupt). Recency-weighted speed uses **wall time** and would otherwise drift every tick.
+- While **Interrupted**, **freeze** KPI **Rate** / **Global Rate** display (e.g. snapshot at interrupt). Recency-weighted speed uses **wall time** and would otherwise drift every tick.
 
 ## Status strings (user-facing clarity)
 
-- **Waiting for log file**: No resolved client log path yet (or unreadable).
-- **Warning: no queue detected** (`danger=True`): Log file exists/readable but tail has **no** connect-queue position line — not the same as “no file.”
+- **Waiting for log file**: No readable log / no pick yet, as defined by the web client.
+- **Warning: no queue detected**: Log is readable but tail has **no** connect-queue position line — not the same as “no file.”
 - Distinguish **At front** (still in queue at `1`) vs **Completed** (position `0` / past-queue).
 
 ## ETA
@@ -53,9 +42,9 @@ Apply when editing `monitor.py`, `README.md`, or related files in this project. 
 
 ## Defaults
 
-- Default **warning thresholds**: `10, 5, 1` (`DEFAULT_ALERT_THRESHOLDS`).
+- Default **warning thresholds**: `10, 5, 1` (same idea as `DEFAULT_ALERT_THRESHOLDS` in design docs).
 
-## README
+## README and DESIGN
 
 - When behavior, paths, settings, or status text changes in ways users rely on, **update README in the same change set** (see **git-commit** rule).
-- When **product intent**, **user journey**, or **UX principles** change (not only implementation detail), update **`docs/DESIGN.md`** in the same change set when those docs would otherwise drift.
+- When **product intent**, **user journey**, or **UX principles** change, update **`docs/DESIGN.md`** in the same change set when those docs would otherwise drift.

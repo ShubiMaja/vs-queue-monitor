@@ -1,5 +1,5 @@
 // Bump `index.html` script src `?v=` when changing version (cache bust for ./app.js).
-const APP_VERSION = "2.1.18";
+const APP_VERSION = "2.1.19";
 // Manual build fingerprint so we can confirm which file is actually running.
 const BUILD_FINGERPRINT = "5071d90";
 
