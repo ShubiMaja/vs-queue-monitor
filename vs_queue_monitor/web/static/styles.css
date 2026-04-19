@@ -957,6 +957,10 @@ select.inp:focus-visible {
   padding: 0;
   line-height: 1.5;
 }
+.help-kbd {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
 .modal__text {
   line-height: 1.45;
   margin: 0 0 12px;

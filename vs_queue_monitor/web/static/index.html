@@ -259,7 +259,7 @@
           <canvas id="graphCanvas" width="1100" height="280"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
-        <div class="graph-hint muted" id="graphHint">Hover the chart for time, position, and details.</div>
+        <div class="graph-hint muted" id="graphHint">Tap or hover the chart for time, position, and details.</div>
       </section>
 
       <section class="info-history" data-tour="info">
@@ -317,6 +317,22 @@
       </section>
     </main>
 
+    <div id="modalPath" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalPathHeading">
+      <div class="modal__backdrop" id="modalPathBackdrop"></div>
+      <div class="modal__box modal__box--wide">
+        <h2 id="modalPathHeading">Log source path</h2>
+        <p class="modal__text muted">
+          Paste the folder that contains <code>client-main.log</code>, your <strong>VintagestoryData</strong> folder, or a full path to a <code>.log</code> file. You can also use the folder or file buttons in the header.
+        </p>
+        <label class="settings-field" for="inpPathModal">Path</label>
+        <input type="text" id="inpPathModal" class="inp settings-inp" autocomplete="off" spellcheck="false" />
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnPathOk">Save</button>
+          <button type="button" class="btn btn--ghost" id="btnPathCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modalHelp" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalHelpHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--help">
@@ -334,6 +350,12 @@
             <li><strong>macOS:</strong> <code>~/Library/Application Support/VintagestoryData</code></li>
             <li><strong>Linux:</strong> <code>~/.config/VintagestoryData</code></li>
           </ul>
+          <h3 class="help-h3">Keyboard</h3>
+          <p class="muted help-kbd">
+            When focus is not in a text field: <strong>Space</strong> start/stop · <strong>o</strong> settings ·
+            <strong>F1</strong> this help · <strong>c</strong> copy graph TSV · <strong>v</strong> copy session history
+            (clipboard).
+          </p>
           <p class="muted" id="helpCfgPath"></p>
         </div>
         <div class="modal__actions">

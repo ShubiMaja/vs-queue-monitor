@@ -1333,6 +1333,99 @@
     };
   }
 
+  function setupPathModal() {
+    var modal = $("modalPath");
+    var inpHidden = $("inpPath");
+    var inpModal = $("inpPathModal");
+    var ps = $("pathSummary");
+
+    function closePathModal() {
+      if (modal) modal.classList.add("hidden");
+      if (ps) ps.focus();
+    }
+
+    function applyPathModal() {
+      var v = inpModal ? String(inpModal.value || "").trim() : "";
+      if (inpHidden) inpHidden.value = v;
+      syncPathDisplay();
+      if (modal) modal.classList.add("hidden");
+      postConfig({ source_path: v }).catch(function (e) {
+        toast(String(e.message || e), "warn");
+      });
+      if (ps) ps.focus();
+    }
+
+    if (ps) {
+      ps.onclick = function () {
+        if (inpModal && inpHidden) inpModal.value = inpHidden.value;
+        if (modal) modal.classList.remove("hidden");
+        if (inpModal) {
+          setTimeout(function () {
+            inpModal.focus();
+            try {
+              inpModal.select();
+            } catch (e) {}
+          }, 0);
+        }
+      };
+    }
+    var ok = $("btnPathOk");
+    if (ok) ok.onclick = function () {
+      applyPathModal();
+    };
+    var cancel = $("btnPathCancel");
+    if (cancel) cancel.onclick = function () {
+      closePathModal();
+    };
+    var bd = $("modalPathBackdrop");
+    if (bd) bd.onclick = function () {
+      closePathModal();
+    };
+    if (inpModal) {
+      inpModal.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          applyPathModal();
+        }
+      });
+    }
+  }
+
+  function setupModalEscape() {
+    document.addEventListener(
+      "keydown",
+      function (ev) {
+        if (ev.key !== "Escape") return;
+        var nq = $("modalNewQueue");
+        if (nq && !nq.classList.contains("hidden")) {
+          ev.preventDefault();
+          var no = $("btnNewQueueNo");
+          if (no) no.click();
+          return;
+        }
+        var mp = $("modalPath");
+        if (mp && !mp.classList.contains("hidden")) {
+          ev.preventDefault();
+          var bd = $("modalPathBackdrop");
+          if (bd) bd.click();
+          return;
+        }
+        var mh = $("modalHelp");
+        if (mh && !mh.classList.contains("hidden")) {
+          ev.preventDefault();
+          mh.classList.add("hidden");
+          return;
+        }
+        var ms = $("modalSettings");
+        if (ms && !ms.classList.contains("hidden")) {
+          ev.preventDefault();
+          ms.classList.add("hidden");
+        }
+      },
+      true,
+    );
+  }
+
   function setupChrome() {
     $("btnStartStop").onclick = function () {
       postToggle().catch(function (e) {
@@ -1480,20 +1573,6 @@
         });
     };
 
-    var ps = $("pathSummary");
-    if (ps) {
-      ps.onclick = function () {
-        var cur = $("inpPath") ? $("inpPath").value : "";
-        var v = prompt("Paste full path to VintagestoryData, Logs, or a .log file:", cur);
-        if (v === null) return;
-        v = String(v).trim();
-        if ($("inpPath")) $("inpPath").value = v;
-        syncPathDisplay();
-        postConfig({ source_path: v }).catch(function (e) {
-          toast(String(e.message || e), "warn");
-        });
-      };
-    }
   }
 
   window.addEventListener("resize", resizeCanvas);
@@ -1545,6 +1624,8 @@
   setupNewQueueModal();
   setupNotifications();
   setupHelpCmd();
+  setupPathModal();
+  setupModalEscape();
   setupKeyboardShortcuts();
   setupTour();
   connectWs();
