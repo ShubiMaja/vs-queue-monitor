@@ -24,6 +24,36 @@
     return document.getElementById(id);
   }
 
+  /** Short label for the header (folder or file name only — not the full path). */
+  function formatPathSummary(fullPath) {
+    var t = (fullPath || "").trim();
+    if (!t) return "Not set";
+    t = t.replace(/\\/g, "/").replace(/\/+$/, "");
+    var parts = t.split("/").filter(function (x) {
+      return x.length;
+    });
+    var base = parts.length ? parts[parts.length - 1] : t;
+    if (base.length > 40) base = base.slice(0, 37) + "…";
+    return base;
+  }
+
+  function syncPathDisplay() {
+    var inp = $("inpPath");
+    var tx = $("pathSummaryText");
+    var btn = $("pathSummary");
+    var raw = inp ? String(inp.value || "").trim() : "";
+    if (tx) tx.textContent = formatPathSummary(raw);
+    if (btn) {
+      btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
+      btn.setAttribute(
+        "aria-label",
+        raw
+          ? "Log source " + formatPathSummary(raw) + ". Click to edit full path."
+          : "Log source not set. Click to paste path.",
+      );
+    }
+  }
+
   function toast(msg, kind) {
     const host = $("toastHost");
     if (!host) return;
@@ -435,6 +465,7 @@
     lastCompletionSeq = cseq;
 
     $("inpPath").value = s.source_path || "";
+    syncPathDisplay();
     try {
       var pth = (s.source_path || "").trim();
       if (pth) localStorage.setItem(LS_PATH, pth);
@@ -557,9 +588,9 @@
         sel: null,
       },
       {
-        title: "Logs folder",
+        title: "Log source",
         html:
-          '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> path, or use <strong>Folder…</strong> / <strong>Log file…</strong> for a system dialog on this PC.</p>' +
+          '<p>Paste your <strong>VintagestoryData</strong> or <strong>Logs</strong> path, or use the <strong>folder</strong> / <strong>log file</strong> icons for a system dialog on this PC.</p>' +
           "<p class=\"muted\">Typical: Windows <code>%APPDATA%\\\\VintagestoryData</code> · macOS <code>~/Library/Application Support/VintagestoryData</code> · Linux <code>~/.config/VintagestoryData</code></p>" +
           '<p class="muted">Open <strong>?</strong> for symlink help if a folder is hard to reach.</p>',
         sel: ".topbar__path",
@@ -896,6 +927,7 @@
         if (!saved) return;
         var wasRunning = window._lastState && window._lastState.running;
         $("inpPath").value = saved;
+        syncPathDisplay();
         postConfig({ source_path: saved })
           .then(function () {
             var rb = $("restoreBanner");
@@ -1113,6 +1145,7 @@
             if (j.cancelled) return;
             if (!j.path) return;
             $("inpPath").value = j.path;
+            syncPathDisplay();
             return postConfig({ source_path: $("inpPath").value.trim() });
           })
           .then(function () {
@@ -1131,6 +1164,7 @@
             if (j.cancelled) return;
             if (!j.path) return;
             $("inpPath").value = j.path;
+            syncPathDisplay();
             return postConfig({ source_path: $("inpPath").value.trim() });
           })
           .then(function () {
@@ -1244,14 +1278,20 @@
         });
     };
 
-    $("inpPath").addEventListener(
-      "change",
-      function () {
-        postConfig({ source_path: $("inpPath").value.trim() }).catch(function (e) {
+    var ps = $("pathSummary");
+    if (ps) {
+      ps.onclick = function () {
+        var cur = $("inpPath") ? $("inpPath").value : "";
+        var v = prompt("Paste full path to VintagestoryData, Logs, or a .log file:", cur);
+        if (v === null) return;
+        v = String(v).trim();
+        if ($("inpPath")) $("inpPath").value = v;
+        syncPathDisplay();
+        postConfig({ source_path: v }).catch(function (e) {
           toast(String(e.message || e), "warn");
         });
-      },
-    );
+      };
+    }
   }
 
   window.addEventListener("resize", resizeCanvas);

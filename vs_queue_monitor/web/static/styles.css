@@ -270,11 +270,52 @@ body {
   flex: 1 1 10rem;
   min-width: 0;
 }
+.path-summary {
+  flex: 1 1 10rem;
+  min-width: 0;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: #11161c;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.35;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.path-summary:hover {
+  filter: brightness(1.06);
+}
+.path-summary:focus {
+  outline: none;
+}
+.path-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: rgba(87, 148, 242, 0.55);
+}
 .btn--browse {
   flex-shrink: 0;
   white-space: nowrap;
   font-size: 0.8rem;
   padding: 6px 12px;
+}
+.btn--browse-icon {
+  padding: 8px 10px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn--browse-icon .icon {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 .inp {
   flex: 1;
