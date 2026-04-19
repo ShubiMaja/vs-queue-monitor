@@ -81,6 +81,60 @@ body {
   padding: 4px 12px;
 }
 
+/* Icon + label (copy actions, exports) */
+.btn--icon-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.btn--icon-label .icon {
+  flex-shrink: 0;
+  display: block;
+  opacity: 0.92;
+}
+
+/* Desktop notification permission — bell states */
+.btn-notify {
+  min-width: 42px;
+  min-height: 36px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-notify__glyph {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.btn-notify__glyph svg {
+  display: block;
+}
+.btn-notify[data-state="unsupported"] .btn-notify__glyph--unsupported {
+  display: inline-flex;
+}
+.btn-notify[data-state="prompt"] .btn-notify__glyph--prompt {
+  display: inline-flex;
+}
+.btn-notify[data-state="granted"] .btn-notify__glyph--granted {
+  display: inline-flex;
+}
+.btn-notify[data-state="denied"] .btn-notify__glyph--denied {
+  display: inline-flex;
+}
+.btn-notify[data-state="granted"] {
+  color: var(--accent);
+  border-color: rgba(87, 148, 242, 0.45);
+  background: rgba(87, 148, 242, 0.08);
+}
+.btn-notify[data-state="denied"],
+.btn-notify[data-state="unsupported"] {
+  color: var(--muted);
+  opacity: 0.9;
+}
+
 .restore-banner {
   background: #2b3a52;
   border-bottom: 1px solid var(--accent);

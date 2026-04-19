@@ -571,7 +571,7 @@
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
           "<p>Hover the chart for time and position. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
-          "<p>Enable <strong>Notifications</strong> in the header (localhost) for desktop alerts when thresholds fire.</p>" +
+          "<p>Use the <strong>bell</strong> in the header to turn desktop alerts on or off (localhost).</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
       },
@@ -914,20 +914,28 @@
     var btn = $("btnNotify");
     var hint = $("notifyHint");
     function syncHint() {
-      if (!hint) return;
+      var st = "prompt";
+      var label = "Desktop notifications — click to enable";
+      var hintText = "Click to enable";
       if (typeof Notification === "undefined") {
-        hint.textContent = "Not supported";
-        hint.classList.remove("hidden");
-        return;
-      }
-      if (Notification.permission === "granted") {
-        hint.textContent = "On";
-        hint.classList.remove("hidden");
+        st = "unsupported";
+        label = "Desktop notifications — not supported in this browser";
+        hintText = "Not supported";
+      } else if (Notification.permission === "granted") {
+        st = "granted";
+        label = "Desktop notifications — on";
+        hintText = "On";
       } else if (Notification.permission === "denied") {
-        hint.textContent = "Blocked in browser";
-        hint.classList.remove("hidden");
-      } else {
-        hint.textContent = "Click to enable";
+        st = "denied";
+        label = "Desktop notifications — blocked in browser";
+        hintText = "Blocked in browser";
+      }
+      if (btn) {
+        btn.setAttribute("data-state", st);
+        btn.setAttribute("aria-label", label);
+      }
+      if (hint) {
+        hint.textContent = hintText;
         hint.classList.remove("hidden");
       }
     }
