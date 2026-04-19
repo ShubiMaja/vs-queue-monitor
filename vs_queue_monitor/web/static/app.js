@@ -711,14 +711,64 @@
       .catch(function () {});
   }
 
+  function positionKpiPopover(popEl, anchorEl) {
+    if (!popEl || !anchorEl) {
+      return;
+    }
+    var margin = 8;
+    popEl.classList.remove("hidden");
+    requestAnimationFrame(function () {
+      var pr = popEl.getBoundingClientRect();
+      var ar = anchorEl.getBoundingClientRect();
+      var w = pr.width;
+      var h = pr.height;
+      var left = ar.left;
+      var top = ar.bottom + margin;
+      var vw = window.innerWidth;
+      var vh = window.innerHeight;
+      if (left + w > vw - margin) {
+        left = Math.max(margin, vw - w - margin);
+      }
+      if (top + h > vh - margin) {
+        top = Math.max(margin, ar.top - h - margin);
+      }
+      if (left < margin) {
+        left = margin;
+      }
+      if (top < margin) {
+        top = margin;
+      }
+      popEl.style.left = left + "px";
+      popEl.style.top = top + "px";
+    });
+  }
+
+  function repositionOpenKpiPopovers() {
+    if (!$("popPoll").classList.contains("hidden")) {
+      positionKpiPopover($("popPoll"), $("btnEditPoll"));
+    }
+    if (!$("popWindow").classList.contains("hidden")) {
+      positionKpiPopover($("popWindow"), $("btnEditWindow"));
+    }
+    if (!$("popWarn").classList.contains("hidden")) {
+      positionKpiPopover($("popWarn"), $("btnEditWarn"));
+    }
+    if (!$("popWarnAdd").classList.contains("hidden")) {
+      positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
+    }
+  }
+
   function setupPopovers() {
     $("btnEditPoll").onclick = function (e) {
       e.stopPropagation();
-      $("popPoll").classList.toggle("hidden");
       $("popWindow").classList.add("hidden");
       $("popWarn").classList.add("hidden");
       $("popWarnAdd").classList.add("hidden");
-      $("inpPoll").value = window._lastState ? window._lastState.poll_sec : "2";
+      $("popPoll").classList.toggle("hidden");
+      if (!$("popPoll").classList.contains("hidden")) {
+        $("inpPoll").value = window._lastState ? window._lastState.poll_sec : "2";
+        positionKpiPopover($("popPoll"), $("btnEditPoll"));
+      }
     };
     $("btnPollOk").onclick = function () {
       postConfig({ poll_sec: $("inpPoll").value.trim() })
@@ -735,11 +785,14 @@
 
     $("btnEditWindow").onclick = function (e) {
       e.stopPropagation();
-      $("popWindow").classList.toggle("hidden");
       $("popPoll").classList.add("hidden");
       $("popWarn").classList.add("hidden");
       $("popWarnAdd").classList.add("hidden");
-      $("inpWindow").value = window._lastState ? window._lastState.avg_window : "12";
+      $("popWindow").classList.toggle("hidden");
+      if (!$("popWindow").classList.contains("hidden")) {
+        $("inpWindow").value = window._lastState ? window._lastState.avg_window : "12";
+        positionKpiPopover($("popWindow"), $("btnEditWindow"));
+      }
     };
     $("btnWindowOk").onclick = function () {
       postConfig({ avg_window: $("inpWindow").value.trim() })
@@ -756,19 +809,25 @@
 
     $("btnAddWarn").onclick = function (e) {
       e.stopPropagation();
-      $("popWarnAdd").classList.toggle("hidden");
       $("popPoll").classList.add("hidden");
       $("popWindow").classList.add("hidden");
       $("popWarn").classList.add("hidden");
-      $("inpWarnAdd").value = "";
+      $("popWarnAdd").classList.toggle("hidden");
+      if (!$("popWarnAdd").classList.contains("hidden")) {
+        $("inpWarnAdd").value = "";
+        positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
+      }
     };
     $("btnEditWarn").onclick = function (e) {
       e.stopPropagation();
-      $("popWarn").classList.toggle("hidden");
       $("popPoll").classList.add("hidden");
       $("popWindow").classList.add("hidden");
       $("popWarnAdd").classList.add("hidden");
-      $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
+      $("popWarn").classList.toggle("hidden");
+      if (!$("popWarn").classList.contains("hidden")) {
+        $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
+        positionKpiPopover($("popWarn"), $("btnEditWarn"));
+      }
     };
     $("btnWarnOk").onclick = function () {
       postConfig({ alert_thresholds: $("inpWarn").value.trim() })
@@ -847,10 +906,14 @@
     };
 
     document.body.addEventListener("click", function () {
-      $("popPoll").classList.add("hidden");
-      $("popWindow").classList.add("hidden");
-      $("popWarn").classList.add("hidden");
-      $("popWarnAdd").classList.add("hidden");
+      ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
+        var p = $(id);
+        if (p) {
+          p.classList.add("hidden");
+          p.style.left = "";
+          p.style.top = "";
+        }
+      });
     });
     ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
       const el = $(id);
@@ -859,6 +922,21 @@
           e.stopPropagation();
         });
     });
+
+    window.addEventListener(
+      "resize",
+      function () {
+        repositionOpenKpiPopovers();
+      },
+      { passive: true },
+    );
+    window.addEventListener(
+      "scroll",
+      function () {
+        repositionOpenKpiPopovers();
+      },
+      true,
+    );
   }
 
   function nearestPointIndexByTime(pts, targetT) {
