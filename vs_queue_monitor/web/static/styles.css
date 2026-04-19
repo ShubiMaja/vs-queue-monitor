@@ -957,26 +957,6 @@ select.inp:focus-visible {
   padding: 0;
   line-height: 1.5;
 }
-.help-pre {
-  background: #11161c;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  font-size: 0.78rem;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-.help-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0;
-}
-.btn--tab.btn--tab-active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .modal__text {
   line-height: 1.45;
   margin: 0 0 12px;
