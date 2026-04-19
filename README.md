@@ -17,7 +17,7 @@
 
 - **Python 3.10+**
 - **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
-- **plyer** — used for **real OS desktop notifications** (threshold and completion alerts) from the Python process. The embedded **pywebview** window often does not surface the browser’s Web Notifications API as system toasts; plyer sends them instead.
+- **Desktop alerts** use the browser **Notifications** API (`Notification.requestPermission()` + `new Notification()`). Allow notifications for `http://127.0.0.1:…` when prompted (bell in the header). The embedded **pywebview** shell may not support this API; use **`python monitor.py --web-browser`** for a normal browser session if you need system toasts.
 - **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
 
 ## Quick start

@@ -2,5 +2,4 @@
 # (skipped on Python 3.14+ until wheels exist; pip install pywebview when available, or use --web-browser).
 starlette>=0.37
 uvicorn[standard]>=0.27
-plyer>=2.1.0
 pywebview>=4.4; python_version < "3.14"

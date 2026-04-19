@@ -23,7 +23,6 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import APP_DISPLAY_NAME, VERSION
-from ..desktop_notify import plyer_notification_available, try_notify
 from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
@@ -195,7 +194,6 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "queue_sessions": _queue_sessions_for_engine(engine),
         "build_fingerprint": _build_fingerprint(),
-        "os_notify_capable": plyer_notification_available(),
     }
 
 
@@ -323,19 +321,6 @@ def _api_reset(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
-async def _api_notify_test(request: Request) -> JSONResponse:
-    """Trigger a native OS notification (plyer). Used by the bell when Web Notifications are unavailable."""
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    if not isinstance(body, dict):
-        body = {}
-    msg = str(body.get("body", "Test notification from VS Queue Monitor."))[:1024]
-    ok = try_notify(APP_DISPLAY_NAME, msg, app_name=APP_DISPLAY_NAME)
-    return JSONResponse({"ok": ok, "os_notify_capable": plyer_notification_available()})
-
-
 async def _api_new_queue(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     lock: threading.RLock = request.app.state.lock
@@ -386,7 +371,6 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
-        Route("/api/notify_test", _api_notify_test, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
