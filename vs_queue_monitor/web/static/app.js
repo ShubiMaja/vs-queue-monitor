@@ -532,7 +532,7 @@
     if (!wrap) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
-    const w = Math.max(400, Math.floor(rect.width - 4));
+    const w = Math.max(1, Math.floor(rect.width));
     const h = 280;
     c.width = w * dpr;
     c.height = h * dpr;
