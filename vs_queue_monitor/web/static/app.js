@@ -448,16 +448,6 @@
               "warn",
             );
           }
-        } else if (Notification.permission === "default") {
-          try {
-            if (sessionStorage.getItem("vsqm_desktop_hint") !== "1") {
-              sessionStorage.setItem("vsqm_desktop_hint", "1");
-              toast(
-                "Tray notification: click the bell in the header once to allow system alerts (embedded window).",
-                "",
-              );
-            }
-          } catch (e) {}
         }
       }
     }
@@ -1154,73 +1144,48 @@
 
   function setupNotifications() {
     var btn = $("btnNotify");
-    var hint = $("notifyHint");
+    var modal = $("modalNotifyPerm");
+    var bd = $("modalNotifyPermBackdrop");
+    var btnAllow = $("btnNotifyPermAllow");
+    var btnLater = $("btnNotifyPermLater");
+
     function syncHint() {
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
       var st = "pending";
-      var label = "Desktop notifications — allow in browser";
-      var hintText = "Allow in browser";
+      var label = "Desktop notifications — click to allow";
       if (typeof Notification === "undefined") {
         st = "unsupported";
         label = "Desktop notifications — not available in this host";
-        hintText = "Unavailable";
       } else if (!popOn) {
         st = "off";
         label = "Desktop notifications — off (enable Warning popup in Settings)";
-        hintText = "Off";
       } else if (Notification.permission === "granted") {
         st = "live";
-        label = "Desktop notifications — on and allowed";
-        hintText = "On";
+        label = "Desktop notifications — on";
       } else if (Notification.permission === "denied") {
         st = "blocked";
-        label = "Desktop notifications — blocked by browser";
-        hintText = "Blocked";
+        label = "Desktop notifications — blocked";
       } else {
         st = "pending";
-        label = "Desktop notifications — click to allow in browser";
-        hintText = "Allow in browser";
+        label = "Desktop notifications — permission needed, click to allow";
       }
       if (btn) {
         btn.setAttribute("data-state", st);
         btn.setAttribute("aria-label", label);
         btn.title = label;
       }
-      if (hint) {
-        hint.textContent = hintText;
-        hint.classList.remove("hidden");
-      }
     }
     notifySyncHint = syncHint;
-    function onNotifyClick() {
-      var popOn =
-        window._lastState == null || window._lastState.popup_enabled !== false;
-      if (typeof Notification === "undefined") {
-        toast(
-          "This embedded window has no Notifications API (e.g. old WebView). On Windows, install WebView2 Runtime; or run: python monitor.py --web-browser",
-          "warn",
-        );
-        return;
-      }
-      if (!popOn) {
-        toast("Turn on Warning popup in Settings (⚙) first — then allow browser notifications here.", "warn");
-        return;
-      }
-      if (Notification.permission === "granted") {
-        try {
-          new Notification("VS Queue Monitor", { body: "Notifications are enabled." });
-        } catch (e) {}
-        toast("Test notification sent — check the system tray if you do not see a banner.");
-        syncHint();
-        return;
-      }
-      if (Notification.permission === "denied") {
-        toast("Notifications are blocked — change the site permission for this origin in your browser.", "warn");
-        syncHint();
-        return;
-      }
-      toast("Allow notifications when your browser prompts…");
+
+    function closeNotifyPermModal() {
+      if (modal) modal.classList.add("hidden");
+    }
+    function openNotifyPermModal() {
+      if (modal) modal.classList.remove("hidden");
+    }
+
+    function runRequestPermission() {
       try {
         var req = Notification.requestPermission();
         if (req && typeof req.then === "function") {
@@ -1229,9 +1194,9 @@
               syncHint();
               if (p === "granted") {
                 try {
-                  new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
+                  new Notification("VS Queue Monitor", { body: "Threshold alerts can appear outside this window." });
                 } catch (e) {}
-                toast("Notifications enabled.");
+                toast("Notifications enabled — check the system tray if you see no banner.");
               } else if (p === "denied") {
                 toast("Notifications were denied.", "warn");
               }
@@ -1244,7 +1209,7 @@
           syncHint();
           if (Notification.permission === "granted") {
             try {
-              new Notification("VS Queue Monitor", { body: "You will get alerts when thresholds fire." });
+              new Notification("VS Queue Monitor", { body: "Threshold alerts can appear outside this window." });
             } catch (e) {}
             toast("Notifications enabled.");
           }
@@ -1254,10 +1219,72 @@
         toast("Could not request notification permission.", "warn");
       }
     }
+
+    if (btnAllow) {
+      btnAllow.onclick = function () {
+        closeNotifyPermModal();
+        runRequestPermission();
+      };
+    }
+    if (btnLater) {
+      btnLater.onclick = function () {
+        closeNotifyPermModal();
+      };
+    }
+    if (bd) {
+      bd.onclick = function () {
+        closeNotifyPermModal();
+      };
+    }
+
+    function onNotifyClick() {
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
+      if (typeof Notification === "undefined") {
+        toast(
+          "This embedded window has no Notifications API (e.g. old WebView). On Windows, install WebView2 Runtime; or run: python monitor.py --web-browser",
+          "warn",
+        );
+        return;
+      }
+      if (!popOn) {
+        toast("Turn on Warning popup in Settings (⚙) first — then use the bell here.", "warn");
+        return;
+      }
+      if (Notification.permission === "granted") {
+        try {
+          new Notification("VS Queue Monitor", { body: "Notifications are enabled." });
+        } catch (e) {}
+        toast("Test sent — check the system tray if you see no banner.");
+        syncHint();
+        return;
+      }
+      if (Notification.permission === "denied") {
+        toast("Notifications are blocked — change the site permission for this origin in your browser.", "warn");
+        syncHint();
+        return;
+      }
+      openNotifyPermModal();
+    }
     if (btn) {
       btn.addEventListener("click", onNotifyClick);
     }
     syncHint();
+
+    /* WebView2 often shows no in-page permission bar; offer our dialog once after load. */
+    setTimeout(function () {
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
+      if (typeof Notification === "undefined" || !popOn) return;
+      if (Notification.permission !== "default") return;
+      try {
+        if (sessionStorage.getItem("vsqm_notify_auto_shown") === "1") return;
+        sessionStorage.setItem("vsqm_notify_auto_shown", "1");
+      } catch (e) {
+        return;
+      }
+      openNotifyPermModal();
+    }, 1400);
   }
 
   function setupHelpCmd() {
