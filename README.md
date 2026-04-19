@@ -33,7 +33,27 @@ Same as `python -m vs_queue_monitor`. Default: web UI on `127.0.0.1`.
 | Windows | `vsqm.cmd` / `Run VS Queue Monitor.bat` · `Win+R` → `vsqm` if the repo directory is on user **`Path`** · else `"…\vs-queue-monitor\vsqm.cmd"` |
 | macOS / Linux | `./run-vs-queue-monitor.sh` or `python3 monitor.py` |
 
-**Bootstrap** — default clone `~/vs-queue-monitor`; `VS_QUEUE_MONITOR_HOME` overrides. Forks: `VS_QUEUE_MONITOR_REPO`, `VS_QUEUE_MONITOR_BRANCH`. Non-`main` branch: fix the raw URL path (e.g. `feature%2Funified-approach`).
+### Windows: Run dialog (Win+R)
+
+**If Python is not installed** — `vsqm.cmd`, `Run VS Queue Monitor.bat`, and `bootstrap-windows.cmd` print a short message, open the **Python for Windows** download page in your browser, and exit after you press a key. Install **Python 3.10+**, enable **Add python.exe to PATH** during setup (or add it later), then run again.
+
+**If Python is already installed** — from a full clone (or after bootstrap has run once):
+
+1. Press **Win+R** (Run).
+2. **Paste** the launcher: either `vsqm` (if the repo folder is on your user **Path**) or the full path to `vsqm.cmd`, e.g. `C:\Users\You\vs-queue-monitor\vsqm.cmd`.
+3. Press **Enter**.
+4. **Wait** — first launch may create `.venv` and install packages (can take a minute).
+5. The **app opens** (embedded window when `pywebview` is available, otherwise your browser).
+
+**First-time install from the web (no clone yet)** — paste this in **Win+R** (downloads the helper script to `%TEMP%` and runs it; requires `curl`, included on Windows 10+):
+
+```bat
+cmd /c curl -fsSL "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd" -o "%TEMP%\vsqm-bootstrap.cmd" && "%TEMP%\vsqm-bootstrap.cmd"
+```
+
+Same checks apply: without Python you get the warning and the install link; with Python, bootstrap clones to `%USERPROFILE%\vs-queue-monitor` (override with `VS_QUEUE_MONITOR_HOME`), sets up the venv, and starts the monitor.
+
+**Bootstrap** — default clone `~/vs-queue-monitor`; `VS_QUEUE_MONITOR_HOME` overrides. Forks: `VS_QUEUE_MONITOR_REPO`, `VS_QUEUE_MONITOR_BRANCH`. Non-`main` branch: fix the raw URL path (e.g. `feature%2Funified-approach`). For `bootstrap-windows.cmd`, set `VS_QUEUE_MONITOR_BOOTSTRAP_URL` to the raw `bootstrap.py` URL on your branch if needed.
 
 **macOS / Linux**
 
@@ -53,6 +73,8 @@ curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/boo
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py" -OutFile bootstrap.py
 python bootstrap.py
 ```
+
+After a git clone you can run `bootstrap-windows.cmd` instead: it checks for `py` / `python` before piping to `bootstrap.py` (same behavior as the **Win+R** one-liner above).
 
 `python bootstrap.py` forwards the same flags as `monitor.py` (e.g. `--path "%APPDATA%\VintagestoryData"`, `--web-browser`).
 
@@ -98,6 +120,7 @@ python monitor.py --no-start
 | `monitor.py` | Entrypoint |
 | `vsqm.cmd` | Windows: short launcher for **Win+R** / PATH; runs `monitor.py` (uses `.venv` if present) |
 | `Run VS Queue Monitor.bat` | Windows: double-click; delegates to **`vsqm.cmd`** |
+| `bootstrap-windows.cmd` | Windows: `curl` + pipe to Python; **Win+R** one-liner in README; warns if Python missing |
 | `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
 | `monitor-tui.py`, `main-tui.py` | Legacy names: forward to `monitor.py` (Textual UI removed) |
