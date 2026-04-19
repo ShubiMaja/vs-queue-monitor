@@ -20,7 +20,8 @@
 ## Requirements
 
 - **Python 3.10+**
-- **Starlette + uvicorn + pywebview** — `pip install -r requirements.txt`; used for the **default** embedded web UI.
+- **Starlette + uvicorn** — `pip install -r requirements.txt`; serves the **default** web UI on `127.0.0.1`.
+- **pywebview** — pulled automatically on **Python 3.13 and older** for the embedded desktop shell. On **Python 3.14+**, `requirements.txt` skips it until wheels exist; use **`--web-browser`** or `pip install pywebview` when a build is available for your Python.
 - **Tkinter** — for **`--gui`** only (classic window).
 - **Textual** — same install; used for **`--tui`**.
 
@@ -74,6 +75,10 @@ Opens the UI in a **single desktop window** (pywebview / system webview) pointed
 The optional flag **`--web`** does the same as running with no UI flag (kept for scripts).
 
 If `pywebview` is not installed (or `pip install` failed on a very new Python version), the server still runs and stderr explains how to install it or use **`--web-browser`**.
+
+#### pip / `pythonnet` fails on Windows (Python 3.14+)
+
+`pywebview` depends on **`pythonnet`** on Windows; building it from source can fail (e.g. NuGet / `pythonnet` wheel not available yet). **`pip install -r requirements.txt`** still succeeds because **`pywebview` is omitted on Python 3.14+** in `requirements.txt`. Use **`python monitor.py --web-browser`** for the full UI, or use a **Python 3.12** or **3.13** venv and run **`pip install pywebview`** if you need the embedded window.
 
 #### Cross-platform (embedded window)
 

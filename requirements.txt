@@ -2,7 +2,8 @@
 # or run headless on Unix (no DISPLAY). The graphical app uses Tk only.
 textual>=0.47
 
-# Local web UI (--web): Starlette + uvicorn serve the static client; pywebview opens it in a desktop window by default.
+# Local web UI: Starlette + uvicorn serve the static client. pywebview = embedded desktop window
+# (skipped on Python 3.14+ until wheels exist; pip install pywebview when available, or use --web-browser).
 starlette>=0.37
 uvicorn[standard]>=0.27
-pywebview>=4.4
+pywebview>=4.4; python_version < "3.14"
