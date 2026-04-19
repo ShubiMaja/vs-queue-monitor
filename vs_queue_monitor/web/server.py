@@ -195,6 +195,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "progress": float(getattr(engine, "_queue_progress_value", 0.0)),
         "last_change": engine.last_change_var.get(),
         "last_alert": engine.last_alert_var.get(),
+        "last_alert_message": engine.last_alert_message_var.get(),
+        "last_alert_seq": int(getattr(engine, "_last_alert_seq", 0)),
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
         "graph_points": pts,

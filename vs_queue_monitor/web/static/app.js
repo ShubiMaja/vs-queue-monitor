@@ -5,7 +5,7 @@
   window._graphTheme = null;
   window._graphHover = null;
 
-  let lastAlertPrev = "";
+  var lastAlertSeq = null;
   var lastCompletionSeq = null;
   var LS_PATH = "vsqm_web_last_path";
   var LS_SESSION = "vsqm_selected_session_v1";
@@ -426,28 +426,48 @@
     $("infoPath").textContent = s.resolved_path || "—";
     $("infoGlo").textContent = s.global_rate || "—";
 
-    const la = s.last_alert || "";
-    if (la && la !== lastAlertPrev) {
-      toast(la, "warn");
+    const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
+    const alertMsg = (s.last_alert_message || "").trim();
+    if (
+      lastAlertSeq !== null &&
+      aseq > lastAlertSeq &&
+      alertMsg &&
+      alertMsg !== "—"
+    ) {
+      toast(alertMsg, "warn");
       if (
         s.popup_enabled &&
         typeof Notification !== "undefined" &&
         Notification.permission === "granted"
       ) {
         try {
-          new Notification("VS Queue Monitor", { body: la });
-        } catch (e) {}
+          new Notification("VS Queue Monitor", { body: alertMsg });
+        } catch (e) {
+          toast(
+            "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+            "warn",
+          );
+        }
       }
     }
-    lastAlertPrev = la;
+    lastAlertSeq = aseq;
 
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
       toast("Past queue wait — connecting (position 0).", "");
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      if (
+        s.completion_popup &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
         try {
           new Notification("VS Queue Monitor", { body: "Past queue wait — connecting (position 0)." });
-        } catch (e) {}
+        } catch (e) {
+          toast(
+            "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+            "warn",
+          );
+        }
       }
     }
     lastCompletionSeq = cseq;

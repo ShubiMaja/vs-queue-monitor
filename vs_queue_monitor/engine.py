@@ -57,6 +57,8 @@ class QueueMonitorEngine:
         self.position_var = hooks.string_var("—")
         self.last_change_var = hooks.string_var("—")
         self.last_alert_var = hooks.string_var("—")
+        self.last_alert_message_var = hooks.string_var("—")
+        self._last_alert_seq: int = 0
         self.elapsed_var = hooks.string_var("—")
         self.predicted_remaining_var = hooks.string_var("—")
         _at_cfg = self.config.get("alert_thresholds")
@@ -228,6 +230,8 @@ class QueueMonitorEngine:
         self.global_rate_var.set('—')
         self.last_change_var.set('—')
         self.last_alert_var.set('—')
+        self.last_alert_message_var.set('—')
+        self._last_alert_seq = 0
         if True:
             self._queue_progress_value = 0.0
         self._position_one_reached_at = None
@@ -1248,6 +1252,8 @@ class QueueMonitorEngine:
         self.last_alert_position = position
         self.last_alert_epoch = now
         self.last_alert_var.set(time.strftime('%Y-%m-%d %H:%M:%S'))
+        self.last_alert_message_var.set(f"Threshold alert: position {position} ({reason})")
+        self._last_alert_seq += 1
         sec_rem = self.estimate_seconds_remaining()
         eta_display = self.format_duration_remaining(sec_rem) if sec_rem is not None else '—'
         hist_extra = f'; remaining {eta_display}' if sec_rem is not None else ''
