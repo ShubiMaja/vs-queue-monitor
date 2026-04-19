@@ -2,12 +2,8 @@
 (function () {
   "use strict";
 
-  const SINGLE_POINT_SPAN = 60;
-  const GRAPH_LOG_GAMMA = 1.15;
-  const PAD_L = 46;
-  const PAD_R = 22;
-  const PAD_T = 12;
-  const PAD_B = 32;
+  window._graphTheme = null;
+  window._graphHover = null;
 
   let lastAlertPrev = "";
   var lastCompletionSeq = null;
@@ -74,143 +70,32 @@
     });
   }
 
-  function graphTimeRange(points, liveView, running) {
-    if (!points.length) return [0, 1];
-    if (points.length === 1) {
-      const mid = points[0][0];
-      const half = SINGLE_POINT_SPAN / 2;
-      return [mid - half, mid + half];
+  function applyChromeTheme(chrome) {
+    if (!chrome || typeof chrome !== "object") {
+      return;
     }
-    let t0 = points[0][0];
-    let t1 = points[points.length - 1][0];
-    if (t1 <= t0) t1 = t0 + 1e-6;
-    if (liveView && running) {
-      t1 = Math.max(t1, Date.now() / 1000);
-    }
-    return [t0, t1];
+    var root = document.documentElement;
+    Object.keys(chrome).forEach(function (k) {
+      root.style.setProperty(k, chrome[k]);
+    });
   }
 
   function drawGraph(canvas, state) {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.fillStyle = "#11161c";
-    ctx.fillRect(0, 0, w, h);
-
-    const points = state.graph_points || [];
-    const liveView = !!state.graph_live_view;
-    const running = !!state.running;
-    const logScale = !!state.graph_log_scale;
-
-    const plotW = Math.max(1, w - PAD_L - PAD_R);
-    const plotH = Math.max(1, h - PAD_T - PAD_B);
-    const x0 = PAD_L;
-    const y0 = PAD_T;
-    const x1 = PAD_L + plotW;
-    const y1 = PAD_T + plotH;
-
-    ctx.fillStyle = "#11161c";
-    ctx.fillRect(x0, y0, plotW, plotH);
-
-    if (!points.length) {
-      ctx.fillStyle = "#6e7680";
-      ctx.font = "14px system-ui";
-      ctx.fillText("No data yet", x0 + 8, y0 + 20);
+    if (!window.VSQMGraph) {
       return;
     }
-
-    const [t0, t1] = graphTimeRange(points, liveView, running);
-    const vals = points.map(function (p) {
-      return p[1];
-    });
-    let vmin = Math.min.apply(null, vals);
-    let vmax = Math.max.apply(null, vals);
-    if (vmax === vmin) vmax = vmin + 1;
-    vmin = Math.max(0, vmin);
-
-    function xOf(t) {
-      return x0 + ((t - t0) / (t1 - t0)) * plotW;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return;
     }
-    function yOf(v) {
-      const vv = Math.max(vmin, Math.min(vmax, v));
-      if (!logScale) {
-        const frac = (vmax - vv) / Math.max(1, vmax - vmin);
-        return y0 + frac * plotH;
-      }
-      const lvmin = Math.log(vmin + 1);
-      const lvmax = Math.log(vmax + 1);
-      const lv = Math.log(vv + 1);
-      let frac = lvmax <= lvmin ? 0 : (lvmax - lv) / (lvmax - lvmin);
-      frac = Math.max(0, Math.min(1, frac));
-      frac = Math.pow(frac, GRAPH_LOG_GAMMA);
-      return y0 + frac * plotH;
+    VSQMGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover);
+  }
+
+  function redrawGraphOnly() {
+    var c = $("graphCanvas");
+    if (c && window._lastState) {
+      drawGraph(c, window._lastState);
     }
-
-    ctx.strokeStyle = "#2a3340";
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x0, y1);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
-
-    ctx.fillStyle = "#c7d0d9";
-    ctx.font = "11px system-ui";
-    ctx.fillText("min " + vmin + "  max " + vmax, x0 + 6, y0 + 14);
-
-    const stepVerts = [];
-    for (let i = 0; i < points.length; i++) {
-      const t = points[i][0];
-      const p = points[i][1];
-      if (i === 0) {
-        stepVerts.push([t, p]);
-        continue;
-      }
-      const tPrev = points[i - 1][0];
-      const pPrev = points[i - 1][1];
-      if (t <= tPrev) continue;
-      if (p !== pPrev) {
-        stepVerts.push([t, pPrev]);
-      }
-      stepVerts.push([t, p]);
-    }
-
-    ctx.strokeStyle = "#73bf69";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let first = true;
-    for (let j = 0; j < stepVerts.length; j++) {
-      const xx = xOf(stepVerts[j][0]);
-      const yy = yOf(stepVerts[j][1]);
-      if (first) {
-        ctx.moveTo(xx, yy);
-        first = false;
-      } else {
-        ctx.lineTo(xx, yy);
-      }
-    }
-    if (points.length === 1) {
-      const lx = xOf(points[0][0]);
-      const ly = yOf(points[0][1]);
-      ctx.moveTo(x0, ly);
-      ctx.lineTo(lx, ly);
-    }
-    ctx.stroke();
-
-    const marker = state.current_point || points[points.length - 1];
-    if (marker) {
-      const lx = xOf(marker[0]);
-      const ly = yOf(marker[1]);
-      ctx.fillStyle = "#ff9830";
-      ctx.beginPath();
-      ctx.arc(lx, ly, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#c7d0d9";
-      ctx.font = "12px system-ui";
-      ctx.fillText(String(marker[1]), lx + 10, ly + 4);
-    }
-
-    canvas._drawState = { points: points, t0: t0, t1: t1, x0: x0, x1: x1, y0: y0, y1: y1, plotW: plotW, plotH: plotH, yOf: yOf, logScale: logScale, vmin: vmin, vmax: vmax };
   }
 
   function tryRestoreBanner(s) {
@@ -341,9 +226,6 @@
       _restoreOnce = true;
       tryRestoreBanner(s);
     }
-
-    const c = $("graphCanvas");
-    drawGraph(c, s);
 
     resizeCanvas();
   }
@@ -655,35 +537,38 @@
 
   function setupGraphCanvas() {
     const c = $("graphCanvas");
-    let hover = null;
     c.addEventListener("mousemove", function (ev) {
       const st = c._drawState;
-      if (!st || !st.points.length) return;
+      if (!st || !st.drawn || !st.drawn.length) {
+        return;
+      }
       const rect = c.getBoundingClientRect();
-      const scaleX = c.width / rect.width;
-      const mx = (ev.clientX - rect.left) * scaleX;
-      const padL = PAD_L;
+      const mxCss = ev.clientX - rect.left;
+      const padL = st.x0;
       const plotW = st.plotW;
-      const x = Math.max(padL, Math.min(padL + plotW, mx));
+      const x = Math.max(padL, Math.min(padL + plotW, mxCss));
       const t0 = st.t0;
       const t1 = st.t1;
       const targetT = t0 + ((x - padL) / plotW) * (t1 - t0);
-      let best = st.points[0];
+      let best = st.drawn[0];
       let bestDt = Math.abs(best[0] - targetT);
-      for (let i = 1; i < st.points.length; i++) {
-        const dt = Math.abs(st.points[i][0] - targetT);
+      let i;
+      for (i = 1; i < st.drawn.length; i++) {
+        const dt = Math.abs(st.drawn[i][0] - targetT);
         if (dt < bestDt) {
           bestDt = dt;
-          best = st.points[i];
+          best = st.drawn[i];
         }
       }
-      hover = best;
-      const d = new Date(best[0] * 1000);
-      $("graphHint").textContent =
-        d.toLocaleString() + " · pos " + best[1];
+      const ts = VSQMGraph.fmtTooltipTs(best[0]);
+      $("graphHint").textContent = ts + "\npos " + best[1];
+      window._graphHover = [best[0], best[1]];
+      redrawGraphOnly();
     });
     c.addEventListener("mouseleave", function () {
       $("graphHint").textContent = "Move the mouse over the chart for time and position.";
+      window._graphHover = null;
+      redrawGraphOnly();
     });
   }
 
@@ -1021,7 +906,10 @@
       return r.json();
     })
     .then(function (m) {
+      window._graphTheme = m.graph_theme || null;
+      applyChromeTheme(m.chrome_theme);
       $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
+      redrawGraphOnly();
     })
     .catch(function () {});
 
