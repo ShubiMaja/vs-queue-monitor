@@ -121,6 +121,11 @@ body {
     grid-template-areas: "brand path mid actions";
     align-items: center;
   }
+  /* Cap path width and align toward session toolbar so the 1fr column does not read as dead space. */
+  .topbar > .topbar__path {
+    justify-self: end;
+    width: min(560px, 100%);
+  }
 }
 /* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
 .topbar .btn {
@@ -451,7 +456,7 @@ select.inp:focus-visible {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
   min-width: 0;
 }
 

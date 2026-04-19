@@ -178,12 +178,16 @@
     ctx.fillRect(x0, y0, plotW, plotH);
 
     if (!points.length) {
-      ctx.fillStyle = th.ui_graph_empty;
-      ctx.font = "14px system-ui,Segoe UI,sans-serif";
-      var emptyMsg = "No data yet";
+      var cx = x0 + plotW / 2;
+      var cy = y0 + plotH / 2;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(emptyMsg, x0 + plotW / 2, y0 + plotH / 2);
+      ctx.fillStyle = th.ui_graph_empty;
+      ctx.font = "15px system-ui,Segoe UI,sans-serif";
+      ctx.fillText("No data yet", cx, cy - 10);
+      ctx.fillStyle = th.ui_graph_axis;
+      ctx.font = "12px system-ui,Segoe UI,sans-serif";
+      ctx.fillText("Queue position will plot here from the log.", cx, cy + 12);
       ctx.textAlign = "start";
       ctx.textBaseline = "alphabetic";
       canvas._drawState = {
