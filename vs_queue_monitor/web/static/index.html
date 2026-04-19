@@ -146,8 +146,14 @@
       </section>
 
       <section class="graph-panel" data-tour="graph">
-        <div class="graph-toolbar">
-          <span class="muted" id="lblLogAct"></span>
+        <div class="graph-toolbar graph-toolbar--split">
+          <div class="graph-toolbar__left">
+            <label class="graph-session-label muted" for="selSession">Session</label>
+            <select id="selSession" class="inp graph-session-select" title="Graph scope (KPIs stay live)">
+              <option value="latest">Latest session (auto)</option>
+            </select>
+          </div>
+          <span class="muted graph-toolbar__mid" id="lblLogAct"></span>
           <div class="graph-toolbar__btns">
             <button type="button" class="btn btn--small" id="btnYScale">Y → log</button>
             <button type="button" class="btn btn--small" id="btnLive">Live view: on</button>
@@ -185,7 +191,7 @@
         <h2>Help</h2>
         <div class="help-scroll">
           <p>
-            This UI runs in your browser but the <strong>Python app</strong> reads log files from disk (same as Tk/TUI). Paste the
+            This UI runs in your browser but the <strong>Python app</strong> reads log files from disk. Paste the
             <strong>folder</strong> that contains <code>client-main.log</code> (or your data directory), then <strong>Start</strong>.
           </p>
           <h3 class="help-h3">Typical paths</h3>
@@ -234,6 +240,10 @@
         </div>
       </div>
     </div>
+
+    <footer class="app-footer muted" id="appFooter">
+      <span id="footerVersion"></span>
+    </footer>
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
     <script src="/graph_canvas.js"></script>

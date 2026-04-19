@@ -8,6 +8,9 @@
   let lastAlertPrev = "";
   var lastCompletionSeq = null;
   var LS_PATH = "vsqm_web_last_path";
+  var LS_SESSION = "vsqm_selected_session_v1";
+  var selectedSessionKey = "latest";
+  var _sessionDropdownInited = false;
   var _restoreOnce = false;
 
   var HELP_CMD_WIN =
@@ -93,9 +96,132 @@
 
   function redrawGraphOnly() {
     var c = $("graphCanvas");
-    if (c && window._lastState) {
-      drawGraph(c, window._lastState);
+    if (c && window._displayState) {
+      drawGraph(c, window._displayState);
     }
+  }
+
+  function formatSessionStart(epoch) {
+    if (epoch == null || !isFinite(epoch)) {
+      return "—";
+    }
+    return new Date(epoch * 1000).toLocaleString();
+  }
+
+  function buildDisplayState(s) {
+    var out = {};
+    var k;
+    for (k in s) {
+      if (Object.prototype.hasOwnProperty.call(s, k)) {
+        out[k] = s[k];
+      }
+    }
+    var key = selectedSessionKey || "latest";
+    if (key === "latest" || !s.queue_sessions || !s.queue_sessions.length) {
+      return out;
+    }
+    var sess = null;
+    var i;
+    for (i = 0; i < s.queue_sessions.length; i++) {
+      if (s.queue_sessions[i].key === key) {
+        sess = s.queue_sessions[i];
+        break;
+      }
+    }
+    if (!sess && key.indexOf("t:") === 0) {
+      var m = /^t:(\d+)/.exec(key);
+      var ep = m ? parseInt(m[1], 10) : NaN;
+      if (isFinite(ep)) {
+        for (i = 0; i < s.queue_sessions.length; i++) {
+          var se = s.queue_sessions[i].start_epoch;
+          if (se != null && Math.floor(se) === ep) {
+            sess = s.queue_sessions[i];
+            break;
+          }
+        }
+      }
+    }
+    if (!sess || !sess.points || !sess.points.length) {
+      return out;
+    }
+    out.graph_points = sess.points;
+    var last = sess.points[sess.points.length - 1];
+    out.current_point = [last[0], last[1]];
+    return out;
+  }
+
+  function rebuildSessionDropdown(s) {
+    var sel = $("selSession");
+    if (!sel) {
+      return;
+    }
+    var sessions = s.queue_sessions || [];
+    sel.innerHTML = "";
+    var opt0 = document.createElement("option");
+    opt0.value = "latest";
+    opt0.textContent = "Latest session (auto)";
+    opt0.title = "Live engine graph for the current queue run.";
+    sel.appendChild(opt0);
+    var i;
+    for (i = 0; i < sessions.length; i++) {
+      var o = document.createElement("option");
+      o.value = sessions[i].key;
+      o.textContent = (sessions[i].label || "Session") + " — " + formatSessionStart(sessions[i].start_epoch);
+      o.title =
+        "Start: " +
+        formatSessionStart(sessions[i].start_epoch) +
+        "\nEnd: " +
+        formatSessionStart(sessions[i].end_epoch) +
+        "\nPoints: " +
+        (sessions[i].points ? sessions[i].points.length : 0);
+      sel.appendChild(o);
+    }
+    if (!_sessionDropdownInited) {
+      _sessionDropdownInited = true;
+      try {
+        var saved = (localStorage.getItem(LS_SESSION) || "").trim();
+        if (saved) {
+          selectedSessionKey = saved;
+        }
+      } catch (e) {}
+    }
+    var valid = selectedSessionKey === "latest";
+    if (!valid) {
+      for (i = 0; i < sessions.length; i++) {
+        if (sessions[i].key === selectedSessionKey) {
+          valid = true;
+          break;
+        }
+      }
+    }
+    if (!valid) {
+      selectedSessionKey = "latest";
+    }
+    sel.value = selectedSessionKey;
+    if (sel.value !== selectedSessionKey) {
+      sel.value = "latest";
+      selectedSessionKey = "latest";
+    }
+    try {
+      localStorage.setItem(LS_SESSION, selectedSessionKey);
+    } catch (e) {}
+  }
+
+  function setupSessionSelect() {
+    var sel = $("selSession");
+    if (!sel) {
+      return;
+    }
+    sel.addEventListener("change", function () {
+      selectedSessionKey = sel.value || "latest";
+      try {
+        localStorage.setItem(LS_SESSION, selectedSessionKey);
+      } catch (e) {}
+      if (window._lastState) {
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+      }
+    });
   }
 
   function tryRestoreBanner(s) {
@@ -227,11 +353,19 @@
       tryRestoreBanner(s);
     }
 
+    rebuildSessionDropdown(s);
+    window._displayState = buildDisplayState(s);
+    var fv = $("footerVersion");
+    if (fv) {
+      var bf = s.build_fingerprint || "";
+      fv.textContent = "v" + (s.version || "") + (bf ? " (" + bf + ")" : "");
+    }
+
     resizeCanvas();
   }
 
   function resizeCanvas() {
-    if (!window._lastState) return;
+    if (!window._displayState) return;
     const c = $("graphCanvas");
     const wrap = c.parentElement;
     if (!wrap) return;
@@ -245,10 +379,11 @@
     c.style.height = h + "px";
     const ctx = c.getContext("2d");
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (window._lastState) drawGraph(c, window._lastState);
+    if (window._displayState) drawGraph(c, window._displayState);
   }
 
   window._lastState = null;
+  window._displayState = null;
 
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -300,6 +435,7 @@
       {
         title: "Chart & alerts",
         html:
+          "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
           "<p>Hover the chart for time and position. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
           "<p>Enable <strong>Notifications</strong> in the header (localhost) for desktop alerts when thresholds fire.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
@@ -478,12 +614,31 @@
 
     function mergeAlertThresholdsString(raw, addN) {
       const set = {};
+      function addToken(part) {
+        const p = (part || "").trim();
+        if (!p) return;
+        const rm = /^(\d+)\s*-\s*(\d+)$/.exec(p);
+        if (rm) {
+          const a = parseInt(rm[1], 10);
+          const b = parseInt(rm[2], 10);
+          if (isFinite(a) && isFinite(b) && a >= 1 && b >= 1) {
+            const step = a <= b ? 1 : -1;
+            let x = a;
+            while ((step > 0 && x <= b) || (step < 0 && x >= b)) {
+              set[x] = true;
+              x += step;
+            }
+          }
+          return;
+        }
+        const n = parseInt(p, 10);
+        if (!isNaN(n) && n >= 1) set[n] = true;
+      }
       (raw || "")
         .replace(/,/g, " ")
         .split(/\s+/)
         .forEach(function (p) {
-          const n = parseInt(p, 10);
-          if (!isNaN(n) && n >= 1) set[n] = true;
+          addToken(p);
         });
       if (!isNaN(addN) && addN >= 1) set[addN] = true;
       const arr = Object.keys(set)
@@ -767,7 +922,7 @@
       });
     };
     $("btnCopyTsv").onclick = function () {
-      const pts = (window._lastState && window._lastState.graph_points) || [];
+      const pts = (window._displayState && window._displayState.graph_points) || [];
       if (!pts.length) {
         toast("No graph data yet", "warn");
         return;
@@ -893,6 +1048,7 @@
 
   setupChrome();
   setupPopovers();
+  setupSessionSelect();
   setupGraphCanvas();
   setupRestoreBanner();
   setupNewQueueModal();
@@ -909,7 +1065,15 @@
       window._graphTheme = m.graph_theme || null;
       applyChromeTheme(m.chrome_theme);
       $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
-      redrawGraphOnly();
+      var fv2 = $("footerVersion");
+      if (fv2) {
+        var bf2 = m.build_fingerprint || "";
+        fv2.textContent = "v" + (m.version || "") + (bf2 ? " (" + bf2 + ")" : "");
+      }
+      if (window._lastState) {
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+      }
     })
     .catch(function () {});
 

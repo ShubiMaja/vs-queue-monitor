@@ -252,6 +252,32 @@ body {
   gap: 8px;
   margin-bottom: 8px;
 }
+.graph-toolbar--split {
+  align-items: flex-end;
+}
+.graph-toolbar__left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+  flex: 1 1 220px;
+}
+.graph-session-label {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.graph-session-select {
+  min-width: 180px;
+  max-width: min(420px, 100%);
+  font-size: 0.85rem;
+  padding: 4px 8px;
+}
+.graph-toolbar__mid {
+  flex: 1 1 140px;
+  text-align: center;
+  font-size: 0.8rem;
+}
 .graph-toolbar__btns {
   display: flex;
   flex-wrap: wrap;
@@ -268,6 +294,14 @@ body {
   font-size: 0.8rem;
   margin-top: 8px;
   white-space: pre-line;
+}
+
+.app-footer {
+  max-width: 1200px;
+  margin: 24px auto 16px;
+  padding: 0 16px;
+  font-size: 0.75rem;
+  text-align: center;
 }
 .muted {
   color: var(--muted);

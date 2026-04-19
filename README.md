@@ -2,7 +2,7 @@
 
 **Python** app that tails the **Vintage Story** client log, tracks **connect queue position**, estimates **wait time**, and raises alerts at configurable thresholds. The UI is a **local web app** on `127.0.0.1` (embedded **pywebview** window when available; otherwise your browser, or **`--web-browser`**). Inline KPI edits, canvas graph, PNG/TSV copy, spotlight tour (`starlette` + `uvicorn`; **pywebview** on Python 3.13 and older in `requirements.txt`).
 
-**Product and UX:** [`docs/DESIGN.md`](docs/DESIGN.md). **Web parity:** [`docs/UI-PARITY.md`](docs/UI-PARITY.md), [`docs/UI-UX-PARITY.md`](docs/UI-UX-PARITY.md). **Architecture notes:** [`docs/real-life-ui-patterns.md`](docs/real-life-ui-patterns.md).
+**Product and UX:** [`docs/DESIGN.md`](docs/DESIGN.md). **Web parity:** [`docs/UI-PARITY.md`](docs/UI-PARITY.md), [`docs/UI-UX-PARITY.md`](docs/UI-UX-PARITY.md), [`docs/WEB-PLATFORM.md`](docs/WEB-PLATFORM.md). **Architecture notes:** [`docs/real-life-ui-patterns.md`](docs/real-life-ui-patterns.md).
 
 <img width="1916" height="1072" alt="VS Queue Monitor screenshot" src="https://github.com/user-attachments/assets/648649c3-264c-4880-9e80-7a46efc4d746" />
 

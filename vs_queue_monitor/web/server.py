@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -22,12 +23,43 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import APP_DISPLAY_NAME, VERSION
-from ..core import get_config_path, parse_alert_thresholds
+from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
 from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _build_fingerprint() -> str:
+    """Short git SHA, env override, or VERSION (parity with static ``feature/change-to-web-ui`` builds)."""
+    fp = os.environ.get("VSQM_BUILD_FINGERPRINT", "").strip()
+    if fp:
+        return fp
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if r.returncode == 0 and (r.stdout or "").strip():
+            return (r.stdout or "").strip()
+    except Exception:
+        pass
+    return VERSION
+
+
+def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
+    path = engine.current_log_file
+    if path is None or not path.is_file():
+        return []
+    try:
+        return queue_sessions_for_log_tail(path)
+    except Exception:
+        return []
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -132,6 +164,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "history_tail": hooks.history_lines()[-400:],
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
+        "queue_sessions": _queue_sessions_for_engine(engine),
+        "build_fingerprint": _build_fingerprint(),
     }
 
 
@@ -139,6 +173,8 @@ def _api_meta(request: Request) -> JSONResponse:
     return JSONResponse(
         {
             "config_path": str(get_config_path()),
+            "version": VERSION,
+            "build_fingerprint": _build_fingerprint(),
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
         }
