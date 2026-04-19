@@ -63,6 +63,16 @@ python monitor.py
 
 Equivalent: `python -m vs_queue_monitor`. On Windows use `python` or `py` if needed.
 
+### After install: what to double-click (or run)
+
+| Situation | What to use |
+|-----------|-------------|
+| **Windows**, full git clone | Double-click **`Run VS Queue Monitor.bat`** in the project folder (uses `.venv` if present). |
+| **macOS / Linux**, full clone | **`./run-vs-queue-monitor.sh`** after `chmod +x run-vs-queue-monitor.sh` once, or **`python3 monitor.py`**. |
+| Any OS, terminal | **`python monitor.py`** from the project root (or **`.venv\Scripts\python.exe`** / **`.venv/bin/python`**). |
+
+Double-clicking **`monitor.py`** only works if `.py` files are associated with Python on your system; the **`.bat`** / **`.sh`** launchers are more predictable.
+
 ### Default: embedded web app (`python monitor.py`)
 
 ```bash
@@ -125,6 +135,8 @@ python monitor.py --no-start
 | `vs_queue_monitor/web/` | Local Starlette app + static client (default UI) |
 | `vs_queue_monitor/cli.py` | Default web UI; `--gui` / `--tui` / `--web`, `--web-browser`, `--path`, `--no-start` |
 | `monitor.py` | Entrypoint |
+| `Run VS Queue Monitor.bat` | Windows: double-click to run (uses `.venv` if present) |
+| `run-vs-queue-monitor.sh` | macOS/Linux: run from terminal (uses `.venv` if present) |
 | `bootstrap.py` | One-file launcher: clone (if needed), venv, `pip install`, run `monitor.py` |
 | `tools/build_engine.py` | Regenerates `engine.py` from `_engine_raw.py` when using that workflow |
 | `_engine_raw.py` | Input for `tools/build_engine.py` |
