@@ -159,6 +159,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+/* Clicks must hit the <button>; inner SVG/spans can steal events in WebView / Safari. */
+.btn-notify * {
+  pointer-events: none;
 }
 .btn-notify__glyph {
   display: none;
