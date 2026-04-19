@@ -192,7 +192,7 @@ Detailed intent is in [`docs/DESIGN.md`](docs/DESIGN.md). This section is a shor
 ### Dashboard
 
 - **KPIs:** Position (including **0** when past connect-queue wait per tail rules), status, rolling rate, warning thresholds, elapsed, ETA, progress.
-- **Graph:** Step chart of queue position vs time for the **current queue session**; log/linear Y where available. The canvas tracks the layout size and device pixel ratio on each refresh (including while hovering), sizes to the chart row so it does not overflow the card on narrow widths, and the hint under the chart lists the hovered sample, scale mode, session label, and delta/slope vs the previous point.
+- **Graph:** Step chart of queue position vs time for the **current queue session**; log/linear Y where available. The canvas tracks the layout size and device pixel ratio on each refresh (including while hovering) and stays within the card on narrow widths. A **one-line** hint sits under the chart; **hover** shows a **tooltip** with time, position, and extra sample details (scale, session, deltas).
 - **Info / History:** Shown in the web layout; optional per-step queue lines when **Log every position change** is on (default **on**).
 
 ### Queue semantics

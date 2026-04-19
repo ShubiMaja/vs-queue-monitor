@@ -551,11 +551,29 @@ select.inp:focus-visible {
   max-width: 100%;
 }
 .graph-canvas-wrap {
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
   border-radius: var(--radius-sm);
+}
+.graph-tooltip {
+  position: fixed;
+  z-index: 80;
+  left: 0;
+  top: 0;
+  max-width: min(22rem, calc(100vw - 24px));
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text);
+  background: #252b33;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-elevated);
+  white-space: pre-line;
+  pointer-events: none;
 }
 .graph-toolbar {
   display: flex;
@@ -609,7 +627,9 @@ select.inp:focus-visible {
 .graph-hint {
   font-size: 0.8rem;
   margin-top: 8px;
-  white-space: pre-line;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-footer {
