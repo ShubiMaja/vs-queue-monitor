@@ -7,6 +7,30 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <div id="restoreBanner" class="restore-banner hidden" role="region">
+      <div class="restore-banner__inner">
+        <span id="restoreBannerDetail" class="restore-banner__msg"></span>
+        <div class="restore-banner__actions">
+          <button type="button" class="btn btn--primary btn--small" id="btnResumePath">Use saved path &amp; start</button>
+          <button type="button" class="btn btn--ghost btn--small" id="btnDismissRestore">Not now</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalNewQueue" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal__backdrop" id="modalNewQueueBackdrop"></div>
+      <div class="modal__box">
+        <h2 id="modalNewQueueTitle">New queue run detected</h2>
+        <p id="modalNewQueueBody" class="modal__text">
+          A new queue session appeared in the log while you were in <strong>Interrupted</strong> state. Load it? This resets the chart and threshold alerts for the new run.
+        </p>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnNewQueueYes">Adopt new run</button>
+          <button type="button" class="btn btn--secondary" id="btnNewQueueNo">Not now</button>
+        </div>
+      </div>
+    </div>
+
     <div id="tourOverlay" class="tour-overlay hidden" aria-hidden="true">
       <div class="tour-spotlight" id="tourSpotlight"></div>
       <div class="tour-card" id="tourCard" role="dialog">
@@ -14,7 +38,7 @@
           <span id="tourTitle" class="tour-card__title">Tour</span>
           <span id="tourStepNum" class="muted"></span>
         </div>
-        <p id="tourBody" class="tour-card__body"></p>
+        <div id="tourBody" class="tour-card__body"></div>
         <div class="tour-card__actions">
           <button type="button" class="btn btn--ghost" id="tourSkip">Skip</button>
           <button type="button" class="btn btn--secondary" id="tourBack">Back</button>
@@ -31,6 +55,10 @@
       <div class="topbar__path">
         <label for="inpPath">Logs folder</label>
         <input type="text" id="inpPath" class="inp" autocomplete="off" placeholder="Path to VintagestoryData or Logs" />
+      </div>
+      <div class="topbar__mid">
+        <button type="button" class="btn btn--pill" id="btnNotify" title="Desktop notifications">Notifications</button>
+        <span id="notifyHint" class="muted notify-hint hidden"></span>
       </div>
       <div class="topbar__actions">
         <button type="button" class="btn btn--secondary" id="btnTour" title="Guided tour">Tour</button>
@@ -79,15 +107,26 @@
         <div class="kpi__cell kpi__cell--wide" data-tour="warn">
           <div class="kpi__label">
             WARNINGS
-            <button type="button" class="kpi__edit" id="btnEditWarn" title="Edit thresholds">✎</button>
+            <button type="button" class="kpi__edit" id="btnAddWarn" title="Add one threshold">+</button>
+            <button type="button" class="kpi__edit" id="btnEditWarn" title="Edit all thresholds">✎</button>
           </div>
-          <div class="kpi__warn" id="kpiWarnings">—</div>
+          <div class="kpi__warn-rail" id="kpiWarnRail">
+            <div class="kpi__warn" id="kpiWarnings">—</div>
+          </div>
           <div id="popWarn" class="popover hidden">
             <label>Thresholds (comma-separated)</label>
             <input type="text" id="inpWarn" class="inp" />
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--sm" id="btnWarnOk">OK</button>
               <button type="button" class="btn btn--ghost btn--sm" id="btnWarnCancel">Cancel</button>
+            </div>
+          </div>
+          <div id="popWarnAdd" class="popover hidden">
+            <label>Add threshold (position)</label>
+            <input type="text" id="inpWarnAdd" class="inp inp--narrow" inputmode="numeric" />
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--sm" id="btnWarnAddOk">Add</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="btnWarnAddCancel">Cancel</button>
             </div>
           </div>
         </div>
@@ -142,13 +181,31 @@
 
     <div id="modalHelp" class="modal hidden" role="dialog">
       <div class="modal__backdrop" data-close="1"></div>
-      <div class="modal__box">
+      <div class="modal__box modal__box--help">
         <h2>Help</h2>
-        <p>
-          Set the <strong>Logs folder</strong> (folder containing <code>client-main.log</code>), then <strong>Start</strong>.
-          Settings are saved to your config file (same as Tk).
-        </p>
-        <p class="muted" id="helpCfgPath"></p>
+        <div class="help-scroll">
+          <p>
+            This UI runs in your browser but the <strong>Python app</strong> reads log files from disk (same as Tk/TUI). Paste the
+            <strong>folder</strong> that contains <code>client-main.log</code> (or your data directory), then <strong>Start</strong>.
+          </p>
+          <h3 class="help-h3">Typical paths</h3>
+          <ul class="help-list">
+            <li><strong>Windows:</strong> <code>%APPDATA%\VintagestoryData</code> or <code>...\VintagestoryData\Logs</code></li>
+            <li><strong>macOS:</strong> <code>~/Library/Application Support/VintagestoryData</code></li>
+            <li><strong>Linux:</strong> <code>~/.config/VintagestoryData</code></li>
+          </ul>
+          <h3 class="help-h3">If the OS blocks “hidden” folders</h3>
+          <p class="muted">
+            Create a symlink or hardlink into an easy folder, then point the app at that path. Example commands (adjust drive letters / usernames):
+          </p>
+          <div class="help-tabs">
+            <button type="button" class="btn btn--small btn--tab" id="btnHelpWin">Windows</button>
+            <button type="button" class="btn btn--small btn--tab" id="btnHelpUnix">macOS / Linux</button>
+            <button type="button" class="btn btn--small" id="btnHelpCopyCmd" title="Copy command">Copy</button>
+          </div>
+          <pre class="help-pre" id="preHelpCmd"></pre>
+          <p class="muted" id="helpCfgPath"></p>
+        </div>
         <div class="modal__actions">
           <button type="button" class="btn btn--primary" data-close="1">OK</button>
         </div>
@@ -161,12 +218,15 @@
         <h2>Settings</h2>
         <div class="form-grid">
           <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
-          <label><input type="checkbox" id="chkPop" /> Warning popup (toast in web)</label>
-          <label><input type="checkbox" id="chkSnd" /> Warning sound (OS)</label>
+          <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
+          <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
           <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
           <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
         </div>
-        <p class="muted">Sound files: use Tk or edit config JSON for paths (web parity for toggles).</p>
+        <label class="settings-field">Warning sound file (optional)</label>
+        <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
+        <label class="settings-field">Completion sound file (optional)</label>
+        <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
         <div class="modal__actions">
           <button type="button" class="btn btn--secondary" id="btnReset">Reset defaults</button>
           <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>
