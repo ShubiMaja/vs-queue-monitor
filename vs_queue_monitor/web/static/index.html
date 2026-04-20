@@ -192,7 +192,7 @@
             </div>
           </div>
           <div id="popWarnAdd" class="popover hidden">
-            <label>Add threshold (position)</label>
+            <label>Add threshold — alerts fire when position drops <em>below</em> this</label>
             <input type="text" id="inpWarnAdd" class="inp inp--narrow" inputmode="numeric" />
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnAddOk">Add</button>
@@ -218,6 +218,8 @@
         </div>
       </section>
 
+      <div id="kpiHint" class="kpi-hint hidden" role="status" aria-live="polite"></div>
+
       <section class="graph-panel" data-tour="graph">
         <div class="graph-toolbar graph-toolbar--split" role="toolbar" aria-label="Chart and export">
           <div class="graph-toolbar__cluster">
@@ -228,6 +230,7 @@
               </select>
             </div>
             <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
+            <span id="sessionScopeBadge" class="session-scope-badge hidden" role="status" aria-live="polite">Past session — KPIs above stay live</span>
           </div>
           <div class="graph-toolbar__btns">
             <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
@@ -263,7 +266,7 @@
           </div>
         </div>
         <div class="graph-canvas-wrap">
-          <canvas id="graphCanvas" width="1100" height="280"></canvas>
+          <canvas id="graphCanvas" width="1100" height="280" role="img" aria-label="Queue position time series chart"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
         <div class="resize-handle resize-handle--h" id="graphResizeHandle" role="separator" aria-orientation="horizontal" title="Drag to resize graph height" tabindex="-1"></div>
@@ -363,8 +366,11 @@
           <p class="muted help-kbd">
             When focus is not in a text field: <strong>Space</strong> start/stop · <strong>o</strong> settings ·
             <strong>F1</strong> this help · <strong>c</strong> copy graph TSV · <strong>v</strong> copy session history
-            (clipboard). Single-key shortcuts are ignored while a dialog, the guided tour, or the restore banner is open.
+            (clipboard) · <strong>+</strong> zoom in graph · <strong>−</strong> zoom out · <strong>0</strong> reset zoom.
+            Mouse wheel also zooms the graph. Single-key shortcuts are ignored while a dialog, the guided tour, or the restore banner is open.
           </p>
+          <h3 class="help-h3">Threshold alerts</h3>
+          <p class="muted">Alerts fire when your queue position drops <strong>below</strong> a threshold value, once per threshold per run — not when it simply reaches that number. Add thresholds in the Warnings KPI (+ or ✎).</p>
           <p class="muted" id="helpCfgPath"></p>
         </div>
         <div class="modal__actions">
