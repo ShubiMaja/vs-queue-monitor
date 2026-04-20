@@ -163,6 +163,105 @@ def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
     return False
 
 
+def _find_pid_on_port(port: int) -> Optional[int]:
+    """Return the PID of the process listening on *port*, or None."""
+    if sys.platform == "win32":
+        try:
+            out = subprocess.check_output(
+                ["netstat", "-ano", "-p", "TCP"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for line in out.splitlines():
+                if f":{port} " in line and "LISTENING" in line:
+                    parts = line.split()
+                    if parts and parts[-1].isdigit():
+                        return int(parts[-1])
+        except Exception:
+            pass
+    else:
+        for cmd in (
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            ["fuser", f"{port}/tcp"],
+        ):
+            try:
+                out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+                pid_str = out.strip().split()[0]
+                if pid_str.isdigit():
+                    return int(pid_str)
+            except Exception:
+                continue
+    return None
+
+
+def _handle_port_conflict(p: int, url: str) -> bool:
+    """If port *p* is already bound, prompt the user to kill the existing process.
+
+    Returns True  → port is free; caller should proceed.
+    Returns False → user declined or kill failed; caller should abort.
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", p), timeout=0.3):
+            pass
+    except OSError:
+        return True  # port is free
+
+    pid = _find_pid_on_port(p)
+    pid_hint = f" (PID {pid})" if pid else ""
+    print(
+        f"\nPort {p} is already in use{pid_hint}.\n"
+        f"Another VS Queue Monitor instance may be running at {url}",
+        file=sys.stderr,
+    )
+
+    if not sys.stdin.isatty():
+        webbrowser.open(url)
+        return False
+
+    try:
+        answer = input("Kill the existing instance and start fresh? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("", file=sys.stderr)
+        return False
+
+    if answer not in ("y", "yes"):
+        print(f"  Tip: the running instance is at {url}", file=sys.stderr)
+        webbrowser.open(url)
+        return False
+
+    if not pid:
+        print("  Could not determine PID — close the other instance manually.", file=sys.stderr)
+        return False
+
+    try:
+        if sys.platform == "win32":
+            subprocess.call(
+                ["taskkill", "/F", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            import signal as _signal
+
+            os.kill(pid, _signal.SIGKILL)
+    except Exception as exc:
+        print(f"  Could not terminate PID {pid}: {exc}", file=sys.stderr)
+        return False
+
+    # Wait for the port to be released (up to 5 s).
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", p), timeout=0.2):
+                time.sleep(0.15)
+        except OSError:
+            print(f"  Stopped. Starting fresh on port {p}…", file=sys.stderr)
+            return True
+
+    print(f"  Port {p} still in use after termination.", file=sys.stderr)
+    return False
+
+
 def _gui_display_available() -> bool:
     """Whether a desktop/webview window can plausibly open (cross-platform)."""
     if sys.platform == "win32":
@@ -507,6 +606,11 @@ def run_web_server_process(
 
     from .tray import start_tray
 
+    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
+    url = f"http://127.0.0.1:{p}/"
+    if not _handle_port_conflict(p, url):
+        return 0
+
     app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
     print(
         "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
@@ -623,6 +727,9 @@ def run_web_server(
 
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
     url = f"http://127.0.0.1:{p}/"
+
+    if not _handle_port_conflict(p, url):
+        return 0
 
     if open_external_browser:
         from .tray import start_tray
