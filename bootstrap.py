@@ -184,7 +184,11 @@ def _ps_single_quoted(s: str) -> str:
 
 
 def _create_windows_desktop_shortcut(root: Path) -> None:
-    """Create a .lnk on the Desktop pointing at vs-queue-monitor.cmd (or legacy vsqm.cmd / .bat)."""
+    """Create a .lnk on the Desktop pointing at vs-queue-monitor.cmd (or legacy vsqm.cmd / .bat).
+
+    Skips silently when the shortcut already exists.  When it does not exist and stdin is a TTY,
+    asks the user first.  Non-interactive runs (piped bootstrap) create it automatically.
+    """
     if sys.platform != "win32":
         return
     if os.environ.get("VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT", "").strip().lower() in (
@@ -207,6 +211,19 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
         _eprint("(Could not resolve Desktop — skipping shortcut.)")
         return
     lnk = desktop / f"{_APP_SHORTCUT_STEM}.lnk"
+
+    if lnk.exists():
+        return  # already there — nothing to do
+
+    if sys.stdin.isatty():
+        try:
+            answer = input("Add a Desktop shortcut for VS Queue Monitor? [Y/n] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            _eprint("")
+            return
+        if answer in ("n", "no"):
+            return
+
     ps = (
         "$ws = New-Object -ComObject WScript.Shell; "
         f"$s = $ws.CreateShortcut({_ps_single_quoted(str(lnk))}); "
@@ -221,7 +238,7 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
         check=False,
     )
     if r.returncode == 0:
-        _eprint(f"Desktop shortcut: {lnk}")
+        _eprint(f"Desktop shortcut created: {lnk}")
     else:
         _eprint("(Could not create desktop shortcut; you can run vs-queue-monitor.cmd from the install folder.)")
 
