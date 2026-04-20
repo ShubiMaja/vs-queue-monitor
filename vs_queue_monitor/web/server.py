@@ -746,22 +746,41 @@ def run_web_server(
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
+    _webview_ok = False
     try:
         import webview
 
         # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
         logging.getLogger("webview").setLevel(logging.CRITICAL)
-    except ImportError:
+
+        # Require pywebview 4.x — earlier releases have an incompatible API.
+        _wv_ver = getattr(webview, "version", None) or getattr(webview, "__version__", None) or ""
+        if not _wv_ver:
+            # 4.x exposes webview.version; fall back to importlib metadata.
+            try:
+                from importlib.metadata import version as _pkg_version
+                _wv_ver = _pkg_version("pywebview")
+            except Exception:
+                pass
+        _wv_major = int(str(_wv_ver).split(".")[0]) if _wv_ver else 0
+        if _wv_major < 4:
+            raise ImportError(
+                f"pywebview {_wv_ver or '?'} is installed but version 4.4+ is required. "
+                "Run:  pip install --upgrade 'pywebview>=4.4'"
+            )
+        _webview_ok = True
+    except ImportError as _wv_err:
+        from .tray import start_tray
+
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
         print(
-            "Embedded web UI requires pywebview. Install:\n"
-            "  pip install pywebview\n"
-            "Or open your system browser instead:\n"
-            "  python monitor.py --web-browser\n"
+            f"Embedded web UI unavailable: {_wv_err}\n"
+            "Opening in your system browser instead.\n"
             f"Serving at {url} (Ctrl+C to stop).",
             file=sys.stderr,
         )
+        start_tray(url)
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
