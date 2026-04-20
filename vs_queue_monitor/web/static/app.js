@@ -486,6 +486,17 @@
       sessions.length > 0
         ? "Plot a past queue run from the log tail; KPIs above stay live."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
+    updateSessionBadge();
+  }
+
+  function updateSessionBadge() {
+    var badge = $("sessionScopeBadge");
+    if (!badge) return;
+    if (selectedSessionKey && selectedSessionKey !== "latest") {
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
   }
 
   function setupSessionSelect() {
@@ -498,6 +509,7 @@
       try {
         lsSetSession(selectedSessionKey);
       } catch (e) {}
+      updateSessionBadge();
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();
@@ -756,6 +768,20 @@
       fv.textContent = "v" + (s.version || "") + (bf ? " (" + bf + ")" : "");
     }
 
+    var kh = $("kpiHint");
+    if (kh) {
+      var noPath = !(s.source_path || "").trim();
+      if (!s.running && noPath) {
+        kh.textContent = "Set the Vintage Story logs folder above, then click Start.";
+        kh.classList.remove("hidden");
+      } else if (s.running && typeof s.status === "string" && s.status.indexOf("Waiting") === 0) {
+        kh.textContent = "Monitoring started — looking for client-main.log in the selected folder.";
+        kh.classList.remove("hidden");
+      } else {
+        kh.classList.add("hidden");
+      }
+    }
+
     if (notifySyncHint) notifySyncHint();
     resizeCanvas();
   }
@@ -1006,6 +1032,7 @@
       if (!$("popPoll").classList.contains("hidden")) {
         $("inpPoll").value = window._lastState ? window._lastState.poll_sec : "2";
         positionKpiPopover($("popPoll"), $("btnEditPoll"));
+        requestAnimationFrame(function () { $("inpPoll").focus(); });
       }
     };
     $("btnPollOk").onclick = function () {
@@ -1030,6 +1057,7 @@
       if (!$("popWindow").classList.contains("hidden")) {
         $("inpWindow").value = window._lastState ? window._lastState.avg_window : "12";
         positionKpiPopover($("popWindow"), $("btnEditWindow"));
+        requestAnimationFrame(function () { $("inpWindow").focus(); });
       }
     };
     $("btnWindowOk").onclick = function () {
@@ -1054,6 +1082,7 @@
       if (!$("popWarnAdd").classList.contains("hidden")) {
         $("inpWarnAdd").value = "";
         positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
+        requestAnimationFrame(function () { $("inpWarnAdd").focus(); });
       }
     };
     $("btnEditWarn").onclick = function (e) {
@@ -1065,6 +1094,7 @@
       if (!$("popWarn").classList.contains("hidden")) {
         $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
         positionKpiPopover($("popWarn"), $("btnEditWarn"));
+        requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
     $("btnWarnOk").onclick = function () {
@@ -2045,6 +2075,23 @@
       if (ev.key === "v" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
         ev.preventDefault();
         copyHistoryToClipboard();
+        return;
+      }
+      if ((ev.key === "+" || ev.key === "=") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        zoomGraph(0.5, null);
+        return;
+      }
+      if (ev.key === "-" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        zoomGraph(2, null);
+        return;
+      }
+      if (ev.key === "0" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        window._graphZoom = null;
+        redrawGraphOnly();
+        updateZoomResetBtn();
         return;
       }
     });
