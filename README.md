@@ -80,6 +80,27 @@ A tray icon appears in the notification area while the service is running. Right
 
 Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. Enable sound and desktop notifications in **Settings (⚙)**.
 
+## Remote access via ngrok
+
+You can expose a local port to the internet securely with [ngrok](https://dashboard.ngrok.com/get-started/setup/windows).
+
+The following command will expose the default port that the app runs on and protect it with Google Authentication 
+
+`ngrok http 8765 --oauth google --oauth-allow-email myname@gmail.com`
+
+### Expected Output
+
+```
+Update                        update available (version 3.38.0, Ctrl-U to update)
+Version                       3.37.3
+Region                        Europe (eu)
+Latency                       63ms
+Web Interface                 http://127.0.0.1:4040
+Forwarding                    https://1eaa-80-230-11-63.ngrok-free.app -> http://localhost:8765  
+```
+
+By default, the dns it forwards to is different each time. So for example according to the Forwarding rule, above, the UI would be available at:  https://1eaa-80-230-11-63.ngrok-free.app
+
 ## Remote access via SSH tunnel
 
 If Vintage Story is running on a machine you access over SSH (e.g. a gaming PC, home server, or cloud VM), you can still view the monitor in your local browser:
