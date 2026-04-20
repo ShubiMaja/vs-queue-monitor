@@ -815,28 +815,32 @@
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 280;
   window._graphZoom = null;
 
-  var _wsFailCount = 0;
   var _wsEverConnected = false;
+  var _disconnectOverlayShown = false;
 
-  function _showServerStoppedOverlay() {
+  function _showDisconnectOverlay() {
+    if (_disconnectOverlayShown) return;
+    _disconnectOverlayShown = true;
     var overlay = document.getElementById("serverStoppedOverlay");
     if (!overlay) return;
     overlay.classList.remove("hidden");
-    overlay.focus();
-    document.addEventListener("keydown", function (e) { e.preventDefault(); e.stopPropagation(); }, true);
-    document.addEventListener("click", function (e) {
-      if (!overlay.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
-    }, true);
     var btn = document.getElementById("btnCloseTab");
     if (btn) btn.addEventListener("click", function () { window.close(); });
+  }
+
+  function _hideDisconnectOverlay() {
+    if (!_disconnectOverlayShown) return;
+    _disconnectOverlayShown = false;
+    var overlay = document.getElementById("serverStoppedOverlay");
+    if (overlay) overlay.classList.add("hidden");
   }
 
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(proto + "//" + location.host + "/ws");
     ws.onmessage = function (ev) {
-      _wsFailCount = 0;
       _wsEverConnected = true;
+      _hideDisconnectOverlay();
       try {
         const s = JSON.parse(ev.data);
         window._lastState = s;
@@ -844,17 +848,11 @@
       } catch (e) {}
     };
     ws.onopen = function () {
-      _wsFailCount = 0;
       _wsEverConnected = true;
+      _hideDisconnectOverlay();
     };
     ws.onclose = function () {
-      if (_wsEverConnected) {
-        _wsFailCount++;
-        if (_wsFailCount >= 5) {
-          _showServerStoppedOverlay();
-          return;
-        }
-      }
+      if (_wsEverConnected) _showDisconnectOverlay();
       setTimeout(connectWs, 1500);
     };
   }
