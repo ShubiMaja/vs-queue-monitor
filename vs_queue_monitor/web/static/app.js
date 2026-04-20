@@ -107,6 +107,7 @@
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
     if (tx) tx.textContent = raw ? "Path set" : "Not set";
+    if (btn) btn.classList.toggle("path-summary--empty", !raw);
     if (btn) {
       btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
       btn.setAttribute(
