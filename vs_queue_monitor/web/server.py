@@ -505,12 +505,15 @@ def run_web_server_process(
     """Foreground uvicorn only (used by the Windows server console subprocess)."""
     import uvicorn
 
+    from .tray import start_tray
+
     app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
     print(
         "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
         f"Listening on {url}\n",
         flush=True,
     )
+    start_tray(url)
     try:
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
     except KeyboardInterrupt:
@@ -622,6 +625,8 @@ def run_web_server(
     url = f"http://127.0.0.1:{p}/"
 
     if open_external_browser:
+        from .tray import start_tray
+
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
 
@@ -630,6 +635,7 @@ def run_web_server(
             webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
+        start_tray(url)
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
@@ -673,6 +679,8 @@ def run_web_server(
     ):
         return _run_windows_split_console_webview(initial_path, auto_start, port, p, url)
 
+    from .tray import start_tray
+
     app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
 
     def _serve() -> None:
@@ -684,6 +692,7 @@ def run_web_server(
         print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
         return 1
 
+    start_tray(url)
     try:
         from .webview_win import schedule_webview2_notification_permission
 
