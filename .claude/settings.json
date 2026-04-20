@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push*)"
+    ],
+    "allow": [
+      "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\Cursor\\\\User\\\\settings.json'\")",
+      "Read(//c/Users/yosefrow/AppData/Roaming/Cursor/User/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\yosefrow\\AppData\\Roaming\\Cursor\\User"
+    ]
+  }
+}
