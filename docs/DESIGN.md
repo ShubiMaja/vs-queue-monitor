@@ -56,7 +56,19 @@ The product **relies on open-source stacks** where practical: Python stdlib for 
 
 ## 2. Parity contract (engine vs web client)
 
-Behavior and vocabulary come from the **shared engine**; the web client implements presentation and controls. See [`docs/UI-PARITY.md`](UI-PARITY.md) for integration details.
+Behavior and vocabulary come from the **shared engine**; the web client implements presentation and controls.
+
+| Concern | Where |
+|--------|--------|
+| REST + WebSocket state | `vs_queue_monitor/web/server.py` |
+| Engine hooks (timers, history, alerts) | `vs_queue_monitor/web/hooks_web.py` |
+| Graph (step series, ticks, grids, hover tooltip) | `web/static/graph_canvas.js` + `GET /api/meta` → `graph_theme` |
+| Queue session graph scope | `core.queue_sessions_for_log_tail` · `app.js buildDisplayState` |
+| Native **folder** / **log file** browse dialogs | `POST /api/pick_path` — Tk dialog on the Python host |
+| Threshold ranges (`3-1`, `8-10`) | `parse_alert_thresholds` in `core.py` + `mergeAlertThresholdsString` in `app.js` |
+| Build fingerprint / version | `GET /api/meta`; env `VS_QUEUE_MONITOR_BUILD_FINGERPRINT` (legacy: `VSQM_BUILD_FINGERPRINT`) |
+| Dashboard theme from Python | `GET /api/meta` → `graph_theme`, `chrome_theme` (`vs_queue_monitor/web/theme.py`) |
+| Keyboard shortcuts | `Space` start/stop · `F1` help · `o` settings · `c` copy graph TSV · `v` copy session history |
 
 ---
 
@@ -395,7 +407,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 | Doc | Role |
 |-----|------|
 | [`README.md`](../README.md) | Setup, run, troubleshooting, precise behavior. |
-| [`docs/UI-PARITY.md`](UI-PARITY.md) | Web client ↔ engine mapping. |
+| Section 2 above | Web client ↔ engine mapping (shortcuts, APIs, hooks). |
 | `.cursor/rules/ux-seamless-flow.mdc` | Implementation bias for agents (seamless flows, actionable UI). |
 | This file | Product and UX intent: what the user experiences and why. |
 | `vs_queue_monitor/core.py`, `engine.py` | Parsing, queue semantics, tail I/O, config. |
