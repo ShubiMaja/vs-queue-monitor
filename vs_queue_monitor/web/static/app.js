@@ -1436,6 +1436,9 @@
     };
   }
 
+  var _notifUnsupported = false;
+  var _notifEverAsked = !!localStorage.getItem("vsqm_notif_asked");
+
   function setupNotifications() {
     var btn = $("btnNotify");
 
@@ -1445,13 +1448,17 @@
       var st = "pending";
       var label = "Desktop notifications — click to allow in the browser";
       var hint = "Notifications pending — click to allow the browser prompt";
-      if (typeof Notification === "undefined") {
+      if (typeof Notification === "undefined" || _notifUnsupported) {
         st = "unsupported";
-        label = "Desktop notifications — not available in this host";
-        hint = label;
+        label = "Desktop banners not available in this window — sound alerts still work";
+        hint = "Open VS Queue Monitor in a browser tab to enable desktop banners";
+      } else if (Notification.permission === "denied" && !_notifEverAsked) {
+        st = "unsupported";
+        label = "Desktop banners not available in this window — sound alerts still work";
+        hint = "Open VS Queue Monitor in a browser tab to enable desktop banners";
       } else if (Notification.permission === "denied") {
         st = "blocked";
-        label = "Desktop notifications blocked — change site permission in the browser";
+        label = "Desktop notifications blocked — allow this site in browser settings";
         hint = label;
       } else if (!popOn) {
         st = "off";
@@ -1482,7 +1489,22 @@
 
     /** Standard web API only: Notification.requestPermission() + new Notification() */
     function requestPermissionFlow() {
+      if (typeof Notification === "undefined") {
+        _notifUnsupported = true;
+        syncHint();
+        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        return;
+      }
+      if (Notification.permission === "denied" && !_notifEverAsked) {
+        _notifUnsupported = true;
+        syncHint();
+        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        return;
+      }
+      var t0 = Date.now();
       try {
+        localStorage.setItem("vsqm_notif_asked", "1");
+        _notifEverAsked = true;
         var req = Notification.requestPermission();
         if (req && typeof req.then === "function") {
           req
@@ -1498,7 +1520,13 @@
                 } catch (e) {}
                 toast("Notifications enabled.");
               } else if (p === "denied") {
-                toast("Notifications were denied.", "warn");
+                if (Date.now() - t0 < 300) {
+                  _notifUnsupported = true;
+                  toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+                } else {
+                  toast("Notifications were denied in the browser.", "warn");
+                }
+                syncHint();
               }
             })
             .catch(function () {
@@ -1519,8 +1547,9 @@
           }
         }
       } catch (e) {
+        _notifUnsupported = true;
         syncHint();
-        toast("Could not request notification permission.", "warn");
+        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
       }
     }
 
