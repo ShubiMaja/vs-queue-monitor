@@ -1097,6 +1097,38 @@ select.inp:focus-visible {
   max-width: 28rem;
 }
 
+.server-stopped-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.server-stopped-overlay.hidden { display: none; }
+.server-stopped-overlay__box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 2.5rem;
+  max-width: 380px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.server-stopped-overlay__box h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.server-stopped-overlay__box p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .toast-host {
   position: fixed;
   bottom: 20px;
