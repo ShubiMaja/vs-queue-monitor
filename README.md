@@ -57,6 +57,20 @@ pip install -r requirements.txt
 python monitor.py
 ```
 
+## Features
+
+| | |
+|---|---|
+| **Live queue position** | Reads your Vintage Story client log in real time |
+| **ETA & rate** | Estimates wait time from observed position changes |
+| **Progress bar** | Shows how far through the queue you've moved |
+| **Threshold alerts** | Popup + sound + desktop notification when position drops below a value |
+| **Completion alert** | Fires when the game connects (past the queue) |
+| **Graph** | Step chart of position over time; zoom, pan, export as PNG or TSV |
+| **Session history** | Per-run log of position changes |
+| **System tray** | Icon in notification area while running; right-click to open or quit |
+| **Embedded window** | Desktop app feel via pywebview 4.x (falls back to browser if not installed) |
+
 ## Pointing at the log
 
 In the app header, paste your **VintagestoryData** folder path or click the folder icon. Typical locations:
