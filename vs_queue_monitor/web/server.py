@@ -163,6 +163,105 @@ def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
     return False
 
 
+def _find_pid_on_port(port: int) -> Optional[int]:
+    """Return the PID of the process listening on *port*, or None."""
+    if sys.platform == "win32":
+        try:
+            out = subprocess.check_output(
+                ["netstat", "-ano", "-p", "TCP"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for line in out.splitlines():
+                if f":{port} " in line and "LISTENING" in line:
+                    parts = line.split()
+                    if parts and parts[-1].isdigit():
+                        return int(parts[-1])
+        except Exception:
+            pass
+    else:
+        for cmd in (
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            ["fuser", f"{port}/tcp"],
+        ):
+            try:
+                out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+                pid_str = out.strip().split()[0]
+                if pid_str.isdigit():
+                    return int(pid_str)
+            except Exception:
+                continue
+    return None
+
+
+def _handle_port_conflict(p: int, url: str) -> bool:
+    """If port *p* is already bound, prompt the user to kill the existing process.
+
+    Returns True  → port is free; caller should proceed.
+    Returns False → user declined or kill failed; caller should abort.
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", p), timeout=0.3):
+            pass
+    except OSError:
+        return True  # port is free
+
+    pid = _find_pid_on_port(p)
+    pid_hint = f" (PID {pid})" if pid else ""
+    print(
+        f"\nPort {p} is already in use{pid_hint}.\n"
+        f"Another VS Queue Monitor instance may be running at {url}",
+        file=sys.stderr,
+    )
+
+    if not sys.stdin.isatty():
+        webbrowser.open(url)
+        return False
+
+    try:
+        answer = input("Kill the existing instance and start fresh? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("", file=sys.stderr)
+        return False
+
+    if answer not in ("y", "yes"):
+        print(f"  Tip: the running instance is at {url}", file=sys.stderr)
+        webbrowser.open(url)
+        return False
+
+    if not pid:
+        print("  Could not determine PID — close the other instance manually.", file=sys.stderr)
+        return False
+
+    try:
+        if sys.platform == "win32":
+            subprocess.call(
+                ["taskkill", "/F", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            import signal as _signal
+
+            os.kill(pid, _signal.SIGKILL)
+    except Exception as exc:
+        print(f"  Could not terminate PID {pid}: {exc}", file=sys.stderr)
+        return False
+
+    # Wait for the port to be released (up to 5 s).
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", p), timeout=0.2):
+                time.sleep(0.15)
+        except OSError:
+            print(f"  Stopped. Starting fresh on port {p}…", file=sys.stderr)
+            return True
+
+    print(f"  Port {p} still in use after termination.", file=sys.stderr)
+    return False
+
+
 def _gui_display_available() -> bool:
     """Whether a desktop/webview window can plausibly open (cross-platform)."""
     if sys.platform == "win32":
@@ -175,6 +274,69 @@ def _gui_display_available() -> bool:
             or (os.environ.get("WAYLAND_DISPLAY") or "").strip()
         )
     return True
+
+
+def _chromium_app_candidates() -> list[str]:
+    """Paths to Chrome/Edge/Chromium executables to try for --app mode, best first."""
+    if sys.platform == "win32":
+        pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        pf86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+        local = os.path.expandvars(r"%LOCALAPPDATA%")
+        return [
+            os.path.join(pf, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(pf86, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(local, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(pf, r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(pf86, r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
+        ]
+    if sys.platform == "darwin":
+        return [
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ]
+    # Linux / other
+    return ["microsoft-edge", "google-chrome", "chromium-browser", "chromium"]
+
+
+def _chromium_user_data_dir() -> str:
+    """Dedicated Chromium profile dir so permissions persist independently of the user's browser."""
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    profile = base / "vs-queue-monitor" / "chromium-profile"
+    profile.mkdir(parents=True, exist_ok=True)
+    return str(profile)
+
+
+def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
+    """Try to open *url* in a Chromium --app window (no address bar / tabs).
+
+    Returns the launched Popen object so callers can monitor it, or None if no
+    Chromium executable was found.
+    """
+    user_data_dir = _chromium_user_data_dir()
+    for exe in _chromium_app_candidates():
+        if sys.platform != "win32" and not os.path.isabs(exe):
+            import shutil
+
+            exe = shutil.which(exe) or ""  # type: ignore[assignment]
+            if not exe:
+                continue
+        if not os.path.isfile(exe):
+            continue
+        try:
+            return subprocess.Popen(
+                [exe, f"--app={url}", f"--user-data-dir={user_data_dir}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=(sys.platform != "win32"),
+            )
+        except Exception:
+            continue
+    return None
 
 
 def _pick_path_sync(mode: str) -> str | None:
@@ -206,17 +368,22 @@ def _pick_path_sync(mode: str) -> str | None:
 
 
 def _open_browser_and_block(url: str) -> None:
-    """Open default browser once, then block so the uvicorn daemon thread keeps running."""
+    """Open app window (--app mode if Chromium available, else default browser), then block.
 
-    def _open() -> None:
-        time.sleep(0.3)
+    Blocks until Ctrl+C. On exit, terminates the spawned --app process if any.
+    Closing the window without Ctrl+C leaves the server running (tray icon stays).
+    """
+    time.sleep(0.3)
+    proc = _open_app_window(url)
+    if proc is None:
         webbrowser.open(url)
-
-    threading.Thread(target=_open, daemon=True).start()
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
         pass
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -435,6 +602,35 @@ async def _api_new_queue(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+async def _api_clear_notification_permission(request: Request) -> JSONResponse:
+    """Clear the localhost notification permission from the Chromium profile Preferences JSON.
+
+    Only touches the notifications exception entry for the current origin so all
+    other browser state (localStorage, cookies, zoom, etc.) is preserved.
+    """
+    import json as _json
+
+    port = request.url.port or 8765
+    prefs_path = Path(_chromium_user_data_dir()) / "Default" / "Preferences"
+    if not prefs_path.exists():
+        return JSONResponse({"ok": True, "note": "no profile yet"})
+    try:
+        data = _json.loads(prefs_path.read_text(encoding="utf-8"))
+        notif = (
+            data.get("profile", {})
+            .get("content_settings", {})
+            .get("exceptions", {})
+            .get("notifications", {})
+        )
+        keys_removed = [k for k in list(notif) if f"localhost:{port}" in k or f"127.0.0.1:{port}" in k]
+        for k in keys_removed:
+            del notif[k]
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+        return JSONResponse({"ok": True, "cleared": keys_removed})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -487,6 +683,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
+        Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
@@ -505,12 +702,20 @@ def run_web_server_process(
     """Foreground uvicorn only (used by the Windows server console subprocess)."""
     import uvicorn
 
+    from .tray import start_tray
+
+    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
+    url = f"http://127.0.0.1:{p}/"
+    if not _handle_port_conflict(p, url):
+        return 0
+
     app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
     print(
         "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
         f"Listening on {url}\n",
         flush=True,
     )
+    start_tray(url)
     try:
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
     except KeyboardInterrupt:
@@ -621,35 +826,76 @@ def run_web_server(
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
     url = f"http://127.0.0.1:{p}/"
 
+    if not _handle_port_conflict(p, url):
+        return 0
+
     if open_external_browser:
+        from .tray import start_tray
+
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
 
         def _open() -> None:
             time.sleep(0.35)
-            webbrowser.open(url)
+            if not _open_app_window(url):
+                webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
+        start_tray(url)
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
+    _webview_ok = False
     try:
         import webview
 
         # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
         logging.getLogger("webview").setLevel(logging.CRITICAL)
-    except ImportError:
+
+        # Require pywebview 4.x — earlier releases have an incompatible API.
+        _wv_ver = getattr(webview, "version", None) or getattr(webview, "__version__", None) or ""
+        if not _wv_ver:
+            # 4.x exposes webview.version; fall back to importlib metadata.
+            try:
+                from importlib.metadata import version as _pkg_version
+                _wv_ver = _pkg_version("pywebview")
+            except Exception:
+                pass
+        _wv_major = int(str(_wv_ver).split(".")[0]) if _wv_ver else 0
+        if _wv_major < 4:
+            raise ImportError(
+                f"pywebview {_wv_ver or '?'} is installed but version 4.4+ is required. "
+                "Run:  pip install --upgrade 'pywebview>=4.4'"
+            )
+        _webview_ok = True
+    except ImportError as _wv_err:
+        from .tray import start_tray
+
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
         print(
-            "Embedded web UI requires pywebview. Install:\n"
-            "  pip install pywebview\n"
-            "Or open your system browser instead:\n"
-            "  python monitor.py --web-browser\n"
-            f"Serving at {url} (Ctrl+C to stop).",
+            f"Embedded web UI unavailable: {_wv_err}\n"
+            f"Opening app window at {url}\n",
             file=sys.stderr,
         )
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
+        start_tray(url)
+        _wv_config = uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info")
+        _wv_server = uvicorn.Server(_wv_config)
+        _app_proc: "subprocess.Popen[bytes] | None" = None
+
+        def _open_delayed() -> None:
+            nonlocal _app_proc
+            time.sleep(0.35)
+            _app_proc = _open_app_window(url)
+            if _app_proc is None:
+                webbrowser.open(url)
+
+        threading.Thread(target=_open_delayed, daemon=True).start()
+        try:
+            _wv_server.run()
+        finally:
+            if _app_proc is not None and _app_proc.poll() is None:
+                _app_proc.terminate()
         return 0
 
     if not _gui_display_available():
@@ -673,6 +919,8 @@ def run_web_server(
     ):
         return _run_windows_split_console_webview(initial_path, auto_start, port, p, url)
 
+    from .tray import start_tray
+
     app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
 
     def _serve() -> None:
@@ -684,6 +932,7 @@ def run_web_server(
         print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
         return 1
 
+    start_tray(url)
     try:
         from .webview_win import schedule_webview2_notification_permission
 

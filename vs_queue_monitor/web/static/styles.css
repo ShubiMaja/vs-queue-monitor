@@ -1097,6 +1097,50 @@ select.inp:focus-visible {
   max-width: 28rem;
 }
 
+.server-stopped-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.server-stopped-overlay.hidden { display: none; }
+.server-stopped-overlay__box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem 2.5rem;
+  max-width: 380px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: auto;
+}
+.server-stopped-overlay__box h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.server-stopped-overlay__box p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.server-stopped-overlay__spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent, #5b8dd9);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .toast-host {
   position: fixed;
   bottom: 20px;

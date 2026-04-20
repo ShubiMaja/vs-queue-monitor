@@ -415,6 +415,15 @@
     </footer>
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+    <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alert" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
+      <div class="server-stopped-overlay__box">
+        <div class="server-stopped-overlay__spinner" aria-hidden="true"></div>
+        <h2 id="serverStoppedTitle">Connection lost — Reconnecting…</h2>
+        <p id="serverStoppedDesc">The monitor server is unreachable. This page will resume automatically if it comes back.</p>
+        <button type="button" class="btn btn--ghost btn--small" id="btnCloseTab">Close this tab</button>
+      </div>
+    </div>
     <script src="/vendor/dayjs.min.js"></script>
     <script src="/graph_canvas.js"></script>
     <script src="/app.js"></script>
