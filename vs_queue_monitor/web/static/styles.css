@@ -66,6 +66,9 @@ body {
  * Below --topbar-stack-max stacks to avoid overflow on small windows.
  */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 90;
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
@@ -816,12 +819,12 @@ select.inp:focus-visible {
 
 /* Info + History: two panes with matching compact column headers (see web-ui parity). */
 .info-history {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  display: flex;
+  flex-direction: row;
   align-items: stretch;
 }
 .info-history__main {
+  flex: 0 0 var(--ih-main-w, calc(50% - 4px));
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -876,7 +879,14 @@ select.inp:focus-visible {
 }
 @media (max-width: 900px) {
   .info-history {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+  .info-history__main {
+    flex: none;
+    width: 100%;
+  }
+  .resize-handle--v {
+    display: none;
   }
 }
 
@@ -1166,4 +1176,59 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* Resize handles */
+.resize-handle {
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none;
+  -webkit-user-select: none;
+}
+.resize-handle--h {
+  height: 10px;
+  width: 100%;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resize-handle--h::after {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 3px;
+  background: var(--line);
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.resize-handle--h:hover::after {
+  background: var(--accent);
+}
+.resize-handle--v {
+  width: 10px;
+  align-self: stretch;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resize-handle--v::after {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 36px;
+  background: var(--line);
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.resize-handle--v:hover::after {
+  background: var(--accent);
+}
+
+.info-history__side {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
