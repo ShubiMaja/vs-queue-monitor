@@ -28,25 +28,32 @@ cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 
 ### After install — launching the app
 
-**Windows — Win+R (Run dialog)**
+**Windows**
 
-1. Press **Win+R**
-2. Paste: `vs-queue-monitor` (if the repo folder is on your PATH) or the full path, e.g. `C:\Users\You\vs-queue-monitor\vs-queue-monitor.cmd`
-3. Press Enter
+| Method | Steps |
+|--------|-------|
+| **Desktop shortcut** | Double-click **VS Queue Monitor** on the Desktop |
+| **Win+R** | Press **Win+R**, type `vs-queue-monitor`, Enter |
+| **Command Prompt** | `cd %USERPROFILE%\vs-queue-monitor` then `vs-queue-monitor.cmd` |
+| **File Explorer** | Double-click **Run VS Queue Monitor.bat** in the install folder |
 
-Or double-click **Run VS Queue Monitor.bat** in the install folder, or use the Desktop shortcut created during install.
+> **Win+R tip:** works system-wide once the bootstrap adds the install folder to your user PATH.
 
-**macOS / Linux — terminal**
+**macOS**
 
-```bash
-~/vs-queue-monitor/run-vs-queue-monitor.sh
-```
+| Method | Steps |
+|--------|-------|
+| **Terminal** | `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
+| **Spotlight** | Press **⌘ Space**, type `run-vs-queue-monitor`, Enter (if the script is indexed) |
+| **Finder** | Navigate to `~/vs-queue-monitor`, double-click `run-vs-queue-monitor.sh` |
 
-Or just:
+**Linux**
 
-```bash
-cd ~/vs-queue-monitor && python3 monitor.py
-```
+| Method | Steps |
+|--------|-------|
+| **Terminal** | `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
+| **Run dialog** | Press **Alt+F2** (GNOME/KDE), type the full path to `run-vs-queue-monitor.sh` |
+| **App launcher** | Add a `.desktop` entry pointing to `run-vs-queue-monitor.sh` |
 
 If no window appears, open `http://127.0.0.1:8765/` in your browser.
 
