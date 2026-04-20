@@ -76,6 +76,28 @@ A tray icon appears in the notification area while the service is running. Right
 
 Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. Enable sound and desktop notifications in **Settings (⚙)**.
 
+## Remote access via SSH tunnel
+
+If Vintage Story is running on a machine you access over SSH (e.g. a gaming PC, home server, or cloud VM), you can still view the monitor in your local browser:
+
+**1. Start the server on the remote machine** (no window needed):
+
+```bash
+python monitor.py --web-browser --path /path/to/VintagestoryData
+```
+
+**2. Open an SSH tunnel from your laptop:**
+
+```bash
+ssh -L 8765:localhost:8765 user@remote-host
+```
+
+**3. Open `http://localhost:8765` in your local browser.**
+
+The tunnel forwards your laptop's port 8765 to the server's loopback — nothing is exposed to the internet. Replace `8765` with `--web-port` value if you changed it.
+
+> **Tip:** add `-N` to the SSH command (`ssh -N -L ...`) to open just the tunnel without a shell.
+
 ## Disclaimer
 
 **Not affiliated with Vintage Story.** AI-assisted code — validate alerts and ETAs yourself. No warranty.
