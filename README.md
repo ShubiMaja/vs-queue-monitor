@@ -26,14 +26,36 @@ cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 (cd "$HOME/Downloads" 2>/dev/null || cd "$HOME") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 ```
 
+### After install — launching the app
+
+**Windows — Win+R (Run dialog)**
+
+1. Press **Win+R**
+2. Paste: `vs-queue-monitor` (if the repo folder is on your PATH) or the full path, e.g. `C:\Users\You\vs-queue-monitor\vs-queue-monitor.cmd`
+3. Press Enter
+
+Or double-click **Run VS Queue Monitor.bat** in the install folder, or use the Desktop shortcut created during install.
+
+**macOS / Linux — terminal**
+
+```bash
+~/vs-queue-monitor/run-vs-queue-monitor.sh
+```
+
+Or just:
+
+```bash
+cd ~/vs-queue-monitor && python3 monitor.py
+```
+
+If no window appears, open `http://127.0.0.1:8765/` in your browser.
+
 ### Already cloned / developing
 
 ```bash
 pip install -r requirements.txt
 python monitor.py
 ```
-
-If no window appears, open `http://127.0.0.1:8765/` in your browser.
 
 ## Pointing at the log
 
