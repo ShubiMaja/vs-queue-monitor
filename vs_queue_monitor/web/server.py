@@ -358,26 +358,20 @@ def _pick_path_sync(mode: str) -> str | None:
 def _open_browser_and_block(url: str) -> None:
     """Open app window (--app mode if Chromium available, else default browser), then block.
 
-    When an --app window is opened, returns as soon as that window is closed.
-    When falling back to the default browser, blocks until Ctrl+C.
+    Blocks until Ctrl+C. On exit, terminates the spawned --app process if any.
+    Closing the window without Ctrl+C leaves the server running (tray icon stays).
     """
     time.sleep(0.3)
     proc = _open_app_window(url)
-    if proc is not None:
-        try:
-            proc.wait()
-        except KeyboardInterrupt:
-            pass
-        finally:
-            if proc.poll() is None:
-                proc.terminate()
-        return
-
-    webbrowser.open(url)
+    if proc is None:
+        webbrowser.open(url)
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
         pass
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -845,21 +839,21 @@ def run_web_server(
         start_tray(url)
         _wv_config = uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info")
         _wv_server = uvicorn.Server(_wv_config)
+        _app_proc: "subprocess.Popen[bytes] | None" = None
 
-        def _open_and_watch() -> None:
+        def _open_delayed() -> None:
+            nonlocal _app_proc
             time.sleep(0.35)
-            _proc = _open_app_window(url)
-            if _proc is None:
+            _app_proc = _open_app_window(url)
+            if _app_proc is None:
                 webbrowser.open(url)
-                return
-            _proc.wait()
-            _wv_server.should_exit = True
 
-        threading.Thread(target=_open_and_watch, daemon=True).start()
+        threading.Thread(target=_open_delayed, daemon=True).start()
         try:
             _wv_server.run()
-        except KeyboardInterrupt:
-            pass
+        finally:
+            if _app_proc is not None and _app_proc.poll() is None:
+                _app_proc.terminate()
         return 0
 
     if not _gui_display_available():
