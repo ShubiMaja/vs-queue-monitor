@@ -815,17 +815,46 @@
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 280;
   window._graphZoom = null;
 
+  var _wsFailCount = 0;
+  var _wsEverConnected = false;
+
+  function _showServerStoppedOverlay() {
+    var overlay = document.getElementById("serverStoppedOverlay");
+    if (!overlay) return;
+    overlay.classList.remove("hidden");
+    overlay.focus();
+    document.addEventListener("keydown", function (e) { e.preventDefault(); e.stopPropagation(); }, true);
+    document.addEventListener("click", function (e) {
+      if (!overlay.contains(e.target)) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    var btn = document.getElementById("btnCloseTab");
+    if (btn) btn.addEventListener("click", function () { window.close(); });
+  }
+
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(proto + "//" + location.host + "/ws");
     ws.onmessage = function (ev) {
+      _wsFailCount = 0;
+      _wsEverConnected = true;
       try {
         const s = JSON.parse(ev.data);
         window._lastState = s;
         applyState(s);
       } catch (e) {}
     };
+    ws.onopen = function () {
+      _wsFailCount = 0;
+      _wsEverConnected = true;
+    };
     ws.onclose = function () {
+      if (_wsEverConnected) {
+        _wsFailCount++;
+        if (_wsFailCount >= 5) {
+          _showServerStoppedOverlay();
+          return;
+        }
+      }
       setTimeout(connectWs, 1500);
     };
   }

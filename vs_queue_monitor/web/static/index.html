@@ -415,6 +415,14 @@
     </footer>
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
+
+    <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
+      <div class="server-stopped-overlay__box">
+        <h2 id="serverStoppedTitle">Server stopped</h2>
+        <p id="serverStoppedDesc">The VS Queue Monitor process is no longer running. This page cannot update.</p>
+        <button type="button" class="btn btn--primary" id="btnCloseTab">Close this tab</button>
+      </div>
+    </div>
     <script src="/vendor/dayjs.min.js"></script>
     <script src="/graph_canvas.js"></script>
     <script src="/app.js"></script>
