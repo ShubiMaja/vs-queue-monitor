@@ -142,7 +142,7 @@
    * @param {object|null} theme — from /api/meta graph_theme
    * @param {number[]|null} hoverPoint — [tSec, pos] or null
    */
-  function draw(ctx, canvas, state, theme, hoverPoint) {
+  function draw(ctx, canvas, state, theme, hoverPoint, viewRange) {
     var th = mergeTheme(theme);
     var dpr = window.devicePixelRatio || 1;
     var width = canvas.width / dpr;
@@ -209,7 +209,12 @@
     }
 
     var rangePts = rawPoints.length ? rawPoints : points;
-    var tr = graphPlotTimeRange(rangePts, liveView, running, th.single_point_graph_span_sec);
+    var tr;
+    if (viewRange && viewRange.length === 2) {
+      tr = [viewRange[0], viewRange[1]];
+    } else {
+      tr = graphPlotTimeRange(rangePts, liveView, running, th.single_point_graph_span_sec);
+    }
     var t0 = tr[0];
     var t1 = tr[1];
     var span = t1 - t0;
@@ -217,7 +222,11 @@
       span = 1;
     }
 
-    var vals = points.map(function (p) {
+    var viewPts = (viewRange && viewRange.length === 2)
+      ? points.filter(function (p) { return p[0] >= t0 && p[0] <= t1; })
+      : points;
+    if (!viewPts.length) viewPts = points;
+    var vals = viewPts.map(function (p) {
       return p[1];
     });
     var vmin = Math.min.apply(null, vals);
