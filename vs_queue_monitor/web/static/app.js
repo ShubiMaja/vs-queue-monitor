@@ -1449,20 +1449,19 @@
       var label = "Desktop notifications — click to allow in the browser";
       var hint = "Notifications pending — click to allow the browser prompt";
       if (typeof Notification === "undefined" || _notifUnsupported ||
-          (typeof Notification !== "undefined" && Notification.permission === "denied" && !_notifEverAsked)) {
+          (typeof Notification !== "undefined" && Notification.permission === "denied")) {
+        var bannerNote = (typeof Notification === "undefined" || _notifUnsupported)
+          ? " (banners need a browser tab)"
+          : " (banners blocked — allow in browser settings)";
         if (popOn) {
           st = "live";
-          label = "Sound alerts on — click to turn off (desktop banners require a browser)";
-          hint = "Sound alerts on — banners need a real browser tab";
+          label = "Sound alerts on — click to turn off" + bannerNote;
+          hint = "Sound alerts on" + bannerNote;
         } else {
           st = "off";
-          label = "Sound alerts off — click to turn on";
+          label = "Sound alerts off — click to turn on" + bannerNote;
           hint = "Sound alerts off — click to turn on";
         }
-      } else if (Notification.permission === "denied") {
-        st = "blocked";
-        label = "Desktop notifications blocked — allow this site in browser settings";
-        hint = label;
       } else if (!popOn) {
         st = "off";
         if (Notification.permission === "granted") {
@@ -1571,20 +1570,22 @@
       } catch (e) {}
     }
 
-    var _notifUnsupportedToastShown = false;
     function _isBannerUnsupported() {
-      return _notifUnsupported ||
-        typeof Notification === "undefined" ||
-        (Notification.permission === "denied" && !_notifEverAsked);
+      return _notifUnsupported || typeof Notification === "undefined";
+    }
+
+    function _notifBannersBlocked() {
+      return typeof Notification !== "undefined" && Notification.permission === "denied";
     }
 
     function onNotifyClick() {
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
 
-      if (_isBannerUnsupported()) {
-        _notifUnsupported = true;
-        var hint = "Desktop banners aren't available in this window — open in a browser for that.";
+      if (_isBannerUnsupported() || _notifBannersBlocked()) {
+        var hint = _isBannerUnsupported()
+          ? "Desktop banners aren't available in this window — open in a browser for those."
+          : "Desktop banners are blocked — allow this site in browser settings for banners.";
         if (popOn) {
           postConfig({ popup_enabled: false })
             .then(function () {
@@ -1597,12 +1598,7 @@
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              if (!_notifUnsupportedToastShown) {
-                _notifUnsupportedToastShown = true;
-                toast("Sound alerts on. " + hint);
-              } else {
-                toast("Sound alerts on.");
-              }
+              toast("Sound alerts on. " + hint);
               syncHint();
             })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
@@ -1611,11 +1607,6 @@
       }
 
       var perm = Notification.permission;
-      if (perm === "denied") {
-        toast("Notifications are blocked — change the site permission for this origin in your browser.", "warn");
-        syncHint();
-        return;
-      }
       if (perm === "granted") {
         if (popOn) {
           postConfig({ popup_enabled: false })
