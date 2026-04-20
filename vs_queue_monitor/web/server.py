@@ -276,6 +276,58 @@ def _gui_display_available() -> bool:
     return True
 
 
+def _chromium_app_candidates() -> list[str]:
+    """Paths to Chrome/Edge/Chromium executables to try for --app mode, best first."""
+    if sys.platform == "win32":
+        pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        pf86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+        local = os.path.expandvars(r"%LOCALAPPDATA%")
+        return [
+            os.path.join(pf, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(pf86, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(local, r"Microsoft\Edge\Application\msedge.exe"),
+            os.path.join(pf, r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(pf86, r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
+        ]
+    if sys.platform == "darwin":
+        return [
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ]
+    # Linux / other
+    return ["microsoft-edge", "google-chrome", "chromium-browser", "chromium"]
+
+
+def _open_app_window(url: str) -> bool:
+    """Try to open *url* in a Chromium --app window (no address bar / tabs).
+
+    Returns True if a browser process was launched; False if none found.
+    Falls back gracefully — callers should use ``webbrowser.open`` on False.
+    """
+    for exe in _chromium_app_candidates():
+        if sys.platform != "win32" and not os.path.isabs(exe):
+            import shutil
+
+            exe = shutil.which(exe) or ""  # type: ignore[assignment]
+            if not exe:
+                continue
+        if not os.path.isfile(exe):
+            continue
+        try:
+            subprocess.Popen(
+                [exe, f"--app={url}"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=(sys.platform != "win32"),
+            )
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def _pick_path_sync(mode: str) -> str | None:
     """Native folder or file dialog (Tk). Run via ``asyncio.to_thread`` from the Starlette worker."""
     import tkinter as tk
@@ -305,11 +357,12 @@ def _pick_path_sync(mode: str) -> str | None:
 
 
 def _open_browser_and_block(url: str) -> None:
-    """Open default browser once, then block so the uvicorn daemon thread keeps running."""
+    """Open app window (--app mode if Chromium available, else default browser), then block."""
 
     def _open() -> None:
         time.sleep(0.3)
-        webbrowser.open(url)
+        if not _open_app_window(url):
+            webbrowser.open(url)
 
     threading.Thread(target=_open, daemon=True).start()
     try:
@@ -739,7 +792,8 @@ def run_web_server(
 
         def _open() -> None:
             time.sleep(0.35)
-            webbrowser.open(url)
+            if not _open_app_window(url):
+                webbrowser.open(url)
 
         threading.Thread(target=_open, daemon=True).start()
         start_tray(url)
@@ -774,10 +828,12 @@ def run_web_server(
 
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
+        _open_app_window(url) or threading.Thread(
+            target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+        ).start()
         print(
             f"Embedded web UI unavailable: {_wv_err}\n"
-            "Opening in your system browser instead.\n"
-            f"Serving at {url} (Ctrl+C to stop).",
+            f"Opening app window at {url}\n",
             file=sys.stderr,
         )
         start_tray(url)

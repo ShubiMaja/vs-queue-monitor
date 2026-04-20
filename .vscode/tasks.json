@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Install / update dependencies",
+      "type": "shell",
+      "command": "python bootstrap.py",
+      "options": {
+        "env": { "VS_QUEUE_MONITOR_SKIP_RUN": "1" }
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
