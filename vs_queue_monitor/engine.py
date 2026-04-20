@@ -1223,6 +1223,13 @@ class QueueMonitorEngine:
                     self._queue_progress_value = p
                 else:
                     self._queue_progress_value = 0.0
+            elif pos is not None and len(points) >= 1:
+                # No rate yet — fall back to position-based progress
+                start_pos = points[0][1]
+                if start_pos > 0 and pos <= start_pos:
+                    self._queue_progress_value = min(100.0, max(0.0, 100.0 * (start_pos - pos) / start_pos))
+                else:
+                    self._queue_progress_value = 0.0
             else:
                 self._queue_progress_value = 0.0
         self._sync_queue_progress_widget()

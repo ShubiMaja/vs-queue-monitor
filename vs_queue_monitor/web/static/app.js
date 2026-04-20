@@ -575,7 +575,12 @@
     const prog = Math.max(0, Math.min(100, s.progress || 0));
     $("kpiProgFill").style.width = prog + "%";
     var pp = $("kpiProgPct");
-    if (pp) pp.textContent = "(" + Math.round(prog) + "%)";
+    if (pp) {
+      var pctText = Math.round(prog) + "%";
+      pp.textContent = pctText;
+      if (prog === 0) pp.classList.add("kpi__val--empty");
+      else pp.classList.remove("kpi__val--empty");
+    }
 
     const w = s.warnings || [];
     const kw = $("kpiWarnings");
