@@ -81,8 +81,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "brand actions"
-    "path path"
-    "mid mid";
+    "path path";
   align-items: center;
 }
 .topbar > .brand {
@@ -96,16 +95,7 @@ body {
   width: 100%;
   max-width: 100%;
 }
-.topbar__mid {
-  grid-area: mid;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: nowrap;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-}
+
 .topbar > .topbar__actions {
   grid-area: actions;
   justify-self: end;
@@ -120,8 +110,8 @@ body {
 @media (min-width: 900px) {
   .topbar {
     /* minmax(0, …) on path + mid so long hint / path labels can shrink instead of overflowing the viewport */
-    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, auto) auto;
-    grid-template-areas: "brand path mid actions";
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+    grid-template-areas: "brand path actions";
     align-items: center;
     padding: 8px min(14px, 3vw);
     gap: 8px 12px;
@@ -341,6 +331,7 @@ body {
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.02em;
+  text-decoration: none;
 }
 .field-row {
   display: flex;
@@ -361,6 +352,7 @@ body {
 .path-summary {
   flex: 1 1 0;
   min-width: 0;
+  text-decoration: none;
   min-height: 30px;
   box-sizing: border-box;
   display: flex;
