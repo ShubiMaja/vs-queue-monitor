@@ -1168,7 +1168,13 @@ class QueueMonitorEngine:
                 self.global_rate_var.set(self._frozen_rates_at_interrupt[1])
             else:
                 self._refresh_queue_and_global_rate(pos)
-            if True:
+            if pos is not None and len(points) >= 1:
+                start_pos = points[0][1]
+                if start_pos > 0 and pos <= start_pos:
+                    self._queue_progress_value = min(100.0, max(0.0, 100.0 * (start_pos - pos) / start_pos))
+                else:
+                    self._queue_progress_value = 0.0
+            else:
                 self._queue_progress_value = 0.0
             self._sync_queue_progress_widget()
             return
@@ -1221,6 +1227,13 @@ class QueueMonitorEngine:
                 if total > 1e-06:
                     p = min(100.0, max(0.0, 100.0 * elapsed_sec / total))
                     self._queue_progress_value = p
+                else:
+                    self._queue_progress_value = 0.0
+            elif pos is not None and len(points) >= 1:
+                # No rate yet — fall back to position-based progress
+                start_pos = points[0][1]
+                if start_pos > 0 and pos <= start_pos:
+                    self._queue_progress_value = min(100.0, max(0.0, 100.0 * (start_pos - pos) / start_pos))
                 else:
                     self._queue_progress_value = 0.0
             else:

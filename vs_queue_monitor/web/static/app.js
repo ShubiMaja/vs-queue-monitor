@@ -107,6 +107,7 @@
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
     if (tx) tx.textContent = raw ? "Path set" : "Not set";
+    if (btn) btn.classList.toggle("path-summary--empty", !raw);
     if (btn) {
       btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
       btn.setAttribute(
@@ -246,7 +247,7 @@
     if (!ctx) {
       return;
     }
-    VsQueueMonitorGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover);
+    VsQueueMonitorGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover, window._graphZoom);
   }
 
   function redrawGraphOnly() {
@@ -486,6 +487,17 @@
       sessions.length > 0
         ? "Plot a past queue run from the log tail; KPIs above stay live."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
+    updateSessionBadge();
+  }
+
+  function updateSessionBadge() {
+    var badge = $("sessionScopeBadge");
+    if (!badge) return;
+    if (selectedSessionKey && selectedSessionKey !== "latest") {
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
   }
 
   function setupSessionSelect() {
@@ -498,6 +510,7 @@
       try {
         lsSetSession(selectedSessionKey);
       } catch (e) {}
+      updateSessionBadge();
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();
@@ -563,7 +576,12 @@
     const prog = Math.max(0, Math.min(100, s.progress || 0));
     $("kpiProgFill").style.width = prog + "%";
     var pp = $("kpiProgPct");
-    if (pp) pp.textContent = "(" + Math.round(prog) + "%)";
+    if (pp) {
+      var pctText = Math.round(prog) + "%";
+      pp.textContent = pctText;
+      if (prog === 0) pp.classList.add("kpi__val--empty");
+      else pp.classList.remove("kpi__val--empty");
+    }
 
     const w = s.warnings || [];
     const kw = $("kpiWarnings");
@@ -756,6 +774,20 @@
       fv.textContent = "v" + (s.version || "") + (bf ? " (" + bf + ")" : "");
     }
 
+    var kh = $("kpiHint");
+    if (kh) {
+      var noPath = !(s.source_path || "").trim();
+      if (!s.running && noPath) {
+        kh.textContent = "Set the Vintage Story logs folder above, then click Start.";
+        kh.classList.remove("hidden");
+      } else if (s.running && typeof s.status === "string" && s.status.indexOf("Waiting") === 0) {
+        kh.textContent = "Monitoring started — looking for client-main.log in the selected folder.";
+        kh.classList.remove("hidden");
+      } else {
+        kh.classList.add("hidden");
+      }
+    }
+
     if (notifySyncHint) notifySyncHint();
     resizeCanvas();
   }
@@ -768,7 +800,7 @@
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
     const w = Math.max(1, Math.floor(rect.width));
-    const h = 280;
+    const h = window._graphH || 280;
     c.width = w * dpr;
     c.height = h * dpr;
     c.style.width = w + "px";
@@ -780,6 +812,8 @@
 
   window._lastState = null;
   window._displayState = null;
+  window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 280;
+  window._graphZoom = null;
 
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -1004,6 +1038,7 @@
       if (!$("popPoll").classList.contains("hidden")) {
         $("inpPoll").value = window._lastState ? window._lastState.poll_sec : "2";
         positionKpiPopover($("popPoll"), $("btnEditPoll"));
+        requestAnimationFrame(function () { $("inpPoll").focus(); });
       }
     };
     $("btnPollOk").onclick = function () {
@@ -1028,6 +1063,7 @@
       if (!$("popWindow").classList.contains("hidden")) {
         $("inpWindow").value = window._lastState ? window._lastState.avg_window : "12";
         positionKpiPopover($("popWindow"), $("btnEditWindow"));
+        requestAnimationFrame(function () { $("inpWindow").focus(); });
       }
     };
     $("btnWindowOk").onclick = function () {
@@ -1052,6 +1088,7 @@
       if (!$("popWarnAdd").classList.contains("hidden")) {
         $("inpWarnAdd").value = "";
         positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
+        requestAnimationFrame(function () { $("inpWarnAdd").focus(); });
       }
     };
     $("btnEditWarn").onclick = function (e) {
@@ -1063,6 +1100,7 @@
       if (!$("popWarn").classList.contains("hidden")) {
         $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
         positionKpiPopover($("popWarn"), $("btnEditWarn"));
+        requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
     $("btnWarnOk").onclick = function () {
@@ -1875,6 +1913,138 @@
 
   window.addEventListener("resize", resizeCanvas);
 
+  function zoomGraph(factor, centerT) {
+    var c = $("graphCanvas");
+    var ds = c && c._drawState;
+    if (!ds || !ds.rawPoints || !ds.rawPoints.length) return;
+    var rawT0 = ds.rawPoints[0][0];
+    var rawT1 = ds.rawPoints[ds.rawPoints.length - 1][0];
+    var fullSpan = rawT1 - rawT0;
+    if (fullSpan <= 0) return;
+    var curT0 = window._graphZoom ? window._graphZoom[0] : rawT0;
+    var curT1 = window._graphZoom ? window._graphZoom[1] : rawT1;
+    if (centerT == null) centerT = (curT0 + curT1) / 2;
+    var newSpan = Math.max(10, (curT1 - curT0) * factor);
+    var newT0 = centerT - newSpan / 2;
+    var newT1 = centerT + newSpan / 2;
+    if (newT0 < rawT0) { newT0 = rawT0; newT1 = rawT0 + newSpan; }
+    if (newT1 > rawT1) { newT1 = rawT1; newT0 = rawT1 - newSpan; }
+    newT0 = Math.max(newT0, rawT0);
+    newT1 = Math.min(newT1, rawT1);
+    window._graphZoom = (newT1 - newT0 >= fullSpan * 0.999) ? null : [newT0, newT1];
+    redrawGraphOnly();
+    updateZoomResetBtn();
+  }
+
+  function updateZoomResetBtn() {
+    var btn = $("btnZoomReset");
+    if (!btn) return;
+    if (window._graphZoom) btn.classList.remove("hidden");
+    else btn.classList.add("hidden");
+  }
+
+  function setupGraphZoom() {
+    var btnIn = $("btnZoomIn");
+    var btnOut = $("btnZoomOut");
+    var btnReset = $("btnZoomReset");
+    if (btnIn) btnIn.onclick = function () { zoomGraph(0.5, null); };
+    if (btnOut) btnOut.onclick = function () { zoomGraph(2, null); };
+    if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
+    var c = $("graphCanvas");
+    if (!c) return;
+    c.addEventListener("wheel", function (e) {
+      var ds = c._drawState;
+      if (!ds || !ds.rawPoints || !ds.rawPoints.length) return;
+      var rect = c.getBoundingClientRect();
+      var mxCss = e.clientX - rect.left;
+      var centerT = (mxCss >= ds.x0 && mxCss <= ds.x0 + ds.plotW)
+        ? ds.t0 + ((mxCss - ds.x0) / ds.plotW) * (ds.t1 - ds.t0)
+        : (ds.t0 + ds.t1) / 2;
+      zoomGraph(e.deltaY > 0 ? 1.5 : 1 / 1.5, centerT);
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  function setupGraphResize() {
+    var handle = $("graphResizeHandle");
+    if (!handle) return;
+    var startY, startH;
+    function beginDrag(clientY) {
+      startY = clientY;
+      startH = window._graphH;
+    }
+    function moveDrag(clientY) {
+      window._graphH = Math.max(120, Math.min(800, startH + (clientY - startY)));
+      resizeCanvas();
+    }
+    function endDrag() {
+      localStorage.setItem("vsqm_graph_h", String(window._graphH));
+    }
+    handle.addEventListener("mousedown", function (e) {
+      beginDrag(e.clientY);
+      function onMove(e) { moveDrag(e.clientY); }
+      function onUp() { endDrag(); document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      e.preventDefault();
+    });
+    handle.addEventListener("touchstart", function (e) {
+      beginDrag(e.touches[0].clientY);
+      function onMove(e) { moveDrag(e.touches[0].clientY); e.preventDefault(); }
+      function onUp() { endDrag(); document.removeEventListener("touchmove", onMove); document.removeEventListener("touchend", onUp); }
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onUp);
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  function setupInfoHistoryResize() {
+    var handle = $("ihResizeHandle");
+    var section = document.querySelector(".info-history");
+    if (!handle || !section) return;
+    var saved = parseFloat(localStorage.getItem("vsqm_ih_pct") || "");
+    if (!isNaN(saved)) applyIhSplit(section, saved);
+    function applyIhSplit(sec, pct) {
+      var rect = sec.getBoundingClientRect();
+      var handleW = 10;
+      var avail = rect.width - handleW;
+      var px = Math.max(avail * 0.2, Math.min(avail * 0.8, avail * pct / 100));
+      sec.style.setProperty("--ih-main-w", px + "px");
+    }
+    function getPct(sec, clientX) {
+      var rect = sec.getBoundingClientRect();
+      var handleW = 10;
+      var avail = rect.width - handleW;
+      return Math.max(20, Math.min(80, ((clientX - rect.left) / avail) * 100));
+    }
+    handle.addEventListener("mousedown", function (e) {
+      function onMove(e) { var p = getPct(section, e.clientX); applyIhSplit(section, p); }
+      function onUp(e) {
+        var p = getPct(section, e.clientX);
+        applyIhSplit(section, p);
+        localStorage.setItem("vsqm_ih_pct", String(p));
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      e.preventDefault();
+    });
+    handle.addEventListener("touchstart", function (e) {
+      function onMove(e) { var p = getPct(section, e.touches[0].clientX); applyIhSplit(section, p); e.preventDefault(); }
+      function onUp(e) {
+        var p = getPct(section, (e.changedTouches[0] || e.touches[0]).clientX);
+        applyIhSplit(section, p);
+        localStorage.setItem("vsqm_ih_pct", String(p));
+        document.removeEventListener("touchmove", onMove);
+        document.removeEventListener("touchend", onUp);
+      }
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onUp);
+      e.preventDefault();
+    }, { passive: false });
+  }
+
   function setupKeyboardShortcuts() {
     document.addEventListener("keydown", function (ev) {
       const t = ev.target;
@@ -1913,6 +2083,23 @@
         copyHistoryToClipboard();
         return;
       }
+      if ((ev.key === "+" || ev.key === "=") && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        zoomGraph(0.5, null);
+        return;
+      }
+      if (ev.key === "-" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        zoomGraph(2, null);
+        return;
+      }
+      if (ev.key === "0" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        ev.preventDefault();
+        window._graphZoom = null;
+        redrawGraphOnly();
+        updateZoomResetBtn();
+        return;
+      }
     });
   }
 
@@ -1920,6 +2107,9 @@
   setupPopovers();
   setupSessionSelect();
   setupGraphCanvas();
+  setupGraphZoom();
+  setupGraphResize();
+  setupInfoHistoryResize();
   setupRestoreBanner();
   setupNewQueueModal();
   setupNotifications();
