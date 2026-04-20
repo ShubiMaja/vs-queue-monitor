@@ -12,7 +12,7 @@ Monitor your **Vintage Story** connect queue — live position, estimated wait t
 cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | py -3 -"
 ```
 
-This clones the repo, creates a virtual environment, installs dependencies, adds a Desktop shortcut, and opens the monitor.
+This clones the repo, installs dependencies, and opens the monitor. After install, relaunch any time with **Win+R → `vs-queue-monitor`** or the Desktop shortcut.
 
 **Python not installed yet?** Use this instead — it opens the Python installer if needed:
 
@@ -26,36 +26,7 @@ cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 (cd "$HOME/Downloads" 2>/dev/null || cd "$HOME") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 ```
 
-### After install — launching the app
-
-**Windows**
-
-| Method | Steps |
-|--------|-------|
-| **Desktop shortcut** | Double-click **VS Queue Monitor** on the Desktop |
-| **Win+R** | Press **Win+R**, type `vs-queue-monitor`, Enter |
-| **Command Prompt** | `cd %USERPROFILE%\vs-queue-monitor` then `vs-queue-monitor.cmd` |
-| **File Explorer** | Double-click **Run VS Queue Monitor.bat** in the install folder |
-
-> **Win+R tip:** works system-wide once the bootstrap adds the install folder to your user PATH.
-
-**macOS**
-
-| Method | Steps |
-|--------|-------|
-| **Terminal** | `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
-| **Spotlight** | Press **⌘ Space**, type `run-vs-queue-monitor`, Enter (if the script is indexed) |
-| **Finder** | Navigate to `~/vs-queue-monitor`, double-click `run-vs-queue-monitor.sh` |
-
-**Linux**
-
-| Method | Steps |
-|--------|-------|
-| **Terminal** | `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
-| **Run dialog** | Press **Alt+F2** (GNOME/KDE), type the full path to `run-vs-queue-monitor.sh` |
-| **App launcher** | Add a `.desktop` entry pointing to `run-vs-queue-monitor.sh` |
-
-If no window appears, open `http://127.0.0.1:8765/` in your browser.
+After install, relaunch any time with `~/vs-queue-monitor/run-vs-queue-monitor.sh` or **⌘ Space → `run-vs-queue-monitor`** on macOS.
 
 ### Already cloned / developing
 
