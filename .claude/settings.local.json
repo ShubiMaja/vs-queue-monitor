@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd.exe /c \"echo %APPDATA%\")",
+      "Bash(cmd.exe /c \"type C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\Code\\\\User\\\\settings.json\")",
+      "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\Code\\\\User\\\\settings.json'\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\' | Where-Object Name -like 'Code*'\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\' | Select-Object -ExpandProperty Name\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\Cursor\\\\User\\\\'\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(python -m py_compile vs_queue_monitor/web/static/app.js)",
+      "Bash(python -m py_compile vs_queue_monitor/engine.py)"
+    ]
+  }
+}
