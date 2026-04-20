@@ -4,6 +4,13 @@
       "Bash(git push*)"
     ],
     "allow": [
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(pip *)",
+      "Bash(sed *)",
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
       "Bash(powershell.exe -Command \"Get-Content 'C:\\\\Users\\\\yosefrow\\\\AppData\\\\Roaming\\\\Cursor\\\\User\\\\settings.json'\")",
       "Read(//c/Users/yosefrow/AppData/Roaming/Cursor/User/**)"
     ],
