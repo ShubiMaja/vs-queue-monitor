@@ -602,6 +602,35 @@ async def _api_new_queue(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+async def _api_clear_notification_permission(request: Request) -> JSONResponse:
+    """Clear the localhost notification permission from the Chromium profile Preferences JSON.
+
+    Only touches the notifications exception entry for the current origin so all
+    other browser state (localStorage, cookies, zoom, etc.) is preserved.
+    """
+    import json as _json
+
+    port = request.url.port or 8765
+    prefs_path = Path(_chromium_user_data_dir()) / "Default" / "Preferences"
+    if not prefs_path.exists():
+        return JSONResponse({"ok": True, "note": "no profile yet"})
+    try:
+        data = _json.loads(prefs_path.read_text(encoding="utf-8"))
+        notif = (
+            data.get("profile", {})
+            .get("content_settings", {})
+            .get("exceptions", {})
+            .get("notifications", {})
+        )
+        keys_removed = [k for k in list(notif) if f"localhost:{port}" in k or f"127.0.0.1:{port}" in k]
+        for k in keys_removed:
+            del notif[k]
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+        return JSONResponse({"ok": True, "cleared": keys_removed})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -654,6 +683,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
+        Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

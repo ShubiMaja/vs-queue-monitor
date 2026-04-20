@@ -1582,25 +1582,35 @@
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
 
-      if (_isBannerUnsupported() || _notifBannersBlocked()) {
-        var hint = _isBannerUnsupported()
-          ? "Desktop banners aren't available in this window — open in a browser for those."
-          : "Desktop banners are blocked — allow this site in browser settings for banners.";
+      if (_isBannerUnsupported()) {
         if (popOn) {
           postConfig({ popup_enabled: false })
-            .then(function () {
-              bumpPopupEnabled(false);
-              toast("Alerts off.");
-              syncHint();
-            })
+            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
         } else {
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              toast("Sound alerts on. " + hint);
+              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
               syncHint();
             })
+            .catch(function (e) { toast(String(e.message || e), "warn"); });
+        }
+        return;
+      }
+
+      if (_notifBannersBlocked()) {
+        if (!popOn) {
+          fetch("/api/clear_notification_permission", { method: "POST" })
+            .then(function () {
+              toast("Notification permission reset — reopen VS Queue Monitor to grant access.", "warn");
+            })
+            .catch(function () {
+              toast("Could not reset notification permission. Try reinstalling the app.", "warn");
+            });
+        } else {
+          postConfig({ popup_enabled: false })
+            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
         }
         return;
