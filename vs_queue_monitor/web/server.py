@@ -300,12 +300,24 @@ def _chromium_app_candidates() -> list[str]:
     return ["microsoft-edge", "google-chrome", "chromium-browser", "chromium"]
 
 
+def _chromium_user_data_dir() -> str:
+    """Dedicated Chromium profile dir so permissions persist independently of the user's browser."""
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    profile = base / "vs-queue-monitor" / "chromium-profile"
+    profile.mkdir(parents=True, exist_ok=True)
+    return str(profile)
+
+
 def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
     """Try to open *url* in a Chromium --app window (no address bar / tabs).
 
     Returns the launched Popen object so callers can monitor it, or None if no
     Chromium executable was found.
     """
+    user_data_dir = _chromium_user_data_dir()
     for exe in _chromium_app_candidates():
         if sys.platform != "win32" and not os.path.isabs(exe):
             import shutil
@@ -317,7 +329,7 @@ def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
             continue
         try:
             return subprocess.Popen(
-                [exe, f"--app={url}"],
+                [exe, f"--app={url}", f"--user-data-dir={user_data_dir}"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=(sys.platform != "win32"),
