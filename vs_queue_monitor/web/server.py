@@ -300,11 +300,11 @@ def _chromium_app_candidates() -> list[str]:
     return ["microsoft-edge", "google-chrome", "chromium-browser", "chromium"]
 
 
-def _open_app_window(url: str) -> bool:
+def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
     """Try to open *url* in a Chromium --app window (no address bar / tabs).
 
-    Returns True if a browser process was launched; False if none found.
-    Falls back gracefully — callers should use ``webbrowser.open`` on False.
+    Returns the launched Popen object so callers can monitor it, or None if no
+    Chromium executable was found.
     """
     for exe in _chromium_app_candidates():
         if sys.platform != "win32" and not os.path.isabs(exe):
@@ -316,16 +316,15 @@ def _open_app_window(url: str) -> bool:
         if not os.path.isfile(exe):
             continue
         try:
-            subprocess.Popen(
+            return subprocess.Popen(
                 [exe, f"--app={url}"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=(sys.platform != "win32"),
             )
-            return True
         except Exception:
             continue
-    return False
+    return None
 
 
 def _pick_path_sync(mode: str) -> str | None:
@@ -357,14 +356,24 @@ def _pick_path_sync(mode: str) -> str | None:
 
 
 def _open_browser_and_block(url: str) -> None:
-    """Open app window (--app mode if Chromium available, else default browser), then block."""
+    """Open app window (--app mode if Chromium available, else default browser), then block.
 
-    def _open() -> None:
-        time.sleep(0.3)
-        if not _open_app_window(url):
-            webbrowser.open(url)
+    When an --app window is opened, returns as soon as that window is closed.
+    When falling back to the default browser, blocks until Ctrl+C.
+    """
+    time.sleep(0.3)
+    proc = _open_app_window(url)
+    if proc is not None:
+        try:
+            proc.wait()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+        return
 
-    threading.Thread(target=_open, daemon=True).start()
+    webbrowser.open(url)
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
@@ -828,16 +837,29 @@ def run_web_server(
 
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
-        _open_app_window(url) or threading.Thread(
-            target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
-        ).start()
         print(
             f"Embedded web UI unavailable: {_wv_err}\n"
             f"Opening app window at {url}\n",
             file=sys.stderr,
         )
         start_tray(url)
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
+        _wv_config = uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info")
+        _wv_server = uvicorn.Server(_wv_config)
+
+        def _open_and_watch() -> None:
+            time.sleep(0.35)
+            _proc = _open_app_window(url)
+            if _proc is None:
+                webbrowser.open(url)
+                return
+            _proc.wait()
+            _wv_server.should_exit = True
+
+        threading.Thread(target=_open_and_watch, daemon=True).start()
+        try:
+            _wv_server.run()
+        except KeyboardInterrupt:
+            pass
         return 0
 
     if not _gui_display_available():
