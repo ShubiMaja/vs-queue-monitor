@@ -13,9 +13,7 @@ Visual Bug: Instead overlaying visual icons on the graph, instead they should be
 Bug: game asks to adopt a new run before i got in a new queue
 Feature: Add Prequeue feature
 
-Bug: latest session should be live session
-
-Bug: live session hhas no knowledge of position 0 and shows you as disconnected at 1
+Bug: latest session hhas no knowledge of position 0 and shows you as disconnected at 1
 
 Bug: when setting wearning thresholds to 15, 10, 5, 3-1
 we get an error: formatShortDuration is not defined
@@ -27,6 +25,10 @@ Visual Bug:  the first point in the live session graph has a diagonal line to th
 Bug: Clicking on the notification that pops up does not focus the application or tab
 
 # FEATURES
+
+Feature: Auto update mechanism that detects a change to main branch and asks you to update by bulling the main branch and restarting the app
+
+Feature: Queue Scheduling
 
 $LaunchAt = "2026-04-10 19:50"   # Change this to the time you want to join queue. YYYY-MM-DD date format and military time.
 $Target = Get-Date $LaunchAt
@@ -48,7 +50,14 @@ Simply paste this into a text document, change to your preferred time and game d
 Give yourself some leeway, I'm not responsible if you accidently join the game while not at your computer and get afk kicked or die. I recommend disconnecting in a safe location and putting your inventory loot in a chest before doing this.
 
 ---
+Feature: Join Scheduling
 
 additional feature
 
 I suppose it's a player made script that will have them get into the queue exactly when they need to be in it, like, it checks how big is the queue, then the time it takes to finish it (0.54 user a minute usually goes through the queue), and so you can set it up to boot you into the queue two hours earlier and then appear in the TOPS somewhat around the time they need
+
+Feature: Auto-Leave (leave if idle for x mins)
+
+Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server)
+
+Feature: Auto-rejoin (if disconnected while in queue, try to Auto Join)
