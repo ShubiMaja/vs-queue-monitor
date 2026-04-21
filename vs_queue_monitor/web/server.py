@@ -22,7 +22,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from .. import APP_DISPLAY_NAME, VERSION
+from .. import VERSION
 from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
@@ -30,59 +30,6 @@ from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _package_install_parent() -> Path:
-    """Directory containing the ``vs_queue_monitor`` package (project root or ``site-packages``)."""
-    return _REPO_ROOT
-
-
-def _windows_server_child_command(
-    port: int,
-    initial_path: str,
-    auto_start: bool,
-) -> tuple[list[str], str]:
-    """Build ``argv`` and **cwd** for the uvicorn child so ``-m vs_queue_monitor`` resolves even when
-    the parent process was started with an unrelated working directory (e.g. Win+R, Explorer).
-    """
-    parent = _package_install_parent()
-    monitor_py = parent / "monitor.py"
-    if monitor_py.is_file():
-        cmd: list[str] = [
-            sys.executable,
-            str(monitor_py),
-            "--vs-queue-monitor-server-only",
-            "--web-port",
-            str(port),
-        ]
-    else:
-        cmd = [
-            sys.executable,
-            "-m",
-            "vs_queue_monitor",
-            "--vs-queue-monitor-server-only",
-            "--web-port",
-            str(port),
-        ]
-    if initial_path:
-        cmd.extend(["--path", initial_path])
-    if not auto_start:
-        cmd.append("--no-start")
-    return cmd, str(parent)
-
-
-def _popen_windows_server_console(cmd: list[str], cwd: str) -> subprocess.Popen:
-    """Run ``cmd`` in a **new** console. On non-zero exit, ``pause`` so tracebacks stay readable."""
-    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-    joined = subprocess.list2cmdline(cmd)
-    # ``|| pause`` keeps the window open if Python exits with an error (e.g. ImportError). Clean
-    # shutdown (Ctrl+C handled inside uvicorn) typically exits 0, so pause does not run.
-    shell_line = f"{joined} || pause"
-    return subprocess.Popen(
-        ["cmd.exe", "/c", shell_line],
-        cwd=cwd,
-        creationflags=creationflags,
-    )
 
 
 def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
@@ -95,64 +42,6 @@ def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
         if v:
             return v
     return default
-
-
-def _webview_profile_dir() -> str:
-    """Persistent WebView2 user data (permissions, like a browser profile)."""
-    p = get_config_path().parent / "webview_profile"
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        pass
-    return str(p)
-
-
-def _preconfigure_webview_notification_permission(port: int) -> None:
-    """Pre-grant the Web Notifications permission for localhost in the WebView2 profile.
-
-    WebView2 reads ``Default/Preferences`` at window creation time.  Writing the
-    allow entry before ``webview.create_window`` means ``Notification.permission``
-    is already ``"granted"`` when the page loads — no pythonnet required.
-    """
-    import json as _json
-    import time as _time
-
-    prefs_path = Path(_webview_profile_dir()) / "Default" / "Preferences"
-    try:
-        prefs_path.parent.mkdir(parents=True, exist_ok=True)
-        data: dict = {}
-        if prefs_path.exists():
-            try:
-                data = _json.loads(prefs_path.read_text(encoding="utf-8"))
-            except Exception:
-                data = {}
-        # Navigate / create the nested structure
-        profile = data.setdefault("profile", {})
-        cs = profile.setdefault("content_settings", {})
-        exc = cs.setdefault("exceptions", {})
-        notif = exc.setdefault("notifications", {})
-        # Chrome stores the last_modified as microseconds since Windows epoch (string)
-        ts = str(int(_time.time() * 1_000_000))
-        for origin in (f"http://localhost:{port},*", f"http://127.0.0.1:{port},*"):
-            notif[origin] = {"last_modified": ts, "setting": 1}  # 1 = ALLOW
-        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
-    except Exception:
-        pass  # best-effort; fall back to pythonnet handler or sound-only
-
-
-def _pywebview_start_kwargs() -> dict[str, Any]:
-    """Prefer Edge WebView2 on Windows so the page gets Chromium + Web Notifications API."""
-    if sys.platform != "win32":
-        return {}
-    gui = _env_pref("VS_QUEUE_MONITOR_WEBVIEW_GUI", "VSQM_WEBVIEW_GUI", default="edgechromium").strip()
-    kw: dict[str, Any] = {"private_mode": False}
-    if gui:
-        kw["gui"] = gui
-    try:
-        kw["storage_path"] = _webview_profile_dir()
-    except Exception:
-        pass
-    return kw
 
 
 def _build_fingerprint() -> str:
@@ -176,7 +65,7 @@ def _build_fingerprint() -> str:
 
 
 # Set by the launcher to tell the client what kind of window is hosting it.
-# Values: "pywebview" | "chromium_app" | "browser" | None (unknown/direct)
+# Values: "chromium_app" | "browser" | None (unknown/direct)
 _window_mode: str | None = None
 
 
@@ -403,25 +292,6 @@ def _pick_path_sync(mode: str) -> str | None:
             root.destroy()
         except Exception:
             pass
-
-
-def _open_browser_and_block(url: str) -> None:
-    """Open app window (--app mode if Chromium available, else default browser), then block.
-
-    Blocks until Ctrl+C. On exit, terminates the spawned --app process if any.
-    Closing the window without Ctrl+C leaves the server running (tray icon stays).
-    """
-    time.sleep(0.3)
-    proc = _open_app_window(url)
-    if proc is None:
-        webbrowser.open(url)
-    try:
-        threading.Event().wait()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        if proc is not None and proc.poll() is None:
-            proc.terminate()
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -733,120 +603,6 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     return app
 
 
-def run_web_server_process(
-    initial_path: str = "",
-    auto_start: bool = True,
-    port: Optional[int] = None,
-) -> int:
-    """Foreground uvicorn only (used by the Windows server console subprocess)."""
-    import uvicorn
-
-    from .tray import start_tray
-
-    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
-    url = f"http://127.0.0.1:{p}/"
-    if not _handle_port_conflict(p, url):
-        return 0
-
-    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
-    print(
-        "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
-        f"Listening on {url}\n",
-        flush=True,
-    )
-    start_tray(url)
-    try:
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-    except KeyboardInterrupt:
-        return 0
-    return 0
-
-
-def _run_windows_split_console_webview(
-    initial_path: str,
-    auto_start: bool,
-    port: Optional[int],
-    p: int,
-    url: str,
-) -> int:
-    """Windows: separate CMD window runs uvicorn; this process runs only pywebview."""
-    global _window_mode
-    _window_mode = "pywebview"
-    import webview
-
-    logging.getLogger("webview").setLevel(logging.CRITICAL)
-
-    cmd, child_cwd = _windows_server_child_command(p, initial_path, auto_start)
-
-    try:
-        proc = _popen_windows_server_console(cmd, child_cwd)
-    except OSError as exc:
-        print(f"Could not start server console process: {exc}", file=sys.stderr)
-        return 1
-
-    if not _wait_for_tcp("127.0.0.1", p):
-        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
-        early = proc.poll()
-        if early is not None:
-            print(
-                f"The server subprocess exited immediately (code {early}). "
-                "Check the other console window for ImportError or missing dependencies, "
-                "or run: python monitor.py --vs-queue-monitor-server-only",
-                file=sys.stderr,
-            )
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        return 1
-
-    print(
-        "Opening embedded window — HTTP server logs are in the other console window (Ctrl+C there stops the server).",
-        flush=True,
-    )
-    try:
-        from .webview_win import schedule_webview2_notification_permission
-
-        _preconfigure_webview_notification_permission(p)
-        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
-        start_kw = _pywebview_start_kwargs()
-        schedule_webview2_notification_permission()
-        try:
-            webview.start(**start_kw)
-        except Exception as inner_exc:
-            logging.getLogger(__name__).warning(
-                "webview.start(%s) failed (%s); retrying with pywebview defaults",
-                start_kw,
-                inner_exc,
-            )
-            webview.start()
-    except Exception:
-        print(
-            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
-            "or use a Python version with working wheels). Opening your default browser instead.\n"
-            f"  {url}\n"
-            "  Leave the server console window open while you use the app.",
-            file=sys.stderr,
-        )
-        webbrowser.open(url)
-        try:
-            proc.wait()
-        except KeyboardInterrupt:
-            if proc.poll() is None:
-                proc.terminate()
-        return 0
-    finally:
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-    return 0
-
-
 def run_web_server(
     initial_path: str = "",
     auto_start: bool = True,
@@ -856,15 +612,14 @@ def run_web_server(
 ) -> int:
     """Serve the static web client on loopback.
 
-    By default opens an **embedded** desktop window (pywebview) instead of a separate browser.
-    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to restore the old behavior.
-
-    On **Windows**, embedded mode uses a **second console** process for uvicorn (visible server
-    logs) and this process runs only pywebview. Set ``VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE=1`` (legacy: ``VSQM_DISABLE_SPLIT_CONSOLE``) to use a
-    single process (uvicorn thread + webview) instead.
+    By default opens an embedded Chromium ``--app`` window (Edge or Chrome required).
+    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to open in the default browser instead.
+    On headless machines the server runs without a window; use the URL printed to stderr.
     """
     global _window_mode
     import uvicorn
+
+    from .tray import start_tray
 
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
     url = f"http://127.0.0.1:{p}/"
@@ -872,80 +627,15 @@ def run_web_server(
     if not _handle_port_conflict(p, url):
         return 0
 
+    app, _e, _h, _l, p, url = _init_web_stack(initial_path, auto_start, port)
+    _app_proc: "subprocess.Popen[bytes] | None" = None
+
     if open_external_browser:
-        from .tray import start_tray
-
         _window_mode = "browser"
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
-
-        def _open() -> None:
-            time.sleep(0.35)
-            if not _open_app_window(url):
-                webbrowser.open(url)
-
-        threading.Thread(target=_open, daemon=True).start()
-        start_tray(url)
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-        return 0
-
-    _webview_ok = False
-    try:
-        import webview
-
-        # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
-        logging.getLogger("webview").setLevel(logging.CRITICAL)
-
-        # Require pywebview 4.x — earlier releases have an incompatible API.
-        _wv_ver = getattr(webview, "version", None) or getattr(webview, "__version__", None) or ""
-        if not _wv_ver:
-            # 4.x exposes webview.version; fall back to importlib metadata.
-            try:
-                from importlib.metadata import version as _pkg_version
-                _wv_ver = _pkg_version("pywebview")
-            except Exception:
-                pass
-        _wv_major = int(str(_wv_ver).split(".")[0]) if _wv_ver else 0
-        if _wv_major < 4:
-            raise ImportError(
-                f"pywebview {_wv_ver or '?'} is installed but version 4.4+ is required. "
-                "Run:  pip install --upgrade 'pywebview>=4.4'"
-            )
-        _webview_ok = True
-    except ImportError as _wv_err:
-        from .tray import start_tray
-
-        _window_mode = "chromium_app"
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
-        print(
-            f"Embedded web UI unavailable: {_wv_err}\n"
-            f"Opening app window at {url}\n",
-            file=sys.stderr,
-        )
-        start_tray(url)
-        _wv_config = uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info")
-        _wv_server = uvicorn.Server(_wv_config)
-        _app_proc: "subprocess.Popen[bytes] | None" = None
-
-        def _open_delayed() -> None:
-            nonlocal _app_proc
-            time.sleep(0.35)
-            _app_proc = _open_app_window(url)
-            if _app_proc is None:
-                webbrowser.open(url)
-
-        threading.Thread(target=_open_delayed, daemon=True).start()
-        try:
-            _wv_server.run()
-        finally:
-            if _app_proc is not None and _app_proc.poll() is None:
-                _app_proc.terminate()
-        return 0
-
-    if not _gui_display_available():
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
+        threading.Thread(
+            target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+        ).start()
+    elif not _gui_display_available():
         print(
             "No desktop display detected (headless or SSH without X11/Wayland). "
             "Skipping embedded window.\n"
@@ -954,55 +644,23 @@ def run_web_server(
             "  Local browser on this machine: python monitor.py --web-browser",
             file=sys.stderr,
         )
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-        return 0
+    else:
+        _window_mode = "chromium_app"
 
-    _window_mode = "pywebview"
-    if (
-        sys.platform == "win32"
-        and _env_pref("VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE", "VSQM_DISABLE_SPLIT_CONSOLE").lower()
-        not in ("1", "true", "yes", "y")
-    ):
-        return _run_windows_split_console_webview(initial_path, auto_start, port, p, url)
+        def _open_app() -> None:
+            nonlocal _app_proc
+            time.sleep(0.35)
+            _app_proc = _open_app_window(url)
+            if _app_proc is None:
+                webbrowser.open(url)
 
-    from .tray import start_tray
-
-    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
-
-    def _serve() -> None:
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-
-    th = threading.Thread(target=_serve, daemon=True, name="vs-queue-monitor-uvicorn")
-    th.start()
-    if not _wait_for_tcp("127.0.0.1", p):
-        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
-        return 1
+        threading.Thread(target=_open_app, daemon=True).start()
 
     start_tray(url)
+    _wv_server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info"))
     try:
-        from .webview_win import schedule_webview2_notification_permission
-
-        _preconfigure_webview_notification_permission(p)
-        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
-        start_kw = _pywebview_start_kwargs()
-        schedule_webview2_notification_permission()
-        try:
-            webview.start(**start_kw)
-        except Exception as inner_exc:
-            logging.getLogger(__name__).warning(
-                "webview.start(%s) failed (%s); retrying with pywebview defaults",
-                start_kw,
-                inner_exc,
-            )
-            webview.start()
-    except Exception as exc:
-        print(
-            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
-            "or use a Python version with working wheels). Opening your default browser instead.\n"
-            f"  {url}\n"
-            "  Ctrl+C in this terminal stops the server.",
-            file=sys.stderr,
-        )
-        _open_browser_and_block(url)
-        return 0
+        _wv_server.run()
+    finally:
+        if _app_proc is not None and _app_proc.poll() is None:
+            _app_proc.terminate()
     return 0

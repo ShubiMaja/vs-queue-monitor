@@ -1,8 +1,7 @@
-# Local web UI: Starlette + uvicorn serve the static client. pywebview = embedded desktop window
-# (skipped on Python 3.14+ until wheels exist; pip install pywebview when available, or use --web-browser).
+# Local web UI: Starlette + uvicorn serve the static client.
+# Standalone mode opens an embedded Chromium --app window (Edge or Chrome required on Windows/macOS).
 starlette>=0.37
 uvicorn[standard]>=0.27
-pywebview>=4.4; python_version < "3.14"
 # Optional: system-tray icon (Windows/macOS/Linux). Gracefully skipped if not installed.
 pystray>=0.19
 Pillow>=9.0

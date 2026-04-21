@@ -47,7 +47,7 @@ python monitor.py
 | **Graph** | Step chart of position over time; zoom, pan, export as PNG or TSV |
 | **Session history** | Per-run log of position changes |
 | **System tray** | Icon in notification area while running; right-click to open or quit |
-| **Embedded window** | Desktop app feel via pywebview 4.x (falls back to browser if not installed) |
+| **Embedded window** | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
 ## Pointing at the log
 
