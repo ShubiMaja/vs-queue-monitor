@@ -753,7 +753,7 @@ select.inp:focus-visible {
   margin-top: 0;
   padding: var(--space-3);
   background: #252b33;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
   min-width: 220px;
   max-width: min(360px, calc(100vw - 16px));
@@ -1074,6 +1074,30 @@ select.inp:focus-visible {
 }
 .btn--toggle[aria-pressed="true"]:hover {
   background: rgba(87, 148, 242, 0.12);
+}
+.graph-toolbar__right .btn--toggle {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+}
+.graph-toolbar__right .btn--toggle .icon {
+  opacity: 0.62;
+  filter: brightness(0.9);
+  transition: opacity 120ms ease, filter 120ms ease;
+}
+.graph-toolbar__right .btn--toggle:hover,
+.graph-toolbar__right .btn--toggle[aria-pressed="true"],
+.graph-toolbar__right .btn--toggle[aria-pressed="true"]:hover {
+  background: transparent;
+  border-color: var(--line);
+}
+.graph-toolbar__right .btn--toggle:hover .icon {
+  opacity: 0.8;
+  filter: brightness(1);
+}
+.graph-toolbar__right .btn--toggle[aria-pressed="true"] .icon {
+  opacity: 1;
+  filter: brightness(1.18);
 }
 .popover--history {
   position: absolute;
