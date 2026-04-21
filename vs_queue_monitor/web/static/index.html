@@ -55,10 +55,10 @@
     </div>
 
     <header class="topbar">
-      <div class="brand">
+      <button type="button" class="brand" id="btnAbout" title="About VS Queue Monitor" aria-label="About VS Queue Monitor">
         <div class="brand__title">VS Queue Monitor</div>
         <div class="brand__tagline">Local web UI · Vintage Story queue monitor</div>
-      </div>
+      </button>
       <div class="topbar__path">
         <div class="field-block field-block--grow">
           <label class="field-label" for="pathSummary">Log source</label>
@@ -69,7 +69,7 @@
               id="pathSummary"
               title="Click to paste or edit the full path"
             >
-              <span id="pathSummaryText" class="path-summary__text">Not set</span>
+              <span id="pathSummaryText" class="path-summary__text">Select log folder or file…</span>
             </button>
             <input type="hidden" id="inpPath" autocomplete="off" />
             <button
@@ -144,13 +144,17 @@
         </div>
         <div class="kpi__cell" data-tour="status">
           <div class="kpi__label">
-            STATUS
+            <span id="kpiStatusHdr">STATUS</span>
             <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval" aria-label="Edit poll interval">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiStatus">—</div>
           <div id="popPoll" class="popover hidden">
-            <label>Poll (seconds)</label>
-            <input type="text" id="inpPoll" class="inp inp--narrow" />
+            <label>Refresh Rate (seconds)</label>
+            <div class="stepper">
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnPollDown" aria-label="Decrease poll interval">−</button>
+              <input type="text" id="inpPoll" class="inp inp--narrow stepper__input" inputmode="numeric" />
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnPollUp" aria-label="Increase poll interval">+</button>
+            </div>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnPollOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnPollCancel">Cancel</button>
@@ -159,13 +163,17 @@
         </div>
         <div class="kpi__cell" data-tour="rate">
           <div class="kpi__label" id="kpiRateLabel">
-            <span id="kpiRateHdr">RATE</span>
-            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)" aria-label="Edit rolling window (points)">✎</button>
+            <span id="kpiRateHdr">RATE (10p Average)</span>
+            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling average (points)" aria-label="Edit rolling average (points)">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiRate">—</div>
           <div id="popWindow" class="popover hidden">
-            <label>Rolling window (points)</label>
-            <input type="text" id="inpWindow" class="inp inp--narrow" />
+            <label>Rolling average (points)</label>
+            <div class="stepper">
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowDown" aria-label="Decrease rolling average">−</button>
+              <input type="text" id="inpWindow" class="inp inp--narrow stepper__input" inputmode="numeric" />
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowUp" aria-label="Increase rolling average">+</button>
+            </div>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWindowOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWindowCancel">Cancel</button>
@@ -182,8 +190,9 @@
             <div class="kpi__warn" id="kpiWarnings">—</div>
           </div>
           <div id="popWarn" class="popover hidden">
-            <label>Thresholds (comma-separated)</label>
+            <label>Thresholds</label>
             <input type="text" id="inpWarn" class="inp" />
+            <p class="popover__hint">Use CSV like <code>10, 5, 1</code> or ranges like <code>8-10</code>.</p>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWarnCancel">Cancel</button>
@@ -191,7 +200,8 @@
           </div>
           <div id="popWarnAdd" class="popover hidden">
             <label>Add threshold — alerts fire when position drops <em>below</em> this</label>
-            <input type="text" id="inpWarnAdd" class="inp inp--narrow" inputmode="numeric" />
+            <input type="text" id="inpWarnAdd" class="inp" placeholder="e.g. 7" />
+            <p class="popover__hint">You can also add CSV or ranges here, like <code>10, 5, 1</code> or <code>8-10</code>.</p>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnAddOk">Add</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWarnAddCancel">Cancel</button>
@@ -226,61 +236,106 @@
                 <option value="latest">Latest session (auto)</option>
               </select>
             </div>
-            <span class="muted graph-toolbar__mid" id="lblLogAct" role="status" aria-live="polite"></span>
+            
             <span id="sessionScopeBadge" class="session-scope-badge hidden" role="status" aria-live="polite">Past session — KPIs above stay live</span>
           </div>
-          <div class="graph-toolbar__btns">
-            <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
-            <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out" aria-label="Zoom out time axis">−</button>
-            <button type="button" class="btn btn--small btn--ghost hidden" id="btnZoomReset" title="Reset zoom" aria-label="Reset time zoom">⊙</button>
+          <div class="graph-toolbar__right">
             <button
               type="button"
               class="btn btn--small btn--icon-label"
+              id="btnGraphTimeMode"
+              title="Toggle time axis between relative and absolute"
+              aria-label="Toggle time axis mode"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              <span id="btnGraphTimeModeText">REL</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-label"
+              id="btnGraphScale"
+              title="Toggle graph scale between linear and log"
+              aria-label="Toggle graph scale"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19h16" />
+                <path d="M6 16l4-4 3 2 5-6" />
+                <circle cx="6" cy="16" r="1" />
+                <circle cx="10" cy="12" r="1" />
+                <circle cx="13" cy="14" r="1" />
+                <circle cx="18" cy="8" r="1" />
+              </svg>
+              <span id="btnGraphScaleText">LIN</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-only btn--toggle"
+              id="btnGraphTrend"
+              title="Toggle trendline"
+              aria-label="Toggle trendline"
+              aria-pressed="false"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="4" y1="20" x2="20" y2="4" stroke-dasharray="3 3"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-only btn--toggle"
+              id="btnGraphLive"
+              title="Toggle live time follow"
+              aria-label="Toggle live graph follow"
+              aria-pressed="true"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13 2 5 14h6l-1 8 8-12h-6l1-8Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small"
               id="btnCopyPng"
               title="Copy graph as PNG"
               aria-label="Copy graph as PNG"
             >
               <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="m21 15-5-5L5 21" />
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
-              <span>PNG</span>
-            </button>
-            <button
-              type="button"
-              class="btn btn--small btn--icon-label"
-              id="btnCopyTsv"
-              title="Copy graph as tab-separated values"
-              aria-label="Copy graph as TSV"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-              </svg>
-              <span>TSV</span>
             </button>
           </div>
         </div>
         <div class="graph-canvas-wrap">
-          <canvas id="graphCanvas" width="1100" height="280" role="img" aria-label="Queue position time series chart"></canvas>
+          <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
-        <div class="resize-handle resize-handle--h" id="graphResizeHandle" role="separator" aria-orientation="horizontal" title="Drag to resize graph height" tabindex="-1"></div>
-        <div class="graph-hint muted" id="graphHint">Tap or hover the chart for time, position, and details.</div>
+        <div class="graph-footer">
+          <div class="graph-hint muted" id="graphHint">Tap or hover for details - drag or scroll to zoom.</div>
+          <div class="graph-footer__meta">
+            <span class="muted graph-toolbar__mid graph-footer__log" id="lblLogAct" role="status" aria-live="polite"></span>
+            <div class="btn-group zoom-ctrl graph-footer__zoom-group" role="group" aria-label="Zoom controls">
+              <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out (mouse wheel also works)" aria-label="Zoom out time axis">−</button>
+              <button type="button" class="btn btn--small zoom-ctrl__level graph-footer__zoom" id="btnZoomReset" title="Not zoomed" aria-label="Zoom level - click to reset">1x</button>
+              <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
+            </div>
+          </div>
+        </div>
       </section>
+      <div class="resize-handle resize-handle--h resize-handle--between" id="graphResizeHandle" role="separator" aria-orientation="horizontal" title="Drag to resize graph height" tabindex="-1"></div>
 
       <section class="info-history" data-tour="info">
         <div class="info-history__main">
           <div class="info-history__card">
             <div class="info-history__head">
               <span class="info-history__title muted">Info</span>
-              <button type="button" class="btn btn--small btn--icon-label" id="btnCopyStats" title="Copy stats to clipboard" aria-label="Copy session stats">
+              <button type="button" class="btn btn--small btn--icon-only" id="btnCopyStats" title="Copy stats to clipboard" aria-label="Copy session stats">
                 <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
-                <span>Stats</span>
               </button>
             </div>
             <div class="info__grid">
@@ -289,10 +344,10 @@
               <div class="info-stats">
                 <div class="info-stats__rows" id="infoStatsRows">
                   <div><span class="muted">Start Pos</span> <span id="infoStatStart">—</span></div>
-                  <div><span class="muted">End Pos</span> <span id="infoStatEnd">—</span></div>
-                  <div><span class="muted">Pos Delta</span> <span id="infoStatCleared">—</span></div>
+                  <div><span class="muted">Cur Pos</span> <span id="infoStatEnd">—</span></div>
+                  <div><span class="muted">Pos Change</span> <span id="infoStatCleared">—</span></div>
                   <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
-                  <div><span class="muted">Avg Rate</span> <span id="infoStatAvg">—</span></div>
+                  <div><span class="muted">Rate</span> <span id="infoStatAvg">—</span></div>
                 </div>
               </div>
             </div>
@@ -300,8 +355,6 @@
             <div id="infoLastCh" class="info__val">—</div>
             <div class="info__lbl">Last threshold alert</div>
             <div id="infoLastAl" class="info__val">—</div>
-            <div class="info__lbl">Resolved log path</div>
-            <div id="infoPath" class="info__val info__val--wrap">—</div>
             <div class="info__lbl">Global rate</div>
             <div id="infoGlo" class="info__val">—</div>
           </div>
@@ -312,13 +365,40 @@
           <div class="info-history__card info-history__card--side">
             <div class="info-history__head">
               <span class="info-history__title muted">History</span>
-              <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
-                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span>Copy</span>
-              </button>
+              <div class="info-history__actions">
+                <button
+                  type="button"
+                  class="btn btn--small btn--icon-only btn--toggle"
+                  id="btnHistoryAutoscroll"
+                  title="Autoscroll on"
+                  aria-label="Toggle history autoscroll"
+                  aria-pressed="true"
+                >
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5v12" />
+                    <path d="m7 12 5 5 5-5" />
+                    <path d="M5 19h14" />
+                  </svg>
+                </button>
+                <button type="button" class="btn btn--small btn--icon-only" id="btnHistorySettings" title="History settings" aria-label="History settings" aria-expanded="false">
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                  </svg>
+                </button>
+                <button type="button" class="btn btn--small btn--icon-only" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                </button>
+              </div>
+              <div id="popHistory" class="popover popover--history hidden">
+                <label class="popover__check">
+                  <input type="checkbox" id="chkHistoryEvery" />
+                  <span>Log Position Changes</span>
+                </label>
+              </div>
             </div>
             <pre class="history__pre" id="historyPre"></pre>
           </div>
@@ -342,33 +422,59 @@
       </div>
     </div>
 
+    <div id="modalAbout" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalAboutHeading">
+      <div class="modal__backdrop" data-close-about="1"></div>
+      <div class="modal__box modal__box--about">
+        <div class="about-icon" aria-hidden="true">
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="8" width="48" height="32" rx="4" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
+            <line x1="12" y1="18" x2="44" y2="18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="24" x2="36" y2="24" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="30" x2="30" y2="30" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
+            <line x1="20" y1="40" x2="36" y2="40" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
+            <line x1="28" y1="40" x2="28" y2="48" stroke="var(--line)" stroke-width="2"/>
+            <line x1="18" y1="48" x2="38" y2="48" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2 id="modalAboutHeading" class="about-name">VS Queue Monitor</h2>
+        <p class="about-tagline muted">Vintage Story client log queue monitor</p>
+        <p class="about-version muted"><span id="aboutVersion"></span></p>
+        <div class="about-links">
+          <a id="aboutGithubLink" href="#" class="btn btn--secondary btn--small about-link" target="_blank" rel="noopener noreferrer">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.167 6.839 9.49.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.03-2.682-.103-.253-.447-1.27.098-2.646 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.547 1.376.203 2.394.1 2.646.641.698 1.028 1.59 1.028 2.682 0 3.841-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.578.688.48C19.138 20.164 22 16.416 22 12c0-5.523-4.477-10-10-10z"/>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnAboutOk" data-close-about="1">Close</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modalHelp" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalHelpHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--help">
         <h2 id="modalHelpHeading">Help</h2>
         <div class="help-scroll">
-          <p>
-            This UI runs in your browser but the <strong>Python app</strong> reads log files from disk. Paste the
-            <strong>folder</strong> that contains <code>client-main.log</code> (or your data directory), or use the
-            <strong>folder</strong> and <strong>log file</strong> icons in the header to open a system dialog on this computer
-            (requires Python with Tk). Then click <strong>Start</strong>.
-          </p>
-          <h3 class="help-h3">Typical paths</h3>
+          <h3 class="help-h3">Getting started</h3>
+          <p class="muted">Set the <strong>Vintage Story data folder</strong> in the header (paste a path or use the folder icon), then click <strong>Start</strong>. The app watches <code>client-main.log</code> for queue position changes.</p>
+          <h3 class="help-h3">Typical log paths</h3>
           <ul class="help-list">
-            <li><strong>Windows:</strong> <code>%APPDATA%\VintagestoryData</code> or <code>...\VintagestoryData\Logs</code></li>
+            <li><strong>Windows:</strong> <code>%APPDATA%\VintagestoryData</code></li>
             <li><strong>macOS:</strong> <code>~/Library/Application Support/VintagestoryData</code></li>
             <li><strong>Linux:</strong> <code>~/.config/VintagestoryData</code></li>
           </ul>
-          <h3 class="help-h3">Keyboard</h3>
-          <p class="muted help-kbd">
-            When focus is not in a text field: <strong>Space</strong> start/stop · <strong>o</strong> settings ·
-            <strong>F1</strong> this help · <strong>c</strong> copy graph TSV · <strong>v</strong> copy session history
-            (clipboard) · <strong>+</strong> zoom in graph · <strong>−</strong> zoom out · <strong>0</strong> reset zoom.
-            Mouse wheel also zooms the graph. Single-key shortcuts are ignored while a dialog, the guided tour, or the restore banner is open.
-          </p>
           <h3 class="help-h3">Threshold alerts</h3>
-          <p class="muted">Alerts fire when your queue position drops <strong>below</strong> a threshold value, once per threshold per run — not when it simply reaches that number. Add thresholds in the Warnings KPI (+ or ✎).</p>
-          <p class="muted" id="helpCfgPath"></p>
+          <p class="muted">Alerts fire when position drops <strong>below</strong> a threshold — once per threshold per queue run. Add or edit thresholds in the Warnings KPI cell (+ or ✎).</p>
+          <h3 class="help-h3">Graph</h3>
+          <p class="muted">Drag to zoom in on a time range. Scroll to zoom in/out. Click <strong>1×</strong> to reset. Toggle the trendline or live-follow with the toolbar buttons.</p>
+          <h3 class="help-h3">Keyboard shortcuts</h3>
+          <p class="muted help-kbd"><strong>Space</strong> start/stop · <strong>o</strong> settings · <strong>F1</strong> help · <strong>v</strong> copy history · <strong>+</strong> zoom in · <strong>−</strong> zoom out · <strong>0</strong> reset zoom. Ignored while a dialog is open.</p>
+          <p class="help-about-link muted">
+            <button type="button" class="btn btn--ghost btn--small" id="btnHelpAbout">About VS Queue Monitor…</button>
+          </p>
         </div>
         <div class="modal__actions">
           <button type="button" class="btn btn--primary" id="btnHelpOk" data-close="1">OK</button>
@@ -378,30 +484,101 @@
 
     <div id="modalSettings" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalSettingsHeading">
       <div class="modal__backdrop" data-close="1"></div>
-      <div class="modal__box modal__box--wide">
+      <div class="modal__box modal__box--wide modal__box--settings">
         <h2 id="modalSettingsHeading">Settings</h2>
-        <div class="form-grid">
-          <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
-          <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
-          <div class="settings-test-row">
-            <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
-              Send test notification
-            </button>
-            <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+        <p class="modal__text muted settings-intro">Keep the main dashboard fast and adjust only the extras here.</p>
+
+        <section class="settings-section" aria-labelledby="settingsNotifyHeading">
+          <h3 class="settings-h3" id="settingsNotifyHeading">Alerts</h3>
+          <div class="settings-tabs" role="tablist" aria-label="Alert types">
+            <button type="button" class="settings-tab is-active" id="tabWarning" data-tab="warning" role="tab" aria-selected="true">Warning</button>
+            <button type="button" class="settings-tab" id="tabCompletion" data-tab="completion" role="tab" aria-selected="false">Completion</button>
+            <button type="button" class="settings-tab" id="tabFailure" data-tab="failure" role="tab" aria-selected="false">Failure</button>
           </div>
-          <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
-          <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
-          <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
-        </div>
-        <h3 class="settings-h3">Chart</h3>
-        <div class="form-grid">
-          <label><input type="checkbox" id="chkGraphLog" /> Logarithmic Y axis</label>
-          <label><input type="checkbox" id="chkGraphLive" /> Live view (follow newest samples)</label>
-        </div>
-        <label class="settings-field">Warning sound file (optional)</label>
-        <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
-        <label class="settings-field">Completion sound file (optional)</label>
-        <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
+
+          <div class="settings-tabframe">
+            <div class="settings-tabpanel is-active" id="panelWarning" data-panel="warning" role="tabpanel" aria-labelledby="tabWarning">
+              <div class="form-grid form-grid--settings settings-alert-grid">
+                <p class="muted settings-note">Warnings fire when your queue position drops below one of your configured thresholds.</p>
+                <div class="settings-option">
+                  <div class="settings-option__row">
+                    <label><input type="checkbox" id="chkPop" /> Warning popup</label>
+                    <button type="button" class="btn btn--small btn--secondary" id="btnTestWarnNotify">Send test</button>
+                  </div>
+                  <div class="settings-test-row">
+                    <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+                  </div>
+                </div>
+                <label class="settings-option"><input type="checkbox" id="chkSnd" /> Warning sound</label>
+                <label class="settings-select-label settings-field">Warning sound file
+                  <div class="settings-path-row">
+                    <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                    <button type="button" class="btn btn--small btn--icon-only settings-path-btn" id="btnPickWarnSound" title="Choose warning sound file" aria-label="Choose warning sound file">
+                      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-tabpanel" id="panelCompletion" data-panel="completion" role="tabpanel" aria-labelledby="tabCompletion">
+              <div class="form-grid form-grid--settings settings-alert-grid">
+                <p class="muted settings-note">Completion triggers when the queue wait is over and the client moves past the queue flow.</p>
+                <div class="settings-option">
+                  <div class="settings-option__row">
+                    <label><input type="checkbox" id="chkCompPop" /> Completion popup</label>
+                    <button type="button" class="btn btn--small btn--secondary" id="btnTestCompNotify">Send test</button>
+                  </div>
+                  <div class="settings-test-row">
+                    <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+                  </div>
+                </div>
+                <label class="settings-option"><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
+                <label class="settings-select-label settings-field">Completion sound file
+                  <div class="settings-path-row">
+                    <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                    <button type="button" class="btn btn--small btn--icon-only settings-path-btn" id="btnPickCompSound" title="Choose completion sound file" aria-label="Choose completion sound file">
+                      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-tabpanel" id="panelFailure" data-panel="failure" role="tabpanel" aria-labelledby="tabFailure">
+              <div class="form-grid form-grid--settings settings-alert-grid">
+                <p class="muted settings-note">Failure plays when the queue drops into the interrupted or lost-connection state.</p>
+                <div class="settings-option">
+                  <div class="settings-option__row">
+                    <label><input type="checkbox" id="chkFailPop" /> Failure popup</label>
+                    <button type="button" class="btn btn--small btn--secondary" id="btnTestFailNotify">Send test</button>
+                  </div>
+                  <div class="settings-test-row">
+                    <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+                  </div>
+                </div>
+                <label class="settings-option"><input type="checkbox" id="chkFailSnd" /> Failure sound</label>
+                <label class="settings-select-label settings-field">Failure sound file
+                  <div class="settings-path-row">
+                    <input type="text" id="inpSetFailSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                    <button type="button" class="btn btn--small btn--icon-only settings-path-btn" id="btnPickFailSound" title="Choose failure sound file" aria-label="Choose failure sound file">
+                      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
         <div class="modal__actions">
           <button type="button" class="btn btn--secondary" id="btnReset">Reset defaults</button>
           <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>
@@ -416,12 +593,19 @@
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
+    <div id="notifPermTip" class="notif-perm-tip hidden" role="status" aria-live="polite"></div>
+    <div id="offlineBanner" class="offline-banner hidden" role="status" aria-live="polite">
+      <span>Offline — last known data shown. Restart VS Queue Monitor to reconnect.</span>
+    </div>
     <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alert" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
       <div class="server-stopped-overlay__box">
         <div class="server-stopped-overlay__spinner" aria-hidden="true"></div>
         <h2 id="serverStoppedTitle">Connection lost — Reconnecting…</h2>
-        <p id="serverStoppedDesc">The monitor server is unreachable. This page will resume automatically if it comes back.</p>
-        <button type="button" class="btn btn--ghost btn--small" id="btnCloseTab">Close this tab</button>
+        <p id="serverStoppedDesc">The monitor server is unreachable. Restart VS Queue Monitor to reconnect, or dismiss to browse the last known data.</p>
+        <p class="server-stopped-overlay__warning">Data shown is frozen — not live. Reloading this page will lose it.</p>
+        <div class="server-stopped-overlay__actions">
+          <button type="button" class="btn btn--primary btn--small" id="btnOfflineMode">I understand</button>
+        </div>
       </div>
     </div>
     <script src="/vendor/dayjs.min.js"></script>
@@ -429,3 +613,4 @@
     <script src="/app.js"></script>
   </body>
 </html>
+

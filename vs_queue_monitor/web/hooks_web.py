@@ -19,6 +19,7 @@ class WebMonitorHooks:
         self._timer_seq = 0
         self._history: deque[str] = deque(maxlen=4000)
         self._completion_notify_seq = 0
+        self._failure_notify_seq = 0
 
     def attach_engine(self, engine: Any) -> None:
         self._engine = engine
@@ -96,6 +97,13 @@ class WebMonitorHooks:
     def show_completion_popup(self) -> None:
         self._completion_notify_seq += 1
         self.append_history("[completion] Past queue wait — connecting (position 0).")
+
+    def show_failure_popup(self, detail: str = "") -> None:
+        self._failure_notify_seq += 1
+        msg = "[failure] Queue interrupted - still watching the log."
+        if detail:
+            msg += f" ({detail})"
+        self.append_history(msg)
 
     def destroy_active_popups(self) -> None:
         pass

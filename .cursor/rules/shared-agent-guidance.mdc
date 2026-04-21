@@ -1,0 +1,12 @@
+---
+description: Shared repository instructions for all agents
+alwaysApply: true
+---
+
+# Shared Agent Guidance
+
+`AGENTS.md` is the repo entry point and `.agents/shared-instructions.md` is the shared instruction source for this repository.
+
+- Read and follow `AGENTS.md`, then `.agents/shared-instructions.md`, before applying tool-specific preferences.
+- Treat `.agents/shared-instructions.md` as the common source of truth across Cursor, Claude, and similar coding agents.
+- Keep `AGENTS.md` as the root auto-load pointer and keep the substantive shared guidance in the hidden `.agents/` folder.

@@ -22,7 +22,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from .. import APP_DISPLAY_NAME, VERSION
+from .. import GITHUB_REPO_URL, VERSION
 from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
@@ -30,59 +30,6 @@ from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _package_install_parent() -> Path:
-    """Directory containing the ``vs_queue_monitor`` package (project root or ``site-packages``)."""
-    return _REPO_ROOT
-
-
-def _windows_server_child_command(
-    port: int,
-    initial_path: str,
-    auto_start: bool,
-) -> tuple[list[str], str]:
-    """Build ``argv`` and **cwd** for the uvicorn child so ``-m vs_queue_monitor`` resolves even when
-    the parent process was started with an unrelated working directory (e.g. Win+R, Explorer).
-    """
-    parent = _package_install_parent()
-    monitor_py = parent / "monitor.py"
-    if monitor_py.is_file():
-        cmd: list[str] = [
-            sys.executable,
-            str(monitor_py),
-            "--vs-queue-monitor-server-only",
-            "--web-port",
-            str(port),
-        ]
-    else:
-        cmd = [
-            sys.executable,
-            "-m",
-            "vs_queue_monitor",
-            "--vs-queue-monitor-server-only",
-            "--web-port",
-            str(port),
-        ]
-    if initial_path:
-        cmd.extend(["--path", initial_path])
-    if not auto_start:
-        cmd.append("--no-start")
-    return cmd, str(parent)
-
-
-def _popen_windows_server_console(cmd: list[str], cwd: str) -> subprocess.Popen:
-    """Run ``cmd`` in a **new** console. On non-zero exit, ``pause`` so tracebacks stay readable."""
-    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-    joined = subprocess.list2cmdline(cmd)
-    # ``|| pause`` keeps the window open if Python exits with an error (e.g. ImportError). Clean
-    # shutdown (Ctrl+C handled inside uvicorn) typically exits 0, so pause does not run.
-    shell_line = f"{joined} || pause"
-    return subprocess.Popen(
-        ["cmd.exe", "/c", shell_line],
-        cwd=cwd,
-        creationflags=creationflags,
-    )
 
 
 def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
@@ -95,31 +42,6 @@ def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
         if v:
             return v
     return default
-
-
-def _webview_profile_dir() -> str:
-    """Persistent WebView2 user data (permissions, like a browser profile)."""
-    p = get_config_path().parent / "webview_profile"
-    try:
-        p.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        pass
-    return str(p)
-
-
-def _pywebview_start_kwargs() -> dict[str, Any]:
-    """Prefer Edge WebView2 on Windows so the page gets Chromium + Web Notifications API."""
-    if sys.platform != "win32":
-        return {}
-    gui = _env_pref("VS_QUEUE_MONITOR_WEBVIEW_GUI", "VSQM_WEBVIEW_GUI", default="edgechromium").strip()
-    kw: dict[str, Any] = {"private_mode": False}
-    if gui:
-        kw["gui"] = gui
-    try:
-        kw["storage_path"] = _webview_profile_dir()
-    except Exception:
-        pass
-    return kw
 
 
 def _build_fingerprint() -> str:
@@ -140,6 +62,11 @@ def _build_fingerprint() -> str:
     except Exception:
         pass
     return VERSION
+
+
+# Set by the launcher to tell the client what kind of window is hosting it.
+# Values: "chromium_app" | "browser" | None (unknown/direct)
+_window_mode: str | None = None
 
 
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -329,7 +256,15 @@ def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
             continue
         try:
             return subprocess.Popen(
-                [exe, f"--app={url}", f"--user-data-dir={user_data_dir}"],
+                [
+                    exe,
+                    f"--app={url}",
+                    f"--user-data-dir={user_data_dir}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-sync",
+                    "--disable-extensions",
+                ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=(sys.platform != "win32"),
@@ -337,6 +272,60 @@ def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
         except Exception:
             continue
     return None
+
+
+def _find_chromium_exe() -> str | None:
+    """Return the first available Chromium/Edge/Chrome executable path, or None."""
+    import shutil
+
+    for exe in _chromium_app_candidates():
+        if os.path.isabs(exe):
+            if os.path.isfile(exe):
+                return exe
+        else:
+            found = shutil.which(exe)
+            if found:
+                return found
+    return None
+
+
+def _preconfigure_chromium_notification_permission(port: int) -> None:
+    """Pre-grant the Web Notifications permission for localhost in the dedicated Chromium profile.
+
+    Writing the allow entry before launching Chrome/Edge means Notification.permission is
+    already "granted" when the page loads — no runtime prompt needed.
+
+    We also delete "Secure Preferences" (Edge/Chrome's encrypted shadow copy) so the browser
+    falls back to reading our plain Preferences file.  Without this, Edge ignores the plain
+    file for security-sensitive settings such as notification permissions.
+    """
+    import json as _json
+    import time as _time
+
+    profile_dir = Path(_chromium_user_data_dir()) / "Default"
+    prefs_path = profile_dir / "Preferences"
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        # Remove the encrypted shadow so Edge/Chrome reads our plain Preferences.
+        secure = profile_dir / "Secure Preferences"
+        if secure.exists():
+            secure.unlink()
+        data: dict = {}
+        if prefs_path.exists():
+            try:
+                data = _json.loads(prefs_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        profile = data.setdefault("profile", {})
+        cs = profile.setdefault("content_settings", {})
+        exc = cs.setdefault("exceptions", {})
+        notif = exc.setdefault("notifications", {})
+        ts = str(int(_time.time() * 1_000_000))
+        for origin in (f"http://localhost:{port},*", f"http://127.0.0.1:{port},*"):
+            notif[origin] = {"last_modified": ts, "setting": 1}  # 1 = ALLOW
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass  # best-effort
 
 
 def _pick_path_sync(mode: str) -> str | None:
@@ -365,25 +354,6 @@ def _pick_path_sync(mode: str) -> str | None:
             root.destroy()
         except Exception:
             pass
-
-
-def _open_browser_and_block(url: str) -> None:
-    """Open app window (--app mode if Chromium available, else default browser), then block.
-
-    Blocks until Ctrl+C. On exit, terminates the spawned --app process if any.
-    Closing the window without Ctrl+C leaves the server running (tray icon stays).
-    """
-    time.sleep(0.3)
-    proc = _open_app_window(url)
-    if proc is None:
-        webbrowser.open(url)
-    try:
-        threading.Event().wait()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        if proc is not None and proc.poll() is None:
-            proc.terminate()
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -435,6 +405,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "current_point": cur,
         "graph_log_scale": bool(engine.graph_log_scale_var.get()),
         "graph_live_view": bool(engine.graph_live_view_var.get()),
+        "graph_time_mode": str(engine.graph_time_mode_var.get()),
         "poll_sec": engine.poll_sec_var.get(),
         "avg_window": engine.avg_window_var.get(),
         "alert_thresholds": engine.alert_thresholds_var.get(),
@@ -446,11 +417,15 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "completion_sound": bool(engine.completion_sound_enabled_var.get()),
         "alert_sound_path": engine.alert_sound_path_var.get(),
         "completion_sound_path": engine.completion_sound_path_var.get(),
+        "failure_popup": bool(engine.failure_popup_enabled_var.get()),
+        "failure_sound": bool(engine.failure_sound_enabled_var.get()),
+        "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines()[-400:],
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
+        "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
         "queue_sessions": _queue_sessions_for_engine(engine),
         "build_fingerprint": _build_fingerprint(),
     }
@@ -461,9 +436,11 @@ def _api_meta(request: Request) -> JSONResponse:
         {
             "config_path": str(get_config_path()),
             "version": VERSION,
+            "github_url": GITHUB_REPO_URL,
             "build_fingerprint": _build_fingerprint(),
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
+            "window_mode": _window_mode,
         }
     )
 
@@ -525,6 +502,7 @@ async def _api_config(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
     if not isinstance(body, dict):
         return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
+    snap: dict[str, Any] | None = None
     try:
         with lock:
             if "source_path" in body:
@@ -540,6 +518,11 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.graph_log_scale_var.set(bool(body["graph_log_scale"]))
             if "graph_live_view" in body:
                 engine.graph_live_view_var.set(bool(body["graph_live_view"]))
+            if "graph_time_mode" in body:
+                mode = str(body["graph_time_mode"]).strip().lower()
+                if mode not in ("relative", "absolute"):
+                    raise ValueError("graph_time_mode must be 'relative' or 'absolute'")
+                engine.graph_time_mode_var.set(mode)
             if "show_every_change" in body:
                 engine.show_every_change_var.set(bool(body["show_every_change"]))
             if "popup_enabled" in body:
@@ -554,6 +537,12 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.alert_sound_path_var.set(str(body["alert_sound_path"]))
             if "completion_sound_path" in body:
                 engine.completion_sound_path_var.set(str(body["completion_sound_path"]))
+            if "failure_popup" in body:
+                engine.failure_popup_enabled_var.set(bool(body["failure_popup"]))
+            if "failure_sound" in body:
+                engine.failure_sound_enabled_var.set(bool(body["failure_sound"]))
+            if "failure_sound_path" in body:
+                engine.failure_sound_path_var.set(str(body["failure_sound_path"]))
             if "tutorial_done" in body:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
             engine.persist_config()
@@ -561,11 +550,12 @@ async def _api_config(request: Request) -> JSONResponse:
             # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).
             if "source_path" in body:
                 engine._try_start_after_browse()
+            snap = build_snapshot(engine, request.app.state.hooks)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
-    return JSONResponse({"ok": True})
+    return JSONResponse({"ok": True, "state": snap})
 
 
 def _api_toggle(request: Request) -> JSONResponse:
@@ -615,6 +605,10 @@ async def _api_clear_notification_permission(request: Request) -> JSONResponse:
     if not prefs_path.exists():
         return JSONResponse({"ok": True, "note": "no profile yet"})
     try:
+        # Also remove Secure Preferences so the browser falls back to reading our plain file.
+        secure = prefs_path.parent / "Secure Preferences"
+        if secure.exists():
+            secure.unlink()
         data = _json.loads(prefs_path.read_text(encoding="utf-8"))
         notif = (
             data.get("profile", {})
@@ -674,6 +668,40 @@ def _init_web_stack(
     return app, engine, hooks, lock, p, url
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that always returns 200 so reloads never serve stale cached JS/CSS."""
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Strip conditional-request headers so StaticFiles never returns 304.
+        # Without If-Modified-Since / If-None-Match the handler always serves the full file.
+        if scope.get("type") == "http":
+            scope = {
+                **scope,
+                "headers": [
+                    (k, v)
+                    for k, v in scope.get("headers", [])
+                    if k.lower() not in (b"if-modified-since", b"if-none-match")
+                ],
+            }
+
+        async def _send_no_cache(message: Any) -> None:
+            if message["type"] == "http.response.start":
+                hdrs = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() not in (b"cache-control", b"pragma", b"expires", b"etag", b"last-modified")
+                ]
+                hdrs.extend([
+                    (b"cache-control", b"no-cache, no-store, must-revalidate"),
+                    (b"pragma", b"no-cache"),
+                    (b"expires", b"0"),
+                ])
+                message = {**message, "headers": hdrs}
+            await send(message)
+
+        await super().__call__(scope, receive, _send_no_cache)
+
+
 def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
@@ -685,124 +713,13 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
         Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
-        Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
+        Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
     app = Starlette(routes=routes)
     app.state.engine = engine
     app.state.hooks = hooks
     app.state.lock = lock
     return app
-
-
-def run_web_server_process(
-    initial_path: str = "",
-    auto_start: bool = True,
-    port: Optional[int] = None,
-) -> int:
-    """Foreground uvicorn only (used by the Windows server console subprocess)."""
-    import uvicorn
-
-    from .tray import start_tray
-
-    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
-    url = f"http://127.0.0.1:{p}/"
-    if not _handle_port_conflict(p, url):
-        return 0
-
-    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
-    print(
-        "VS Queue Monitor — server (this window shows HTTP logs; Ctrl+C stops)\n"
-        f"Listening on {url}\n",
-        flush=True,
-    )
-    start_tray(url)
-    try:
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-    except KeyboardInterrupt:
-        return 0
-    return 0
-
-
-def _run_windows_split_console_webview(
-    initial_path: str,
-    auto_start: bool,
-    port: Optional[int],
-    p: int,
-    url: str,
-) -> int:
-    """Windows: separate CMD window runs uvicorn; this process runs only pywebview."""
-    import webview
-
-    logging.getLogger("webview").setLevel(logging.CRITICAL)
-
-    cmd, child_cwd = _windows_server_child_command(p, initial_path, auto_start)
-
-    try:
-        proc = _popen_windows_server_console(cmd, child_cwd)
-    except OSError as exc:
-        print(f"Could not start server console process: {exc}", file=sys.stderr)
-        return 1
-
-    if not _wait_for_tcp("127.0.0.1", p):
-        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
-        early = proc.poll()
-        if early is not None:
-            print(
-                f"The server subprocess exited immediately (code {early}). "
-                "Check the other console window for ImportError or missing dependencies, "
-                "or run: python monitor.py --vs-queue-monitor-server-only",
-                file=sys.stderr,
-            )
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        return 1
-
-    print(
-        "Opening embedded window — HTTP server logs are in the other console window (Ctrl+C there stops the server).",
-        flush=True,
-    )
-    try:
-        from .webview_win import schedule_webview2_notification_permission
-
-        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
-        start_kw = _pywebview_start_kwargs()
-        schedule_webview2_notification_permission()
-        try:
-            webview.start(**start_kw)
-        except Exception as inner_exc:
-            logging.getLogger(__name__).warning(
-                "webview.start(%s) failed (%s); retrying with pywebview defaults",
-                start_kw,
-                inner_exc,
-            )
-            webview.start()
-    except Exception:
-        print(
-            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
-            "or use a Python version with working wheels). Opening your default browser instead.\n"
-            f"  {url}\n"
-            "  Leave the server console window open while you use the app.",
-            file=sys.stderr,
-        )
-        webbrowser.open(url)
-        try:
-            proc.wait()
-        except KeyboardInterrupt:
-            if proc.poll() is None:
-                proc.terminate()
-        return 0
-    finally:
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-    return 0
 
 
 def run_web_server(
@@ -814,14 +731,14 @@ def run_web_server(
 ) -> int:
     """Serve the static web client on loopback.
 
-    By default opens an **embedded** desktop window (pywebview) instead of a separate browser.
-    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to restore the old behavior.
-
-    On **Windows**, embedded mode uses a **second console** process for uvicorn (visible server
-    logs) and this process runs only pywebview. Set ``VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE=1`` (legacy: ``VSQM_DISABLE_SPLIT_CONSOLE``) to use a
-    single process (uvicorn thread + webview) instead.
+    By default opens an embedded Chromium ``--app`` window (Edge or Chrome required).
+    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to open in the default browser instead.
+    On headless machines the server runs without a window; use the URL printed to stderr.
     """
+    global _window_mode
     import uvicorn
+
+    from .tray import start_tray
 
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
     url = f"http://127.0.0.1:{p}/"
@@ -829,78 +746,15 @@ def run_web_server(
     if not _handle_port_conflict(p, url):
         return 0
 
+    app, _e, _h, _l, p, url = _init_web_stack(initial_path, auto_start, port)
+    _app_proc: "subprocess.Popen[bytes] | None" = None
+
     if open_external_browser:
-        from .tray import start_tray
-
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
-
-        def _open() -> None:
-            time.sleep(0.35)
-            if not _open_app_window(url):
-                webbrowser.open(url)
-
-        threading.Thread(target=_open, daemon=True).start()
-        start_tray(url)
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-        return 0
-
-    _webview_ok = False
-    try:
-        import webview
-
-        # pywebview probes Win32/pythonnet backends and can log long tracebacks; keep stderr quiet.
-        logging.getLogger("webview").setLevel(logging.CRITICAL)
-
-        # Require pywebview 4.x — earlier releases have an incompatible API.
-        _wv_ver = getattr(webview, "version", None) or getattr(webview, "__version__", None) or ""
-        if not _wv_ver:
-            # 4.x exposes webview.version; fall back to importlib metadata.
-            try:
-                from importlib.metadata import version as _pkg_version
-                _wv_ver = _pkg_version("pywebview")
-            except Exception:
-                pass
-        _wv_major = int(str(_wv_ver).split(".")[0]) if _wv_ver else 0
-        if _wv_major < 4:
-            raise ImportError(
-                f"pywebview {_wv_ver or '?'} is installed but version 4.4+ is required. "
-                "Run:  pip install --upgrade 'pywebview>=4.4'"
-            )
-        _webview_ok = True
-    except ImportError as _wv_err:
-        from .tray import start_tray
-
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
-        print(
-            f"Embedded web UI unavailable: {_wv_err}\n"
-            f"Opening app window at {url}\n",
-            file=sys.stderr,
-        )
-        start_tray(url)
-        _wv_config = uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info")
-        _wv_server = uvicorn.Server(_wv_config)
-        _app_proc: "subprocess.Popen[bytes] | None" = None
-
-        def _open_delayed() -> None:
-            nonlocal _app_proc
-            time.sleep(0.35)
-            _app_proc = _open_app_window(url)
-            if _app_proc is None:
-                webbrowser.open(url)
-
-        threading.Thread(target=_open_delayed, daemon=True).start()
-        try:
-            _wv_server.run()
-        finally:
-            if _app_proc is not None and _app_proc.poll() is None:
-                _app_proc.terminate()
-        return 0
-
-    if not _gui_display_available():
-        app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
-        p, url = p2, url2
+        _window_mode = "browser"
+        threading.Thread(
+            target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+        ).start()
+    elif not _gui_display_available():
         print(
             "No desktop display detected (headless or SSH without X11/Wayland). "
             "Skipping embedded window.\n"
@@ -909,53 +763,58 @@ def run_web_server(
             "  Local browser on this machine: python monitor.py --web-browser",
             file=sys.stderr,
         )
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-        return 0
+    else:
+        _chromium_exe = _find_chromium_exe()
+        if _chromium_exe:
+            _window_mode = "chromium_app"
+            _preconfigure_chromium_notification_permission(p)
 
-    if (
-        sys.platform == "win32"
-        and _env_pref("VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE", "VSQM_DISABLE_SPLIT_CONSOLE").lower()
-        not in ("1", "true", "yes", "y")
-    ):
-        return _run_windows_split_console_webview(initial_path, auto_start, port, p, url)
+            def _open_app() -> None:
+                nonlocal _app_proc
+                time.sleep(0.35)
+                _app_proc = _open_app_window(url)
+                if _app_proc is None:
+                    webbrowser.open(url)
 
-    from .tray import start_tray
-
-    app, _engine, _hooks, _lock, p, url = _init_web_stack(initial_path, auto_start, port)
-
-    def _serve() -> None:
-        uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
-
-    th = threading.Thread(target=_serve, daemon=True, name="vs-queue-monitor-uvicorn")
-    th.start()
-    if not _wait_for_tcp("127.0.0.1", p):
-        print("ERROR: Local web server did not become ready in time.", file=sys.stderr)
-        return 1
+            threading.Thread(target=_open_app, daemon=True).start()
+        else:
+            _window_mode = "browser"
+            threading.Thread(
+                target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+            ).start()
 
     start_tray(url)
+    _log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "()": "uvicorn.logging.DefaultFormatter",
+                "fmt": "%(asctime)s %(levelprefix)s %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+                "use_colors": None,
+            },
+            "access": {
+                "()": "uvicorn.logging.AccessFormatter",
+                "fmt": '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+                "use_colors": None,
+            },
+        },
+        "handlers": {
+            "default": {"formatter": "default", "class": "logging.StreamHandler", "stream": "ext://sys.stderr"},
+            "access": {"formatter": "access", "class": "logging.StreamHandler", "stream": "ext://sys.stdout"},
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
+            "uvicorn.error": {"level": "INFO"},
+            "uvicorn.access": {"handlers": ["access"], "level": "INFO", "propagate": False},
+        },
+    }
+    _wv_server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info", log_config=_log_config))
     try:
-        from .webview_win import schedule_webview2_notification_permission
-
-        webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
-        start_kw = _pywebview_start_kwargs()
-        schedule_webview2_notification_permission()
-        try:
-            webview.start(**start_kw)
-        except Exception as inner_exc:
-            logging.getLogger(__name__).warning(
-                "webview.start(%s) failed (%s); retrying with pywebview defaults",
-                start_kw,
-                inner_exc,
-            )
-            webview.start()
-    except Exception as exc:
-        print(
-            "Embedded window unavailable (install pythonnet or pywin32 for pywebview on Windows, "
-            "or use a Python version with working wheels). Opening your default browser instead.\n"
-            f"  {url}\n"
-            "  Ctrl+C in this terminal stops the server.",
-            file=sys.stderr,
-        )
-        _open_browser_and_block(url)
-        return 0
+        _wv_server.run()
+    finally:
+        if _app_proc is not None and _app_proc.poll() is None:
+            _app_proc.terminate()
     return 0

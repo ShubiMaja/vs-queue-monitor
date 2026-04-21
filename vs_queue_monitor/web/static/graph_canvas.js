@@ -105,11 +105,81 @@
     return stepVertices;
   }
 
+  function drawGraphEventMarker(ctx, kind, x, y) {
+    ctx.save();
+    ctx.lineWidth = 1.8;
+    if (kind === "warning") {
+      ctx.fillStyle = "#c89b3c";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 7, y + 6);
+      ctx.lineTo(x - 7, y + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.stroke();
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 2);
+      ctx.lineTo(x, y + 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y + 4.5, 0.9, 0, Math.PI * 2);
+      ctx.fillStyle = "#f7f9fc";
+      ctx.fill();
+    } else if (kind === "connect") {
+      ctx.fillStyle = "#2e8b57";
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.stroke();
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5, y + 0.2);
+      ctx.lineTo(x - 0.8, y + 3);
+      ctx.lineTo(x + 4, y - 2.5);
+      ctx.stroke();
+    } else if (kind === "disconnect") {
+      ctx.translate(x, y);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = "#b4545c";
+      ctx.fillRect(-5.5, -5.5, 11, 11);
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.strokeRect(-5.5, -5.5, 11, 11);
+      ctx.rotate(-Math.PI / 4);
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(-3, -3);
+      ctx.lineTo(3, 3);
+      ctx.moveTo(3, -3);
+      ctx.lineTo(-3, 3);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function pad2(n) {
     return String(n).padStart(2, "0");
   }
 
-  function fmtTooltipTs(tSec) {
+  function fmtRelativeTime(tSec, baseSec, includeSeconds) {
+    var delta = Math.max(0, Math.round(tSec - baseSec));
+    var h = Math.floor(delta / 3600);
+    var m = Math.floor((delta % 3600) / 60);
+    var s = delta % 60;
+    if (includeSeconds || h > 0) {
+      return h > 0
+        ? (h + ":" + pad2(m) + ":" + pad2(s))
+        : (m + ":" + pad2(s));
+    }
+    return h > 0 ? (h + ":" + pad2(m)) : String(m) + "m";
+  }
+
+  function fmtTooltipTs(tSec, mode, baseSec) {
+    if (mode === "relative") {
+      return fmtRelativeTime(tSec, baseSec == null ? tSec : baseSec, true);
+    }
     var dj =
       typeof global !== "undefined" && global.dayjs
         ? global.dayjs
@@ -133,6 +203,61 @@
       ":" +
       pad2(d.getSeconds())
     );
+  }
+
+  function formatOverlayDuration(totalSeconds) {
+    if (totalSeconds == null || !isFinite(totalSeconds) || totalSeconds < 0) {
+      return "-";
+    }
+    var whole = Math.floor(totalSeconds);
+    var h = Math.floor(whole / 3600);
+    var m = Math.floor((whole % 3600) / 60);
+    var s = whole % 60;
+    if (h > 0) {
+      return h + ":" + pad2(m) + ":" + pad2(s);
+    }
+    return m + ":" + pad2(s);
+  }
+
+  function computeOverlayStats(points) {
+    if (!points || !points.length) {
+      return null;
+    }
+    var startPos = null;
+    var startT = null;
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (points[i][1] > 1) {
+        startPos = points[i][1];
+        startT = points[i][0];
+        break;
+      }
+    }
+    if (startPos == null) {
+      startPos = points[0][1];
+      startT = points[0][0];
+    }
+    var endPos = points[points.length - 1][1];
+    var endT = points[points.length - 1][0];
+    var cleared = startPos != null && endPos != null ? Math.max(0, startPos - endPos) : null;
+    var seconds = startT != null && endT != null ? Math.max(0, endT - startT) : null;
+    var avgMinPerPos =
+      seconds != null && seconds > 0 && cleared != null && cleared > 0
+        ? (seconds / 60) / cleared
+        : null;
+    var vals = points.map(function (p) {
+      return p[1];
+    });
+    return {
+      min: Math.min.apply(null, vals),
+      max: Math.max.apply(null, vals),
+      startPos: startPos,
+      endPos: endPos,
+      cleared: cleared,
+      seconds: seconds,
+      avgMinPerPos: avgMinPerPos,
+      samples: points.length,
+    };
   }
 
   /**
@@ -172,6 +297,7 @@
     var liveView = !!state.graph_live_view;
     var running = !!state.running;
     var logScale = !!state.graph_log_scale;
+    var timeMode = state.graph_time_mode || "relative";
     var gamma = th.graph_log_gamma;
 
     ctx.fillStyle = th.ui_graph_plot;
@@ -336,7 +462,7 @@
     if (!tickTimes.length || tickTimes[0] - t0 > interval * 0.4) {
       tickTimes.unshift(t0);
     }
-    if (tickTimes[tickTimes.length - 1] < t1 - interval * 0.4) {
+    if (Math.abs(tickTimes[tickTimes.length - 1] - t1) > 1e-6) {
       tickTimes.push(t1);
     }
     var dedup = [];
@@ -351,6 +477,11 @@
           dedup.push(tv);
         }
       });
+    if (!dedup.length || Math.abs(dedup[dedup.length - 1] - t1) > 1e-6) {
+      dedup.push(t1);
+    } else {
+      dedup[dedup.length - 1] = t1;
+    }
     tickTimes = dedup;
 
     var minLabelDx = Math.max(76, Math.min(130, plotW / 7.5));
@@ -359,21 +490,27 @@
       t = tickTimes[idx];
       var x = xOf(t);
       var d = new Date(t * 1000);
-      var label =
-        fmt === "hms"
-          ? pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds())
-          : pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+      var label;
+      if (timeMode === "relative") {
+        label = fmtRelativeTime(t, rangePts[0][0], fmt === "hms");
+      } else {
+        label =
+          fmt === "hms"
+            ? pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds())
+            : pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+      }
       ctx.strokeStyle = axisColor;
       ctx.beginPath();
       ctx.moveTo(x, y1);
       ctx.lineTo(x, y1 + 4);
       ctx.stroke();
-      if (lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
+      var isLast = idx === tickTimes.length - 1;
+      if (isLast || lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
         ctx.fillStyle = textColor;
         ctx.font = "11px system-ui,Segoe UI,sans-serif";
-        ctx.textAlign = "center";
+        ctx.textAlign = isLast ? "right" : "center";
         ctx.textBaseline = "top";
-        ctx.fillText(label, x, y1 + 14);
+        ctx.fillText(label, isLast ? x + 2 : x, y1 + 14);
         lastXLabel = x;
       }
       if (idx > 0 && idx < tickTimes.length - 1) {
@@ -441,11 +578,64 @@
       }
     }
 
-    ctx.fillStyle = textColor;
-    ctx.font = "11px system-ui,Segoe UI,sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText("min " + vmin + "  max " + vmax, x0 + 6, y0 + 6);
+    var overlayStats = null;
+    try {
+      overlayStats = computeOverlayStats(viewPts);
+    } catch (_overlayErr) {
+      overlayStats = null;
+    }
+    if (overlayStats) {
+      var overlayLines = [
+        "Start pos: " + overlayStats.startPos,
+        "Current pos: " + overlayStats.endPos,
+      ];
+      if (
+        overlayStats.min !== overlayStats.endPos ||
+        overlayStats.max !== overlayStats.startPos
+      ) {
+        overlayLines.push("Min pos: " + overlayStats.min);
+        overlayLines.push("Max pos: " + overlayStats.max);
+      }
+      overlayLines.push(
+        "Pos Change: " + (overlayStats.cleared == null ? "-" : overlayStats.cleared)
+      );
+      overlayLines.push(
+        "Duration: " + formatOverlayDuration(overlayStats.seconds)
+      );
+      overlayLines.push(
+        "Rate: " +
+          (overlayStats.avgMinPerPos == null
+            ? "-"
+            : overlayStats.avgMinPerPos.toFixed(2) + " min/pos")
+      );
+      ctx.font = "11px system-ui,Segoe UI,sans-serif";
+      ctx.textBaseline = "top";
+      ctx.textAlign = "left";
+      var overlayPadX = 8;
+      var overlayPadY = 6;
+      var overlayLineH = 14;
+      var overlayW = 0;
+      var oi;
+      for (oi = 0; oi < overlayLines.length; oi++) {
+        overlayW = Math.max(overlayW, ctx.measureText(overlayLines[oi]).width);
+      }
+      var boxW = overlayW + overlayPadX * 2;
+      var boxH = overlayLines.length * overlayLineH + overlayPadY * 2 - 2;
+      var boxX = x1 - boxW - 8;
+      var boxY = y0 + 8;
+      ctx.fillStyle = "rgba(20, 24, 32, 0.82)";
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.strokeStyle = th.ui_graph_grid;
+      ctx.strokeRect(boxX + 0.5, boxY + 0.5, boxW - 1, boxH - 1);
+      ctx.fillStyle = textColor;
+      for (oi = 0; oi < overlayLines.length; oi++) {
+        ctx.fillText(
+          overlayLines[oi],
+          boxX + overlayPadX,
+          boxY + overlayPadY + oi * overlayLineH
+        );
+      }
+    }
 
     var stepVertices = buildStepVertices(points);
     var line = [];
@@ -476,6 +666,34 @@
     }
 
     var marker = state.current_point || points[points.length - 1];
+    var graphEvents = state.graph_events || [];
+    if (graphEvents.length) {
+      var eventStacks = {};
+      for (j = 0; j < graphEvents.length; j++) {
+        var event = graphEvents[j];
+        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
+          continue;
+        }
+        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
+          continue;
+        }
+        var ex = xOf(event.t);
+        var baseY = yOf(event.pos);
+        var stackKey = Math.round(ex / 14) + ":" + Math.round(baseY / 14);
+        var stackIndex = eventStacks[stackKey] || 0;
+        eventStacks[stackKey] = stackIndex + 1;
+        var ey = Math.max(y0 + 10, baseY - 14 - stackIndex * 16);
+        if (baseY - ey > 8) {
+          ctx.strokeStyle = th.ui_graph_axis;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ex, baseY - 5);
+          ctx.lineTo(ex, ey + 8);
+          ctx.stroke();
+        }
+        drawGraphEventMarker(ctx, event.kind, ex, ey);
+      }
+    }
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];

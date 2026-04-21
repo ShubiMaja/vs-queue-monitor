@@ -182,10 +182,13 @@ LOG_SILENCE_RECONNECT_SEC = 30.0
 # Linux: XDG_DATA_DIRS + relative path, plus /usr/share and /usr/local/share (see _linux_sound_paths_from_relatives).
 DEFAULT_ALERT_WIN_MEDIA_NAME = "Windows Background.wav"
 DEFAULT_COMPLETION_WIN_MEDIA_NAME = "tada.wav"
+DEFAULT_FAILURE_WIN_MEDIA_NAME = "Windows Critical Stop.wav"
 DEFAULT_ALERT_MAC_NAME = "Basso.aiff"
 DEFAULT_COMPLETION_MAC_NAME = "Hero.aiff"
+DEFAULT_FAILURE_MAC_NAME = "Sosumi.aiff"
 DEFAULT_ALERT_LINUX_RELATIVE = "sounds/freedesktop/stereo/dialog-warning.oga"
 DEFAULT_COMPLETION_LINUX_RELATIVE = "sounds/freedesktop/stereo/complete.oga"
+DEFAULT_FAILURE_LINUX_RELATIVE = "sounds/freedesktop/stereo/dialog-error.oga"
 # macOS: no standard env for system UI sounds; Apple documents this directory.
 MACOS_SYSTEM_SOUNDS_DIR = Path("/System/Library/Sounds")
 # Windows: use env when set; last resort explicit path (see _windows_media_dir).
@@ -411,6 +414,17 @@ def iter_default_completion_sound_paths() -> list[Path]:
     return []
 
 
+def iter_default_failure_sound_paths() -> list[Path]:
+    """Default failure/interrupted sound: one path per OS."""
+    if sys.platform.startswith("win"):
+        return [_windows_media_dir() / DEFAULT_FAILURE_WIN_MEDIA_NAME]
+    if sys.platform == "darwin":
+        return [MACOS_SYSTEM_SOUNDS_DIR / DEFAULT_FAILURE_MAC_NAME]
+    if sys.platform.startswith("linux"):
+        return _linux_sound_paths_from_relatives((DEFAULT_FAILURE_LINUX_RELATIVE,))
+    return []
+
+
 def try_play_first_existing_sound(paths: list[Path]) -> bool:
     for p in paths:
         if p.is_file() and play_alert_sound_file(p):
@@ -429,6 +443,14 @@ def default_alert_sound_path_for_display() -> str:
 def default_completion_sound_path_for_display() -> str:
     """First existing default completion sound path for Settings, or empty string."""
     for p in iter_default_completion_sound_paths():
+        if p.is_file():
+            return str(p)
+    return ""
+
+
+def default_failure_sound_path_for_display() -> str:
+    """First existing default failure sound path for Settings, or empty string."""
+    for p in iter_default_failure_sound_paths():
         if p.is_file():
             return str(p)
     return ""
@@ -513,6 +535,30 @@ def play_default_completion_system_sound() -> bool:
                 continue
         try:
             winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            return True
+        except Exception:
+            try:
+                winsound.MessageBeep()
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def play_default_failure_system_sound() -> bool:
+    """Play OS default failure/interrupted tone."""
+    if try_play_first_existing_sound(iter_default_failure_sound_paths()):
+        return True
+
+    if winsound is not None and sys.platform.startswith("win"):
+        for alias in ("SystemHand", "SystemExclamation", "SystemDefault"):
+            try:
+                winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
+                return True
+            except Exception:
+                continue
+        try:
+            winsound.MessageBeep(winsound.MB_ICONHAND)
             return True
         except Exception:
             try:
@@ -761,12 +807,53 @@ def queue_sessions_for_log_tail(
     text = read_log_file_tail_text(log_file, tail_bytes)
     if not text:
         return []
-    events = walk_queue_position_events(text)
-    if not events:
-        return []
     by_sess: dict[int, list[tuple[float, int]]] = defaultdict(list)
-    for t, p, sid in events:
-        by_sess[sid].append((t, p))
+    session = 0
+    last_t: Optional[float] = None
+    last_pos_by_sess: dict[int, Optional[int]] = {}
+    completed_by_sess: dict[int, bool] = defaultdict(bool)
+    saw_any = False
+    for line in text.splitlines():
+        if is_queue_run_boundary_line(line):
+            session += 1
+            continue
+        m = queue_position_match(line)
+        if m:
+            try:
+                pos = int(m.group(1))
+            except Exception:
+                continue
+            if last_pos_by_sess.get(session) == pos:
+                continue
+            t = parse_log_timestamp_epoch(line)
+            if t is None:
+                t = (last_t + 1.0) if last_t is not None else time.time()
+            last_t = t
+            last_pos_by_sess[session] = pos
+            by_sess[session].append((t, pos))
+            saw_any = True
+            continue
+        if (
+            is_post_queue_progress_line(line)
+            and by_sess.get(session)
+            and not completed_by_sess.get(session, False)
+        ):
+            last_pos = last_pos_by_sess.get(session)
+            if last_pos is None or last_pos > 1:
+                continue
+            t = parse_log_timestamp_epoch(line)
+            prev_t = by_sess[session][-1][0]
+            if t is None:
+                t = prev_t + 1.0
+            if t <= prev_t:
+                t = prev_t + 1e-3
+            by_sess[session].append((t, 0))
+            last_t = t
+            last_pos_by_sess[session] = 0
+            completed_by_sess[session] = True
+            saw_any = True
+    if not saw_any:
+        return []
     sessions: list[dict[str, Any]] = []
     key_counts: dict[str, int] = {}
     for sess_id in sorted(by_sess.keys()):
@@ -845,6 +932,10 @@ def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
         last_pos = pos
         last_sess = session
     return last_pos, last_sess
+
+
+def count_queue_run_boundaries(data: str) -> int:
+    return sum(1 for line in data.splitlines() if is_queue_run_boundary_line(line))
 
 
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:

@@ -77,8 +77,9 @@ class QueueMonitorEngine:
         self.global_rate_var = hooks.string_var("—")
         self.show_log_var = hooks.boolean_var(bool(self.config.get("show_log", True)))
         self.show_status_var = hooks.boolean_var(bool(self.config.get("show_status", True)))
-        self.graph_log_scale_var = hooks.boolean_var(bool(self.config.get("graph_log_scale", True)))
+        self.graph_log_scale_var = hooks.boolean_var(bool(self.config.get("graph_log_scale", False)))
         self.graph_live_view_var = hooks.boolean_var(bool(self.config.get("graph_live_view", True)))
+        self.graph_time_mode_var = hooks.string_var(str(self.config.get("graph_time_mode", "relative")))
         self.tutorial_done_var = hooks.boolean_var(bool(self.config.get("tutorial_done", False)))
         self.popup_enabled_var = hooks.boolean_var(bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = hooks.boolean_var(bool(self.config.get("sound_enabled", True)))
@@ -97,8 +98,20 @@ class QueueMonitorEngine:
         else:
             _comp_initial = default_completion_sound_path_for_display()
         self.completion_sound_path_var = hooks.string_var(_comp_initial)
+        self.failure_sound_enabled_var = hooks.boolean_var(
+            bool(self.config.get("failure_sound_enabled", True)),
+        )
+        _fsp = self.config.get("failure_sound_path")
+        if isinstance(_fsp, str) and _fsp.strip():
+            _fail_initial = _fsp.strip()
+        else:
+            _fail_initial = default_failure_sound_path_for_display()
+        self.failure_sound_path_var = hooks.string_var(_fail_initial)
         self.completion_popup_enabled_var = hooks.boolean_var(
             bool(self.config.get("completion_popup_enabled", True)),
+        )
+        self.failure_popup_enabled_var = hooks.boolean_var(
+            bool(self.config.get("failure_popup_enabled", True)),
         )
         self.show_every_change_var = hooks.boolean_var(bool(self.config.get("show_every_change", True)))
 
@@ -139,6 +152,7 @@ class QueueMonitorEngine:
         self._mpp_floor_value: Optional[float] = None
         self._interrupted_mode: bool = False
         self._interrupt_baseline_session: int = -1
+        self._interrupt_entry_queue_line_epoch: Optional[float] = None
         self._dismissed_new_queue_session: Optional[int] = None
         self._interrupted_elapsed_sec: Optional[float] = None
         self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
@@ -148,6 +162,10 @@ class QueueMonitorEngine:
         self.graph_log_scale_var.trace_add(
             "write",
             lambda *_: (self._refresh_kpi_rate_header(), self._hooks.request_redraw_graph()),
+        )
+        self.graph_time_mode_var.trace_add(
+            "write",
+            lambda *_: self._hooks.request_redraw_graph(),
         )
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
@@ -177,7 +195,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'graph_log_scale': bool(self.graph_log_scale_var.get()), 'graph_live_view': bool(self.graph_live_view_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'graph_log_scale': bool(self.graph_log_scale_var.get()), 'graph_live_view': bool(self.graph_live_view_var.get()), 'graph_time_mode': self.graph_time_mode_var.get(), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -199,7 +217,7 @@ class QueueMonitorEngine:
 
     def _bind_config_persist_traces(self) -> None:
         """Save config.json shortly after any setting change (debounced)."""
-        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.graph_log_scale_var, self.graph_live_view_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
+        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.graph_log_scale_var, self.graph_live_view_var, self.graph_time_mode_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
             var.trace_add('write', self._schedule_config_persist)
 
     def reset_defaults(self) -> None:
@@ -210,14 +228,18 @@ class QueueMonitorEngine:
         self.avg_window_var.set(str(DEFAULT_PREDICTION_WINDOW_POINTS))
         self.show_log_var.set(True)
         self.show_status_var.set(True)
-        self.graph_log_scale_var.set(True)
+        self.graph_log_scale_var.set(False)
         self.graph_live_view_var.set(True)
+        self.graph_time_mode_var.set('relative')
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
         self.alert_sound_path_var.set(default_alert_sound_path_for_display())
         self.completion_popup_enabled_var.set(True)
         self.completion_sound_enabled_var.set(True)
         self.completion_sound_path_var.set(default_completion_sound_path_for_display())
+        self.failure_popup_enabled_var.set(True)
+        self.failure_sound_enabled_var.set(True)
+        self.failure_sound_path_var.set(default_failure_sound_path_for_display())
         self.show_every_change_var.set(True)
         self.tutorial_done_var.set(False)
         self.resolved_path_var.set('')
@@ -475,6 +497,7 @@ class QueueMonitorEngine:
         self._interrupted_mode = True
         self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
         self._interrupt_baseline_session = self._last_queue_run_session
+        self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
         self._dismissed_new_queue_session = None
         self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
         self._set_status_line('Interrupted', danger=True)
@@ -482,20 +505,36 @@ class QueueMonitorEngine:
         if detail:
             msg += f' ({detail})'
         self.write_history(msg)
+        if self.failure_popup_enabled_var.get():
+            self._hooks.show_failure_popup(detail)
+        if self.failure_sound_enabled_var.get():
+            self.play_failure_sound()
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int) -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
-        if position is None:
+        # Use total boundary count when available: catches a new run the moment its boundary
+        # line appears, before the first position line arrives (which is when queue_sess updates).
+        effective_sess = queue_sess
+        if total_queue_boundaries is not None and total_queue_boundaries > queue_sess:
+            effective_sess = total_queue_boundaries
+        if position is None and effective_sess <= self._interrupt_baseline_session:
             return
-        if queue_sess <= self._interrupt_baseline_session:
+        if effective_sess <= self._interrupt_baseline_session:
+            # Session count can appear lower than baseline when the log grew between sessions
+            # and old boundary lines scrolled out of the tail window.  If the most recent
+            # queue line is provably newer than the epoch we entered interrupted state, it is
+            # a new run regardless of the apparent session count.
+            entry_epoch = self._interrupt_entry_queue_line_epoch
+            if (last_queue_line_epoch is None or entry_epoch is None
+                    or last_queue_line_epoch <= entry_epoch):
+                return
+        if effective_sess == self._dismissed_new_queue_session:
             return
-        if queue_sess == self._dismissed_new_queue_session:
-            return
-        if self._pending_new_queue_session == queue_sess:
+        if self._pending_new_queue_session == effective_sess:
             return
         async_ui = getattr(self._hooks, 'new_queue_dialog_async', None)
         if callable(async_ui) and async_ui():
-            self._pending_new_queue_session = queue_sess
+            self._pending_new_queue_session = effective_sess
             return
         if self._hooks.ask_yes_no(
             'New queue detected',
@@ -503,7 +542,7 @@ class QueueMonitorEngine:
         ):
             self._accept_new_queue_from_log()
         else:
-            self._dismissed_new_queue_session = queue_sess
+            self._dismissed_new_queue_session = effective_sess
 
     def resolve_new_queue_offer(self, accept: bool) -> None:
         """Used by the local web UI when ``new_queue_dialog_async`` deferred the dialog."""
@@ -531,6 +570,7 @@ class QueueMonitorEngine:
         self._queue_stale_logged_once = False
         self._position_one_reached_at = None
         self._connect_phase_started_epoch = None
+        self._queue_progress_value = 0.0
         self._progress_at_front_entry = None
         self._left_connect_queue_detected = False
         self._mpp_floor_position = None
@@ -698,6 +738,7 @@ class QueueMonitorEngine:
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)
+                    total_queue_boundaries = count_queue_run_boundaries(text)
                     last_queue_line_epoch = parse_tail_last_queue_line_epoch(text)
                     if last_queue_line_epoch is not None:
                         self._last_queue_line_epoch = last_queue_line_epoch
@@ -705,7 +746,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
@@ -737,7 +778,21 @@ class QueueMonitorEngine:
                         prev_pos = self.last_position
                         now = time.time()
                         stale_limit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT
-                        new_queue_run = self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session
+                        # A new run is normally indicated by a higher session count in the tail.
+                        # If the log grew between sessions and old boundaries scrolled out of the
+                        # tail window, queue_sess may appear lower; fall back to epoch comparison.
+                        new_queue_run = (
+                            self._last_queue_run_session >= 0
+                            and (
+                                queue_sess > self._last_queue_run_session
+                                or (
+                                    queue_sess < self._last_queue_run_session
+                                    and last_queue_line_epoch is not None
+                                    and self._last_queue_line_epoch is not None
+                                    and last_queue_line_epoch > self._last_queue_line_epoch
+                                )
+                            )
+                        )
                         if not new_queue_run and prev_pos is not None and (position > prev_pos) and (position - prev_pos >= QUEUE_RESET_JUMP_THRESHOLD):
                             position = prev_pos
                         if position is not None and position <= 1 and left:
@@ -785,6 +840,7 @@ class QueueMonitorEngine:
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
                                 self._connect_phase_started_epoch = None
+                                self._queue_progress_value = 0.0
                                 self._progress_at_front_entry = None
                                 self._left_connect_queue_detected = False
                                 self._queue_completion_notified_this_run = False
@@ -1214,6 +1270,7 @@ class QueueMonitorEngine:
         else:
             self.predicted_remaining_var.set(self.format_duration_remaining(seconds_remaining))
         if True:
+            _prev_progress = self._queue_progress_value
             if pos is not None and pos <= 1:
                 if self._left_connect_queue_detected:
                     self._queue_progress_value = 100.0
@@ -1226,11 +1283,11 @@ class QueueMonitorEngine:
                 total = elapsed_sec + max(0.0, float(seconds_remaining))
                 if total > 1e-06:
                     p = min(100.0, max(0.0, 100.0 * elapsed_sec / total))
-                    self._queue_progress_value = p
+                    # Clamp: ETA fluctuations must not make the bar go backwards.
+                    self._queue_progress_value = max(_prev_progress, p)
                 else:
                     self._queue_progress_value = 0.0
             elif pos is not None and len(points) >= 1:
-                # No rate yet — fall back to position-based progress
                 start_pos = points[0][1]
                 if start_pos > 0 and pos <= start_pos:
                     self._queue_progress_value = min(100.0, max(0.0, 100.0 * (start_pos - pos) / start_pos))
@@ -1310,6 +1367,20 @@ class QueueMonitorEngine:
             if p.is_file() and play_alert_sound_file(p):
                 return
         if play_default_completion_system_sound():
+            return
+        try:
+            self._hooks.bell()
+        except Exception:
+            pass
+
+    def play_failure_sound(self) -> None:
+        """Interrupted/failure sound when queue monitoring drops out of the active queue flow."""
+        raw = (self.failure_sound_path_var.get() or '').strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_failure_system_sound():
             return
         try:
             self._hooks.bell()

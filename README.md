@@ -6,10 +6,6 @@ Monitor your **Vintage Story** connect queue — live position, estimated wait t
 
 ## Quick start
 
-### Known Issues
-
-Notifications don't work in the standalone app by default. Open http://127.0.0.1:8765 in your web browser (chromium based or Chrome) after starting the app normally (through shortcut or directly) to run the app properly for now.
-
 ### Windows — paste into Command Prompt
 
 ```bat
@@ -32,6 +28,16 @@ cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 
 After install, relaunch any time with `~/vs-queue-monitor/run-vs-queue-monitor.sh` or **⌘ Space → `run-vs-queue-monitor`** on macOS.
 
+### Relaunch later
+
+You do not need to reinstall each time. After the first setup, just launch it like a normal app:
+
+| OS | Easy way to open it |
+|---|---|
+| Windows | <kbd>Win</kbd> + <kbd>R</kbd>, type `vs-queue-monitor`, press <kbd>Enter</kbd> |
+| macOS | <kbd>⌘</kbd> + <kbd>Space</kbd>, type `run-vs-queue-monitor`, press <kbd>Return</kbd> |
+| Linux | Open your app launcher or terminal, then run `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
+
 ### Already cloned / developing
 
 ```bash
@@ -47,11 +53,16 @@ python monitor.py
 | **ETA & rate** | Estimates wait time from observed position changes |
 | **Progress bar** | Shows how far through the queue you've moved |
 | **Threshold alerts** | Popup + sound + desktop notification when position drops below a value |
-| **Completion alert** | Fires when the game connects (past the queue) |
-| **Graph** | Step chart of position over time; zoom, pan, export as PNG or TSV |
+| **Completion alert** | Popup + sound + desktop notification when the game connects (past the queue) |
+| **Failure alert** | Popup + sound + desktop notification when monitoring drops into the interrupted state |
+| **Graph** | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV |
 | **Session history** | Per-run log of position changes |
 | **System tray** | Icon in notification area while running; right-click to open or quit |
-| **Embedded window** | Desktop app feel via pywebview 4.x (falls back to browser if not installed) |
+| **Embedded window** | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
+
+## Development notes
+
+- Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
 
 ## Pointing at the log
 
@@ -78,7 +89,7 @@ A tray icon appears in the notification area while the service is running. Right
 
 ## Alerts
 
-Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. Enable sound and desktop notifications in **Settings (⚙)**.
+Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. **Settings (⚙)** now has matching Warning, Completion, and Failure tabs, each with popup, sound, sound-file, inline test controls, and built-in file picker buttons for custom sounds.
 
 ## Remote access via ngrok
 

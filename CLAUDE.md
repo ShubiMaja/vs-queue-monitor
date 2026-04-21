@@ -1,5 +1,12 @@
 # VS Queue Monitor — Claude guidance
 
+## Shared baseline
+
+Read `AGENTS.md` first, then `.agents/shared-instructions.md`.
+
+- `AGENTS.md` is the root auto-load entry point.
+- `.agents/shared-instructions.md` is the shared guidance source for all agents in this repo.
+
 ## Design doc is the contract
 
 `docs/DESIGN.md` is the **source of truth** for product intent and UX decisions in this repo.
