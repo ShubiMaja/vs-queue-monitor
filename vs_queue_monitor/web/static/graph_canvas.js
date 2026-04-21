@@ -13,7 +13,7 @@
     pad_left: 46,
     pad_right: 22,
     pad_top: 12,
-    pad_bottom: 32,
+    pad_bottom: 44,
     ui_graph_bg: "#0d0f12",
     ui_graph_plot: "#141820",
     ui_graph_grid: "#1e232c",
@@ -523,7 +523,7 @@
         ctx.font = "11px system-ui,Segoe UI,sans-serif";
         ctx.textAlign = isLast ? "right" : "center";
         ctx.textBaseline = "top";
-        ctx.fillText(label, isLast ? x + 2 : x, y1 + 14);
+        ctx.fillText(label, isLast ? x + 2 : x, y1 + 30);
         lastXLabel = x;
       }
       if (idx > 0 && idx < tickTimes.length - 1) {
@@ -681,7 +681,11 @@
     var marker = state.current_point || points[points.length - 1];
     var graphEvents = state.graph_events || [];
     if (graphEvents.length) {
-      var eventStacks = {};
+      // Timeline strip: icons sit between the axis line and the time labels.
+      // ey = icon center, slots prevent icon overlap along X.
+      var eventIconY = y1 + 14;
+      var slotW = 16;
+      var slotUsed = {};
       for (j = 0; j < graphEvents.length; j++) {
         var event = graphEvents[j];
         if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
@@ -691,20 +695,26 @@
           continue;
         }
         var ex = xOf(event.t);
-        var baseY = yOf(event.pos);
-        var stackKey = Math.round(ex / 14) + ":" + Math.round(baseY / 14);
-        var stackIndex = eventStacks[stackKey] || 0;
-        eventStacks[stackKey] = stackIndex + 1;
-        var ey = Math.max(y0 + 10, baseY - 14 - stackIndex * 16);
-        if (baseY - ey > 8) {
-          ctx.strokeStyle = th.ui_graph_axis;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(ex, baseY - 5);
-          ctx.lineTo(ex, ey + 8);
-          ctx.stroke();
+        // Assign a horizontal slot; nudge right if occupied (max 3 nudges).
+        var baseSlot = Math.round(ex / slotW);
+        var slot = baseSlot;
+        for (var ns = 0; ns < 3; ns++) {
+          if (!slotUsed[slot]) break;
+          slot = baseSlot + ns + 1;
         }
-        drawGraphEventMarker(ctx, event.kind, ex, ey);
+        slotUsed[slot] = true;
+        var iconX = slot * slotW;
+        // Drop line from axis down to icon.
+        ctx.strokeStyle = th.ui_graph_axis;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(ex, y1);
+        ctx.lineTo(ex, y1 + 5);
+        if (iconX !== ex) {
+          ctx.lineTo(iconX, y1 + 5);
+        }
+        ctx.stroke();
+        drawGraphEventMarker(ctx, event.kind, iconX, eventIconY);
       }
     }
     if (marker) {
