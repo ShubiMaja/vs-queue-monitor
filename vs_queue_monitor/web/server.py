@@ -256,7 +256,15 @@ def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
             continue
         try:
             return subprocess.Popen(
-                [exe, f"--app={url}", f"--user-data-dir={user_data_dir}"],
+                [
+                    exe,
+                    f"--app={url}",
+                    f"--user-data-dir={user_data_dir}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-sync",
+                    "--disable-extensions",
+                ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 close_fds=(sys.platform != "win32"),
