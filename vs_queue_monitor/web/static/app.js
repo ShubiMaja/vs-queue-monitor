@@ -489,6 +489,17 @@
     return m + ":" + String(ss).padStart(2, "0");
   }
 
+  function formatShortDuration(totalSeconds) {
+    if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) return "—";
+    var s = Math.round(totalSeconds);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var ss = s % 60;
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m " + (ss > 0 ? ss + "s" : "");
+    return ss + "s";
+  }
+
   /** Graph tooltip: sub-second as N.NNs, otherwise same as stats (e.g. 1:33, 1:05:02). */
   function formatTooltipDuration(sec) {
     if (sec == null || !Number.isFinite(sec) || sec < 0) {
