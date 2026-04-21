@@ -236,6 +236,36 @@
             <button
               type="button"
               class="btn btn--small btn--icon-label"
+              id="btnGraphTimeMode"
+              title="Toggle time axis between relative and absolute"
+              aria-label="Toggle time axis mode"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              <span id="btnGraphTimeModeText">REL</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-label"
+              id="btnGraphScale"
+              title="Toggle graph scale between linear and log"
+              aria-label="Toggle graph scale"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19h16" />
+                <path d="M6 16l4-4 3 2 5-6" />
+                <circle cx="6" cy="16" r="1" />
+                <circle cx="10" cy="12" r="1" />
+                <circle cx="13" cy="14" r="1" />
+                <circle cx="18" cy="8" r="1" />
+              </svg>
+              <span id="btnGraphScaleText">LIN</span>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-label"
               id="btnCopyPng"
               title="Copy graph as PNG"
               aria-label="Copy graph as PNG"
@@ -263,7 +293,7 @@
           </div>
         </div>
         <div class="graph-canvas-wrap">
-          <canvas id="graphCanvas" width="1100" height="280" role="img" aria-label="Queue position time series chart"></canvas>
+          <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
         <div class="graph-hint muted" id="graphHint">Tap or hover the chart for time, position, and details.</div>
@@ -292,7 +322,7 @@
                   <div><span class="muted">Cur Pos</span> <span id="infoStatEnd">—</span></div>
                   <div><span class="muted">Pos Delta</span> <span id="infoStatCleared">—</span></div>
                   <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
-                  <div><span class="muted">Avg Rate</span> <span id="infoStatAvg">—</span></div>
+                  <div><span class="muted">Rate</span> <span id="infoStatAvg">—</span></div>
                 </div>
               </div>
             </div>
@@ -393,7 +423,18 @@
         </div>
         <h3 class="settings-h3">Chart</h3>
         <div class="form-grid">
-          <label><input type="checkbox" id="chkGraphLog" /> Logarithmic Y axis</label>
+          <label class="settings-select-label">Y axis
+            <select id="selGraphScale" class="inp settings-inp">
+              <option value="linear">Linear</option>
+              <option value="log">Log</option>
+            </select>
+          </label>
+          <label class="settings-select-label">Time axis
+            <select id="selGraphTimeMode" class="inp settings-inp">
+              <option value="relative">Relative</option>
+              <option value="absolute">Absolute</option>
+            </select>
+          </label>
           <label><input type="checkbox" id="chkGraphLive" /> Live view (follow newest samples)</label>
         </div>
         <label class="settings-field">Warning sound file (optional)</label>

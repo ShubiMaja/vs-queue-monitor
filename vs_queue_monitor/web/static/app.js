@@ -53,6 +53,16 @@
     return document.getElementById(id);
   }
 
+  function safeInit(name, fn) {
+    try {
+      fn();
+    } catch (e) {
+      try {
+        console.error("Init failed:", name, e);
+      } catch (_ignore) {}
+    }
+  }
+
   /** True while a modal, tour, or restore banner is visible — block global single-key shortcuts. */
   function uiBlockingLayerOpen() {
     var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "tourOverlay"];
@@ -208,7 +218,7 @@
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
-        return j;
+        return j.state || j;
       });
     });
   }
@@ -303,12 +313,7 @@
     return formatDurationHms(sec);
   }
 
-  /**
-   * Stats for the currently displayed graph (same scope as Session / Copy graph TSV).
-   * Ported from feature/change-to-web-ui computeSelectedSessionStats.
-   */
-  function computeGraphSessionStats() {
-    var pts = (window._displayState && window._displayState.graph_points) || [];
+  function computePointSeriesStats(pts) {
     if (!pts.length) {
       return {
         startPos: null,
@@ -343,6 +348,38 @@
     return { startPos: startPos, endPos: endPos, cleared: cleared, seconds: seconds, minutes: minutes, avgMinPerPos: avgMinPerPos };
   }
 
+  /**
+   * Stats for the currently displayed graph (same scope as Session / Copy graph TSV).
+   * Ported from feature/change-to-web-ui computeSelectedSessionStats.
+   */
+  function computeGraphSessionStats() {
+    var pts = (window._displayState && window._displayState.graph_points) || [];
+    return computePointSeriesStats(pts);
+  }
+
+  function formatRateFromPoints(pts) {
+    var stats = computePointSeriesStats(pts || []);
+    if (stats.avgMinPerPos == null) return "";
+    return stats.avgMinPerPos.toFixed(2) + " min/pos";
+  }
+
+  function formatRemainingFromPoints(pts, currentPos) {
+    var stats = computePointSeriesStats(pts || []);
+    var posNum = Number(currentPos);
+    if (!Number.isFinite(posNum) && pts && pts.length) {
+      posNum = Number(pts[pts.length - 1][1]);
+    }
+    if (stats.avgMinPerPos == null || !Number.isFinite(posNum)) {
+      return "";
+    }
+    var pos = Math.max(0, posNum);
+    var remainingSec = 0;
+    if (pos > 1) remainingSec = (pos - 1) * stats.avgMinPerPos * 60;
+    else if (pos === 1) remainingSec = stats.avgMinPerPos * 60;
+    else return "0s";
+    return formatShortDuration(remainingSec);
+  }
+
   function renderSessionStats() {
     var stats = computeGraphSessionStats();
     var elS = $("infoStatStart");
@@ -369,7 +406,7 @@
       "Duration: " +
       (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
       "\n" +
-      "Avg Rate: " +
+      "Rate: " +
       (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos") +
       "\n";
     navigator.clipboard.writeText(text).then(
@@ -563,20 +600,91 @@
     focusElSoon($("btnResumePath"));
   }
 
-  function setKpiMetric(el, raw, emptyTitle) {
+  function setKpiMetric(el, raw, emptyTitle, opts) {
     if (!el) return;
-    var t = raw == null || raw === "" ? "—" : String(raw);
-    el.textContent = t;
-    if (t === "—") {
+    opts = opts || {};
+    var isEmpty =
+      raw == null ||
+      (typeof raw === "string" && (!raw.trim() || raw.trim() === "—"));
+    if (isEmpty) {
       el.classList.add("kpi__val--empty");
+      if (opts.loading) {
+        el.classList.add("kpi__val--loading");
+        el.innerHTML = '<span class="kpi__throbber" aria-hidden="true"></span>';
+        el.setAttribute("aria-busy", "true");
+      } else {
+        el.textContent = "—";
+        el.classList.remove("kpi__val--loading");
+        el.removeAttribute("aria-busy");
+      }
       if (emptyTitle) el.title = emptyTitle;
     } else {
+      el.textContent = String(raw);
       el.classList.remove("kpi__val--empty");
+      el.classList.remove("kpi__val--loading");
+      el.removeAttribute("aria-busy");
       el.removeAttribute("title");
     }
   }
 
+  function syncSettingsFormFromState(s) {
+    if (!s) return;
+    var chkEvery = $("chkEvery");
+    if (chkEvery) chkEvery.checked = !!s.show_every_change;
+    var chkPop = $("chkPop");
+    if (chkPop) chkPop.checked = !!s.popup_enabled;
+    var chkSnd = $("chkSnd");
+    if (chkSnd) chkSnd.checked = !!s.sound_enabled;
+    var chkCompPop = $("chkCompPop");
+    if (chkCompPop) chkCompPop.checked = !!s.completion_popup;
+    var chkCompSnd = $("chkCompSnd");
+    if (chkCompSnd) chkCompSnd.checked = !!s.completion_sound;
+    var iws = $("inpSetWarnSound");
+    if (iws) iws.value = s.alert_sound_path || "";
+    var ics = $("inpSetCompSound");
+    if (ics) ics.value = s.completion_sound_path || "";
+    var selGS = $("selGraphScale");
+    if (selGS) selGS.value = s.graph_log_scale ? "log" : "linear";
+    var selGTM = $("selGraphTimeMode");
+    if (selGTM) selGTM.value = s.graph_time_mode || "relative";
+    var chkGV = $("chkGraphLive");
+    if (chkGV) chkGV.checked = !!s.graph_live_view;
+  }
+
+  function syncGraphToolbarButtons(s) {
+    if (!s) return;
+    var btnTimeText = $("btnGraphTimeModeText");
+    if (btnTimeText) btnTimeText.textContent = (s.graph_time_mode || "relative") === "absolute" ? "ABS" : "REL";
+    var btnTime = $("btnGraphTimeMode");
+    if (btnTime) {
+      var timeMode = (s.graph_time_mode || "relative") === "absolute" ? "absolute" : "relative";
+      btnTime.title = timeMode === "absolute" ? "Time axis: Absolute (click for Relative)" : "Time axis: Relative (click for Absolute)";
+      btnTime.setAttribute("aria-label", btnTime.title);
+    }
+    var btnScaleText = $("btnGraphScaleText");
+    if (btnScaleText) btnScaleText.textContent = s.graph_log_scale ? "LOG" : "LIN";
+    var btnScale = $("btnGraphScale");
+    if (btnScale) {
+      var scaleMode = s.graph_log_scale ? "log" : "linear";
+      btnScale.title = scaleMode === "log" ? "Y axis: Log (click for Linear)" : "Y axis: Linear (click for Log)";
+      btnScale.setAttribute("aria-label", btnScale.title);
+    }
+  }
+
   function applyState(s) {
+    var fallbackPts = (s && s.graph_points) || [];
+    var rateDisplay = s.queue_rate;
+    if (rateDisplay == null || (typeof rateDisplay === "string" && (!rateDisplay.trim() || rateDisplay.trim() === "—"))) {
+      rateDisplay = formatRateFromPoints(fallbackPts);
+    }
+    var remainingDisplay = s.remaining;
+    if (
+      remainingDisplay == null ||
+      (typeof remainingDisplay === "string" && (!remainingDisplay.trim() || remainingDisplay.trim() === "—"))
+    ) {
+      remainingDisplay = formatRemainingFromPoints(fallbackPts, s.position);
+    }
+
     setKpiMetric(
       $("kpiPos"),
       s.position,
@@ -587,14 +695,16 @@
     if (rh) rh.textContent = s.rate_header || "RATE";
     setKpiMetric(
       $("kpiRate"),
-      s.queue_rate,
+      rateDisplay,
       "No rate yet — need more queue movement in the rolling window.",
+      { loading: !!s.running },
     );
     setKpiMetric($("kpiElapsed"), s.elapsed, "Timer starts once queue timing is available.");
     setKpiMetric(
       $("kpiRem"),
-      s.remaining,
+      remainingDisplay,
       "No ETA yet — need more samples or movement in the log.",
+      { loading: !!s.running },
     );
     const prog = Math.max(0, Math.min(100, s.progress || 0));
     $("kpiProgFill").style.width = prog + "%";
@@ -717,10 +827,11 @@
       if (pth) lsSetPath(pth);
     } catch (e) {}
 
-    var chkGL = $("chkGraphLog");
-    if (chkGL) chkGL.checked = !!s.graph_log_scale;
-    var chkGV = $("chkGraphLive");
-    if (chkGV) chkGV.checked = !!s.graph_live_view;
+    var modalSettings = $("modalSettings");
+    if (!modalSettings || modalSettings.classList.contains("hidden")) {
+      syncSettingsFormFromState(s);
+    }
+    syncGraphToolbarButtons(s);
 
     var btnSS = $("btnStartStop");
     if (btnSS) {
@@ -747,17 +858,6 @@
       hp.textContent = s.history_tail.join("\n");
       hp.scrollTop = hp.scrollHeight;
     }
-
-    $("chkEvery").checked = !!s.show_every_change;
-    $("chkPop").checked = !!s.popup_enabled;
-    $("chkSnd").checked = !!s.sound_enabled;
-    $("chkCompPop").checked = !!s.completion_popup;
-    $("chkCompSnd").checked = !!s.completion_sound;
-
-    var iws = $("inpSetWarnSound");
-    if (iws) iws.value = s.alert_sound_path || "";
-    var ics = $("inpSetCompSound");
-    if (ics) ics.value = s.completion_sound_path || "";
 
     var mnq = $("modalNewQueue");
     if (mnq) {
@@ -816,7 +916,7 @@
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
     const w = Math.max(1, Math.floor(rect.width));
-    const h = window._graphH || 280;
+    const h = window._graphH || 340;
     c.width = w * dpr;
     c.height = h * dpr;
     c.style.width = w + "px";
@@ -828,7 +928,7 @@
 
   window._lastState = null;
   window._displayState = null;
-  window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 280;
+  window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 340;
   window._graphZoom = null;
 
   var _wsEverConnected = false;
@@ -1317,7 +1417,9 @@
   }
 
   function formatGraphTooltipHint(pt, idx, series) {
-    var ts = VsQueueMonitorGraph.fmtTooltipTs(pt[0]);
+    var mode = (window._lastState && window._lastState.graph_time_mode) || "relative";
+    var baseT = (series && series.length) ? series[0][0] : pt[0];
+    var ts = VsQueueMonitorGraph.fmtTooltipTs(pt[0], mode, baseT);
     var posStr = String(pt[1]);
     var lines = [ts + "  ·  pos " + posStr];
     if (idx > 0) {
@@ -1843,13 +1945,12 @@
             .then(function (p) {
               syncHint();
               if (p === "granted") {
-                try {
-                  desktopNotify("Notifications enabled", {
-                    body:
-                      "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
-                    tag: "vsqm-setup-grant",
-                  });
-                } catch (e) {}
+                fireDesktopNotification("Notifications enabled", {
+                  body:
+                    "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+                  tag: "vsqm-setup-grant-" + Date.now(),
+                  renotify: true,
+                });
                 if (typeof onGranted === "function") onGranted();
                 toast("Notifications enabled.");
               } else if (p === "denied") {
@@ -1869,13 +1970,12 @@
         } else {
           syncHint();
           if (Notification.permission === "granted") {
-            try {
-              desktopNotify("Notifications enabled", {
-                body:
-                  "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
-                tag: "vsqm-setup-grant",
-              });
-            } catch (e) {}
+            fireDesktopNotification("Notifications enabled", {
+              body:
+                "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+              tag: "vsqm-setup-grant-" + Date.now(),
+              renotify: true,
+            });
             if (typeof onGranted === "function") onGranted();
             toast("Notifications enabled.");
           }
@@ -1892,13 +1992,12 @@
     }
 
     function showExampleDesktopNotification() {
-      try {
-        desktopNotify("Threshold alerts active", {
-          body:
-            "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
-          tag: "vsqm-example-" + Date.now(),
-        });
-      } catch (e) {}
+      fireDesktopNotification("Threshold alerts active", {
+        body:
+          "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+        tag: "vsqm-example-" + Date.now(),
+        renotify: true,
+      });
     }
 
     function _isBannerUnsupported() {
@@ -2017,7 +2116,8 @@
           desktopNotify("Test notification", {
             body:
               "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-            tag: "vsqm-test",
+            tag: "vsqm-test-" + Date.now(),
+            renotify: true,
           });
         } catch (e) {}
         toast("Test sent — check the system tray if you see no banner.");
@@ -2190,11 +2290,14 @@
   }
 
   function setupChrome() {
-    $("btnStartStop").onclick = function () {
-      postToggle().catch(function (e) {
-        toast(String(e), "warn");
-      });
-    };
+    var btnStartStop = $("btnStartStop");
+    if (btnStartStop) {
+      btnStartStop.onclick = function () {
+        postToggle().catch(function (e) {
+          toast(String(e), "warn");
+        });
+      };
+    }
     var bf = $("btnBrowseFolder");
     if (bf) {
       bf.onclick = function () {
@@ -2233,43 +2336,102 @@
           });
       };
     }
-    $("btnCopyPng").onclick = function () {
-      const c = $("graphCanvas");
-      c.toBlob(function (blob) {
-        if (!blob || !navigator.clipboard || !navigator.clipboard.write) {
-          toast("PNG: copy not supported — use right-click Save image on canvas", "warn");
+    var btnCopyPng = $("btnCopyPng");
+    if (btnCopyPng) {
+      btnCopyPng.onclick = function () {
+        const c = $("graphCanvas");
+        if (!c || !c.toBlob) {
+          toast("PNG export unavailable", "warn");
           return;
         }
-        navigator.clipboard
-          .write([new ClipboardItem({ "image/png": blob })])
-          .then(function () {
-            toast("Graph PNG copied to clipboard");
+        c.toBlob(function (blob) {
+          if (!blob || !navigator.clipboard || !navigator.clipboard.write) {
+            toast("PNG: copy not supported — use right-click Save image on canvas", "warn");
+            return;
+          }
+          navigator.clipboard
+            .write([new ClipboardItem({ "image/png": blob })])
+            .then(function () {
+              toast("Graph PNG copied to clipboard");
+            })
+            .catch(function () {
+              toast("Could not copy PNG (browser permission)", "warn");
+            });
+        });
+      };
+    }
+    var btnCopyTsv = $("btnCopyTsv");
+    if (btnCopyTsv) {
+      btnCopyTsv.onclick = function () {
+        const pts = (window._displayState && window._displayState.graph_points) || [];
+        if (!pts.length) {
+          toast("No graph data yet", "warn");
+          return;
+        }
+        const lines = ["epoch_seconds\tposition"].concat(
+          pts.map(function (p) {
+            return p[0] + "\t" + p[1];
+          }),
+        );
+        navigator.clipboard.writeText(lines.join("\n")).then(
+          function () {
+            toast("TSV copied");
+          },
+          function () {
+            toast("Clipboard failed", "warn");
+          },
+        );
+      };
+    }
+    var btnGraphTimeMode = $("btnGraphTimeMode");
+    if (btnGraphTimeMode) {
+      btnGraphTimeMode.onclick = function () {
+        var current = (window._lastState && window._lastState.graph_time_mode) || "relative";
+        var next = current === "absolute" ? "relative" : "absolute";
+        postConfig({ graph_time_mode: next })
+          .then(function (state) {
+            if (state && typeof state === "object") {
+              window._lastState = state;
+            } else if (window._lastState) {
+              window._lastState.graph_time_mode = next;
+            }
+            if (window._lastState) {
+              syncSettingsFormFromState(window._lastState);
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
           })
-          .catch(function () {
-            toast("Could not copy PNG (browser permission)", "warn");
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
           });
-      });
-    };
-    $("btnCopyTsv").onclick = function () {
-      const pts = (window._displayState && window._displayState.graph_points) || [];
-      if (!pts.length) {
-        toast("No graph data yet", "warn");
-        return;
-      }
-      const lines = ["epoch_seconds\tposition"].concat(
-        pts.map(function (p) {
-          return p[0] + "\t" + p[1];
-        }),
-      );
-      navigator.clipboard.writeText(lines.join("\n")).then(
-        function () {
-          toast("TSV copied");
-        },
-        function () {
-          toast("Clipboard failed", "warn");
-        },
-      );
-    };
+      };
+    }
+    var btnGraphScale = $("btnGraphScale");
+    if (btnGraphScale) {
+      btnGraphScale.onclick = function () {
+        var next = !(window._lastState && window._lastState.graph_log_scale);
+        postConfig({ graph_log_scale: next })
+          .then(function (state) {
+            if (state && typeof state === "object") {
+              window._lastState = state;
+            } else if (window._lastState) {
+              window._lastState.graph_log_scale = next;
+            }
+            if (window._lastState) {
+              syncSettingsFormFromState(window._lastState);
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
+      };
+    }
 
     var bs = $("btnCopyStats");
     if (bs) {
@@ -2284,10 +2446,14 @@
       };
     }
 
-    $("btnSettings").onclick = function () {
-      showEl($("modalSettings"));
-      focusElSoon($("chkEvery"));
-    };
+    var btnSettings = $("btnSettings");
+    if (btnSettings) {
+      btnSettings.onclick = function () {
+        syncSettingsFormFromState(window._lastState);
+        showEl($("modalSettings"));
+        focusElSoon($("chkEvery"));
+      };
+    }
     document.querySelectorAll("[data-close]").forEach(function (el) {
       el.addEventListener("click", function () {
         var helpWas = $("modalHelp") && !$("modalHelp").classList.contains("hidden");
@@ -2298,65 +2464,85 @@
         else if (setWas) focusElSoon($("btnSettings"));
       });
     });
-    $("btnSaveSettings").onclick = function () {
-      var prevPopupEnabled =
-        window._lastState == null || window._lastState.popup_enabled !== false;
-      var patch = {
-        show_every_change: $("chkEvery").checked,
-        popup_enabled: $("chkPop").checked,
-        sound_enabled: $("chkSnd").checked,
-        completion_popup: $("chkCompPop").checked,
-        completion_sound: $("chkCompSnd").checked,
-        graph_log_scale: $("chkGraphLog").checked,
-        graph_live_view: $("chkGraphLive").checked,
+    var btnSaveSettings = $("btnSaveSettings");
+    if (btnSaveSettings) {
+      btnSaveSettings.onclick = function () {
+        var prevPopupEnabled =
+          window._lastState == null || window._lastState.popup_enabled !== false;
+        var selGraphScale = $("selGraphScale");
+        var selGraphTimeMode = $("selGraphTimeMode");
+        var chkGraphLive = $("chkGraphLive");
+        var patch = {
+          show_every_change: !!($("chkEvery") && $("chkEvery").checked),
+          popup_enabled: !!($("chkPop") && $("chkPop").checked),
+          sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
+          completion_popup: !!($("chkCompPop") && $("chkCompPop").checked),
+          completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
+          graph_log_scale: !!(selGraphScale && selGraphScale.value === "log"),
+          graph_time_mode: selGraphTimeMode ? selGraphTimeMode.value : "relative",
+          graph_live_view: !!(chkGraphLive && chkGraphLive.checked),
+        };
+        var iws = $("inpSetWarnSound");
+        var ics = $("inpSetCompSound");
+        if (iws) patch.alert_sound_path = iws.value.trim();
+        if (ics) patch.completion_sound_path = ics.value.trim();
+        postConfig(patch)
+          .then(function (state) {
+            var nextPopupEnabled = !!patch.popup_enabled;
+            if (state && typeof state === "object") {
+              window._lastState = state;
+            } else if (window._lastState) {
+              window._lastState.popup_enabled = nextPopupEnabled;
+              window._lastState.sound_enabled = !!patch.sound_enabled;
+              window._lastState.completion_popup = !!patch.completion_popup;
+              window._lastState.completion_sound = !!patch.completion_sound;
+              window._lastState.graph_log_scale = !!patch.graph_log_scale;
+              window._lastState.graph_time_mode = patch.graph_time_mode;
+              window._lastState.graph_live_view = !!patch.graph_live_view;
+            }
+            if (window._lastState) {
+              syncSettingsFormFromState(window._lastState);
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+            if (
+              !prevPopupEnabled &&
+              nextPopupEnabled &&
+              typeof Notification !== "undefined" &&
+              Notification.permission === "granted"
+            ) {
+              try {
+                desktopNotify("Threshold alerts active", {
+                  body:
+                    "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+                  tag: "vsqm-example-" + Date.now(),
+                });
+              } catch (e) {}
+            }
+            if (notifySyncHint) notifySyncHint();
+            hideEl($("modalSettings"));
+            focusElSoon($("btnSettings"));
+            toast("Settings saved");
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
       };
-      var iws = $("inpSetWarnSound");
-      var ics = $("inpSetCompSound");
-      if (iws) patch.alert_sound_path = iws.value.trim();
-      if (ics) patch.completion_sound_path = ics.value.trim();
-      postConfig(patch)
-        .then(function () {
-          var nextPopupEnabled = !!patch.popup_enabled;
-          if (window._lastState) {
-            window._lastState.popup_enabled = nextPopupEnabled;
-            window._lastState.sound_enabled = !!patch.sound_enabled;
-            window._lastState.completion_popup = !!patch.completion_popup;
-            window._lastState.completion_sound = !!patch.completion_sound;
-            window._lastState.graph_log_scale = !!patch.graph_log_scale;
-            window._lastState.graph_live_view = !!patch.graph_live_view;
-          }
-          if (
-            !prevPopupEnabled &&
-            nextPopupEnabled &&
-            typeof Notification !== "undefined" &&
-            Notification.permission === "granted"
-          ) {
-            try {
-              desktopNotify("Threshold alerts active", {
-                body:
-                  "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
-                tag: "vsqm-example-" + Date.now(),
-              });
-            } catch (e) {}
-          }
-          if (notifySyncHint) notifySyncHint();
-          hideEl($("modalSettings"));
-          focusElSoon($("btnSettings"));
-          toast("Settings saved");
-        })
-        .catch(function (e) {
-          toast(String(e.message || e), "warn");
-        });
-    };
-    $("btnReset").onclick = function () {
-      postReset()
-        .then(function () {
-          toast("Defaults reset");
-        })
-        .catch(function (e) {
-          toast(String(e), "warn");
-        });
-    };
+    }
+    var btnReset = $("btnReset");
+    if (btnReset) {
+      btnReset.onclick = function () {
+        postReset()
+          .then(function () {
+            toast("Defaults reset");
+          })
+          .catch(function (e) {
+            toast(String(e), "warn");
+          });
+      };
+    }
 
   }
 
@@ -2552,24 +2738,24 @@
     });
   }
 
-  setupChrome();
-  setupPopovers();
-  setupSessionSelect();
-  setupGraphCanvas();
-  setupGraphZoom();
-  setupGraphResize();
-  setupInfoHistoryResize();
-  setupRestoreBanner();
-  setupNewQueueModal();
-  cleanupLegacyNotificationServiceWorker();
-  setupNotificationsLegacy();
-  setupHelpCmd();
-  setupPathModal();
-  setupModalTabTrap();
-  setupModalEscape();
-  setupKeyboardShortcuts();
-  setupTour();
-  hydratePathFromStorageEarly();
+  safeInit("setupChrome", setupChrome);
+  safeInit("setupPopovers", setupPopovers);
+  safeInit("setupSessionSelect", setupSessionSelect);
+  safeInit("setupGraphCanvas", setupGraphCanvas);
+  safeInit("setupGraphZoom", setupGraphZoom);
+  safeInit("setupGraphResize", setupGraphResize);
+  safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
+  safeInit("setupRestoreBanner", setupRestoreBanner);
+  safeInit("setupNewQueueModal", setupNewQueueModal);
+  safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
+  safeInit("setupNotificationsLegacy", setupNotificationsLegacy);
+  safeInit("setupHelpCmd", setupHelpCmd);
+  safeInit("setupPathModal", setupPathModal);
+  safeInit("setupModalTabTrap", setupModalTabTrap);
+  safeInit("setupModalEscape", setupModalEscape);
+  safeInit("setupKeyboardShortcuts", setupKeyboardShortcuts);
+  safeInit("setupTour", setupTour);
+  safeInit("hydratePathFromStorageEarly", hydratePathFromStorageEarly);
   fetch("/api/state")
     .then(function (r) {
       return r.json();

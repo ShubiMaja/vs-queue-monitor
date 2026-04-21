@@ -49,6 +49,10 @@ python monitor.py
 | **System tray** | Icon in notification area while running; right-click to open or quit |
 | **Embedded window** | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
+## Development notes
+
+- Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
+
 ## Pointing at the log
 
 In the app header, paste your **VintagestoryData** folder path or click the folder icon. Typical locations:

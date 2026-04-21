@@ -583,10 +583,22 @@ select.inp:focus-visible {
 }
 /* Keep RATE header on one line so KPI label baselines stay aligned across the row */
 #kpiRateLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+#kpiRateHdr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#kpiRate {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .kpi__edit {
   font-size: 0.75rem;
@@ -625,6 +637,46 @@ select.inp:focus-visible {
 .kpi__warn.kpi__val--empty {
   color: var(--muted);
   font-weight: 500;
+}
+.kpi__val--loading {
+  width: min(100%, 7rem);
+  min-width: 4.5rem;
+}
+.kpi__throbber {
+  display: block;
+  width: 100%;
+  height: 0.45rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.08) 28%,
+      rgba(255, 255, 255, 0.28) 50%,
+      rgba(255, 255, 255, 0.08) 72%,
+      rgba(255, 255, 255, 0.08) 100%
+    );
+  background-size: 180% 100%;
+  animation: kpi-throbber 1.8s ease-in-out infinite alternate;
+}
+@keyframes kpi-throbber {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 100% 0;
+  }
+}
+@media (max-width: 640px) {
+  .kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kpi__cell[data-tour="rate"] {
+    grid-column: span 2;
+  }
+  #kpiRate {
+    font-size: 0.98rem;
+  }
 }
 .kpi__label--nowrap {
   flex-wrap: nowrap;
@@ -922,6 +974,7 @@ select.inp:focus-visible {
   border: none;
   border-radius: 0;
   background: transparent;
+  align-content: start;
 }
 @media (max-width: 520px) {
   .info__grid {
@@ -979,8 +1032,13 @@ select.inp:focus-visible {
   .info-history__card .history__pre {
     min-height: 0;
   }
+  .info-history__side,
+  .info-history__card--side {
+    overflow: hidden;
+  }
   .info-history__card .history__pre {
     max-height: none;
+    height: 100%;
   }
 }
 
@@ -1094,6 +1152,12 @@ select.inp:focus-visible {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+}
+.form-grid .settings-select-label {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
 }
 .form-grid input[type="checkbox"] {
   width: 1rem;
