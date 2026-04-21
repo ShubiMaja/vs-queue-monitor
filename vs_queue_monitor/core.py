@@ -1180,6 +1180,14 @@ def compute_seed_graph_from_log(
     authoritative_pos, queue_run_session_id = (
         parse_tail_last_queue_reading(text) if text else (None, 0)
     )
+    # Map to position 0 if post-queue signal already in the tail (same logic as poll_once).
+    if (
+        authoritative_pos is not None
+        and authoritative_pos <= 1
+        and text
+        and tail_has_post_queue_after_last_queue_line(text)
+    ):
+        authoritative_pos = 0
 
     segment_points = segment_tuples[-MAX_GRAPH_POINTS:]
     first_le_one_epoch = first_position_at_or_before_front_epoch(segment_tuples)
