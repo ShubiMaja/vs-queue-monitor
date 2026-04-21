@@ -142,6 +142,11 @@ def _build_fingerprint() -> str:
     return VERSION
 
 
+# Set by the launcher to tell the client what kind of window is hosting it.
+# Values: "pywebview" | "chromium_app" | "browser" | None (unknown/direct)
+_window_mode: str | None = None
+
+
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
     path = engine.current_log_file
     if path is None or not path.is_file():
@@ -464,6 +469,7 @@ def _api_meta(request: Request) -> JSONResponse:
             "build_fingerprint": _build_fingerprint(),
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
+            "window_mode": _window_mode,
         }
     )
 
@@ -731,6 +737,8 @@ def _run_windows_split_console_webview(
     url: str,
 ) -> int:
     """Windows: separate CMD window runs uvicorn; this process runs only pywebview."""
+    global _window_mode
+    _window_mode = "pywebview"
     import webview
 
     logging.getLogger("webview").setLevel(logging.CRITICAL)
@@ -821,6 +829,7 @@ def run_web_server(
     logs) and this process runs only pywebview. Set ``VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE=1`` (legacy: ``VSQM_DISABLE_SPLIT_CONSOLE``) to use a
     single process (uvicorn thread + webview) instead.
     """
+    global _window_mode
     import uvicorn
 
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
@@ -832,6 +841,7 @@ def run_web_server(
     if open_external_browser:
         from .tray import start_tray
 
+        _window_mode = "browser"
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
 
@@ -871,6 +881,7 @@ def run_web_server(
     except ImportError as _wv_err:
         from .tray import start_tray
 
+        _window_mode = "chromium_app"
         app, _e, _h, _l, p2, url2 = _init_web_stack(initial_path, auto_start, port)
         p, url = p2, url2
         print(
@@ -912,6 +923,7 @@ def run_web_server(
         uvicorn.run(app, host="127.0.0.1", port=p, log_level="info")
         return 0
 
+    _window_mode = "pywebview"
     if (
         sys.platform == "win32"
         and _env_pref("VS_QUEUE_MONITOR_DISABLE_SPLIT_CONSOLE", "VSQM_DISABLE_SPLIT_CONSOLE").lower()

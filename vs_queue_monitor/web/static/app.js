@@ -1571,11 +1571,15 @@
     }
 
     function _isBannerUnsupported() {
-      return _notifUnsupported || typeof Notification === "undefined";
+      if (_notifUnsupported || typeof Notification === "undefined") return true;
+      if (window._windowMode === "pywebview") return true;
+      return false;
     }
 
     function _notifBannersBlocked() {
-      return typeof Notification !== "undefined" && Notification.permission === "denied";
+      return !_isBannerUnsupported() &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "denied";
     }
 
     function onNotifyClick() {
@@ -2222,6 +2226,7 @@
     })
     .then(function (m) {
       window._graphTheme = m.graph_theme || null;
+      window._windowMode = m.window_mode || null;
       applyChromeTheme(m.chrome_theme);
       $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
       var fv2 = $("footerVersion");
