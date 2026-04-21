@@ -746,6 +746,19 @@ select.inp:focus-visible {
   font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 6px;
+  max-width: 100%;
+  line-height: 1.35;
+}
+.popover__hint {
+  margin: 6px 0 0;
+  max-width: 100%;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: break-word;
+}
+.popover__hint code {
+  font-size: 0.95em;
 }
 .stepper {
   display: grid;
@@ -1139,7 +1152,8 @@ select.inp:focus-visible {
   max-width: 520px;
 }
 .modal__box--settings {
-  max-width: 600px;
+  width: 620px;
+  max-width: min(620px, calc(100vw - 20px));
 }
 .modal__box--help {
   max-width: 560px;
@@ -1199,6 +1213,51 @@ select.inp:focus-visible {
 .settings-section--subtle {
   background: transparent;
 }
+.settings-tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 14px;
+  margin-bottom: -1px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.settings-tab {
+  padding: 8px 14px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  position: relative;
+  top: 1px;
+}
+.settings-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+.settings-tab.is-active {
+  color: var(--text);
+  background: #252b33;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.settings-tabframe {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0 10px 10px 10px;
+  background: #252b33;
+  padding: 14px;
+}
+.settings-tabpanel {
+  display: none;
+}
+.settings-tabpanel.is-active {
+  display: block;
+}
+.settings-note {
+  margin: 0 0 4px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
 .modal__actions {
   margin-top: 16px;
   display: flex;
@@ -1253,10 +1312,13 @@ select.inp:focus-visible {
 }
 @media (max-width: 640px) {
   .modal__box--settings {
-    width: min(100vw - 20px, 600px);
+    width: min(100vw - 20px, 620px);
     padding: var(--space-4);
   }
   .settings-section {
+    padding: 12px;
+  }
+  .settings-tabframe {
     padding: 12px;
   }
 }

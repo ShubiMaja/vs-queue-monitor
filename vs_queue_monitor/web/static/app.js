@@ -642,14 +642,35 @@
     if (chkCompPop) chkCompPop.checked = !!s.completion_popup;
     var chkCompSnd = $("chkCompSnd");
     if (chkCompSnd) chkCompSnd.checked = !!s.completion_sound;
+    var chkFailSnd = $("chkFailSnd");
+    if (chkFailSnd) chkFailSnd.checked = !!s.failure_sound;
     var iws = $("inpSetWarnSound");
     if (iws) iws.value = s.alert_sound_path || "";
     var ics = $("inpSetCompSound");
     if (ics) ics.value = s.completion_sound_path || "";
-    var selGS = $("selGraphScale");
-    if (selGS) selGS.value = s.graph_log_scale ? "log" : "linear";
-    var selGTM = $("selGraphTimeMode");
-    if (selGTM) selGTM.value = s.graph_time_mode || "relative";
+    var ifs = $("inpSetFailSound");
+    if (ifs) ifs.value = s.failure_sound_path || "";
+  }
+
+  function activateSettingsTab(tabName) {
+    document.querySelectorAll(".settings-tab").forEach(function (el) {
+      var active = el.getAttribute("data-tab") === tabName;
+      el.classList.toggle("is-active", active);
+      el.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll(".settings-tabpanel").forEach(function (el) {
+      var active = el.getAttribute("data-panel") === tabName;
+      el.classList.toggle("is-active", active);
+    });
+  }
+
+  function setupSettingsTabs() {
+    document.querySelectorAll(".settings-tab").forEach(function (el) {
+      el.addEventListener("click", function () {
+        activateSettingsTab(el.getAttribute("data-tab") || "warning");
+      });
+    });
+    activateSettingsTab("warning");
   }
 
   function syncGraphToolbarButtons(s) {
@@ -707,7 +728,7 @@
     setKpiMetric(
       $("kpiRate"),
       rateDisplay,
-      "No rate yet — need more queue movement in the rolling window.",
+      "No rate yet — need more queue movement in the rolling average.",
       { loading: !!s.running },
     );
     setKpiMetric($("kpiElapsed"), s.elapsed, "Timer starts once queue timing is available.");
@@ -1012,10 +1033,10 @@
       {
         title: "Welcome",
         html:
-          '<p class="tutorial-lead"><strong>~2 minutes</strong> — set your logs folder, tune warnings and rolling window, then start.</p>' +
+          '<p class="tutorial-lead"><strong>~2 minutes</strong> — set your logs folder, tune warnings and rolling average, then start.</p>' +
           "<ul class=\"tutorial-list\"><li>Paste the <strong>folder</strong> that contains <code>client-main.log</code> (Python reads the disk; nothing is uploaded).</li>" +
           "<li>Warnings default to <strong>10, 5, 1</strong> (alerts on downward crossings).</li>" +
-          "<li>Rolling window defaults to <strong>10</strong> points.</li></ul>",
+          "<li>Rolling average defaults to <strong>10</strong> points.</li></ul>",
         sel: null,
       },
       {
@@ -1036,7 +1057,7 @@
       {
         title: "Rolling rate",
         html:
-          "<p><strong>✎</strong> on the RATE header edits the rolling window (points). Larger = smoother ETA, slower to react.</p>",
+          "<p><strong>✎</strong> on the RATE header edits the rolling average (points). Larger = smoother ETA, slower to react.</p>",
         sel: "#kpiRateLabel",
       },
       {
@@ -1050,7 +1071,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and relative/absolute <strong>time</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
+          "<p>Use the chart toolbar for <strong>LIN/LOG</strong> and <strong>REL/ABS</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -1326,38 +1347,7 @@
         requestAnimationFrame(function () { $("inpWarnAdd").focus(); });
       }
     };
-    $("btnEditWarn").onclick = function (e) {
-      e.stopPropagation();
-      $("popPoll").classList.add("hidden");
-      $("popWindow").classList.add("hidden");
-      $("popWarnAdd").classList.add("hidden");
-      $("popWarn").classList.toggle("hidden");
-      if (!$("popWarn").classList.contains("hidden")) {
-        $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
-        positionKpiPopover($("popWarn"), $("btnEditWarn"));
-        requestAnimationFrame(function () { $("inpWarn").focus(); });
-      }
-    };
-    $("btnWarnOk").onclick = function () {
-      postConfig({ alert_thresholds: $("inpWarn").value.trim() })
-        .then(function () {
-          $("popWarn").classList.add("hidden");
-        })
-        .catch(function (err) {
-          toast(String(err.message || err), "warn");
-        });
-    };
-    $("btnWarnCancel").onclick = function () {
-      $("popWarn").classList.add("hidden");
-    };
-    $("inpWarn").addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter") {
-        ev.preventDefault();
-        $("btnWarnOk").click();
-      }
-    });
-
-    function mergeAlertThresholdsString(raw, addN) {
+    function parseAlertThresholdValues(raw) {
       const set = {};
       function addToken(part) {
         const p = (part || "").trim();
@@ -1385,25 +1375,92 @@
         .forEach(function (p) {
           addToken(p);
         });
-      if (!isNaN(addN) && addN >= 1) set[addN] = true;
-      const arr = Object.keys(set)
+      return Object.keys(set)
         .map(Number)
         .sort(function (a, b) {
           return b - a;
         });
+    }
+
+    function formatAlertThresholdValues(raw) {
+      const arr = Array.isArray(raw) ? raw.slice() : parseAlertThresholdValues(raw);
       if (!arr.length) throw new Error("Add at least one threshold (e.g. 10, 5, 1).");
-      return arr.join(", ");
+      const parts = [];
+      let i = 0;
+      while (i < arr.length) {
+        const start = arr[i];
+        let end = start;
+        while (i + 1 < arr.length && arr[i + 1] === end - 1) {
+          i += 1;
+          end = arr[i];
+        }
+        if (start !== end && start - end >= 2) parts.push(start + "-" + end);
+        else if (start !== end) {
+          parts.push(String(start));
+          parts.push(String(end));
+        } else {
+          parts.push(String(start));
+        }
+        i += 1;
+      }
+      return parts.join(", ");
+    }
+
+    $("btnEditWarn").onclick = function (e) {
+      e.stopPropagation();
+      $("popPoll").classList.add("hidden");
+      $("popWindow").classList.add("hidden");
+      $("popWarnAdd").classList.add("hidden");
+      $("popWarn").classList.toggle("hidden");
+      if (!$("popWarn").classList.contains("hidden")) {
+        try {
+          $("inpWarn").value = formatAlertThresholdValues(window._lastState ? window._lastState.alert_thresholds : "10, 5, 1");
+        } catch (err) {
+          $("inpWarn").value = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
+        }
+        positionKpiPopover($("popWarn"), $("btnEditWarn"));
+        requestAnimationFrame(function () { $("inpWarn").focus(); });
+      }
+    };
+    $("btnWarnOk").onclick = function () {
+      let normalized;
+      try {
+        normalized = formatAlertThresholdValues($("inpWarn").value.trim());
+      } catch (err) {
+        toast(String(err.message || err), "warn");
+        return;
+      }
+      postConfig({ alert_thresholds: normalized })
+        .then(function () {
+          $("popWarn").classList.add("hidden");
+        })
+        .catch(function (err) {
+          toast(String(err.message || err), "warn");
+        });
+    };
+    $("btnWarnCancel").onclick = function () {
+      $("popWarn").classList.add("hidden");
+    };
+    $("inpWarn").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        $("btnWarnOk").click();
+      }
+    });
+
+    function mergeAlertThresholdsString(raw, addRaw) {
+      return formatAlertThresholdValues(parseAlertThresholdValues(String(raw || "") + " " + String(addRaw || "")));
     }
     $("btnWarnAddOk").onclick = function () {
-      const n = parseInt(($("inpWarnAdd").value || "").trim(), 10);
-      if (isNaN(n) || n < 1) {
-        toast("Enter a queue position ≥ 1", "warn");
+      const addRaw = ($("inpWarnAdd").value || "").trim();
+      if (!addRaw) {
+        toast("Enter threshold values like 7, 10 5 1, or 8-10", "warn");
         return;
       }
       const raw = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
       let merged;
       try {
-        merged = mergeAlertThresholdsString(raw, n);
+        merged = mergeAlertThresholdsString(raw, addRaw);
       } catch (err) {
         toast(String(err.message || err), "warn");
         return;
@@ -1419,6 +1476,12 @@
     $("btnWarnAddCancel").onclick = function () {
       $("popWarnAdd").classList.add("hidden");
     };
+    $("inpWarnAdd").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        $("btnWarnAddOk").click();
+      }
+    });
 
     document.body.addEventListener("click", function () {
       ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
@@ -2521,21 +2584,20 @@
       btnSaveSettings.onclick = function () {
         var prevPopupEnabled =
           window._lastState == null || window._lastState.popup_enabled !== false;
-        var selGraphScale = $("selGraphScale");
-        var selGraphTimeMode = $("selGraphTimeMode");
         var patch = {
           show_every_change: !!($("chkEvery") && $("chkEvery").checked),
           popup_enabled: !!($("chkPop") && $("chkPop").checked),
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_popup: !!($("chkCompPop") && $("chkCompPop").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
-          graph_log_scale: !!(selGraphScale && selGraphScale.value === "log"),
-          graph_time_mode: selGraphTimeMode ? selGraphTimeMode.value : "relative",
+          failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
         };
         var iws = $("inpSetWarnSound");
         var ics = $("inpSetCompSound");
+        var ifs = $("inpSetFailSound");
         if (iws) patch.alert_sound_path = iws.value.trim();
         if (ics) patch.completion_sound_path = ics.value.trim();
+        if (ifs) patch.failure_sound_path = ifs.value.trim();
         postConfig(patch)
           .then(function (state) {
             var nextPopupEnabled = !!patch.popup_enabled;
@@ -2546,8 +2608,10 @@
               window._lastState.sound_enabled = !!patch.sound_enabled;
               window._lastState.completion_popup = !!patch.completion_popup;
               window._lastState.completion_sound = !!patch.completion_sound;
-              window._lastState.graph_log_scale = !!patch.graph_log_scale;
-              window._lastState.graph_time_mode = patch.graph_time_mode;
+              window._lastState.failure_sound = !!patch.failure_sound;
+              if (Object.prototype.hasOwnProperty.call(patch, "failure_sound_path")) {
+                window._lastState.failure_sound_path = patch.failure_sound_path;
+              }
             }
             if (window._lastState) {
               syncSettingsFormFromState(window._lastState);
@@ -2806,6 +2870,7 @@
   }
 
   safeInit("setupChrome", setupChrome);
+  safeInit("setupSettingsTabs", setupSettingsTabs);
   safeInit("setupPopovers", setupPopovers);
   safeInit("setupSessionSelect", setupSessionSelect);
   safeInit("setupGraphCanvas", setupGraphCanvas);

@@ -182,10 +182,13 @@ LOG_SILENCE_RECONNECT_SEC = 30.0
 # Linux: XDG_DATA_DIRS + relative path, plus /usr/share and /usr/local/share (see _linux_sound_paths_from_relatives).
 DEFAULT_ALERT_WIN_MEDIA_NAME = "Windows Background.wav"
 DEFAULT_COMPLETION_WIN_MEDIA_NAME = "tada.wav"
+DEFAULT_FAILURE_WIN_MEDIA_NAME = "Windows Critical Stop.wav"
 DEFAULT_ALERT_MAC_NAME = "Basso.aiff"
 DEFAULT_COMPLETION_MAC_NAME = "Hero.aiff"
+DEFAULT_FAILURE_MAC_NAME = "Sosumi.aiff"
 DEFAULT_ALERT_LINUX_RELATIVE = "sounds/freedesktop/stereo/dialog-warning.oga"
 DEFAULT_COMPLETION_LINUX_RELATIVE = "sounds/freedesktop/stereo/complete.oga"
+DEFAULT_FAILURE_LINUX_RELATIVE = "sounds/freedesktop/stereo/dialog-error.oga"
 # macOS: no standard env for system UI sounds; Apple documents this directory.
 MACOS_SYSTEM_SOUNDS_DIR = Path("/System/Library/Sounds")
 # Windows: use env when set; last resort explicit path (see _windows_media_dir).
@@ -411,6 +414,17 @@ def iter_default_completion_sound_paths() -> list[Path]:
     return []
 
 
+def iter_default_failure_sound_paths() -> list[Path]:
+    """Default failure/interrupted sound: one path per OS."""
+    if sys.platform.startswith("win"):
+        return [_windows_media_dir() / DEFAULT_FAILURE_WIN_MEDIA_NAME]
+    if sys.platform == "darwin":
+        return [MACOS_SYSTEM_SOUNDS_DIR / DEFAULT_FAILURE_MAC_NAME]
+    if sys.platform.startswith("linux"):
+        return _linux_sound_paths_from_relatives((DEFAULT_FAILURE_LINUX_RELATIVE,))
+    return []
+
+
 def try_play_first_existing_sound(paths: list[Path]) -> bool:
     for p in paths:
         if p.is_file() and play_alert_sound_file(p):
@@ -429,6 +443,14 @@ def default_alert_sound_path_for_display() -> str:
 def default_completion_sound_path_for_display() -> str:
     """First existing default completion sound path for Settings, or empty string."""
     for p in iter_default_completion_sound_paths():
+        if p.is_file():
+            return str(p)
+    return ""
+
+
+def default_failure_sound_path_for_display() -> str:
+    """First existing default failure sound path for Settings, or empty string."""
+    for p in iter_default_failure_sound_paths():
         if p.is_file():
             return str(p)
     return ""
@@ -513,6 +535,30 @@ def play_default_completion_system_sound() -> bool:
                 continue
         try:
             winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            return True
+        except Exception:
+            try:
+                winsound.MessageBeep()
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def play_default_failure_system_sound() -> bool:
+    """Play OS default failure/interrupted tone."""
+    if try_play_first_existing_sound(iter_default_failure_sound_paths()):
+        return True
+
+    if winsound is not None and sys.platform.startswith("win"):
+        for alias in ("SystemHand", "SystemExclamation", "SystemDefault"):
+            try:
+                winsound.PlaySound(alias, winsound.SND_ALIAS | winsound.SND_ASYNC)
+                return True
+            except Exception:
+                continue
+        try:
+            winsound.MessageBeep(winsound.MB_ICONHAND)
             return True
         except Exception:
             try:

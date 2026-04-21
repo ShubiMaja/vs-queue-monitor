@@ -164,15 +164,15 @@
         <div class="kpi__cell" data-tour="rate">
           <div class="kpi__label" id="kpiRateLabel">
             <span id="kpiRateHdr">RATE (10p Average)</span>
-            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)" aria-label="Edit rolling window (points)">✎</button>
+            <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling average (points)" aria-label="Edit rolling average (points)">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiRate">—</div>
           <div id="popWindow" class="popover hidden">
-            <label>Rolling window (points)</label>
+            <label>Rolling average (points)</label>
             <div class="stepper">
-              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowDown" aria-label="Decrease rolling window">−</button>
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowDown" aria-label="Decrease rolling average">−</button>
               <input type="text" id="inpWindow" class="inp inp--narrow stepper__input" inputmode="numeric" />
-              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowUp" aria-label="Increase rolling window">+</button>
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowUp" aria-label="Increase rolling average">+</button>
             </div>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWindowOk">OK</button>
@@ -190,8 +190,9 @@
             <div class="kpi__warn" id="kpiWarnings">—</div>
           </div>
           <div id="popWarn" class="popover hidden">
-            <label>Thresholds (comma-separated)</label>
+            <label>Thresholds</label>
             <input type="text" id="inpWarn" class="inp" />
+            <p class="popover__hint">Use CSV like <code>10, 5, 1</code> or ranges like <code>8-10</code>.</p>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWarnCancel">Cancel</button>
@@ -200,6 +201,7 @@
           <div id="popWarnAdd" class="popover hidden">
             <label>Add threshold — alerts fire when position drops <em>below</em> this</label>
             <input type="text" id="inpWarnAdd" class="inp" placeholder="e.g. 7" />
+            <p class="popover__hint">You can also add CSV or ranges here, like <code>10, 5, 1</code> or <code>8-10</code>.</p>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnAddOk">Add</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWarnAddCancel">Cancel</button>
@@ -407,50 +409,58 @@
         <h2 id="modalSettingsHeading">Settings</h2>
         <p class="modal__text muted settings-intro">Keep the main dashboard fast and adjust only the extras here.</p>
 
-        <section class="settings-section" aria-labelledby="settingsNotifyHeading">
-          <h3 class="settings-h3" id="settingsNotifyHeading">Alerts & history</h3>
+        <section class="settings-section" aria-labelledby="settingsHistoryHeading">
+          <h3 class="settings-h3" id="settingsHistoryHeading">History</h3>
           <div class="form-grid form-grid--settings">
             <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
-            <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
-            <div class="settings-test-row">
-              <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
-                Send test notification
-              </button>
-              <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+            <p class="muted settings-note">When off, History keeps the major queue events without every routine position step.</p>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="settingsNotifyHeading">
+          <h3 class="settings-h3" id="settingsNotifyHeading">Alerts</h3>
+          <div class="settings-tabs" role="tablist" aria-label="Alert types">
+            <button type="button" class="settings-tab is-active" id="tabWarning" data-tab="warning" role="tab" aria-selected="true">Warning</button>
+            <button type="button" class="settings-tab" id="tabCompletion" data-tab="completion" role="tab" aria-selected="false">Completion</button>
+            <button type="button" class="settings-tab" id="tabFailure" data-tab="failure" role="tab" aria-selected="false">Failure</button>
+          </div>
+
+          <div class="settings-tabframe">
+            <div class="settings-tabpanel is-active" id="panelWarning" data-panel="warning" role="tabpanel" aria-labelledby="tabWarning">
+              <div class="form-grid form-grid--settings">
+                <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
+                <div class="settings-test-row">
+                  <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
+                    Send test notification
+                  </button>
+                  <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+                </div>
+                <label><input type="checkbox" id="chkSnd" /> Warning sound</label>
+                <label class="settings-select-label settings-field">Warning sound file
+                  <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                </label>
+              </div>
             </div>
-            <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
-            <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
-            <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
-          </div>
-        </section>
 
-        <section class="settings-section" aria-labelledby="settingsChartHeading">
-          <h3 class="settings-h3" id="settingsChartHeading">Chart</h3>
-          <div class="form-grid form-grid--two">
-            <label class="settings-select-label">Y axis
-              <select id="selGraphScale" class="inp settings-inp">
-                <option value="linear">Linear</option>
-                <option value="log">Log</option>
-              </select>
-            </label>
-            <label class="settings-select-label">Time axis
-              <select id="selGraphTimeMode" class="inp settings-inp">
-                <option value="relative">Relative</option>
-                <option value="absolute">Absolute</option>
-              </select>
-            </label>
-          </div>
-        </section>
+            <div class="settings-tabpanel" id="panelCompletion" data-panel="completion" role="tabpanel" aria-labelledby="tabCompletion">
+              <div class="form-grid form-grid--settings">
+                <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
+                <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
+                <label class="settings-select-label settings-field">Completion sound file
+                  <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                </label>
+              </div>
+            </div>
 
-        <section class="settings-section settings-section--subtle" aria-labelledby="settingsSoundsHeading">
-          <h3 class="settings-h3" id="settingsSoundsHeading">Custom sound files</h3>
-          <div class="form-grid form-grid--settings">
-            <label class="settings-select-label settings-field">Warning sound file (optional)
-              <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
-            </label>
-            <label class="settings-select-label settings-field">Completion sound file (optional)
-              <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
-            </label>
+            <div class="settings-tabpanel" id="panelFailure" data-panel="failure" role="tabpanel" aria-labelledby="tabFailure">
+              <div class="form-grid form-grid--settings">
+                <p class="muted settings-note">Failure plays when the queue drops into the interrupted or lost-connection state.</p>
+                <label><input type="checkbox" id="chkFailSnd" /> Failure sound</label>
+                <label class="settings-select-label settings-field">Failure sound file
+                  <input type="text" id="inpSetFailSound" class="inp settings-inp" placeholder="Path or empty for default" />
+                </label>
+              </div>
+            </div>
           </div>
         </section>
         <div class="modal__actions">

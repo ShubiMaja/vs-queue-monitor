@@ -417,6 +417,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "completion_sound": bool(engine.completion_sound_enabled_var.get()),
         "alert_sound_path": engine.alert_sound_path_var.get(),
         "completion_sound_path": engine.completion_sound_path_var.get(),
+        "failure_sound": bool(engine.failure_sound_enabled_var.get()),
+        "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines()[-400:],
@@ -532,6 +534,10 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.alert_sound_path_var.set(str(body["alert_sound_path"]))
             if "completion_sound_path" in body:
                 engine.completion_sound_path_var.set(str(body["completion_sound_path"]))
+            if "failure_sound" in body:
+                engine.failure_sound_enabled_var.set(bool(body["failure_sound"]))
+            if "failure_sound_path" in body:
+                engine.failure_sound_path_var.set(str(body["failure_sound_path"]))
             if "tutorial_done" in body:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
             engine.persist_config()

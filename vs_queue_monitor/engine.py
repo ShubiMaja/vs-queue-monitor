@@ -98,6 +98,15 @@ class QueueMonitorEngine:
         else:
             _comp_initial = default_completion_sound_path_for_display()
         self.completion_sound_path_var = hooks.string_var(_comp_initial)
+        self.failure_sound_enabled_var = hooks.boolean_var(
+            bool(self.config.get("failure_sound_enabled", True)),
+        )
+        _fsp = self.config.get("failure_sound_path")
+        if isinstance(_fsp, str) and _fsp.strip():
+            _fail_initial = _fsp.strip()
+        else:
+            _fail_initial = default_failure_sound_path_for_display()
+        self.failure_sound_path_var = hooks.string_var(_fail_initial)
         self.completion_popup_enabled_var = hooks.boolean_var(
             bool(self.config.get("completion_popup_enabled", True)),
         )
@@ -183,7 +192,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'graph_log_scale': bool(self.graph_log_scale_var.get()), 'graph_live_view': bool(self.graph_live_view_var.get()), 'graph_time_mode': self.graph_time_mode_var.get(), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'graph_log_scale': bool(self.graph_log_scale_var.get()), 'graph_live_view': bool(self.graph_live_view_var.get()), 'graph_time_mode': self.graph_time_mode_var.get(), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -205,7 +214,7 @@ class QueueMonitorEngine:
 
     def _bind_config_persist_traces(self) -> None:
         """Save config.json shortly after any setting change (debounced)."""
-        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.graph_log_scale_var, self.graph_live_view_var, self.graph_time_mode_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
+        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.graph_log_scale_var, self.graph_live_view_var, self.graph_time_mode_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
             var.trace_add('write', self._schedule_config_persist)
 
     def reset_defaults(self) -> None:
@@ -225,6 +234,8 @@ class QueueMonitorEngine:
         self.completion_popup_enabled_var.set(True)
         self.completion_sound_enabled_var.set(True)
         self.completion_sound_path_var.set(default_completion_sound_path_for_display())
+        self.failure_sound_enabled_var.set(True)
+        self.failure_sound_path_var.set(default_failure_sound_path_for_display())
         self.show_every_change_var.set(True)
         self.tutorial_done_var.set(False)
         self.resolved_path_var.set('')
@@ -490,6 +501,8 @@ class QueueMonitorEngine:
         if detail:
             msg += f' ({detail})'
         self.write_history(msg)
+        if self.failure_sound_enabled_var.get():
+            self.play_failure_sound()
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
@@ -1342,6 +1355,20 @@ class QueueMonitorEngine:
             if p.is_file() and play_alert_sound_file(p):
                 return
         if play_default_completion_system_sound():
+            return
+        try:
+            self._hooks.bell()
+        except Exception:
+            pass
+
+    def play_failure_sound(self) -> None:
+        """Interrupted/failure sound when queue monitoring drops out of the active queue flow."""
+        raw = (self.failure_sound_path_var.get() or '').strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_failure_system_sound():
             return
         try:
             self._hooks.bell()
