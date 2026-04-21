@@ -117,9 +117,19 @@ QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\breturned\s+to\s+(?:the\s+)?main\s+menu\b"),
     re.compile(r"(?i)\b(?:server|client)\s+shut\s+down\b"),
 )
-DEFAULT_PATH = "$APPDATA/VintagestoryData"
+
 TAIL_BYTES = 128 * 1024
 
+def get_default_vintagestory_path() -> Path:
+    if sys.platform == "win32":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base_dir = Path.home() / "Library" / "Application Support"
+    else:
+        base_dir = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+
+    return base_dir / "VintagestoryData"
+DEFAULT_PATH = str(get_default_vintagestory_path())
 
 def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
     """Path shown in Logs folder: always a directory string. Saved or CLI paths to a file become its parent."""

@@ -2,6 +2,8 @@
 
 ## Open
 
+on reset all default, we load the default path but monitoring does not begin
+
 ## Fixed (closed)
 
 ~~Bug: our session appears in the list as a failed session~~

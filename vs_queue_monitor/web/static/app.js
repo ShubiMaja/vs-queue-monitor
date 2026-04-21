@@ -1341,7 +1341,7 @@
   window._displayState = null;
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 340;
   window._graphZoom = null;
-  window._graphTrend = false;
+  window._graphTrend = true;
 
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
