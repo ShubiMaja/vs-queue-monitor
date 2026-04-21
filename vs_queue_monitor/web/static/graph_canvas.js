@@ -537,13 +537,13 @@
         overlayLines.push("Max pos: " + overlayStats.max);
       }
       overlayLines.push(
-        "Position delta: " + (overlayStats.cleared == null ? "-" : overlayStats.cleared)
+        "Pos Change: " + (overlayStats.cleared == null ? "-" : overlayStats.cleared)
       );
       overlayLines.push(
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
       overlayLines.push(
-        "Average rate: " +
+        "Rate: " +
           (overlayStats.avgMinPerPos == null
             ? "-"
             : overlayStats.avgMinPerPos.toFixed(2) + " min/pos")

@@ -65,9 +65,9 @@ Rules:
   - `Current pos`
   - `Min pos`
   - `Max pos`
-  - `Position delta`
+  - `Pos Change`
   - `Duration`
-  - `Average rate`
+  - `Rate`
 - Hide `Min pos` / `Max pos` when they add no information beyond `Start pos` / `Current pos`.
 - Overlay code must fail soft and never break graph rendering.
 

@@ -402,7 +402,7 @@
     var text =
       "Start Pos: " + (stats.startPos == null ? "—" : stats.startPos) + "\n" +
       "Cur Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
-      "Pos Delta: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
+      "Pos Change: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
       "Duration: " +
       (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
       "\n" +

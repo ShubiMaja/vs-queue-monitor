@@ -657,6 +657,28 @@ def _init_web_stack(
     return app, engine, hooks, lock, p, url
 
 
+class _NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that strips browser caching so JS/CSS/HTML changes are always picked up."""
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        async def _send_no_cache(message: Any) -> None:
+            if message["type"] == "http.response.start":
+                hdrs = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() not in (b"cache-control", b"pragma", b"expires", b"etag")
+                ]
+                hdrs.extend([
+                    (b"cache-control", b"no-cache, no-store, must-revalidate"),
+                    (b"pragma", b"no-cache"),
+                    (b"expires", b"0"),
+                ])
+                message = {**message, "headers": hdrs}
+            await send(message)
+
+        await super().__call__(scope, receive, _send_no_cache)
+
+
 def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
@@ -668,7 +690,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
         Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
-        Mount("/", StaticFiles(directory=str(_STATIC), html=True), name="static"),
+        Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
     app = Starlette(routes=routes)
     app.state.engine = engine
