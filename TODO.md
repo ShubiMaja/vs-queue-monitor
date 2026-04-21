@@ -74,6 +74,9 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 
 ## Implemented
 
+~~Tweak: release smoke coverage should exercise completion -> disconnect -> re-queue recovery~~
+Done: added a direct engine smoke test covering completion, post-completion disconnect, and new-queue adoption so this critical flow is checked without relying only on manual memory (v1.0.292)
+
 ~~Tweak: test/send-sample notification wording drifted away from the real alert wording~~
 Done: completion/failure test banners and the live completion toast now use the same wording family as History and the real desktop notifications (v1.0.291)
 
