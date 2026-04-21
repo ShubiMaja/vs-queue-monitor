@@ -1152,6 +1152,29 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   justify-content: center;
 }
+.notif-perm-tip {
+  position: fixed;
+  z-index: 1500;
+  background: var(--surface);
+  border: 1px solid var(--accent, #5b8dd9);
+  border-radius: 7px;
+  padding: 9px 13px;
+  font-size: 0.8rem;
+  max-width: 230px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: var(--fg);
+  line-height: 1.45;
+}
+.notif-perm-tip.hidden { display: none; }
+.notif-perm-tip::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  right: 14px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 7px solid var(--accent, #5b8dd9);
+}
 .offline-banner {
   position: fixed;
   top: 0;

@@ -1512,6 +1512,25 @@
     }
     notifySyncHint = syncHint;
 
+    function _showNotifPermTip(msg) {
+      var tip = document.getElementById("notifPermTip");
+      var btn = document.getElementById("btnNotify");
+      if (!tip) return;
+      tip.textContent = msg;
+      if (btn) {
+        var r = btn.getBoundingClientRect();
+        tip.style.top = (r.bottom + 8) + "px";
+        tip.style.right = (window.innerWidth - r.right + 2) + "px";
+        tip.style.left = "";
+      }
+      tip.classList.remove("hidden");
+    }
+
+    function _hideNotifPermTip() {
+      var tip = document.getElementById("notifPermTip");
+      if (tip) tip.classList.add("hidden");
+    }
+
     /** Standard web API only: Notification.requestPermission() + new Notification() */
     function requestPermissionFlow() {
       if (typeof Notification === "undefined") {
@@ -1526,9 +1545,15 @@
         toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
         return;
       }
-      // Chrome/Edge may show a quiet bell in the address bar rather than a modal dialog.
+      // Show a contextual tip near the bell button with browser-specific guidance.
       if (window._windowMode !== "chromium_app") {
-        toast("Look for a notification bell icon in the address bar — click it and select Allow.");
+        var ua = navigator.userAgent || "";
+        var isEdge = /Edg\//.test(ua);
+        _showNotifPermTip(
+          isEdge
+            ? "\uD83D\uDD14 Look for a bell icon in Edge\u2019s address bar (top right) and click Allow."
+            : "A notification prompt appeared \u2014 click Allow to enable notifications."
+        );
       }
       var t0 = Date.now();
       try {
@@ -1538,6 +1563,7 @@
         if (req && typeof req.then === "function") {
           req
             .then(function (p) {
+              _hideNotifPermTip();
               syncHint();
               if (p === "granted") {
                 try {
@@ -1556,7 +1582,7 @@
                     toast("Click the bell icon in the title bar to allow notifications, then try again.", "warn");
                   } else {
                     _notifUnsupported = true;
-                    toast("Notifications blocked. Open Edge/Chrome site settings for this page and set Notifications to Allow.", "warn");
+                    toast("Notifications blocked. Open site settings in your browser and set Notifications to Allow.", "warn");
                   }
                 } else {
                   toast("Notifications were denied — open site settings to allow them.", "warn");
@@ -1565,10 +1591,12 @@
               }
             })
             .catch(function () {
+              _hideNotifPermTip();
               syncHint();
               toast("Could not request notification permission.", "warn");
             });
         } else {
+          _hideNotifPermTip();
           syncHint();
           if (Notification.permission === "granted") {
             try {
@@ -1582,6 +1610,7 @@
           }
         }
       } catch (e) {
+        _hideNotifPermTip();
         _notifUnsupported = true;
         syncHint();
         toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
