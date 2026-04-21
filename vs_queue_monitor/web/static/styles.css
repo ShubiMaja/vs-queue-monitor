@@ -993,6 +993,12 @@ select.inp:focus-visible {
 .info-history__head .btn {
   flex-shrink: 0;
 }
+.info-history__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .info-history__title {
   flex: 1 1 auto;
   margin: 0;
@@ -1006,6 +1012,25 @@ select.inp:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+.history-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.history-toggle input[type="checkbox"] {
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: var(--accent);
+}
+.history-toggle input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 @media (max-width: 900px) {
   .info-history {
@@ -1253,10 +1278,31 @@ select.inp:focus-visible {
 .settings-tabpanel.is-active {
   display: block;
 }
+.settings-alert-grid {
+  gap: 12px;
+}
+.settings-option {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.settings-option--muted {
+  color: var(--muted);
+}
+.settings-option > label {
+  margin: 0;
+}
 .settings-note {
   margin: 0 0 4px;
   font-size: 0.84rem;
   line-height: 1.4;
+}
+.settings-note--minor {
+  font-size: 0.79rem;
+  opacity: 0.9;
 }
 .modal__actions {
   margin-top: 16px;
@@ -1302,7 +1348,7 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  margin: -2px 0 2px 0;
+  margin: 0;
   padding-left: calc(1rem + 8px);
 }
 .settings-test-row__hint {

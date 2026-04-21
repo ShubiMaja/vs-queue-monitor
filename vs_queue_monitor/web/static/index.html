@@ -339,13 +339,19 @@
           <div class="info-history__card info-history__card--side">
             <div class="info-history__head">
               <span class="info-history__title muted">History</span>
-              <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
-                <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <span>Copy</span>
-              </button>
+              <div class="info-history__actions">
+                <label class="history-toggle" title="Show every routine position step in History">
+                  <input type="checkbox" id="chkHistoryEvery" />
+                  <span>Every change</span>
+                </label>
+                <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
+                  <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>Copy</span>
+                </button>
+              </div>
             </div>
             <pre class="history__pre" id="historyPre"></pre>
           </div>
@@ -409,14 +415,6 @@
         <h2 id="modalSettingsHeading">Settings</h2>
         <p class="modal__text muted settings-intro">Keep the main dashboard fast and adjust only the extras here.</p>
 
-        <section class="settings-section" aria-labelledby="settingsHistoryHeading">
-          <h3 class="settings-h3" id="settingsHistoryHeading">History</h3>
-          <div class="form-grid form-grid--settings">
-            <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
-            <p class="muted settings-note">When off, History keeps the major queue events without every routine position step.</p>
-          </div>
-        </section>
-
         <section class="settings-section" aria-labelledby="settingsNotifyHeading">
           <h3 class="settings-h3" id="settingsNotifyHeading">Alerts</h3>
           <div class="settings-tabs" role="tablist" aria-label="Alert types">
@@ -427,15 +425,18 @@
 
           <div class="settings-tabframe">
             <div class="settings-tabpanel is-active" id="panelWarning" data-panel="warning" role="tabpanel" aria-labelledby="tabWarning">
-              <div class="form-grid form-grid--settings">
-                <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
-                <div class="settings-test-row">
-                  <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
-                    Send test notification
-                  </button>
-                  <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+              <div class="form-grid form-grid--settings settings-alert-grid">
+                <p class="muted settings-note">Warnings fire when your queue position drops below one of your configured thresholds.</p>
+                <div class="settings-option">
+                  <label><input type="checkbox" id="chkPop" /> Warning popup</label>
+                  <div class="settings-test-row">
+                    <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
+                      Send test notification
+                    </button>
+                    <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+                  </div>
                 </div>
-                <label><input type="checkbox" id="chkSnd" /> Warning sound</label>
+                <label class="settings-option"><input type="checkbox" id="chkSnd" /> Warning sound</label>
                 <label class="settings-select-label settings-field">Warning sound file
                   <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
                 </label>
@@ -443,9 +444,10 @@
             </div>
 
             <div class="settings-tabpanel" id="panelCompletion" data-panel="completion" role="tabpanel" aria-labelledby="tabCompletion">
-              <div class="form-grid form-grid--settings">
-                <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
-                <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
+              <div class="form-grid form-grid--settings settings-alert-grid">
+                <p class="muted settings-note">Completion triggers when the queue wait is over and the client moves past the queue flow.</p>
+                <label class="settings-option"><input type="checkbox" id="chkCompPop" /> Completion popup</label>
+                <label class="settings-option"><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
                 <label class="settings-select-label settings-field">Completion sound file
                   <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
                 </label>
@@ -453,9 +455,13 @@
             </div>
 
             <div class="settings-tabpanel" id="panelFailure" data-panel="failure" role="tabpanel" aria-labelledby="tabFailure">
-              <div class="form-grid form-grid--settings">
+              <div class="form-grid form-grid--settings settings-alert-grid">
                 <p class="muted settings-note">Failure plays when the queue drops into the interrupted or lost-connection state.</p>
-                <label><input type="checkbox" id="chkFailSnd" /> Failure sound</label>
+                <div class="settings-option settings-option--muted">
+                  <span>Failure popup</span>
+                  <span class="muted settings-note--minor">Not used for failure.</span>
+                </div>
+                <label class="settings-option"><input type="checkbox" id="chkFailSnd" /> Failure sound</label>
                 <label class="settings-select-label settings-field">Failure sound file
                   <input type="text" id="inpSetFailSound" class="inp settings-inp" placeholder="Path or empty for default" />
                 </label>

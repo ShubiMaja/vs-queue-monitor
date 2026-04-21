@@ -632,7 +632,7 @@
 
   function syncSettingsFormFromState(s) {
     if (!s) return;
-    var chkEvery = $("chkEvery");
+    var chkEvery = $("chkHistoryEvery");
     if (chkEvery) chkEvery.checked = !!s.show_every_change;
     var chkPop = $("chkPop");
     if (chkPop) chkPop.checked = !!s.popup_enabled;
@@ -2566,7 +2566,22 @@
       btnSettings.onclick = function () {
         syncSettingsFormFromState(window._lastState);
         showEl($("modalSettings"));
-        focusElSoon($("chkEvery"));
+        focusElSoon($("tabWarning"));
+      };
+    }
+    var chkHistoryEvery = $("chkHistoryEvery");
+    if (chkHistoryEvery) {
+      chkHistoryEvery.onchange = function () {
+        var next = !!chkHistoryEvery.checked;
+        postConfig({ show_every_change: next })
+          .then(function (state) {
+            if (state && typeof state === "object") window._lastState = state;
+            else if (window._lastState) window._lastState.show_every_change = next;
+          })
+          .catch(function (e) {
+            chkHistoryEvery.checked = !next;
+            toast(String(e.message || e), "warn");
+          });
       };
     }
     document.querySelectorAll("[data-close]").forEach(function (el) {
@@ -2585,7 +2600,6 @@
         var prevPopupEnabled =
           window._lastState == null || window._lastState.popup_enabled !== false;
         var patch = {
-          show_every_change: !!($("chkEvery") && $("chkEvery").checked),
           popup_enabled: !!($("chkPop") && $("chkPop").checked),
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_popup: !!($("chkCompPop") && $("chkCompPop").checked),
@@ -2840,7 +2854,7 @@
         if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
           ev.preventDefault();
           showEl($("modalSettings"));
-          focusElSoon($("chkEvery"));
+          focusElSoon($("tabWarning"));
         }
         return;
       }
