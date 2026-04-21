@@ -3295,9 +3295,12 @@
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {
+        if (!window.confirm("Reset all settings to defaults?\n\nThis will clear your log path, thresholds, sounds, and all other saved settings. This cannot be undone.")) {
+          return;
+        }
         postReset()
           .then(function () {
-            toast("Defaults reset");
+            toast("All settings reset to defaults.");
           })
           .catch(function (e) {
             toast(String(e), "warn");
