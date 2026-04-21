@@ -7,6 +7,7 @@
 
   var lastAlertSeq = null;
   var lastCompletionSeq = null;
+  var lastFailureSeq = null;
   var LS_PATH = "vs_queue_monitor_web_last_path";
   var LS_PATH_LEGACY = "vsqm_web_last_path";
   var LS_SESSION = "vs_queue_monitor_selected_session_v1";
@@ -582,6 +583,16 @@
     });
   }
 
+  function selectLatestSession() {
+    selectedSessionKey = "latest";
+    var sel = $("selSession");
+    if (sel) sel.value = "latest";
+    try {
+      lsSetSession(selectedSessionKey);
+    } catch (e) {}
+    updateSessionBadge();
+  }
+
   function tryRestoreBanner(s) {
     var rb = $("restoreBanner");
     if (!rb) return;
@@ -632,12 +643,8 @@
 
   function syncSettingsFormFromState(s) {
     if (!s) return;
-    var btnHistoryEvery = $("btnHistoryEvery");
-    if (btnHistoryEvery) {
-      var enabled = !!s.show_every_change;
-      btnHistoryEvery.setAttribute("aria-pressed", enabled ? "true" : "false");
-      btnHistoryEvery.title = enabled ? "Stop logging every routine position step" : "Log every routine position step in History";
-    }
+    var chkHistoryEvery = $("chkHistoryEvery");
+    if (chkHistoryEvery) chkHistoryEvery.checked = !!s.show_every_change;
     var chkPop = $("chkPop");
     if (chkPop) chkPop.checked = !!s.popup_enabled;
     var chkSnd = $("chkSnd");
@@ -646,6 +653,8 @@
     if (chkCompPop) chkCompPop.checked = !!s.completion_popup;
     var chkCompSnd = $("chkCompSnd");
     if (chkCompSnd) chkCompSnd.checked = !!s.completion_sound;
+    var chkFailPop = $("chkFailPop");
+    if (chkFailPop) chkFailPop.checked = !!s.failure_popup;
     var chkFailSnd = $("chkFailSnd");
     if (chkFailSnd) chkFailSnd.checked = !!s.failure_sound;
     var iws = $("inpSetWarnSound");
@@ -844,6 +853,31 @@
       }
     }
     lastCompletionSeq = cseq;
+
+    const fseq = typeof s.failure_notify_seq === "number" ? s.failure_notify_seq : 0;
+    if (lastFailureSeq !== null && fseq > lastFailureSeq) {
+      var failureMsg = "Queue interrupted — still watching the log.";
+      if (s.last_change && String(s.last_change).trim() && String(s.last_change).trim() !== "—") {
+        failureMsg += "\n\nLast change: " + String(s.last_change).trim();
+      }
+      toast("Queue interrupted — still watching the log.", "warn");
+      if (
+        s.failure_popup &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        fireDesktopNotification(
+          "Queue interrupted",
+          {
+            body: failureMsg,
+            tag: "vsqm-failure-" + fseq,
+            renotify: true,
+          },
+          "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+        );
+      }
+    }
+    lastFailureSeq = fseq;
 
     var srvPath = (s.source_path || "").trim();
     var lsPath = "";
@@ -1497,6 +1531,10 @@
     });
 
     document.body.addEventListener("click", function () {
+      var popHistory = $("popHistory");
+      var btnHistorySettings = $("btnHistorySettings");
+      if (popHistory) popHistory.classList.add("hidden");
+      if (btnHistorySettings) btnHistorySettings.setAttribute("aria-expanded", "false");
       ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
         var p = $(id);
         if (p) {
@@ -1994,7 +2032,7 @@
     if (btn) {
       btn.addEventListener("click", onNotifyClick);
     }
-    var btnTest = $("btnTestNotify");
+    var btnTest = $("btnTestWarnNotify");
     if (btnTest) {
       btnTest.addEventListener("click", function () {
         if (_isBannerUnsupported()) {
@@ -2159,6 +2197,57 @@
       return typeof Notification !== "undefined" && Notification.permission === "denied";
     }
 
+    function sendInlineTest(kind) {
+      var popupMap = {
+        warning: {
+          enabled:
+            window._lastState == null || window._lastState.popup_enabled !== false,
+          settingName: "Warning popup",
+          title: "Warning test notification",
+          body:
+            "This is a sample warning banner.\n\nReal warning alerts include the crossed threshold, your position, and current status.",
+        },
+        completion: {
+          enabled: !!(window._lastState && window._lastState.completion_popup),
+          settingName: "Completion popup",
+          title: "Completion test notification",
+          body:
+            "This is a sample completion banner.\n\nReal completion alerts fire when the queue wait is over and the client moves past the queue.",
+        },
+        failure: {
+          enabled: !!(window._lastState && window._lastState.failure_popup),
+          settingName: "Failure popup",
+          title: "Failure test notification",
+          body:
+            "This is a sample failure banner.\n\nReal failure alerts fire if queue monitoring drops into the interrupted state.",
+        },
+      };
+      var cfg = popupMap[kind];
+      if (!cfg) return;
+      if (_isBannerUnsupported()) {
+        toast("Desktop banners aren't available in this window — open in a browser to test them.", "warn");
+        return;
+      }
+      if (!cfg.enabled) {
+        toast("Turn on " + cfg.settingName + " first.", "warn");
+        return;
+      }
+      if (Notification.permission !== "granted") {
+        toast("Allow notifications from the header switch first.", "warn");
+        return;
+      }
+      fireDesktopNotification(
+        cfg.title,
+        {
+          body: cfg.body,
+          tag: "vsqm-test-" + kind + "-" + Date.now(),
+          renotify: true,
+        },
+        "Could not show a desktop notification (check your browser and OS notification settings).",
+      );
+      toast("Test sent — check the system tray if you see no banner.");
+    }
+
     function onNotifyClick() {
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
@@ -2246,32 +2335,22 @@
     if (btn) {
       btn.addEventListener("click", onNotifyClick);
     }
-    var btnTest = $("btnTestNotify");
-    if (btnTest) {
-      btnTest.addEventListener("click", function () {
-        if (_isBannerUnsupported()) {
-          toast("Desktop banners aren't available in this window — open in a browser to test them.", "warn");
-          return;
-        }
-        var pOn =
-          window._lastState == null || window._lastState.popup_enabled !== false;
-        if (!pOn) {
-          toast("Turn on Warning popup first (same setting as the header switch).", "warn");
-          return;
-        }
-        if (Notification.permission !== "granted") {
-          toast("Allow notifications from the header switch first.", "warn");
-          return;
-        }
-        try {
-          desktopNotify("Test notification", {
-            body:
-              "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-            tag: "vsqm-test-" + Date.now(),
-            renotify: true,
-          });
-        } catch (e) {}
-        toast("Test sent — check the system tray if you see no banner.");
+    var btnTestWarn = $("btnTestWarnNotify");
+    if (btnTestWarn) {
+      btnTestWarn.addEventListener("click", function () {
+        sendInlineTest("warning");
+      });
+    }
+    var btnTestComp = $("btnTestCompNotify");
+    if (btnTestComp) {
+      btnTestComp.addEventListener("click", function () {
+        sendInlineTest("completion");
+      });
+    }
+    var btnTestFail = $("btnTestFailNotify");
+    if (btnTestFail) {
+      btnTestFail.addEventListener("click", function () {
+        sendInlineTest("failure");
       });
     }
     syncHint();
@@ -2548,6 +2627,9 @@
               window._lastState.graph_live_view = next;
             }
             if (window._lastState) {
+              if (next) {
+                selectLatestSession();
+              }
               syncSettingsFormFromState(window._lastState);
               syncGraphToolbarButtons(window._lastState);
               window._displayState = buildDisplayState(window._lastState);
@@ -2606,11 +2688,25 @@
         focusElSoon($("tabWarning"));
       };
     }
-    var btnHistoryEvery = $("btnHistoryEvery");
-    if (btnHistoryEvery) {
-      btnHistoryEvery.onclick = function () {
-        var current = btnHistoryEvery.getAttribute("aria-pressed") === "true";
-        var next = !current;
+    var btnHistorySettings = $("btnHistorySettings");
+    var popHistory = $("popHistory");
+    var chkHistoryEvery = $("chkHistoryEvery");
+    if (btnHistorySettings && popHistory) {
+      btnHistorySettings.onclick = function (e) {
+        e.stopPropagation();
+        var willOpen = popHistory.classList.contains("hidden");
+        popHistory.classList.toggle("hidden");
+        btnHistorySettings.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        if (willOpen && chkHistoryEvery) {
+          requestAnimationFrame(function () {
+            chkHistoryEvery.focus();
+          });
+        }
+      };
+    }
+    if (chkHistoryEvery) {
+      chkHistoryEvery.onchange = function () {
+        var next = !!chkHistoryEvery.checked;
         postConfig({ show_every_change: next })
           .then(function (state) {
             if (state && typeof state === "object") window._lastState = state;
@@ -2621,6 +2717,11 @@
             toast(String(e.message || e), "warn");
           });
       };
+    }
+    if (popHistory) {
+      popHistory.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
     }
     document.querySelectorAll("[data-close]").forEach(function (el) {
       el.addEventListener("click", function () {
@@ -2642,6 +2743,7 @@
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_popup: !!($("chkCompPop") && $("chkCompPop").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
+          failure_popup: !!($("chkFailPop") && $("chkFailPop").checked),
           failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
         };
         var iws = $("inpSetWarnSound");
@@ -2660,6 +2762,7 @@
               window._lastState.sound_enabled = !!patch.sound_enabled;
               window._lastState.completion_popup = !!patch.completion_popup;
               window._lastState.completion_sound = !!patch.completion_sound;
+              window._lastState.failure_popup = !!patch.failure_popup;
               window._lastState.failure_sound = !!patch.failure_sound;
               if (Object.prototype.hasOwnProperty.call(patch, "failure_sound_path")) {
                 window._lastState.failure_sound_path = patch.failure_sound_path;

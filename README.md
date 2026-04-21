@@ -43,7 +43,8 @@ python monitor.py
 | **ETA & rate** | Estimates wait time from observed position changes |
 | **Progress bar** | Shows how far through the queue you've moved |
 | **Threshold alerts** | Popup + sound + desktop notification when position drops below a value |
-| **Completion alert** | Fires when the game connects (past the queue) |
+| **Completion alert** | Popup + sound + desktop notification when the game connects (past the queue) |
+| **Failure alert** | Popup + sound + desktop notification when monitoring drops into the interrupted state |
 | **Graph** | Step chart of position over time; zoom, pan, export as PNG or TSV |
 | **Session history** | Per-run log of position changes |
 | **System tray** | Icon in notification area while running; right-click to open or quit |
@@ -78,7 +79,7 @@ A tray icon appears in the notification area while the service is running. Right
 
 ## Alerts
 
-Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. Enable sound and desktop notifications in **Settings (⚙)**.
+Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. **Settings (⚙)** now has matching Warning, Completion, and Failure tabs, each with popup, sound, sound-file, and inline test controls.
 
 ## Remote access via ngrok
 

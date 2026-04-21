@@ -417,6 +417,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "completion_sound": bool(engine.completion_sound_enabled_var.get()),
         "alert_sound_path": engine.alert_sound_path_var.get(),
         "completion_sound_path": engine.completion_sound_path_var.get(),
+        "failure_popup": bool(engine.failure_popup_enabled_var.get()),
         "failure_sound": bool(engine.failure_sound_enabled_var.get()),
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
@@ -424,6 +425,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "history_tail": hooks.history_lines()[-400:],
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
+        "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
         "queue_sessions": _queue_sessions_for_engine(engine),
         "build_fingerprint": _build_fingerprint(),
     }
@@ -534,6 +536,8 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.alert_sound_path_var.set(str(body["alert_sound_path"]))
             if "completion_sound_path" in body:
                 engine.completion_sound_path_var.set(str(body["completion_sound_path"]))
+            if "failure_popup" in body:
+                engine.failure_popup_enabled_var.set(bool(body["failure_popup"]))
             if "failure_sound" in body:
                 engine.failure_sound_enabled_var.set(bool(body["failure_sound"]))
             if "failure_sound_path" in body:
