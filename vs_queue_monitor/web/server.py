@@ -74,7 +74,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any
     if path is None or not path.is_file():
         return []
     try:
-        return queue_sessions_for_log_tail(path)
+        sessions = queue_sessions_for_log_tail(path)
+        active_id = engine._last_queue_run_session
+        if active_id:
+            sessions = [s for s in sessions if s.get("session_id") != active_id]
+        return sessions
     except Exception:
         return []
 
