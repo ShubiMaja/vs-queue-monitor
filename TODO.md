@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: blue dot covers the check mark on the graph~~
+Fixed: final historical/completed point now uses the terminal connect/disconnect icon instead of drawing the normal blue point underneath it (v1.0.293)
+
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
 Fixed: graph canvas now shows context-aware message with "<- Set a log folder above" hint (v1.0.266)
 

@@ -738,21 +738,8 @@
       var lastV = marker[1];
       var lx = xOf(lastT);
       var ly = yOf(lastV);
-      ctx.fillStyle = th.ui_graph_marker;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = textColor;
-      ctx.font = "12px system-ui,Segoe UI,sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(lastV), lx + 10, ly);
-
-      // For completed/historical sessions, overlay only the terminal event icon
-      // on the marker dot so the viewer can see at a glance how the session ended.
-      // Warning markers stay on the axis at their real event time and should not
-      // be re-shown on the current/final point.
       var isHistorical = !running || progress >= 1.0;
+      var terminalMarkerKind = null;
       if (isHistorical && graphEvents.length) {
         var lastEvent = null;
         for (var ei = graphEvents.length - 1; ei >= 0; ei--) {
@@ -768,10 +755,22 @@
             break;
           }
         }
-        if (lastEvent) {
-          drawGraphEventMarker(ctx, lastEvent.kind, lx, ly);
-        }
+        if (lastEvent) terminalMarkerKind = lastEvent.kind;
       }
+
+      if (!terminalMarkerKind) {
+        ctx.fillStyle = th.ui_graph_marker;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        drawGraphEventMarker(ctx, terminalMarkerKind, lx, ly);
+      }
+      ctx.fillStyle = textColor;
+      ctx.font = "12px system-ui,Segoe UI,sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(lastV), lx + 10, ly);
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {
