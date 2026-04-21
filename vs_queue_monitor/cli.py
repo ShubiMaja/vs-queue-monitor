@@ -37,27 +37,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Open the web UI in your default external browser instead of an embedded window.",
     )
-    parser.add_argument(
-        "--vs-queue-monitor-server-only",
-        "--vsqm-server-only",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
     return parser
 
 
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
-
-    if args.vs_queue_monitor_server_only:
-        from .web import run_web_server_process
-
-        return run_web_server_process(
-            initial_path=args.path,
-            auto_start=not args.no_start,
-            port=args.web_port,
-        )
 
     from .web import run_web_server
 
