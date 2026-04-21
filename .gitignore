@@ -1,3 +1,9 @@
+# Smoke release check
+.smoke-release-check/
+.tmp-release-smoke-tests-session-list/
+.tmp-release-smoke-tests/
+
+# Claude
 .claude/settings.*json
 
 # Byte-compiled / cache
