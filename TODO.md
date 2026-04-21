@@ -61,6 +61,9 @@ Fixed: final-point overlay now only reuses terminal connect/disconnect events; w
 ~~Revisit Bug: when inputting 0 value in warnings, it fails silently when using ranges or csv~~
 Fixed: zero/negative values inside CSV and ranges now block saving entirely instead of toasting and then partially succeeding (v1.0.288)
 
+~~Bug: Once connected, focused on the latest session and in live mode, the graph continues to update and the lines goes off the graph~~
+Fixed: latest live graph now freezes at the first terminal point instead of continuing to advance on later post-connect `0` samples (v1.0.289)
+
 ---
 
 # TWEAKS

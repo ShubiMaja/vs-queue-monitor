@@ -62,6 +62,16 @@
     return out;
   }
 
+  function terminalCutoffIndex(points) {
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (points[i][1] <= 0) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
   function graphPlotTimeRange(points, extendToNow, singleSpan) {
     if (!points.length) {
       return [0, 1];
@@ -311,10 +321,14 @@
     var y1 = padTop + plotH;
 
     var rawPoints = state.graph_points || [];
-    var points = downsamplePoints(rawPoints, th.max_draw_points);
     var liveView = !!state.graph_live_view;
     var running = !!state.running;
     var progress = typeof state.progress === "number" ? state.progress : 0;
+    var terminalCutoff = liveView ? terminalCutoffIndex(rawPoints) : -1;
+    if (terminalCutoff >= 0) {
+      rawPoints = rawPoints.slice(0, terminalCutoff + 1);
+    }
+    var points = downsamplePoints(rawPoints, th.max_draw_points);
     var extendToNow = liveView && running && progress < 1.0;
     var logScale = !!state.graph_log_scale;
     var timeMode = state.graph_time_mode || "relative";
@@ -717,7 +731,8 @@
       ctx.stroke();
     }
 
-    var marker = state.current_point || points[points.length - 1];
+    var marker =
+      terminalCutoff >= 0 ? points[points.length - 1] : (state.current_point || points[points.length - 1]);
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];
