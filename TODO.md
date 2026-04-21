@@ -49,7 +49,8 @@ Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid — thresholds mus
 ~~Tweak: Default Warnings are 15, 10, 5 3-1~~
 Done: DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1" (v1.0.275)
 
-Tweak: Reset Defaults should be "Reset all defaults" and warn the user that all settings will be reset
+~~Tweak: Reset Defaults should be "Reset all defaults" and warn the user that all settings will be reset~~
+Done: button renamed, confirm() dialog added explaining what will be reset (v1.0.279)
 
 # FEATURES
 
