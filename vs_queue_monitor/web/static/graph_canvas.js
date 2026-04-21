@@ -13,7 +13,7 @@
     pad_left: 46,
     pad_right: 22,
     pad_top: 12,
-    pad_bottom: 44,
+    pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
     ui_graph_plot: "#141820",
     ui_graph_grid: "#1e232c",
@@ -453,6 +453,22 @@
       }
     }
 
+    // Draw event icons ON the axis line before time labels so labels render over them.
+    var graphEvents = state.graph_events || [];
+    if (graphEvents.length) {
+      for (j = 0; j < graphEvents.length; j++) {
+        var event = graphEvents[j];
+        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
+          continue;
+        }
+        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
+          continue;
+        }
+        var ex = xOf(event.t);
+        drawGraphEventMarker(ctx, event.kind, ex, y1);
+      }
+    }
+
     var candidates = [5, 10, 15, 30, 60, 300, 600, 900, 1800, 3600, 7200, 21600];
     var targetTicks = 6;
     var interval = candidates[candidates.length - 1];
@@ -519,11 +535,16 @@
       ctx.stroke();
       var isLast = idx === tickTimes.length - 1;
       if (isLast || lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
-        ctx.fillStyle = textColor;
         ctx.font = "11px system-ui,Segoe UI,sans-serif";
-        ctx.textAlign = isLast ? "right" : "center";
         ctx.textBaseline = "top";
-        ctx.fillText(label, isLast ? x + 2 : x, y1 + 30);
+        var lx = isLast ? x + 2 : x;
+        var lw = ctx.measureText(label).width;
+        var lbgX = isLast ? lx - lw - 2 : lx - lw / 2 - 2;
+        ctx.fillStyle = th.ui_graph_bg;
+        ctx.fillRect(lbgX, y1 + 13, lw + 4, 13);
+        ctx.fillStyle = textColor;
+        ctx.textAlign = isLast ? "right" : "center";
+        ctx.fillText(label, lx, y1 + 14);
         lastXLabel = x;
       }
       if (idx > 0 && idx < tickTimes.length - 1) {
@@ -679,44 +700,6 @@
     }
 
     var marker = state.current_point || points[points.length - 1];
-    var graphEvents = state.graph_events || [];
-    if (graphEvents.length) {
-      // Timeline strip: icons sit between the axis line and the time labels.
-      // ey = icon center, slots prevent icon overlap along X.
-      var eventIconY = y1 + 14;
-      var slotW = 16;
-      var slotUsed = {};
-      for (j = 0; j < graphEvents.length; j++) {
-        var event = graphEvents[j];
-        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
-          continue;
-        }
-        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
-          continue;
-        }
-        var ex = xOf(event.t);
-        // Assign a horizontal slot; nudge right if occupied (max 3 nudges).
-        var baseSlot = Math.round(ex / slotW);
-        var slot = baseSlot;
-        for (var ns = 0; ns < 3; ns++) {
-          if (!slotUsed[slot]) break;
-          slot = baseSlot + ns + 1;
-        }
-        slotUsed[slot] = true;
-        var iconX = slot * slotW;
-        // Drop line from axis down to icon.
-        ctx.strokeStyle = th.ui_graph_axis;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(ex, y1);
-        ctx.lineTo(ex, y1 + 5);
-        if (iconX !== ex) {
-          ctx.lineTo(iconX, y1 + 5);
-        }
-        ctx.stroke();
-        drawGraphEventMarker(ctx, event.kind, iconX, eventIconY);
-      }
-    }
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];
