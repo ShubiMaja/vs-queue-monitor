@@ -239,13 +239,6 @@
             
             <span id="sessionScopeBadge" class="session-scope-badge hidden" role="status" aria-live="polite">Past session — KPIs above stay live</span>
           </div>
-          <div class="graph-toolbar__btns">
-            <div class="btn-group zoom-ctrl" role="group" aria-label="Zoom controls">
-              <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out (mouse wheel also works)" aria-label="Zoom out time axis">−</button>
-              
-              <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
-            </div>
-          </div>
           <div class="graph-toolbar__right">
             <button
               type="button"
@@ -323,7 +316,11 @@
           <div class="graph-hint muted" id="graphHint">Tap or hover for details - drag or scroll to zoom.</div>
           <div class="graph-footer__meta">
             <span class="muted graph-toolbar__mid graph-footer__log" id="lblLogAct" role="status" aria-live="polite"></span>
-            <button type="button" class="btn btn--small zoom-ctrl__level graph-footer__zoom" id="btnZoomReset" title="Not zoomed" aria-label="Zoom level - click to reset">1x</button>
+            <div class="btn-group zoom-ctrl graph-footer__zoom-group" role="group" aria-label="Zoom controls">
+              <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out (mouse wheel also works)" aria-label="Zoom out time axis">−</button>
+              <button type="button" class="btn btn--small zoom-ctrl__level graph-footer__zoom" id="btnZoomReset" title="Not zoomed" aria-label="Zoom level - click to reset">1x</button>
+              <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
+            </div>
           </div>
         </div>
       </section>

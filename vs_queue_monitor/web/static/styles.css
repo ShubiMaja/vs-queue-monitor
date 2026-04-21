@@ -892,12 +892,6 @@ select.inp:focus-visible {
   max-width: min(280px, 100%);
   min-width: 0;
 }
-.graph-toolbar__btns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 0 0 auto;
-}
 .graph-toolbar__right {
   display: flex;
   flex-wrap: wrap;
@@ -963,6 +957,9 @@ select.inp:focus-visible {
   max-width: min(280px, 42vw);
 }
 .graph-footer__zoom {
+  flex: 0 0 auto;
+}
+.graph-footer__zoom-group {
   flex: 0 0 auto;
 }
 .graph-hint {

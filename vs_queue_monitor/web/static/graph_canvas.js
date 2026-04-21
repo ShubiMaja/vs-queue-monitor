@@ -408,7 +408,7 @@
     if (!tickTimes.length || tickTimes[0] - t0 > interval * 0.4) {
       tickTimes.unshift(t0);
     }
-    if (tickTimes[tickTimes.length - 1] < t1 - interval * 0.4) {
+    if (tickTimes[tickTimes.length - 1] < t1 - interval * 0.4 || (liveView && running)) {
       tickTimes.push(t1);
     }
     var dedup = [];
