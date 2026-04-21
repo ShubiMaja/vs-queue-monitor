@@ -74,6 +74,9 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 
 ## Implemented
 
+~~Tweak: test/send-sample notification wording drifted away from the real alert wording~~
+Done: completion/failure test banners and the live completion toast now use the same wording family as History and the real desktop notifications (v1.0.291)
+
 ~~Tweak: still monitor the log after connect and notify on disconnect or re-queue even if the graph is not live~~
 Done: post-queue reconnect/grace states now enter the interrupted watch-for-recovery path, so disconnects after completion still notify and later re-queues can be adopted (v1.0.290)
 

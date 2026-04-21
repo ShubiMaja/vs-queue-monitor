@@ -1176,7 +1176,7 @@
 
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
-      toast("Past queue wait — connecting (position 0).", "");
+      toast("Queue completion: past queue wait - connecting (position 0).", "");
       if (
         s.completion_popup &&
         typeof Notification !== "undefined" &&
@@ -2641,12 +2641,10 @@
           enabled: !!(window._lastState && window._lastState.completion_popup),
           settingName: "Completion popup",
           payload: {
-            title: "Queue wait finished",
+            title: "Queue completion",
             body: formatNotificationBody([
-              "Sample completion banner.",
-              "Current position: 0",
+              "Queue completion: past queue wait - connecting (position 0).",
               "Status: Connecting",
-              "Remaining: 0s",
             ]),
             kind: "completion",
           },
@@ -2657,7 +2655,7 @@
           payload: {
             title: "Queue interrupted",
             body: formatNotificationBody([
-              "Sample interruption banner.",
+              "Queue interrupted - still watching the log.",
               "Status: Interrupted",
               "Last change: 2026-04-21 12:34:56",
             ]),
