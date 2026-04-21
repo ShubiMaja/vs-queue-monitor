@@ -504,7 +504,7 @@
     opt0.title = "Live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
-    for (i = 0; i < sessions.length; i++) {
+    for (i = sessions.length - 1; i >= 0; i--) {
       var o = document.createElement("option");
       o.value = sessions[i].key;
       o.textContent = (sessions[i].label || "Session") + " — " + formatSessionStart(sessions[i].start_epoch);
