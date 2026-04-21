@@ -578,6 +578,41 @@
     return new Date(epoch * 1000).toLocaleString();
   }
 
+  function parseAlertThresholdValues(raw) {
+    const set = {};
+    function addToken(part) {
+      const p = (part || "").trim();
+      if (!p) return;
+      const rm = /^(\d+)\s*-\s*(\d+)$/.exec(p);
+      if (rm) {
+        const a = parseInt(rm[1], 10);
+        const b = parseInt(rm[2], 10);
+        if (isFinite(a) && isFinite(b) && a >= 1 && b >= 1) {
+          const step = a <= b ? 1 : -1;
+          let x = a;
+          while ((step > 0 && x <= b) || (step < 0 && x >= b)) {
+            set[x] = true;
+            x += step;
+          }
+        }
+        return;
+      }
+      const n = parseInt(p, 10);
+      if (!isNaN(n) && n >= 1) set[n] = true;
+    }
+    (raw || "")
+      .replace(/,/g, " ")
+      .split(/\s+/)
+      .forEach(function (p) {
+        addToken(p);
+      });
+    return Object.keys(set)
+      .map(Number)
+      .sort(function (a, b) {
+        return b - a;
+      });
+  }
+
   function deriveGraphEvents(state, points, isPastSession) {
     if (!points || !points.length) {
       return [];
@@ -1599,41 +1634,6 @@
         requestAnimationFrame(function () { $("inpWarnAdd").focus(); });
       }
     };
-    function parseAlertThresholdValues(raw) {
-      const set = {};
-      function addToken(part) {
-        const p = (part || "").trim();
-        if (!p) return;
-        const rm = /^(\d+)\s*-\s*(\d+)$/.exec(p);
-        if (rm) {
-          const a = parseInt(rm[1], 10);
-          const b = parseInt(rm[2], 10);
-          if (isFinite(a) && isFinite(b) && a >= 1 && b >= 1) {
-            const step = a <= b ? 1 : -1;
-            let x = a;
-            while ((step > 0 && x <= b) || (step < 0 && x >= b)) {
-              set[x] = true;
-              x += step;
-            }
-          }
-          return;
-        }
-        const n = parseInt(p, 10);
-        if (!isNaN(n) && n >= 1) set[n] = true;
-      }
-      (raw || "")
-        .replace(/,/g, " ")
-        .split(/\s+/)
-        .forEach(function (p) {
-          addToken(p);
-        });
-      return Object.keys(set)
-        .map(Number)
-        .sort(function (a, b) {
-          return b - a;
-        });
-    }
-
     function formatAlertThresholdValues(raw) {
       const arr = Array.isArray(raw) ? raw.slice() : parseAlertThresholdValues(raw);
       if (!arr.length) throw new Error("Add at least one threshold (e.g. 10, 5, 1).");
