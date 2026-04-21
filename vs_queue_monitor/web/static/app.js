@@ -2865,6 +2865,9 @@
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
         var next = !((window._lastState && window._lastState.graph_live_view) !== false);
+        var canvas = $("graphCanvas");
+        var ds = canvas && canvas._drawState;
+        var frozenRange = ds ? [ds.t0, ds.t1] : null;
         postConfig({ graph_live_view: next })
           .then(function (state) {
             if (state && typeof state === "object") {
@@ -2874,7 +2877,10 @@
             }
             if (window._lastState) {
               if (next) {
+                window._graphZoom = null;
                 selectLatestSession();
+              } else if (frozenRange && frozenRange[1] > frozenRange[0]) {
+                window._graphZoom = frozenRange;
               }
               syncSettingsFormFromState(window._lastState);
               syncGraphToolbarButtons(window._lastState);
