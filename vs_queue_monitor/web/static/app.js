@@ -1743,7 +1743,14 @@
         return;
       }
       postConfig({ alert_thresholds: normalized })
-        .then(function () {
+        .then(function (state) {
+          if (state && typeof state === "object") {
+            window._lastState = state;
+            applyState(state);
+          } else if (window._lastState) {
+            window._lastState.alert_thresholds = normalized;
+            applyState(window._lastState);
+          }
           $("popWarn").classList.add("hidden");
         })
         .catch(function (err) {
@@ -1778,7 +1785,14 @@
         return;
       }
       postConfig({ alert_thresholds: merged })
-        .then(function () {
+        .then(function (state) {
+          if (state && typeof state === "object") {
+            window._lastState = state;
+            applyState(state);
+          } else if (window._lastState) {
+            window._lastState.alert_thresholds = merged;
+            applyState(window._lastState);
+          }
           $("popWarnAdd").classList.add("hidden");
         })
         .catch(function (err) {
