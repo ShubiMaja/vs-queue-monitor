@@ -512,11 +512,10 @@ class QueueMonitorEngine:
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
-        # Use total boundary count when available: catches a new run the moment its boundary
-        # line appears, before the first position line arrives (which is when queue_sess updates).
+        # Use total boundary count only when there is also at least one new position line in the
+        # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
+        # mid-game reconnect lines that appear without an accompanying queue position line.
         effective_sess = queue_sess
-        if total_queue_boundaries is not None and total_queue_boundaries > queue_sess:
-            effective_sess = total_queue_boundaries
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
         if effective_sess <= self._interrupt_baseline_session:
