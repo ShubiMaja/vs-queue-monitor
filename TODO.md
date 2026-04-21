@@ -1,32 +1,40 @@
 # BUGS
 
-Bug: WHen a log file is not loaded its really unclear that this is the  problem. for example the graph area should say something Queue data will be displayed here when a file is loaded. 
-
-Also maybe if theres no log file there should be some kind of indicator towards the folder pickier, maybe arrow pointing <- Click here to get started or start here (is that redundant?)
+## Open
 
 Bug: I'm not sure the tour triggers on first run. how can we be sure?
 
-Bug: live graph keeps moving even after connected, when zoomed it there is wierd behavior where live graph goes off the screen
+Visual Bug: Instead overlaying visual icons on the graph, they should be on the timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
 
-Visual Bug: Instead overlaying visual icons on the graph, instead they should be on hte timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
+Bug: game asks to adopt a new run before getting in a new queue
 
-Bug: game asks to adopt a new run before i got in a new queue
 Feature: Add Prequeue feature
 
-Bug: latest session hhas no knowledge of position 0 and shows you as disconnected at 1
+Bug: latest session has no knowledge of position 0 and shows you as disconnected at 1
 
-Bug: when setting wearning thresholds to 15, 10, 5, 3-1
-we get an error: formatShortDuration is not defined
-
-Bug: History scrollbar does not appear to be working, history  window just scrolls infinitely
-
-Visual Bug:  the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph
+Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
 
 Bug: Clicking on the notification that pops up does not focus the application or tab
 
+## Fixed (closed)
+
+~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
+Fixed: graph canvas now shows context-aware message with "← Set a log folder above" hint (v1.0.266)
+
+~~Bug: live graph keeps moving even after connected; weird zoom behavior going off screen~~
+Fixed: stop extending t1 to Date.now() when progress=1.0; zoom now uses ds.t0/ds.t1 (v1.0.265)
+
+~~Bug: when setting warning thresholds to 15, 10, 5, 3-1 we get an error: formatShortDuration is not defined~~
+Fixed: added missing formatShortDuration function (v1.0.264)
+
+~~Bug: History scrollbar does not appear to be working, history window just scrolls infinitely~~
+Fixed: added max-height to .info-history__card--side to close the flex chain (v1.0.267)
+
+---
+
 # FEATURES
 
-Feature: Auto update mechanism that detects a change to main branch and asks you to update by bulling the main branch and restarting the app
+Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app
 
 Feature: Queue Scheduling
 
