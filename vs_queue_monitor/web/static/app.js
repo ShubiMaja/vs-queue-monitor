@@ -164,21 +164,36 @@
 
   var NOTIFY_ICON_PATH = "/notify-icon.svg";
 
-  function notifyIconUrl() {
+  function notifyIconUrl(path) {
     try {
-      return new URL(NOTIFY_ICON_PATH, location.href).href;
+      return new URL(path || NOTIFY_ICON_PATH, location.href).href;
     } catch (e) {
-      return NOTIFY_ICON_PATH;
+      return path || NOTIFY_ICON_PATH;
     }
+  }
+
+  function notificationIconPath(kind) {
+    if (kind === "warning") return "/notify-warning.svg";
+    if (kind === "completion") return "/notify-completion.svg";
+    if (kind === "failure") return "/notify-failure.svg";
+    return NOTIFY_ICON_PATH;
+  }
+
+  function formatNotificationBody(lines) {
+    return lines.filter(function (line) {
+      return !!(line && String(line).trim());
+    }).join("\n");
   }
 
   /**
    * Richer desktop notifications: app icon, badge, timestamp; pass tag to control deduplication in the OS.
    */
   function desktopNotify(title, extra) {
+    var kind = extra && extra.kind ? String(extra.kind) : "";
+    var iconUrl = notifyIconUrl(notificationIconPath(kind));
     var o = {
-      icon: notifyIconUrl(),
-      badge: notifyIconUrl(),
+      icon: iconUrl,
+      badge: iconUrl,
       timestamp: Date.now(),
       lang: "en",
     };
@@ -624,11 +639,15 @@
       el.classList.add("kpi__val--empty");
       if (opts.loading) {
         el.classList.add("kpi__val--loading");
-        el.innerHTML = '<span class="kpi__throbber" aria-hidden="true"></span>';
+        if (!el.classList.contains("kpi__val--loading-active")) {
+          el.classList.add("kpi__val--loading-active");
+          el.innerHTML = '<span class="kpi__throbber" aria-hidden="true"></span>';
+        }
         el.setAttribute("aria-busy", "true");
       } else {
         el.textContent = "—";
         el.classList.remove("kpi__val--loading");
+        el.classList.remove("kpi__val--loading-active");
         el.removeAttribute("aria-busy");
       }
       if (emptyTitle) el.title = emptyTitle;
@@ -636,6 +655,7 @@
       el.textContent = String(raw);
       el.classList.remove("kpi__val--empty");
       el.classList.remove("kpi__val--loading");
+      el.classList.remove("kpi__val--loading-active");
       el.removeAttribute("aria-busy");
       el.removeAttribute("title");
     }
