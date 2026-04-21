@@ -634,12 +634,7 @@
     }
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
-      try {
-        var saved = (lsGetSession() || "").trim();
-        if (saved) {
-          selectedSessionKey = saved;
-        }
-      } catch (e) {}
+      // Always start on "latest" (active session) on page load.
     }
     var valid = selectedSessionKey === "latest";
     if (!valid) {

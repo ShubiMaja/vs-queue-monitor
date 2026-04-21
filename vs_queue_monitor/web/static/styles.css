@@ -1022,6 +1022,14 @@ select.inp:focus-visible {
   padding-left: 10px;
   padding-right: 10px;
 }
+.btn--toggle[aria-pressed="true"] {
+  background: rgba(87, 148, 242, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn--toggle[aria-pressed="true"]:hover {
+  background: rgba(87, 148, 242, 0.28);
+}
 .popover--history {
   position: absolute;
   top: calc(100% - 1px);
