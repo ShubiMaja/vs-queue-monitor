@@ -1571,9 +1571,7 @@
     }
 
     function _isBannerUnsupported() {
-      if (_notifUnsupported || typeof Notification === "undefined") return true;
-      if (window._windowMode === "pywebview") return true;
-      return false;
+      return _notifUnsupported || typeof Notification === "undefined";
     }
 
     function _notifBannersBlocked() {

@@ -107,6 +107,39 @@ def _webview_profile_dir() -> str:
     return str(p)
 
 
+def _preconfigure_webview_notification_permission(port: int) -> None:
+    """Pre-grant the Web Notifications permission for localhost in the WebView2 profile.
+
+    WebView2 reads ``Default/Preferences`` at window creation time.  Writing the
+    allow entry before ``webview.create_window`` means ``Notification.permission``
+    is already ``"granted"`` when the page loads — no pythonnet required.
+    """
+    import json as _json
+    import time as _time
+
+    prefs_path = Path(_webview_profile_dir()) / "Default" / "Preferences"
+    try:
+        prefs_path.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if prefs_path.exists():
+            try:
+                data = _json.loads(prefs_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        # Navigate / create the nested structure
+        profile = data.setdefault("profile", {})
+        cs = profile.setdefault("content_settings", {})
+        exc = cs.setdefault("exceptions", {})
+        notif = exc.setdefault("notifications", {})
+        # Chrome stores the last_modified as microseconds since Windows epoch (string)
+        ts = str(int(_time.time() * 1_000_000))
+        for origin in (f"http://localhost:{port},*", f"http://127.0.0.1:{port},*"):
+            notif[origin] = {"last_modified": ts, "setting": 1}  # 1 = ALLOW
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass  # best-effort; fall back to pythonnet handler or sound-only
+
+
 def _pywebview_start_kwargs() -> dict[str, Any]:
     """Prefer Edge WebView2 on Windows so the page gets Chromium + Web Notifications API."""
     if sys.platform != "win32":
@@ -776,6 +809,7 @@ def _run_windows_split_console_webview(
     try:
         from .webview_win import schedule_webview2_notification_permission
 
+        _preconfigure_webview_notification_permission(p)
         webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
         start_kw = _pywebview_start_kwargs()
         schedule_webview2_notification_permission()
@@ -948,6 +982,7 @@ def run_web_server(
     try:
         from .webview_win import schedule_webview2_notification_permission
 
+        _preconfigure_webview_notification_permission(p)
         webview.create_window(APP_DISPLAY_NAME, url, width=1120, height=780)
         start_kw = _pywebview_start_kwargs()
         schedule_webview2_notification_permission()
