@@ -125,6 +125,31 @@
     focusElSoon($("btnSettings"));
   }
 
+  function bindBackdropDismiss(backdropEl, onDismiss) {
+    if (!backdropEl || !onDismiss) return;
+    var armed = false;
+    function arm(ev) {
+      armed = ev.target === backdropEl;
+    }
+    function maybeDismiss(ev) {
+      if (!armed) return;
+      armed = false;
+      if (ev.target === backdropEl) onDismiss();
+    }
+    function disarm() {
+      armed = false;
+    }
+    backdropEl.addEventListener("mousedown", arm);
+    backdropEl.addEventListener("mouseup", maybeDismiss);
+    backdropEl.addEventListener("click", function (ev) {
+      if (ev.target === backdropEl) ev.preventDefault();
+    });
+    backdropEl.addEventListener("mouseleave", disarm);
+    backdropEl.addEventListener("touchstart", arm, { passive: true });
+    backdropEl.addEventListener("touchend", maybeDismiss);
+    backdropEl.addEventListener("touchcancel", disarm);
+  }
+
   /** Header shows only whether a path is configured; the full path is in Info and in tooltip / aria-label. */
   function syncPathDisplay() {
     var inp = $("inpPath");
@@ -2074,9 +2099,9 @@
     if (no) no.onclick = function () {
       submit(false);
     };
-    if (bd) bd.onclick = function () {
+    bindBackdropDismiss(bd, function () {
       submit(false);
-    };
+    });
   }
 
   var _notifUnsupported = false;
@@ -2695,12 +2720,18 @@
       showEl($("modalHelp"));
       focusElSoon($("btnHelpOk"));
     };
+    bindBackdropDismiss(document.querySelector("#modalHelp .modal__backdrop"), closeHelpModal);
+    bindBackdropDismiss(document.querySelector("#modalSettings .modal__backdrop"), closeSettingsModal);
     var btnHelpAbout = $("btnHelpAbout");
     if (btnHelpAbout) btnHelpAbout.onclick = function () { openAboutModal(); };
     var btnAboutEl = $("btnAbout");
     if (btnAboutEl) btnAboutEl.onclick = function () { openAboutModal(); };
     document.querySelectorAll("[data-close-about]").forEach(function (el) {
-      el.addEventListener("click", function () { closeAboutModal(); });
+      if (el.classList && el.classList.contains("modal__backdrop")) {
+        bindBackdropDismiss(el, closeAboutModal);
+      } else {
+        el.addEventListener("click", function () { closeAboutModal(); });
+      }
     });
   }
 
@@ -2749,9 +2780,9 @@
       closePathModal();
     };
     var bd = $("modalPathBackdrop");
-    if (bd) bd.onclick = function () {
+    bindBackdropDismiss(bd, function () {
       closePathModal();
-    };
+    });
     if (inpModal) {
       inpModal.addEventListener("keydown", function (ev) {
         if (ev.key === "Enter") {
