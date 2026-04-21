@@ -66,7 +66,7 @@
 
   /** True while a modal, tour, or restore banner is visible — block global single-key shortcuts. */
   function uiBlockingLayerOpen() {
-    var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "tourOverlay"];
+    var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     var i;
     for (i = 0; i < ids.length; i++) {
       var el = $(ids[i]);
@@ -102,6 +102,20 @@
     if (!mh || mh.classList.contains("hidden")) return;
     hideEl(mh);
     focusElSoon($("btnHelp"));
+  }
+
+  function openAboutModal() {
+    hideEl($("modalHelp"));
+    hideEl($("modalSettings"));
+    showEl($("modalAbout"));
+    focusElSoon($("btnAboutOk"));
+  }
+
+  function closeAboutModal() {
+    var ma = $("modalAbout");
+    if (!ma || ma.classList.contains("hidden")) return;
+    hideEl(ma);
+    focusElSoon($("btnAbout"));
   }
 
   function closeSettingsModal() {
@@ -2549,20 +2563,16 @@
 
   function setupHelpCmd() {
     $("btnHelp").onclick = function () {
-      fetch("/api/meta")
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (m) {
-          $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
-          showEl($("modalHelp"));
-          focusElSoon($("btnHelpOk"));
-        })
-        .catch(function () {
-          showEl($("modalHelp"));
-          focusElSoon($("btnHelpOk"));
-        });
+      showEl($("modalHelp"));
+      focusElSoon($("btnHelpOk"));
     };
+    var btnHelpAbout = $("btnHelpAbout");
+    if (btnHelpAbout) btnHelpAbout.onclick = function () { openAboutModal(); };
+    var btnAboutEl = $("btnAbout");
+    if (btnAboutEl) btnAboutEl.onclick = function () { openAboutModal(); };
+    document.querySelectorAll("[data-close-about]").forEach(function (el) {
+      el.addEventListener("click", function () { closeAboutModal(); });
+    });
   }
 
   function setupPathModal() {
@@ -2625,7 +2635,7 @@
 
   /** Keep Tab cycling within an open dialog (WCAG-friendly). */
   function setupModalTabTrap() {
-    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "tourOverlay"];
+    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     document.addEventListener(
       "keydown",
       function (ev) {
@@ -2687,6 +2697,11 @@
           ev.preventDefault();
           var bd = $("modalPathBackdrop");
           if (bd) bd.click();
+          return;
+        }
+        if ($("modalAbout") && !$("modalAbout").classList.contains("hidden")) {
+          ev.preventDefault();
+          closeAboutModal();
           return;
         }
         if ($("modalHelp") && !$("modalHelp").classList.contains("hidden")) {
@@ -3278,12 +3293,15 @@
       window._graphTheme = m.graph_theme || null;
       window._windowMode = m.window_mode || null;
       applyChromeTheme(m.chrome_theme);
-      $("helpCfgPath").textContent = "Config: " + (m.config_path || "");
       var fv2 = $("footerVersion");
       if (fv2) {
         var bf2 = m.build_fingerprint || "";
         fv2.textContent = "v" + (m.version || "") + (bf2 ? " (" + bf2 + ")" : "");
       }
+      var av = $("aboutVersion");
+      if (av) av.textContent = m.version ? "v" + m.version : "";
+      var agl = $("aboutGithubLink");
+      if (agl && m.github_url) agl.href = m.github_url;
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();

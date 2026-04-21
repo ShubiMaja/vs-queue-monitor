@@ -290,6 +290,24 @@ body {
 }
 .brand {
   overflow-wrap: anywhere;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.brand:hover .brand__title {
+  color: var(--accent);
+}
+.brand:focus {
+  outline: none;
+}
+.brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 .brand__title {
   font-weight: 700;
@@ -1228,6 +1246,46 @@ select.inp:focus-visible {
 .help-kbd {
   margin: 0 0 10px;
   line-height: 1.45;
+}
+.help-about-link {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.modal__box--about {
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+  padding-bottom: var(--space-5);
+}
+.about-icon {
+  margin: 0 auto var(--space-3);
+  display: flex;
+  justify-content: center;
+}
+.modal__box--about h2.about-name {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+.about-tagline {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+}
+.about-version {
+  margin: 0 0 var(--space-4);
+  font-size: 0.8rem;
+}
+.about-links {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: var(--space-4);
+}
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
 }
 .modal__text {
   line-height: 1.45;

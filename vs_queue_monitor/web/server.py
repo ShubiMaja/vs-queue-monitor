@@ -22,7 +22,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from .. import VERSION
+from .. import GITHUB_REPO_URL, VERSION
 from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
@@ -436,6 +436,7 @@ def _api_meta(request: Request) -> JSONResponse:
         {
             "config_path": str(get_config_path()),
             "version": VERSION,
+            "github_url": GITHUB_REPO_URL,
             "build_fingerprint": _build_fingerprint(),
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
