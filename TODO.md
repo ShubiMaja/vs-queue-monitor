@@ -6,11 +6,11 @@ Bug: I'm not sure the tour triggers on first run. how can we be sure?
 
 Visual Bug: Instead overlaying visual icons on the graph, they should be on the timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
 
-Bug: game asks to adopt a new run before getting in a new queue
+Bug: I'm not sure the tour triggers on first run. how can we be sure?
+
+Visual Bug: Instead overlaying visual icons on the graph, they should be on the timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
 
 Feature: Add Prequeue feature
-
-Bug: latest session has no knowledge of position 0 and shows you as disconnected at 1
 
 Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
 
@@ -29,6 +29,15 @@ Fixed: added missing formatShortDuration function (v1.0.264)
 
 ~~Bug: History scrollbar does not appear to be working, history window just scrolls infinitely~~
 Fixed: added max-height to .info-history__card--side to close the flex chain (v1.0.267)
+
+~~Bug: game asks to adopt a new run before getting in a new queue~~
+Fixed: removed total_queue_boundaries early-detection from _handle_interrupted_tail — boundary patterns fire during normal post-queue gameplay (v1.0.268)
+
+~~Bug: latest session has no knowledge of position 0 and shows you as disconnected at 1~~
+Fixed: compute_seed_graph_from_log now maps authoritative_pos → 0 when post-queue signal is already present in log tail (v1.0.269)
+
+~~Bug: Latest session is also represented as a session with an id in the drop down — shown as ✕ Failed even though it's the ongoing session~~
+Fixed: _queue_sessions_for_engine now filters out the active session by engine._last_queue_run_session (v1.0.272)
 
 ---
 
