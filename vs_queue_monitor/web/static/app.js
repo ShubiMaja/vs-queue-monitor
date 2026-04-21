@@ -632,8 +632,12 @@
 
   function syncSettingsFormFromState(s) {
     if (!s) return;
-    var chkEvery = $("chkHistoryEvery");
-    if (chkEvery) chkEvery.checked = !!s.show_every_change;
+    var btnHistoryEvery = $("btnHistoryEvery");
+    if (btnHistoryEvery) {
+      var enabled = !!s.show_every_change;
+      btnHistoryEvery.setAttribute("aria-pressed", enabled ? "true" : "false");
+      btnHistoryEvery.title = enabled ? "Stop logging every routine position step" : "Log every routine position step in History";
+    }
     var chkPop = $("chkPop");
     if (chkPop) chkPop.checked = !!s.popup_enabled;
     var chkSnd = $("chkSnd");
@@ -675,6 +679,15 @@
 
   function syncGraphToolbarButtons(s) {
     if (!s) return;
+    var btnLiveText = $("btnGraphLiveText");
+    if (btnLiveText) btnLiveText.textContent = "LIVE";
+    var btnLive = $("btnGraphLive");
+    if (btnLive) {
+      var liveOn = s.graph_live_view !== false;
+      btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
+      btnLive.title = liveOn ? "Live follow: On (click to turn off)" : "Live follow: Off (click to turn on)";
+      btnLive.setAttribute("aria-label", btnLive.title);
+    }
     var btnTimeText = $("btnGraphTimeModeText");
     if (btnTimeText) btnTimeText.textContent = (s.graph_time_mode || "relative") === "absolute" ? "ABS" : "REL";
     var btnTime = $("btnGraphTimeMode");
@@ -2523,6 +2536,30 @@
           });
       };
     }
+    var btnGraphLive = $("btnGraphLive");
+    if (btnGraphLive) {
+      btnGraphLive.onclick = function () {
+        var next = !((window._lastState && window._lastState.graph_live_view) !== false);
+        postConfig({ graph_live_view: next })
+          .then(function (state) {
+            if (state && typeof state === "object") {
+              window._lastState = state;
+            } else if (window._lastState) {
+              window._lastState.graph_live_view = next;
+            }
+            if (window._lastState) {
+              syncSettingsFormFromState(window._lastState);
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
+      };
+    }
     var btnGraphScale = $("btnGraphScale");
     if (btnGraphScale) {
       btnGraphScale.onclick = function () {
@@ -2569,17 +2606,18 @@
         focusElSoon($("tabWarning"));
       };
     }
-    var chkHistoryEvery = $("chkHistoryEvery");
-    if (chkHistoryEvery) {
-      chkHistoryEvery.onchange = function () {
-        var next = !!chkHistoryEvery.checked;
+    var btnHistoryEvery = $("btnHistoryEvery");
+    if (btnHistoryEvery) {
+      btnHistoryEvery.onclick = function () {
+        var current = btnHistoryEvery.getAttribute("aria-pressed") === "true";
+        var next = !current;
         postConfig({ show_every_change: next })
           .then(function (state) {
             if (state && typeof state === "object") window._lastState = state;
             else if (window._lastState) window._lastState.show_every_change = next;
+            syncSettingsFormFromState(window._lastState || { show_every_change: next });
           })
           .catch(function (e) {
-            chkHistoryEvery.checked = !next;
             toast(String(e.message || e), "warn");
           });
       };

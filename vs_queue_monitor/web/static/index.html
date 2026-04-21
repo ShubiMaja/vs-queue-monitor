@@ -249,6 +249,19 @@
           <div class="graph-toolbar__right">
             <button
               type="button"
+              class="btn btn--small btn--icon-label btn--toggle"
+              id="btnGraphLive"
+              title="Toggle live time follow"
+              aria-label="Toggle live graph follow"
+              aria-pressed="true"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span id="btnGraphLiveText">LIVE</span>
+            </button>
+            <button
+              type="button"
               class="btn btn--small btn--icon-label"
               id="btnGraphTimeMode"
               title="Toggle time axis between relative and absolute"
@@ -340,10 +353,9 @@
             <div class="info-history__head">
               <span class="info-history__title muted">History</span>
               <div class="info-history__actions">
-                <label class="history-toggle" title="Show every routine position step in History">
-                  <input type="checkbox" id="chkHistoryEvery" />
-                  <span>Every change</span>
-                </label>
+                <button type="button" class="btn btn--small btn--icon-label btn--toggle" id="btnHistoryEvery" title="Toggle routine position steps in History" aria-pressed="false">
+                  <span>Log Position Changes</span>
+                </button>
                 <button type="button" class="btn btn--small btn--icon-label" id="btnCopyHistory" title="Copy history to clipboard" aria-label="Copy session history">
                   <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
