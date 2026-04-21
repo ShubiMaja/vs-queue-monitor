@@ -592,6 +592,7 @@
     }
     for (i = 0; i < thresholds.length; i++) {
       var threshold = thresholds[i];
+      var warned = false;
       for (var j = 1; j < points.length; j++) {
         var prevPos = points[j - 1][1];
         var currPos = points[j][1];
@@ -602,8 +603,17 @@
             pos: currPos,
             threshold: threshold,
           });
+          warned = true;
           break;
         }
+      }
+      if (!warned && points[0][1] <= threshold) {
+        out.push({
+          kind: "warning",
+          t: points[0][0],
+          pos: points[0][1],
+          threshold: threshold,
+        });
       }
     }
     var connectPoint = null;
