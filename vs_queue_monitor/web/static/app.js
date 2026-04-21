@@ -150,6 +150,11 @@
     btn.classList.toggle("btn--toggle-on", _historyAutoscroll);
   }
 
+  function historyPinnedToBottom(el) {
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= 12;
+  }
+
   function bindBackdropDismiss(backdropEl, onDismiss) {
     if (!backdropEl || !onDismiss) return;
     var armed = false;
@@ -1243,8 +1248,7 @@
 
     const hp = $("historyPre");
     if (hp && s.history_tail) {
-      var pinnedToBottom =
-        hp.scrollHeight - hp.scrollTop - hp.clientHeight <= 12;
+      var pinnedToBottom = historyPinnedToBottom(hp);
       hp.textContent = s.history_tail.join("\n");
       if (_historyAutoscroll || pinnedToBottom) {
         hp.scrollTop = hp.scrollHeight;
@@ -2781,6 +2785,17 @@
   function setupHistoryAutoscroll() {
     _historyAutoscroll = lsGetHistoryAutoscroll();
     syncHistoryAutoscrollButton();
+    var hp = $("historyPre");
+    if (hp) {
+      hp.addEventListener("scroll", function () {
+        var next = historyPinnedToBottom(hp);
+        if (_historyAutoscroll !== next) {
+          _historyAutoscroll = next;
+          lsSetHistoryAutoscroll(_historyAutoscroll);
+          syncHistoryAutoscrollButton();
+        }
+      });
+    }
     var btn = $("btnHistoryAutoscroll");
     if (btn) {
       btn.onclick = function () {
@@ -2788,7 +2803,6 @@
         lsSetHistoryAutoscroll(_historyAutoscroll);
         syncHistoryAutoscrollButton();
         if (_historyAutoscroll) {
-          var hp = $("historyPre");
           if (hp) hp.scrollTop = hp.scrollHeight;
         }
       };
