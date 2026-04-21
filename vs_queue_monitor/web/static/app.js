@@ -843,8 +843,6 @@
     var overlay = document.getElementById("serverStoppedOverlay");
     if (!overlay) return;
     overlay.classList.remove("hidden");
-    var btnClose = document.getElementById("btnCloseTab");
-    if (btnClose) btnClose.addEventListener("click", function () { window.close(); }, { once: true });
     var btnOffline = document.getElementById("btnOfflineMode");
     if (btnOffline) btnOffline.addEventListener("click", _enterOfflineMode, { once: true });
   }
