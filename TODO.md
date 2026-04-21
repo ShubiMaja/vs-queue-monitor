@@ -2,19 +2,7 @@
 
 ## Open
 
-Bug: I'm not sure the tour triggers on first run. how can we be sure?
-
-Visual Bug: Instead overlaying visual icons on the graph, they should be on the timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
-
-Bug: I'm not sure the tour triggers on first run. how can we be sure?
-
-Visual Bug: Instead overlaying visual icons on the graph, they should be on the timeline with time having the ability to show over them (maybe have bold dark outline around the timestamps or pick another elegant way to not clutter the graph)
-
-Feature: Add Prequeue feature
-
 Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
-
-Bug: Clicking on the notification that pops up does not focus the application or tab
 
 ## Fixed (closed)
 
@@ -31,15 +19,37 @@ Fixed: added missing formatShortDuration function (v1.0.264)
 Fixed: added max-height to .info-history__card--side to close the flex chain (v1.0.267)
 
 ~~Bug: game asks to adopt a new run before getting in a new queue~~
-Fixed: removed total_queue_boundaries early-detection from _handle_interrupted_tail — boundary patterns fire during normal post-queue gameplay (v1.0.268)
+Fixed: removed total_queue_boundaries early-detection from _handle_interrupted_tail (v1.0.268)
 
 ~~Bug: latest session has no knowledge of position 0 and shows you as disconnected at 1~~
-Fixed: compute_seed_graph_from_log now maps authoritative_pos → 0 when post-queue signal is already present in log tail (v1.0.269)
+Fixed: compute_seed_graph_from_log maps authoritative_pos to 0 when post-queue signal present (v1.0.269)
 
-~~Bug: Latest session is also represented as a session with an id in the drop down — shown as ✕ Failed even though it's the ongoing session~~
-Fixed: _queue_sessions_for_engine now filters out the active session by engine._last_queue_run_session (v1.0.272)
+~~Bug: Latest session is also represented as a session with an id in the drop down~~
+Fixed: _queue_sessions_for_engine filters out active session by _last_queue_run_session (v1.0.272)
+
+~~Bug: I'm not sure the tour triggers on first run. how can we be sure?~~
+Fixed: dual-path trigger via _tourAutoShowFn (fetch + WS fallback), fires once (v1.0.270)
+
+~~Visual Bug: event icons overlaid on graph plot area instead of timeline~~
+Fixed: icons sit on axis line, time labels have bg fill; historical sessions show final event icon on marker dot (v1.0.276/277)
+
+~~Visual Bug: history autoscroll toggle style inconsistent with graph Live/Trendline toggles~~
+Fixed: added info-history__head .btn--toggle rules mirroring graph-toolbar__right style (v1.0.274)
+
+~~Bug: Clicking on the notification that pops up does not focus the application or tab~~
+Fixed: notification onclick fires window.focus() + notif.close() (v1.0.277)
+
+~~Bug: when inputting 0 value in warnings, it fails silently~~
+Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid — thresholds must be >= 1." (v1.0.278)
 
 ---
+
+# TWEAKS
+
+~~Tweak: Default Warnings are 15, 10, 5 3-1~~
+Done: DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1" (v1.0.275)
+
+Tweak: Reset Defaults should be "Reset all defaults" and warn the user that all settings will be reset
 
 # FEATURES
 
@@ -64,7 +74,7 @@ requires you to set the game directory instead of the log directory
 
 Simply paste this into a text document, change to your preferred time and game directory, save, and then rename the text document so that its a .ps1 file. Run the file with Power shell when you leave your computer and you will automatically join the queue at the time you set.
 
-Give yourself some leeway, I'm not responsible if you accidently join the game while not at your computer and get afk kicked or die. I recommend disconnecting in a safe location and putting your inventory loot in a chest before doing this.
+Give yourself some leeway, I am not responsible if you accidently join the game while not at your computer and get afk kicked or die. I recommend disconnecting in a safe location and putting your inventory loot in a chest before doing this.
 
 ---
 Feature: Join Scheduling
