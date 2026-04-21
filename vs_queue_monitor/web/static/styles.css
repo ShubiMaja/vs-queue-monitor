@@ -940,13 +940,38 @@ select.inp:focus-visible {
   border-radius: var(--radius-sm);
   vertical-align: middle;
 }
-.graph-hint {
-  font-size: 0.8rem;
+.graph-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
   margin-top: 10px;
   padding-bottom: 4px;
+}
+.graph-footer__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.graph-footer__log {
+  text-align: right;
+  max-width: min(280px, 42vw);
+}
+.graph-footer__zoom {
+  flex: 0 0 auto;
+}
+.graph-hint {
+  font-size: 0.8rem;
+  margin-top: 0;
+  padding-bottom: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .app-footer {
