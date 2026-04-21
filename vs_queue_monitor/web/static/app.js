@@ -17,6 +17,7 @@
   /** True after we POST saved local path because the engine had no source_path (sync with localStorage). */
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
+  var _notificationSwRegPromise = null;
 
   function lsGetPath() {
     try {
@@ -158,6 +159,30 @@
     }
   }
 
+  function ensureNotificationServiceWorker() {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.serviceWorker ||
+      typeof window === "undefined" ||
+      !window.isSecureContext
+    ) {
+      return Promise.resolve(null);
+    }
+    if (_notificationSwRegPromise) return _notificationSwRegPromise;
+    _notificationSwRegPromise = navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then(function () {
+        return navigator.serviceWorker.ready;
+      })
+      .then(function (reg) {
+        return reg || null;
+      })
+      .catch(function () {
+        return null;
+      });
+    return _notificationSwRegPromise;
+  }
+
   /**
    * Richer desktop notifications: app icon, badge, timestamp; pass tag to control deduplication in the OS.
    */
@@ -174,7 +199,27 @@
         if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
       }
     }
-    return new Notification(title, o);
+    return ensureNotificationServiceWorker().then(function (reg) {
+      if (reg && typeof reg.showNotification === "function") {
+        return reg.showNotification(title, o);
+      }
+      return new Notification(title, o);
+    });
+  }
+
+  function fireDesktopNotification(title, extra, failMessage) {
+    try {
+      var result = desktopNotify(title, extra);
+      if (result && typeof result.then === "function") {
+        result.catch(function () {
+          if (failMessage) toast(failMessage, "warn");
+        });
+      }
+      return result;
+    } catch (e) {
+      if (failMessage) toast(failMessage, "warn");
+      return null;
+    }
   }
 
   function postConfig(patch) {
@@ -622,30 +667,27 @@
         typeof Notification !== "undefined" &&
         Notification.permission === "granted"
       ) {
-        try {
-          var posStr =
-            s.position != null && String(s.position).trim() !== ""
-              ? String(s.position).trim()
-              : null;
-          var statStr =
-            s.status != null && String(s.status).trim() !== ""
-              ? String(s.status).trim()
-              : null;
-          var detail = [];
-          if (posStr != null) detail.push("Position " + posStr);
-          if (statStr) detail.push(statStr);
-          var threshBody = alertMsg;
-          if (detail.length) threshBody = alertMsg + "\n\n" + detail.join(" · ");
-          desktopNotify("Threshold crossed", {
+        var posStr =
+          s.position != null && String(s.position).trim() !== ""
+            ? String(s.position).trim()
+            : null;
+        var statStr =
+          s.status != null && String(s.status).trim() !== ""
+            ? String(s.status).trim()
+            : null;
+        var detail = [];
+        if (posStr != null) detail.push("Position " + posStr);
+        if (statStr) detail.push(statStr);
+        var threshBody = alertMsg;
+        if (detail.length) threshBody = alertMsg + "\n\n" + detail.join(" · ");
+        fireDesktopNotification(
+          "Threshold crossed",
+          {
             body: threshBody,
             tag: "vsqm-threshold-" + aseq,
-          });
-        } catch (e) {
-          toast(
-            "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
-            "warn",
-          );
-        }
+          },
+          "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+        );
       }
     }
     lastAlertSeq = aseq;
@@ -658,18 +700,15 @@
         typeof Notification !== "undefined" &&
         Notification.permission === "granted"
       ) {
-        try {
-          desktopNotify("Queue wait finished", {
+        fireDesktopNotification(
+          "Queue wait finished",
+          {
             body:
               "Past queue wait — connecting (position 0).\n\nThe in-queue wait is over; the app shows live connection status.",
             tag: "vsqm-completion-" + cseq,
-          });
-        } catch (e) {
-          toast(
-            "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
-            "warn",
-          );
-        }
+          },
+          "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
+        );
       }
     }
     lastCompletionSeq = cseq;
@@ -1566,13 +1605,12 @@
               _hideNotifPermTip();
               syncHint();
               if (p === "granted") {
-                try {
-                  desktopNotify("Notifications enabled", {
-                    body:
-                      "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
-                    tag: "vsqm-setup-grant",
-                  });
-                } catch (e) {}
+                fireDesktopNotification("Notifications enabled", {
+                  body:
+                    "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+                  tag: "vsqm-setup-grant-" + Date.now(),
+                  renotify: true,
+                });
                 toast("Notifications enabled.");
               } else if (p === "denied") {
                 // < 800 ms: browser returned denied without a dialog (quiet UI auto-deny
@@ -1599,13 +1637,12 @@
           _hideNotifPermTip();
           syncHint();
           if (Notification.permission === "granted") {
-            try {
-              desktopNotify("Notifications enabled", {
-                body:
-                  "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
-                tag: "vsqm-setup-grant",
-              });
-            } catch (e) {}
+            fireDesktopNotification("Notifications enabled", {
+              body:
+                "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+              tag: "vsqm-setup-grant-" + Date.now(),
+              renotify: true,
+            });
             toast("Notifications enabled.");
           }
         }
@@ -1623,13 +1660,12 @@
 
     /** Same sample copy as after first granting permission — confirms OS banners when turning alerts back on. */
     function showExampleDesktopNotification() {
-      try {
-        desktopNotify("Threshold alerts active", {
-          body:
-            "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
-          tag: "vsqm-example-" + Date.now(),
-        });
-      } catch (e) {}
+      fireDesktopNotification("Threshold alerts active", {
+        body:
+          "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+        tag: "vsqm-example-" + Date.now(),
+        renotify: true,
+      });
     }
 
     function _isBannerUnsupported() {
@@ -1745,13 +1781,12 @@
           toast("Allow notifications from the header switch first.", "warn");
           return;
         }
-        try {
-          desktopNotify("Test notification", {
-            body:
-              "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-            tag: "vsqm-test",
-          });
-        } catch (e) {}
+        fireDesktopNotification("Test notification", {
+          body:
+            "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
+          tag: "vsqm-test-" + Date.now(),
+          renotify: true,
+        }, "Could not show a desktop notification (check your browser and OS notification settings).");
         toast("Test sent — check the system tray if you see no banner.");
       });
     }
@@ -2031,6 +2066,8 @@
       });
     });
     $("btnSaveSettings").onclick = function () {
+      var prevPopupEnabled =
+        window._lastState == null || window._lastState.popup_enabled !== false;
       var patch = {
         show_every_change: $("chkEvery").checked,
         popup_enabled: $("chkPop").checked,
@@ -2046,6 +2083,24 @@
       if (ics) patch.completion_sound_path = ics.value.trim();
       postConfig(patch)
         .then(function () {
+          var nextPopupEnabled = !!patch.popup_enabled;
+          if (window._lastState) {
+            window._lastState.popup_enabled = nextPopupEnabled;
+            window._lastState.sound_enabled = !!patch.sound_enabled;
+            window._lastState.completion_popup = !!patch.completion_popup;
+            window._lastState.completion_sound = !!patch.completion_sound;
+            window._lastState.graph_log_scale = !!patch.graph_log_scale;
+            window._lastState.graph_live_view = !!patch.graph_live_view;
+          }
+          if (
+            !prevPopupEnabled &&
+            nextPopupEnabled &&
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted"
+          ) {
+            showExampleDesktopNotification();
+          }
+          if (notifySyncHint) notifySyncHint();
           hideEl($("modalSettings"));
           focusElSoon($("btnSettings"));
           toast("Settings saved");
@@ -2267,6 +2322,7 @@
   setupInfoHistoryResize();
   setupRestoreBanner();
   setupNewQueueModal();
+  ensureNotificationServiceWorker();
   setupNotifications();
   setupHelpCmd();
   setupPathModal();
