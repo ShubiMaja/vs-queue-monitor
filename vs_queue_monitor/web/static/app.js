@@ -343,6 +343,8 @@
     });
   }
 
+  var _dragSel = null; // {x0: canvasCssX, x1: canvasCssX, ds: drawState}
+
   function drawGraph(canvas, state) {
     if (!window.VsQueueMonitorGraph) {
       return;
@@ -352,6 +354,51 @@
       return;
     }
     VsQueueMonitorGraph.draw(ctx, canvas, state, window._graphTheme, window._graphHover, window._graphZoom);
+    // Trendline overlay
+    if (window._graphTrend) {
+      var ds2 = canvas._drawState;
+      if (ds2 && ds2.rawPoints && ds2.rawPoints.length >= 2) {
+        var pts2 = ds2.rawPoints;
+        var n2 = pts2.length, sumT = 0, sumV = 0, sumTT = 0, sumTV = 0, i2;
+        for (i2 = 0; i2 < n2; i2++) { sumT += pts2[i2][0]; sumV += pts2[i2][1]; sumTT += pts2[i2][0] * pts2[i2][0]; sumTV += pts2[i2][0] * pts2[i2][1]; }
+        var denom2 = n2 * sumTT - sumT * sumT;
+        if (Math.abs(denom2) > 1e-9) {
+          var bSlope = (n2 * sumTV - sumT * sumV) / denom2;
+          var aInter = (sumV - bSlope * sumT) / n2;
+          var dpr2 = window.devicePixelRatio || 1;
+          var txA = ds2.t0, txB = ds2.t1;
+          var tyA = aInter + bSlope * txA, tyB = aInter + bSlope * txB;
+          var pxA = ds2.xOf(txA) * dpr2, pxB = ds2.xOf(txB) * dpr2;
+          var pyA = ds2.yOf(tyA) * dpr2, pyB = ds2.yOf(tyB) * dpr2;
+          ctx.save();
+          ctx.strokeStyle = "rgba(255,200,80,0.7)";
+          ctx.lineWidth = 1.5 * dpr2;
+          ctx.setLineDash([4 * dpr2, 4 * dpr2]);
+          ctx.beginPath();
+          ctx.moveTo(pxA, pyA);
+          ctx.lineTo(pxB, pyB);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+      }
+    }
+    // Drag-select overlay
+    if (_dragSel && _dragSel.ds) {
+      var ds = _dragSel.ds;
+      var dpr = window.devicePixelRatio || 1;
+      var xa = Math.min(_dragSel.x0, _dragSel.x1) * dpr;
+      var xb = Math.max(_dragSel.x0, _dragSel.x1) * dpr;
+      var ya = ds.y0 * dpr;
+      var yb = (ds.y0 + ds.plotH) * dpr;
+      ctx.save();
+      ctx.fillStyle = "rgba(88,160,255,0.15)";
+      ctx.fillRect(xa, ya, xb - xa, yb - ya);
+      ctx.strokeStyle = "rgba(88,160,255,0.7)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(xa + 0.5, ya + 0.5, xb - xa - 1, yb - ya - 1);
+      ctx.restore();
+    }
   }
 
   function redrawGraphOnly() {
@@ -1051,6 +1098,7 @@
   window._displayState = null;
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 340;
   window._graphZoom = null;
+  window._graphTrend = false;
 
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
@@ -1726,7 +1774,72 @@
 
   function setupGraphCanvas() {
     const c = $("graphCanvas");
+
+    function cssXInPlot(ev) {
+      var rect = c.getBoundingClientRect();
+      var st = c._drawState;
+      if (!st) return null;
+      var x = ev.clientX - rect.left;
+      if (x < st.x0 || x > st.x0 + st.plotW) return null;
+      return x;
+    }
+
+    function xToTime(cssX) {
+      var st = c._drawState;
+      if (!st) return null;
+      return st.t0 + ((cssX - st.x0) / st.plotW) * (st.t1 - st.t0);
+    }
+
+    var _dragStartX = null;
+
+    c.addEventListener("mousedown", function (ev) {
+      if (ev.button !== 0) return;
+      var x = cssXInPlot(ev);
+      if (x === null) return;
+      _dragStartX = x;
+      _dragSel = null;
+      ev.preventDefault();
+    });
+
+    document.addEventListener("mousemove", function (ev) {
+      if (_dragStartX === null) return;
+      var rect = c.getBoundingClientRect();
+      var curX = Math.max(0, Math.min(rect.width, ev.clientX - rect.left));
+      var st = c._drawState;
+      if (!st) return;
+      curX = Math.max(st.x0, Math.min(st.x0 + st.plotW, curX));
+      if (Math.abs(curX - _dragStartX) >= 4) {
+        _dragSel = { x0: _dragStartX, x1: curX, ds: st };
+        hideGraphTooltip();
+        window._graphHover = null;
+        redrawGraphOnly();
+      }
+    });
+
+    document.addEventListener("mouseup", function (ev) {
+      if (_dragStartX === null) return;
+      var hadSel = _dragSel;
+      _dragStartX = null;
+      if (hadSel && Math.abs(hadSel.x1 - hadSel.x0) >= 8) {
+        var tA = xToTime(Math.min(hadSel.x0, hadSel.x1));
+        var tB = xToTime(Math.max(hadSel.x0, hadSel.x1));
+        if (tA !== null && tB !== null && tB > tA) {
+          var ds = c._drawState;
+          var rawT0 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[0][0] : null;
+          var rawT1 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[ds.rawPoints.length - 1][0] : null;
+          if (rawT0 !== null) {
+            var fullSpan = rawT1 - rawT0;
+            window._graphZoom = (tB - tA >= fullSpan * 0.999) ? null : [tA, tB];
+            updateZoomResetBtn();
+          }
+        }
+      }
+      _dragSel = null;
+      redrawGraphOnly();
+    });
+
     c.addEventListener("mousemove", function (ev) {
+      if (_dragStartX !== null) return;
       const st = c._drawState;
       const series = (st && st.rawPoints && st.rawPoints.length ? st.rawPoints : st && st.drawn) || [];
       if (!st || !series.length) {
@@ -1750,11 +1863,19 @@
       showGraphTooltip(ev, formatGraphTooltipHint(best, idx, series));
       window._graphHover = [best[0], best[1]];
       redrawGraphOnly();
+
+      // Cursor hint: crosshair over the plot area
+      var inPlot = (mxCss >= padL && mxCss <= padL + plotW);
+      c.style.cursor = inPlot ? "crosshair" : "";
     });
+
     c.addEventListener("mouseleave", function () {
-      hideGraphTooltip();
-      window._graphHover = null;
-      redrawGraphOnly();
+      if (_dragStartX === null) {
+        hideGraphTooltip();
+        window._graphHover = null;
+        redrawGraphOnly();
+      }
+      c.style.cursor = "";
     });
   }
 
@@ -2967,9 +3088,16 @@
     var btnIn = $("btnZoomIn");
     var btnOut = $("btnZoomOut");
     var btnReset = $("btnZoomReset");
+    var btnTrend = $("btnGraphTrend");
     if (btnIn) btnIn.onclick = function () { zoomGraph(0.5, null); };
     if (btnOut) btnOut.onclick = function () { zoomGraph(2, null); };
     if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
+    if (btnTrend) btnTrend.onclick = function () {
+      window._graphTrend = !window._graphTrend;
+      btnTrend.setAttribute("aria-pressed", String(window._graphTrend));
+      btnTrend.classList.toggle("btn--toggle-on", window._graphTrend);
+      redrawGraphOnly();
+    };
     var c = $("graphCanvas");
     if (!c) return;
     c.addEventListener("wheel", function (e) {
