@@ -2,10 +2,12 @@
 
 ## Open
 
+Revisit Bug: when inputting 0 value in warnings, it fails silently when using ranges or csv
+ 
 ## Fixed (closed)
 
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
-Fixed: graph canvas now shows context-aware message with "â† Set a log folder above" hint (v1.0.266)
+Fixed: graph canvas now shows context-aware message with "<- Set a log folder above" hint (v1.0.266)
 
 ~~Bug: live graph keeps moving even after connected; weird zoom behavior going off screen~~
 Fixed: stop extending t1 to Date.now() when progress=1.0; zoom now uses ds.t0/ds.t1 (v1.0.265)
@@ -38,7 +40,7 @@ Fixed: added info-history__head .btn--toggle rules mirroring graph-toolbar__righ
 Fixed: notification onclick fires window.focus() + notif.close() (v1.0.277)
 
 ~~Bug: when inputting 0 value in warnings, it fails silently~~
-Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid â€” thresholds must be >= 1." (v1.0.278)
+Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid - thresholds must be >= 1." (v1.0.278)
 
 ~~Bug: README / user-facing text has visible encoding corruption (e.g. Win key, arrows, symbols render as mojibake)~~
 Fixed: normalized the README quick-start and alerts copy to plain text so it renders consistently across viewers (v1.0.281)
@@ -49,7 +51,7 @@ Fixed: linked the web UI head to the existing SVG app icon so browsers stop prob
 ~~Bug: warning signs appear on the timeline when they ahve not been reached yet~~
 Fixed: graph warning markers now trigger only after the position drops below a threshold, matching the app's alert wording instead of firing at equality (v1.0.283)
 
-~~Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction â€” step vertex logic looks correct; may be a rendering artifact or downsampling edge case)~~
+~~Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction - step vertex logic looks correct; may be a rendering artifact or downsampling edge case)~~
 Fixed: coalesced duplicate-timestamp samples before building step vertices so same-second updates cannot create a diagonal first segment (v1.0.284)
 
 ~~Bug: the initial entry point commands should never fail silently. they should always open a terminal and that terminal should never close without showing a status for better or worse and user interaction to close the terminal~~
@@ -64,11 +66,7 @@ Fixed: final-point overlay now only reuses terminal connect/disconnect events; w
 
 ## Open
 
-Tweak: add a table of contents to the readme
-
 Tweak: Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
-
-Tweak: don't take responsibility for installing python for the user. just link them the official python website and exit gracefully if there is no python in the main script
 
 ## Implemented
 
@@ -80,6 +78,15 @@ Done: DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1" (v1.0.275)
 
 ~~Tweak: Reset Defaults should be "Reset all defaults" and warn the user that all settings will be reset~~
 Done: button renamed, confirm() dialog added explaining what will be reset (v1.0.279)
+
+~~Tweak: add a table of contents to the readme~~
+Done: added a short README contents list near the top for faster navigation (v1.0.287)
+
+~~Tweak: don't take responsibility for installing python for the user. just link them the official python website and exit gracefully if there is no python in the main script~~
+Done: quick-start/docs wording now points users to the official Python download page rather than implying the app manages Python installation (v1.0.287)
+
+~~Tweak: right most (current live) timestamp should have an opaque background which allows it to always be readable even when overlapping another timestamp~~
+Done: graph time labels draw on an opaque background fill, including the rightmost current/live timestamp label (v1.0.287)
 
 # FEATURES
 

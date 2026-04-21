@@ -4,6 +4,19 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 
 <img width="1178" height="965" alt="image" src="https://github.com/user-attachments/assets/ea25c03a-94d6-4003-8c07-b4568e7b97b2" />
 
+## Contents
+
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Development notes](#development-notes)
+- [Pointing at the log](#pointing-at-the-log)
+- [System tray icon](#system-tray-icon)
+- [Options](#options)
+- [Alerts](#alerts)
+- [Remote access via ngrok](#remote-access-via-ngrok)
+- [Remote access via SSH tunnel](#remote-access-via-ssh-tunnel)
+- [Disclaimer](#disclaimer)
+
 ## Quick start
 
 ### Windows - paste into Command Prompt or Windows Run `Win+R`
@@ -14,7 +27,7 @@ cmd /k "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 
 This clones the repo, installs dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
 
-**Python not installed yet?** The same command works - it opens the Python installer page if needed.
+**Python not installed yet?** The same command works - it opens the official Python download page if needed.
 
 ### macOS / Linux
 
