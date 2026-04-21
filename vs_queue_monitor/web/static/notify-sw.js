@@ -24,7 +24,3 @@ self.addEventListener("notificationclick", function (event) {
     })
   );
 });
-
-self.addEventListener("notificationclose", function () {
-  // reserved for future metrics hooks
-});
