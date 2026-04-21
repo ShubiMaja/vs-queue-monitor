@@ -1214,6 +1214,9 @@ select.inp:focus-visible {
   .info-history__card--side {
     overflow: hidden;
   }
+  .info-history__card--side {
+    max-height: min(calc(100vh - 380px), 520px);
+  }
   .info-history__card .history__pre {
     max-height: none;
     height: 100%;
