@@ -650,8 +650,6 @@
     if (selGS) selGS.value = s.graph_log_scale ? "log" : "linear";
     var selGTM = $("selGraphTimeMode");
     if (selGTM) selGTM.value = s.graph_time_mode || "relative";
-    var chkGV = $("chkGraphLive");
-    if (chkGV) chkGV.checked = !!s.graph_live_view;
   }
 
   function syncGraphToolbarButtons(s) {
@@ -694,8 +692,18 @@
       "No queue position in the log yet — start monitoring or check the log path.",
     );
     setKpiMetric($("kpiStatus"), s.status, "Engine status — idle until monitoring starts.");
+    var sh = $("kpiStatusHdr");
+    if (sh) {
+      var pollSec = parseInt(s.poll_sec, 10);
+      if (!isFinite(pollSec) || isNaN(pollSec) || pollSec < 1) pollSec = 2;
+      sh.textContent = "STATUS (" + pollSec + "s Refresh)";
+    }
     var rh = $("kpiRateHdr");
-    if (rh) rh.textContent = s.rate_header || "RATE";
+    if (rh) {
+      var avgWindow = parseInt(s.avg_window, 10);
+      if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
+      rh.textContent = "RATE (" + avgWindow + "p Average)";
+    }
     setKpiMetric(
       $("kpiRate"),
       rateDisplay,
@@ -1042,7 +1050,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and <strong>live view</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
+          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and relative/absolute <strong>time</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -1197,7 +1205,77 @@
     }
   }
 
+  function setStepperValue(inputEl, nextValue, minValue) {
+    if (!inputEl) return;
+    var min = typeof minValue === "number" ? minValue : 1;
+    var next = parseInt(nextValue, 10);
+    if (!isFinite(next) || isNaN(next)) next = min;
+    if (next < min) next = min;
+    inputEl.value = String(next);
+  }
+
+  function nudgeStepper(inputEl, delta, minValue) {
+    if (!inputEl) return;
+    var min = typeof minValue === "number" ? minValue : 1;
+    var current = parseInt(inputEl.value, 10);
+    if (!isFinite(current) || isNaN(current)) current = min;
+    setStepperValue(inputEl, current + delta, min);
+  }
+
+  function bindNumericPopoverInput(inputId, downId, upId, applyFn, minValue) {
+    var inputEl = $(inputId);
+    var downEl = $(downId);
+    var upEl = $(upId);
+    var min = typeof minValue === "number" ? minValue : 1;
+    if (!inputEl) return;
+    if (downEl) {
+      downEl.onclick = function () {
+        nudgeStepper(inputEl, -1, min);
+        if (applyFn) applyFn(false);
+      };
+    }
+    if (upEl) {
+      upEl.onclick = function () {
+        nudgeStepper(inputEl, 1, min);
+        if (applyFn) applyFn(false);
+      };
+    }
+    inputEl.addEventListener("blur", function () {
+      if (!String(inputEl.value || "").trim()) return;
+      setStepperValue(inputEl, inputEl.value, min);
+    });
+    inputEl.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        if (applyFn) applyFn(true);
+      }
+    });
+  }
+
   function setupPopovers() {
+    function applyPoll(closeAfter) {
+      return postConfig({ poll_sec: $("inpPoll").value.trim() })
+        .then(function () {
+          if (closeAfter !== false) $("popPoll").classList.add("hidden");
+        })
+        .catch(function (err) {
+          toast(String(err.message || err), "warn");
+        });
+    }
+
+    function applyWindow(closeAfter) {
+      return postConfig({ avg_window: $("inpWindow").value.trim() })
+        .then(function () {
+          if (closeAfter !== false) $("popWindow").classList.add("hidden");
+        })
+        .catch(function (err) {
+          toast(String(err.message || err), "warn");
+        });
+    }
+
+    bindNumericPopoverInput("inpPoll", "btnPollDown", "btnPollUp", applyPoll, 1);
+    bindNumericPopoverInput("inpWindow", "btnWindowDown", "btnWindowUp", applyWindow, 1);
+
     $("btnEditPoll").onclick = function (e) {
       e.stopPropagation();
       $("popWindow").classList.add("hidden");
@@ -1211,13 +1289,7 @@
       }
     };
     $("btnPollOk").onclick = function () {
-      postConfig({ poll_sec: $("inpPoll").value.trim() })
-        .then(function () {
-          $("popPoll").classList.add("hidden");
-        })
-        .catch(function (err) {
-          toast(String(err.message || err), "warn");
-        });
+      applyPoll(true);
     };
     $("btnPollCancel").onclick = function () {
       $("popPoll").classList.add("hidden");
@@ -1236,13 +1308,7 @@
       }
     };
     $("btnWindowOk").onclick = function () {
-      postConfig({ avg_window: $("inpWindow").value.trim() })
-        .then(function () {
-          $("popWindow").classList.add("hidden");
-        })
-        .catch(function (err) {
-          toast(String(err.message || err), "warn");
-        });
+      applyWindow(true);
     };
     $("btnWindowCancel").onclick = function () {
       $("popWindow").classList.add("hidden");
@@ -1255,7 +1321,7 @@
       $("popWarn").classList.add("hidden");
       $("popWarnAdd").classList.toggle("hidden");
       if (!$("popWarnAdd").classList.contains("hidden")) {
-        $("inpWarnAdd").value = "";
+        $("inpWarnAdd").value = "1";
         positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
         requestAnimationFrame(function () { $("inpWarnAdd").focus(); });
       }
@@ -1284,6 +1350,12 @@
     $("btnWarnCancel").onclick = function () {
       $("popWarn").classList.add("hidden");
     };
+    $("inpWarn").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        $("btnWarnOk").click();
+      }
+    });
 
     function mergeAlertThresholdsString(raw, addN) {
       const set = {};
@@ -2451,7 +2523,6 @@
           window._lastState == null || window._lastState.popup_enabled !== false;
         var selGraphScale = $("selGraphScale");
         var selGraphTimeMode = $("selGraphTimeMode");
-        var chkGraphLive = $("chkGraphLive");
         var patch = {
           show_every_change: !!($("chkEvery") && $("chkEvery").checked),
           popup_enabled: !!($("chkPop") && $("chkPop").checked),
@@ -2460,7 +2531,6 @@
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
           graph_log_scale: !!(selGraphScale && selGraphScale.value === "log"),
           graph_time_mode: selGraphTimeMode ? selGraphTimeMode.value : "relative",
-          graph_live_view: !!(chkGraphLive && chkGraphLive.checked),
         };
         var iws = $("inpSetWarnSound");
         var ics = $("inpSetCompSound");
@@ -2478,7 +2548,6 @@
               window._lastState.completion_sound = !!patch.completion_sound;
               window._lastState.graph_log_scale = !!patch.graph_log_scale;
               window._lastState.graph_time_mode = patch.graph_time_mode;
-              window._lastState.graph_live_view = !!patch.graph_live_view;
             }
             if (window._lastState) {
               syncSettingsFormFromState(window._lastState);
@@ -2786,3 +2855,6 @@
     })
     .catch(function () {});
 })();
+
+
+

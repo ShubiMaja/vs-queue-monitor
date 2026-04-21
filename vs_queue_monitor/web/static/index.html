@@ -144,13 +144,17 @@
         </div>
         <div class="kpi__cell" data-tour="status">
           <div class="kpi__label">
-            STATUS
+            <span id="kpiStatusHdr">STATUS</span>
             <button type="button" class="kpi__edit" id="btnEditPoll" title="Edit poll interval" aria-label="Edit poll interval">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiStatus">—</div>
           <div id="popPoll" class="popover hidden">
-            <label>Poll (seconds)</label>
-            <input type="text" id="inpPoll" class="inp inp--narrow" />
+            <label>Refresh Rate (seconds)</label>
+            <div class="stepper">
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnPollDown" aria-label="Decrease poll interval">−</button>
+              <input type="text" id="inpPoll" class="inp inp--narrow stepper__input" inputmode="numeric" />
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnPollUp" aria-label="Increase poll interval">+</button>
+            </div>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnPollOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnPollCancel">Cancel</button>
@@ -159,13 +163,17 @@
         </div>
         <div class="kpi__cell" data-tour="rate">
           <div class="kpi__label" id="kpiRateLabel">
-            <span id="kpiRateHdr">RATE</span>
+            <span id="kpiRateHdr">RATE (10p Average)</span>
             <button type="button" class="kpi__edit" id="btnEditWindow" title="Rolling window (points)" aria-label="Edit rolling window (points)">✎</button>
           </div>
           <div class="kpi__val kpi__val--sm" id="kpiRate">—</div>
           <div id="popWindow" class="popover hidden">
             <label>Rolling window (points)</label>
-            <input type="text" id="inpWindow" class="inp inp--narrow" />
+            <div class="stepper">
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowDown" aria-label="Decrease rolling window">−</button>
+              <input type="text" id="inpWindow" class="inp inp--narrow stepper__input" inputmode="numeric" />
+              <button type="button" class="btn btn--ghost btn--small stepper__btn" id="btnWindowUp" aria-label="Increase rolling window">+</button>
+            </div>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWindowOk">OK</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWindowCancel">Cancel</button>
@@ -191,7 +199,7 @@
           </div>
           <div id="popWarnAdd" class="popover hidden">
             <label>Add threshold — alerts fire when position drops <em>below</em> this</label>
-            <input type="text" id="inpWarnAdd" class="inp inp--narrow" inputmode="numeric" />
+            <input type="text" id="inpWarnAdd" class="inp" placeholder="e.g. 7" />
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnWarnAddOk">Add</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnWarnAddCancel">Cancel</button>
@@ -395,41 +403,56 @@
 
     <div id="modalSettings" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalSettingsHeading">
       <div class="modal__backdrop" data-close="1"></div>
-      <div class="modal__box modal__box--wide">
+      <div class="modal__box modal__box--wide modal__box--settings">
         <h2 id="modalSettingsHeading">Settings</h2>
-        <div class="form-grid">
-          <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
-          <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
-          <div class="settings-test-row">
-            <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
-              Send test notification
-            </button>
-            <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+        <p class="modal__text muted settings-intro">Keep the main dashboard fast and adjust only the extras here.</p>
+
+        <section class="settings-section" aria-labelledby="settingsNotifyHeading">
+          <h3 class="settings-h3" id="settingsNotifyHeading">Alerts & history</h3>
+          <div class="form-grid form-grid--settings">
+            <label><input type="checkbox" id="chkEvery" /> Log every position change</label>
+            <label><input type="checkbox" id="chkPop" /> Warning popup (toast + desktop notification if enabled)</label>
+            <div class="settings-test-row">
+              <button type="button" class="btn btn--small btn--secondary" id="btnTestNotify">
+                Send test notification
+              </button>
+              <span class="muted settings-test-row__hint">Uses the same browser permission as the header switch.</span>
+            </div>
+            <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
+            <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
+            <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
           </div>
-          <label><input type="checkbox" id="chkSnd" /> Warning sound (OS / browser)</label>
-          <label><input type="checkbox" id="chkCompPop" /> Completion notify</label>
-          <label><input type="checkbox" id="chkCompSnd" /> Completion sound</label>
-        </div>
-        <h3 class="settings-h3">Chart</h3>
-        <div class="form-grid">
-          <label class="settings-select-label">Y axis
-            <select id="selGraphScale" class="inp settings-inp">
-              <option value="linear">Linear</option>
-              <option value="log">Log</option>
-            </select>
-          </label>
-          <label class="settings-select-label">Time axis
-            <select id="selGraphTimeMode" class="inp settings-inp">
-              <option value="relative">Relative</option>
-              <option value="absolute">Absolute</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="chkGraphLive" /> Live view (follow newest samples)</label>
-        </div>
-        <label class="settings-field">Warning sound file (optional)</label>
-        <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
-        <label class="settings-field">Completion sound file (optional)</label>
-        <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
+        </section>
+
+        <section class="settings-section" aria-labelledby="settingsChartHeading">
+          <h3 class="settings-h3" id="settingsChartHeading">Chart</h3>
+          <div class="form-grid form-grid--two">
+            <label class="settings-select-label">Y axis
+              <select id="selGraphScale" class="inp settings-inp">
+                <option value="linear">Linear</option>
+                <option value="log">Log</option>
+              </select>
+            </label>
+            <label class="settings-select-label">Time axis
+              <select id="selGraphTimeMode" class="inp settings-inp">
+                <option value="relative">Relative</option>
+                <option value="absolute">Absolute</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="settings-section settings-section--subtle" aria-labelledby="settingsSoundsHeading">
+          <h3 class="settings-h3" id="settingsSoundsHeading">Custom sound files</h3>
+          <div class="form-grid form-grid--settings">
+            <label class="settings-select-label settings-field">Warning sound file (optional)
+              <input type="text" id="inpSetWarnSound" class="inp settings-inp" placeholder="Path or empty for default" />
+            </label>
+            <label class="settings-select-label settings-field">Completion sound file (optional)
+              <input type="text" id="inpSetCompSound" class="inp settings-inp" placeholder="Path or empty for default" />
+            </label>
+          </div>
+        </section>
         <div class="modal__actions">
           <button type="button" class="btn btn--secondary" id="btnReset">Reset defaults</button>
           <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>
@@ -464,3 +487,4 @@
     <script src="/app.js"></script>
   </body>
 </html>
+

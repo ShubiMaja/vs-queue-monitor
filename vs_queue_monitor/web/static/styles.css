@@ -611,11 +611,18 @@ select.inp:focus-visible {
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: var(--muted);
+  opacity: 0.9;
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 .kpi__edit:hover {
-  background: rgba(87, 148, 242, 0.12);
+  background: rgba(159, 167, 179, 0.06);
+  color: var(--text);
+  opacity: 1;
 }
 .kpi__edit:focus-visible {
   outline: 2px solid var(--accent);
@@ -739,6 +746,21 @@ select.inp:focus-visible {
   font-size: 0.75rem;
   color: var(--muted);
   margin-bottom: 6px;
+}
+.stepper {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.stepper__btn {
+  min-width: 34px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.stepper__input {
+  max-width: none;
+  text-align: center;
 }
 .popover__row {
   margin-top: 10px;
@@ -1116,6 +1138,9 @@ select.inp:focus-visible {
 .modal__box--wide {
   max-width: 520px;
 }
+.modal__box--settings {
+  max-width: 600px;
+}
 .modal__box--help {
   max-width: 560px;
   max-height: 90vh;
@@ -1149,18 +1174,30 @@ select.inp:focus-visible {
 .settings-h3 {
   font-size: 0.85rem;
   font-weight: 600;
-  margin: 14px 0 8px;
+  margin: 0 0 8px;
   color: var(--muted);
+  letter-spacing: 0.02em;
 }
 .settings-field {
   display: block;
   font-size: 0.8rem;
   color: var(--muted);
-  margin-top: 10px;
 }
 .settings-inp {
   width: 100%;
-  margin-bottom: 4px;
+}
+.settings-intro {
+  margin-bottom: 14px;
+}
+.settings-section {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 14px;
+  margin-top: 12px;
+}
+.settings-section--subtle {
+  background: transparent;
 }
 .modal__actions {
   margin-top: 16px;
@@ -1172,7 +1209,13 @@ select.inp:focus-visible {
 .form-grid {
   display: grid;
   gap: 10px;
-  margin: 12px 0;
+}
+.form-grid--settings {
+  margin-top: 10px;
+}
+.form-grid--two {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 10px;
 }
 .form-grid label {
   display: flex;
@@ -1200,13 +1243,22 @@ select.inp:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
-  margin: -4px 0 2px 0;
+  margin: -2px 0 2px 0;
   padding-left: calc(1rem + 8px);
 }
 .settings-test-row__hint {
   font-size: 0.8rem;
   line-height: 1.35;
   max-width: 28rem;
+}
+@media (max-width: 640px) {
+  .modal__box--settings {
+    width: min(100vw - 20px, 600px);
+    padding: var(--space-4);
+  }
+  .settings-section {
+    padding: 12px;
+  }
 }
 
 .server-stopped-overlay {
