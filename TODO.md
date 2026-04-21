@@ -4,6 +4,12 @@
 
 Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
 
+Bug:  "GET /favicon.ico HTTP/1.1" 404 Not Found
+
+Bug: README / user-facing text has visible encoding corruption (e.g. Win key, arrows, symbols render as mojibake)
+
+Bug: warning signs appear on the timeline when they ahve not been reached yet
+
 ## Fixed (closed)
 
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
@@ -45,6 +51,15 @@ Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid — thresholds mus
 ---
 
 # TWEAKS
+
+## Open
+
+Tweak: Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
+
+## Implemented
+
+~~Tweak: Webapp still does not have the same visual and non visualnotification language as the standalone app for desktop notifications. lets be consistent~~
+Done: desktop notification titles/bodies now match History panel wording for threshold/completion/failure messages (v1.0.280)
 
 ~~Tweak: Default Warnings are 15, 10, 5 3-1~~
 Done: DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1" (v1.0.275)

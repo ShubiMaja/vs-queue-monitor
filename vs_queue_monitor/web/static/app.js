@@ -265,10 +265,9 @@
 
   function warningNotificationPayload(state, alertMsg, seq) {
     return {
-      title: "Queue warning",
+      title: "Threshold alert",
       body: formatNotificationBody([
         alertMsg,
-        "Position: " + displayMetricOrFallback(state.position, "Unknown"),
         "Estimated remaining: " + displayMetricOrFallback(state.remaining, "Estimating…"),
         "Status: " + displayMetricOrFallback(state.status, "Unknown"),
       ]),
@@ -280,12 +279,10 @@
 
   function completionNotificationPayload(state, seq) {
     return {
-      title: "Queue wait finished",
+      title: "Queue completion",
       body: formatNotificationBody([
-        "Past queue wait reached.",
-        "Current position: " + displayMetricOrFallback(state.position, "0"),
+        "Queue completion: past queue wait - connecting (position 0).",
         "Status: " + displayMetricOrFallback(state.status, "Connecting"),
-        "Remaining: 0s",
       ]),
       kind: "completion",
       tag: "vsqm-completion-" + seq,
@@ -297,7 +294,7 @@
     return {
       title: "Queue interrupted",
       body: formatNotificationBody([
-        "Monitoring is still watching the log for recovery.",
+        "Queue interrupted - still watching the log.",
         "Status: " + displayMetricOrFallback(state.status, "Interrupted"),
         "Last change: " + displayMetricOrFallback(state.last_change, "No recent queue movement"),
       ]),
