@@ -578,6 +578,22 @@
     return new Date(epoch * 1000).toLocaleString();
   }
 
+  function sessionStatusInfo(points, running, interruptedMode) {
+    if (!points || !points.length) {
+      return { icon: "?", label: "Unknown" };
+    }
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (points[i][1] <= 0) {
+        return { icon: "✓", label: "Succeeded" };
+      }
+    }
+    if (running && !interruptedMode) {
+      return { icon: "◌", label: "Ongoing" };
+    }
+    return { icon: "✕", label: "Failed" };
+  }
+
   function parseAlertThresholdValues(raw) {
     const set = {};
     function addToken(part) {
@@ -620,35 +636,38 @@
     var out = [];
     var i;
     var thresholds = [];
-    try {
-      thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
-    } catch (_err) {
-      thresholds = [];
-    }
-    for (i = 0; i < thresholds.length; i++) {
-      var threshold = thresholds[i];
-      var warned = false;
-      for (var j = 1; j < points.length; j++) {
-        var prevPos = points[j - 1][1];
-        var currPos = points[j][1];
-        if (prevPos > threshold && currPos <= threshold) {
+    var showWarnings = !isPastSession && state && state.graph_live_view !== false;
+    if (showWarnings) {
+      try {
+        thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
+      } catch (_err) {
+        thresholds = [];
+      }
+      for (i = 0; i < thresholds.length; i++) {
+        var threshold = thresholds[i];
+        var warned = false;
+        for (var j = 1; j < points.length; j++) {
+          var prevPos = points[j - 1][1];
+          var currPos = points[j][1];
+          if (prevPos > threshold && currPos <= threshold) {
+            out.push({
+              kind: "warning",
+              t: points[j][0],
+              pos: currPos,
+              threshold: threshold,
+            });
+            warned = true;
+            break;
+          }
+        }
+        if (!warned && points[0][1] <= threshold) {
           out.push({
             kind: "warning",
-            t: points[j][0],
-            pos: currPos,
+            t: points[0][0],
+            pos: points[0][1],
             threshold: threshold,
           });
-          warned = true;
-          break;
         }
-      }
-      if (!warned && points[0][1] <= threshold) {
-        out.push({
-          kind: "warning",
-          t: points[0][0],
-          pos: points[0][1],
-          threshold: threshold,
-        });
       }
     }
     var connectPoint = null;
@@ -737,15 +756,28 @@
     sel.innerHTML = "";
     var opt0 = document.createElement("option");
     opt0.value = "latest";
-    opt0.textContent = "Latest session (auto)";
-    opt0.title = "Live engine graph for the current queue run.";
+    var latestStatus = sessionStatusInfo(
+      s.graph_points || [],
+      !!s.running,
+      !!s.interrupted_mode
+    );
+    opt0.textContent = latestStatus.icon + " Latest session (auto)";
+    opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
     for (i = sessions.length - 1; i >= 0; i--) {
       var o = document.createElement("option");
+      var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false);
       o.value = sessions[i].key;
-      o.textContent = (sessions[i].label || "Session") + " — " + formatSessionStart(sessions[i].start_epoch);
+      o.textContent =
+        sessStatus.icon +
+        " " +
+        (sessions[i].label || "Session") +
+        " — " +
+        formatSessionStart(sessions[i].start_epoch);
       o.title =
+        sessStatus.label +
+        "\n" +
         "Start: " +
         formatSessionStart(sessions[i].start_epoch) +
         "\nEnd: " +
