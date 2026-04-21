@@ -733,14 +733,22 @@
       ctx.textBaseline = "middle";
       ctx.fillText(String(lastV), lx + 10, ly);
 
-      // For completed/historical sessions, overlay the final event icon on the
-      // marker dot so the viewer can see at a glance how the session ended.
+      // For completed/historical sessions, overlay only the terminal event icon
+      // on the marker dot so the viewer can see at a glance how the session ended.
+      // Warning markers stay on the axis at their real event time and should not
+      // be re-shown on the current/final point.
       var isHistorical = !running || progress >= 1.0;
       if (isHistorical && graphEvents.length) {
         var lastEvent = null;
         for (var ei = graphEvents.length - 1; ei >= 0; ei--) {
           var ge = graphEvents[ei];
-          if (ge && isFinite(ge.t) && ge.t >= t0 - 1e-6 && ge.t <= t1 + 1e-6) {
+          if (
+            ge &&
+            ge.kind !== "warning" &&
+            isFinite(ge.t) &&
+            ge.t >= t0 - 1e-6 &&
+            ge.t <= t1 + 1e-6
+          ) {
             lastEvent = ge;
             break;
           }

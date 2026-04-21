@@ -55,6 +55,9 @@ Fixed: coalesced duplicate-timestamp samples before building step vertices so sa
 ~~Bug: the initial entry point commands should never fail silently. they should always open a terminal and that terminal should never close without showing a status for better or worse and user interaction to close the terminal~~
 Fixed: Windows quick start now goes through bootstrap-windows.cmd, keeps the terminal open, shows an explicit final status, and pauses before closing (v1.0.285)
 
+~~Bug: warning icons can show up on the graph's bottom-right final-point area even when the warning belongs to an earlier point in time~~
+Fixed: final-point overlay now only reuses terminal connect/disconnect events; warning markers stay only at their real timeline position (v1.0.286)
+
 ---
 
 # TWEAKS
