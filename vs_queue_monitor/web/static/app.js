@@ -1784,23 +1784,36 @@
         requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
-    function warnIfZeroThreshold(rawStr) {
+    function validateThresholdInput(rawStr) {
       var tokens = String(rawStr || "").replace(/,/g, " ").split(/\s+/);
-      var hasZero = tokens.some(function (t) {
+      var i;
+      for (i = 0; i < tokens.length; i++) {
+        var t = String(tokens[i] || "").trim();
+        if (!t) continue;
+        var range = /^(-?\d+)\s*-\s*(-?\d+)$/.exec(t);
+        if (range) {
+          var a = parseInt(range[1], 10);
+          var b = parseInt(range[2], 10);
+          if ((!isNaN(a) && a <= 0) || (!isNaN(b) && b <= 0)) {
+            throw new Error("Threshold 0 is not valid — thresholds must be ≥ 1.");
+          }
+          continue;
+        }
         var n = parseInt(t, 10);
-        return !isNaN(n) && n <= 0;
-      });
-      if (hasZero) toast("Threshold 0 is not valid — thresholds must be ≥ 1.", "warn");
+        if (!isNaN(n) && n <= 0) {
+          throw new Error("Threshold 0 is not valid — thresholds must be ≥ 1.");
+        }
+      }
     }
     $("btnWarnOk").onclick = function () {
       let normalized;
       try {
+        validateThresholdInput($("inpWarn").value);
         normalized = formatAlertThresholdValues($("inpWarn").value.trim());
       } catch (err) {
         toast(String(err.message || err), "warn");
         return;
       }
-      warnIfZeroThreshold($("inpWarn").value);
       postConfig({ alert_thresholds: normalized })
         .then(function (state) {
           if (state && typeof state === "object") {
@@ -1838,12 +1851,12 @@
       const raw = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
       let merged;
       try {
+        validateThresholdInput(addRaw);
         merged = mergeAlertThresholdsString(raw, addRaw);
       } catch (err) {
         toast(String(err.message || err), "warn");
         return;
       }
-      warnIfZeroThreshold(addRaw);
       postConfig({ alert_thresholds: merged })
         .then(function (state) {
           if (state && typeof state === "object") {

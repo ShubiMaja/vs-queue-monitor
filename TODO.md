@@ -2,8 +2,6 @@
 
 ## Open
 
-Revisit Bug: when inputting 0 value in warnings, it fails silently when using ranges or csv
- 
 ## Fixed (closed)
 
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
@@ -59,6 +57,9 @@ Fixed: Windows quick start now goes through bootstrap-windows.cmd, keeps the ter
 
 ~~Bug: warning icons can show up on the graph's bottom-right final-point area even when the warning belongs to an earlier point in time~~
 Fixed: final-point overlay now only reuses terminal connect/disconnect events; warning markers stay only at their real timeline position (v1.0.286)
+
+~~Revisit Bug: when inputting 0 value in warnings, it fails silently when using ranges or csv~~
+Fixed: zero/negative values inside CSV and ranges now block saving entirely instead of toasting and then partially succeeding (v1.0.288)
 
 ---
 
