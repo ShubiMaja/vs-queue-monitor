@@ -578,6 +578,66 @@
     return new Date(epoch * 1000).toLocaleString();
   }
 
+  function deriveGraphEvents(state, points, isPastSession) {
+    if (!points || !points.length) {
+      return [];
+    }
+    var out = [];
+    var i;
+    var thresholds = [];
+    try {
+      thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
+    } catch (_err) {
+      thresholds = [];
+    }
+    for (i = 0; i < thresholds.length; i++) {
+      var threshold = thresholds[i];
+      for (var j = 1; j < points.length; j++) {
+        var prevPos = points[j - 1][1];
+        var currPos = points[j][1];
+        if (prevPos > threshold && currPos <= threshold) {
+          out.push({
+            kind: "warning",
+            t: points[j][0],
+            pos: currPos,
+            threshold: threshold,
+          });
+          break;
+        }
+      }
+    }
+    var connectPoint = null;
+    for (i = 0; i < points.length; i++) {
+      if (points[i][1] <= 0) {
+        connectPoint = points[i];
+        break;
+      }
+    }
+    if (connectPoint) {
+      out.push({
+        kind: "connect",
+        t: connectPoint[0],
+        pos: connectPoint[1],
+      });
+    } else {
+      var last = points[points.length - 1];
+      if (
+        last &&
+        (isPastSession || (state && state.interrupted_mode) || (state && !state.running))
+      ) {
+        out.push({
+          kind: "disconnect",
+          t: last[0],
+          pos: last[1],
+        });
+      }
+    }
+    out.sort(function (a, b) {
+      return a.t - b.t;
+    });
+    return out;
+  }
+
   function buildDisplayState(s) {
     var out = {};
     var k;
@@ -588,6 +648,7 @@
     }
     var key = selectedSessionKey || "latest";
     if (key === "latest" || !s.queue_sessions || !s.queue_sessions.length) {
+      out.graph_events = deriveGraphEvents(out, out.graph_points || [], false);
       return out;
     }
     var sess = null;
@@ -612,11 +673,13 @@
       }
     }
     if (!sess || !sess.points || !sess.points.length) {
+      out.graph_events = deriveGraphEvents(out, out.graph_points || [], false);
       return out;
     }
     out.graph_points = sess.points;
     var last = sess.points[sess.points.length - 1];
     out.current_point = [last[0], last[1]];
+    out.graph_events = deriveGraphEvents(out, out.graph_points || [], true);
     return out;
   }
 

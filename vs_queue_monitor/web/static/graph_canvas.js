@@ -105,6 +105,60 @@
     return stepVertices;
   }
 
+  function drawGraphEventMarker(ctx, kind, x, y) {
+    ctx.save();
+    ctx.lineWidth = 1.8;
+    if (kind === "warning") {
+      ctx.fillStyle = "#c89b3c";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 7, y + 6);
+      ctx.lineTo(x - 7, y + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.stroke();
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(x, y - 2);
+      ctx.lineTo(x, y + 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y + 4.5, 0.9, 0, Math.PI * 2);
+      ctx.fillStyle = "#f7f9fc";
+      ctx.fill();
+    } else if (kind === "connect") {
+      ctx.fillStyle = "#2e8b57";
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.stroke();
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5, y + 0.2);
+      ctx.lineTo(x - 0.8, y + 3);
+      ctx.lineTo(x + 4, y - 2.5);
+      ctx.stroke();
+    } else if (kind === "disconnect") {
+      ctx.translate(x, y);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = "#b4545c";
+      ctx.fillRect(-5.5, -5.5, 11, 11);
+      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+      ctx.strokeRect(-5.5, -5.5, 11, 11);
+      ctx.rotate(-Math.PI / 4);
+      ctx.strokeStyle = "#f7f9fc";
+      ctx.beginPath();
+      ctx.moveTo(-3, -3);
+      ctx.lineTo(3, 3);
+      ctx.moveTo(3, -3);
+      ctx.lineTo(-3, 3);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function pad2(n) {
     return String(n).padStart(2, "0");
   }
@@ -612,6 +666,34 @@
     }
 
     var marker = state.current_point || points[points.length - 1];
+    var graphEvents = state.graph_events || [];
+    if (graphEvents.length) {
+      var eventStacks = {};
+      for (j = 0; j < graphEvents.length; j++) {
+        var event = graphEvents[j];
+        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
+          continue;
+        }
+        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
+          continue;
+        }
+        var ex = xOf(event.t);
+        var baseY = yOf(event.pos);
+        var stackKey = Math.round(ex / 14) + ":" + Math.round(baseY / 14);
+        var stackIndex = eventStacks[stackKey] || 0;
+        eventStacks[stackKey] = stackIndex + 1;
+        var ey = Math.max(y0 + 10, baseY - 14 - stackIndex * 16);
+        if (baseY - ey > 8) {
+          ctx.strokeStyle = th.ui_graph_axis;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ex, baseY - 5);
+          ctx.lineTo(ex, ey + 8);
+          ctx.stroke();
+        }
+        drawGraphEventMarker(ctx, event.kind, ex, ey);
+      }
+    }
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];

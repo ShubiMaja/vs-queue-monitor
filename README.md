@@ -55,7 +55,7 @@ python monitor.py
 | **Threshold alerts** | Popup + sound + desktop notification when position drops below a value |
 | **Completion alert** | Popup + sound + desktop notification when the game connects (past the queue) |
 | **Failure alert** | Popup + sound + desktop notification when monitoring drops into the interrupted state |
-| **Graph** | Step chart of position over time; zoom, pan, export as PNG or TSV |
+| **Graph** | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV |
 | **Session history** | Per-run log of position changes |
 | **System tray** | Icon in notification area while running; right-click to open or quit |
 | **Embedded window** | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
