@@ -694,15 +694,36 @@
     }
     sel.addEventListener("change", function () {
       selectedSessionKey = sel.value || "latest";
-      try {
-        lsSetSession(selectedSessionKey);
-      } catch (e) {}
-      updateSessionBadge();
-      if (window._lastState) {
-        window._displayState = buildDisplayState(window._lastState);
-        redrawGraphOnly();
-        renderSessionStats();
+      var nextLive = selectedSessionKey === "latest";
+      function finishSessionChange() {
+        try {
+          lsSetSession(selectedSessionKey);
+        } catch (e) {}
+        updateSessionBadge();
+        if (window._lastState) {
+          syncGraphToolbarButtons(window._lastState);
+          window._displayState = buildDisplayState(window._lastState);
+          redrawGraphOnly();
+          renderSessionStats();
+        }
       }
+      if (!window._lastState) {
+        finishSessionChange();
+        return;
+      }
+      postConfig({ graph_live_view: nextLive })
+        .then(function (state) {
+          if (state && typeof state === "object") {
+            window._lastState = state;
+          } else if (window._lastState) {
+            window._lastState.graph_live_view = nextLive;
+          }
+          finishSessionChange();
+        })
+        .catch(function (e) {
+          toast(String(e.message || e), "warn");
+          finishSessionChange();
+        });
     });
   }
 
