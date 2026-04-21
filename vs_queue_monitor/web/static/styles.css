@@ -1140,6 +1140,12 @@ select.inp:focus-visible {
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.server-stopped-overlay__warning {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--warning, #e6a817);
+  line-height: 1.5;
+}
 .server-stopped-overlay__actions {
   display: flex;
   gap: 0.6rem;

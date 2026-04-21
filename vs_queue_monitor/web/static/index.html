@@ -423,9 +423,10 @@
       <div class="server-stopped-overlay__box">
         <div class="server-stopped-overlay__spinner" aria-hidden="true"></div>
         <h2 id="serverStoppedTitle">Connection lost — Reconnecting…</h2>
-        <p id="serverStoppedDesc">The monitor server is unreachable. Restart VS Queue Monitor to reconnect, or resume to browse the last known data.</p>
+        <p id="serverStoppedDesc">The monitor server is unreachable. Restart VS Queue Monitor to reconnect, or dismiss to browse the last known data.</p>
+        <p class="server-stopped-overlay__warning">Data shown is frozen — not live. Reloading this page will lose it.</p>
         <div class="server-stopped-overlay__actions">
-          <button type="button" class="btn btn--primary btn--small" id="btnOfflineMode">Resume in Offline Mode</button>
+          <button type="button" class="btn btn--primary btn--small" id="btnOfflineMode">I understand</button>
           <button type="button" class="btn btn--secondary btn--small" id="btnCloseTab">Close this tab</button>
         </div>
       </div>
