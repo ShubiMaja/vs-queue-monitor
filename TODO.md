@@ -4,8 +4,6 @@
 
 Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
 
-Bug: warning signs appear on the timeline when they ahve not been reached yet
-
 ## Fixed (closed)
 
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
@@ -50,11 +48,16 @@ Fixed: normalized the README quick-start and alerts copy to plain text so it ren
 ~~Bug:  "GET /favicon.ico HTTP/1.1" 404 Not Found~~
 Fixed: linked the web UI head to the existing SVG app icon so browsers stop probing for a missing default favicon (v1.0.282)
 
+~~Bug: warning signs appear on the timeline when they ahve not been reached yet~~
+Fixed: graph warning markers now trigger only after the position drops below a threshold, matching the app's alert wording instead of firing at equality (v1.0.283)
+
 ---
 
 # TWEAKS
 
 ## Open
+
+Tweak: add a table of contents to the readme
 
 Tweak: Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 

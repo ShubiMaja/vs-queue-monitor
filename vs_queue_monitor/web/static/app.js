@@ -718,7 +718,7 @@
         for (var j = 1; j < points.length; j++) {
           var prevPos = points[j - 1][1];
           var currPos = points[j][1];
-          if (prevPos > threshold && currPos <= threshold) {
+          if (prevPos >= threshold && currPos < threshold) {
             out.push({
               kind: "warning",
               t: points[j][0],
@@ -729,7 +729,7 @@
             break;
           }
         }
-        if (!warned && points[0][1] <= threshold) {
+        if (!warned && points[0][1] < threshold) {
           out.push({
             kind: "warning",
             t: points[0][0],
