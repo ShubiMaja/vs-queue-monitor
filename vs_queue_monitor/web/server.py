@@ -266,6 +266,51 @@ def _open_app_window(url: str) -> "subprocess.Popen[bytes] | None":
     return None
 
 
+def _find_chromium_exe() -> str | None:
+    """Return the first available Chromium/Edge/Chrome executable path, or None."""
+    import shutil
+
+    for exe in _chromium_app_candidates():
+        if os.path.isabs(exe):
+            if os.path.isfile(exe):
+                return exe
+        else:
+            found = shutil.which(exe)
+            if found:
+                return found
+    return None
+
+
+def _preconfigure_chromium_notification_permission(port: int) -> None:
+    """Pre-grant the Web Notifications permission for localhost in the dedicated Chromium profile.
+
+    Writing the allow entry before launching Chrome/Edge means Notification.permission is
+    already "granted" when the page loads — no runtime prompt needed.
+    """
+    import json as _json
+    import time as _time
+
+    prefs_path = Path(_chromium_user_data_dir()) / "Default" / "Preferences"
+    try:
+        prefs_path.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if prefs_path.exists():
+            try:
+                data = _json.loads(prefs_path.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        profile = data.setdefault("profile", {})
+        cs = profile.setdefault("content_settings", {})
+        exc = cs.setdefault("exceptions", {})
+        notif = exc.setdefault("notifications", {})
+        ts = str(int(_time.time() * 1_000_000))
+        for origin in (f"http://localhost:{port},*", f"http://127.0.0.1:{port},*"):
+            notif[origin] = {"last_modified": ts, "setting": 1}  # 1 = ALLOW
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass  # best-effort
+
+
 def _pick_path_sync(mode: str) -> str | None:
     """Native folder or file dialog (Tk). Run via ``asyncio.to_thread`` from the Starlette worker."""
     import tkinter as tk
@@ -645,16 +690,24 @@ def run_web_server(
             file=sys.stderr,
         )
     else:
-        _window_mode = "chromium_app"
+        _chromium_exe = _find_chromium_exe()
+        if _chromium_exe:
+            _window_mode = "chromium_app"
+            _preconfigure_chromium_notification_permission(p)
 
-        def _open_app() -> None:
-            nonlocal _app_proc
-            time.sleep(0.35)
-            _app_proc = _open_app_window(url)
-            if _app_proc is None:
-                webbrowser.open(url)
+            def _open_app() -> None:
+                nonlocal _app_proc
+                time.sleep(0.35)
+                _app_proc = _open_app_window(url)
+                if _app_proc is None:
+                    webbrowser.open(url)
 
-        threading.Thread(target=_open_app, daemon=True).start()
+            threading.Thread(target=_open_app, daemon=True).start()
+        else:
+            _window_mode = "browser"
+            threading.Thread(
+                target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+            ).start()
 
     start_tray(url)
     _wv_server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=p, log_level="info"))

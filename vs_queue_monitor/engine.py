@@ -1214,6 +1214,7 @@ class QueueMonitorEngine:
         else:
             self.predicted_remaining_var.set(self.format_duration_remaining(seconds_remaining))
         if True:
+            _prev_progress = self._queue_progress_value
             if pos is not None and pos <= 1:
                 if self._left_connect_queue_detected:
                     self._queue_progress_value = 100.0
@@ -1226,11 +1227,11 @@ class QueueMonitorEngine:
                 total = elapsed_sec + max(0.0, float(seconds_remaining))
                 if total > 1e-06:
                     p = min(100.0, max(0.0, 100.0 * elapsed_sec / total))
-                    self._queue_progress_value = p
+                    # Clamp: ETA fluctuations must not make the bar go backwards.
+                    self._queue_progress_value = max(_prev_progress, p)
                 else:
                     self._queue_progress_value = 0.0
             elif pos is not None and len(points) >= 1:
-                # No rate yet — fall back to position-based progress
                 start_pos = points[0][1]
                 if start_pos > 0 and pos <= start_pos:
                     self._queue_progress_value = min(100.0, max(0.0, 100.0 * (start_pos - pos) / start_pos))
