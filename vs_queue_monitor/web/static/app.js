@@ -1317,12 +1317,15 @@
       var wasOffline = _offlineMode;
       _wsEverConnected = true;
       _hideDisconnectOverlay();
+      if (wasOffline) {
+        window.location.reload();
+        return;
+      }
       try {
         const s = JSON.parse(ev.data);
         window._lastState = s;
         applyState(s);
       } catch (e) {}
-      if (wasOffline) toast("Reconnected — live data resumed.");
     };
     ws.onopen = function () {
       _wsEverConnected = true;
