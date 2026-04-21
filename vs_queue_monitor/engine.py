@@ -758,6 +758,18 @@ class QueueMonitorEngine:
                         self._connect_phase_started_epoch = None
                         self._set_position_display(None)
                         self.last_position = None
+                    elif self._left_connect_queue_detected and kind in ('reconnecting', 'grace'):
+                        self.enter_interrupted_state('Connection lost after queue completion.')
+                        self._queue_stale_latched = False
+                        self._queue_stale_logged_once = False
+                        self._last_queue_position_change_epoch = None
+                        self._last_queue_line_epoch = None
+                        self._progress_at_front_entry = None
+                        self._left_connect_queue_detected = False
+                        self._position_one_reached_at = None
+                        self._connect_phase_started_epoch = None
+                        self._set_position_display(None)
+                        self.last_position = None
                     elif (kind in ('reconnecting', 'grace') or log_silent) and (not (position is not None and position <= 1)):
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False

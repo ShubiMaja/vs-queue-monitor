@@ -70,9 +70,12 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 
 ## Open
 
-Tweak: Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
+- Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
+
+~~Tweak: still monitor the log after connect and notify on disconnect or re-queue even if the graph is not live~~
+Done: post-queue reconnect/grace states now enter the interrupted watch-for-recovery path, so disconnects after completion still notify and later re-queues can be adopted (v1.0.290)
 
 ~~Tweak: Webapp still does not have the same visual and non visualnotification language as the standalone app for desktop notifications. lets be consistent~~
 Done: desktop notification titles/bodies now match History panel wording for threshold/completion/failure messages (v1.0.280)
