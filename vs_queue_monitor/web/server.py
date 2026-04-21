@@ -658,15 +658,27 @@ def _init_web_stack(
 
 
 class _NoCacheStaticFiles(StaticFiles):
-    """StaticFiles that strips browser caching so JS/CSS/HTML changes are always picked up."""
+    """StaticFiles that always returns 200 so reloads never serve stale cached JS/CSS."""
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Strip conditional-request headers so StaticFiles never returns 304.
+        # Without If-Modified-Since / If-None-Match the handler always serves the full file.
+        if scope.get("type") == "http":
+            scope = {
+                **scope,
+                "headers": [
+                    (k, v)
+                    for k, v in scope.get("headers", [])
+                    if k.lower() not in (b"if-modified-since", b"if-none-match")
+                ],
+            }
+
         async def _send_no_cache(message: Any) -> None:
             if message["type"] == "http.response.start":
                 hdrs = [
                     (k, v)
                     for k, v in message.get("headers", [])
-                    if k.lower() not in (b"cache-control", b"pragma", b"expires", b"etag")
+                    if k.lower() not in (b"cache-control", b"pragma", b"expires", b"etag", b"last-modified")
                 ]
                 hdrs.extend([
                     (b"cache-control", b"no-cache, no-store, must-revalidate"),
