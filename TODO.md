@@ -2,7 +2,11 @@
 
 ## Open
 
-on reset all default, we load the default path but monitoring does not begin
+- on reset all default, we load the default path but monitoring does not begin
+
+- latest session has a duplicate entry in the session list (latest session + session id - date)
+
+- zoom multiple does not auto update when zooming, why not?
 
 ## Fixed (closed)
 
@@ -79,6 +83,8 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 ## Open
 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
+
+- It should be clear if the rate is Global Rate or other. Introduce Global Rate to stats. Global Rate: 1.8 m/p. use Global Rate in the graph overlay. rely on tooltip to explain what m/p is. min/pos
 
 ## Implemented
 
