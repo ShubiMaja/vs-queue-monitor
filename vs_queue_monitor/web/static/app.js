@@ -1039,7 +1039,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and <strong>live view</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>Copy PNG / TSV</strong> for sharing.</p>" +
+          "<p><strong>⚙ Settings</strong> sets log/linear <strong>Y</strong> and <strong>live view</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -2360,29 +2360,6 @@
         });
       };
     }
-    var btnCopyTsv = $("btnCopyTsv");
-    if (btnCopyTsv) {
-      btnCopyTsv.onclick = function () {
-        const pts = (window._displayState && window._displayState.graph_points) || [];
-        if (!pts.length) {
-          toast("No graph data yet", "warn");
-          return;
-        }
-        const lines = ["epoch_seconds\tposition"].concat(
-          pts.map(function (p) {
-            return p[0] + "\t" + p[1];
-          }),
-        );
-        navigator.clipboard.writeText(lines.join("\n")).then(
-          function () {
-            toast("TSV copied");
-          },
-          function () {
-            toast("Clipboard failed", "warn");
-          },
-        );
-      };
-    }
     var btnGraphTimeMode = $("btnGraphTimeMode");
     if (btnGraphTimeMode) {
       btnGraphTimeMode.onclick = function () {
@@ -2574,8 +2551,31 @@
   function updateZoomResetBtn() {
     var btn = $("btnZoomReset");
     if (!btn) return;
-    if (window._graphZoom) btn.classList.remove("hidden");
-    else btn.classList.add("hidden");
+    if (!window._graphZoom) {
+      btn.textContent = "1×";
+      btn.title = "Not zoomed";
+      btn.classList.remove("zoom-ctrl__level--active");
+      return;
+    }
+    var c = $("graphCanvas");
+    var ds = c && c._drawState;
+    if (ds && ds.rawPoints && ds.rawPoints.length >= 2) {
+      var fullSpan = ds.rawPoints[ds.rawPoints.length - 1][0] - ds.rawPoints[0][0];
+      var curSpan = window._graphZoom[1] - window._graphZoom[0];
+      if (curSpan > 0 && fullSpan > curSpan * 0.999) {
+        var factor = fullSpan / curSpan;
+        var label = factor >= 10
+          ? Math.round(factor) + "×"
+          : factor.toFixed(1).replace(/\.0$/, "") + "×";
+        btn.textContent = label;
+        btn.title = "Zoomed " + label + " — click to reset";
+        btn.classList.add("zoom-ctrl__level--active");
+        return;
+      }
+    }
+    btn.textContent = "1×";
+    btn.title = "Not zoomed";
+    btn.classList.remove("zoom-ctrl__level--active");
   }
 
   function setupGraphZoom() {
@@ -2706,11 +2706,6 @@
           showEl($("modalSettings"));
           focusElSoon($("chkEvery"));
         }
-        return;
-      }
-      if (ev.key === "c" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-        ev.preventDefault();
-        $("btnCopyTsv").click();
         return;
       }
       if (ev.key === "v" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {

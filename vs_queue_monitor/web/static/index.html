@@ -230,9 +230,11 @@
             <span id="sessionScopeBadge" class="session-scope-badge hidden" role="status" aria-live="polite">Past session — KPIs above stay live</span>
           </div>
           <div class="graph-toolbar__btns">
-            <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
-            <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out" aria-label="Zoom out time axis">−</button>
-            <button type="button" class="btn btn--small btn--ghost hidden" id="btnZoomReset" title="Reset zoom" aria-label="Reset time zoom">⊙</button>
+            <div class="btn-group zoom-ctrl" role="group" aria-label="Zoom controls">
+              <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out (mouse wheel also works)" aria-label="Zoom out time axis">−</button>
+              <button type="button" class="btn btn--small zoom-ctrl__level" id="btnZoomReset" title="Not zoomed" aria-label="Zoom level — click to reset">1×</button>
+              <button type="button" class="btn btn--small" id="btnZoomIn" title="Zoom in (mouse wheel also works)" aria-label="Zoom in time axis">+</button>
+            </div>
             <button
               type="button"
               class="btn btn--small btn--icon-label"
@@ -263,36 +265,23 @@
               </svg>
               <span id="btnGraphScaleText">LIN</span>
             </button>
-            <button
-              type="button"
-              class="btn btn--small btn--icon-label"
-              id="btnCopyPng"
-              title="Copy graph as PNG"
-              aria-label="Copy graph as PNG"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <path d="m21 15-5-5L5 21" />
-              </svg>
-              <span>PNG</span>
-            </button>
-            <button
-              type="button"
-              class="btn btn--small btn--icon-label"
-              id="btnCopyTsv"
-              title="Copy graph as tab-separated values"
-              aria-label="Copy graph as TSV"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-              </svg>
-              <span>TSV</span>
-            </button>
           </div>
         </div>
         <div class="graph-canvas-wrap">
+          <button
+            type="button"
+            class="btn btn--small btn--icon-label graph-export-btn"
+            id="btnCopyPng"
+            title="Copy graph as PNG"
+            aria-label="Copy graph as PNG"
+          >
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="m21 15-5-5L5 21" />
+            </svg>
+            <span>PNG</span>
+          </button>
           <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
@@ -390,7 +379,7 @@
           <h3 class="help-h3">Keyboard</h3>
           <p class="muted help-kbd">
             When focus is not in a text field: <strong>Space</strong> start/stop · <strong>o</strong> settings ·
-            <strong>F1</strong> this help · <strong>c</strong> copy graph TSV · <strong>v</strong> copy session history
+            <strong>F1</strong> this help · <strong>v</strong> copy session history
             (clipboard) · <strong>+</strong> zoom in graph · <strong>−</strong> zoom out · <strong>0</strong> reset zoom.
             Mouse wheel also zooms the graph. Single-key shortcuts are ignored while a dialog, the guided tour, or the restore banner is open.
           </p>

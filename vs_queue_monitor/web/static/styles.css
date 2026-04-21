@@ -848,6 +848,46 @@ select.inp:focus-visible {
   gap: 6px;
   flex: 0 0 auto;
 }
+
+/* Zoom button group: −  [level]  + */
+.btn-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.btn-group > .btn {
+  border-radius: 0;
+}
+.btn-group > .btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.btn-group > .btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.zoom-ctrl__level {
+  min-width: 2.8em;
+  font-variant-numeric: tabular-nums;
+  border-left: none;
+  border-right: none;
+}
+.zoom-ctrl__level--active {
+  color: var(--accent);
+}
+
+/* PNG export overlay button — top-right corner of canvas */
+.graph-export-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+}
+.graph-export-btn:hover,
+.graph-export-btn:focus-visible {
+  opacity: 1;
+}
+
 #graphCanvas {
   width: 100%;
   max-width: 100%;
@@ -1388,6 +1428,7 @@ select.inp:focus-visible {
 /* When the handle sits between two sibling sections in a flex-column gap layout,
    pull it flush against both neighbours so it appears on the visible boundary. */
 .resize-handle--between {
+  height: 6px;
   margin: calc(-1 * var(--space-4)) 0;
   position: relative;
   z-index: 1;
