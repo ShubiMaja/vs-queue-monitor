@@ -6,10 +6,6 @@ Monitor your **Vintage Story** connect queue — live position, estimated wait t
 
 ## Quick start
 
-### Known Issues
-
-Notifications don't work in the standalone app by default. Open http://127.0.0.1:8765 in your web browser (chromium based or Chrome) after starting the app normally (through shortcut or directly) to run the app properly for now.
-
 ### Windows — paste into Command Prompt
 
 ```bat
