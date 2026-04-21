@@ -927,7 +927,9 @@ select.inp:focus-visible {
   border-right: none;
 }
 .zoom-ctrl__level--active {
-  color: var(--accent);
+  background: rgba(87, 148, 242, 0.08);
+  border-color: rgba(87, 148, 242, 0.18);
+  color: var(--text);
 }
 
 
@@ -1066,12 +1068,12 @@ select.inp:focus-visible {
   padding-right: 10px;
 }
 .btn--toggle[aria-pressed="true"] {
-  background: rgba(87, 148, 242, 0.18);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: rgba(87, 148, 242, 0.08);
+  border-color: rgba(87, 148, 242, 0.18);
+  color: var(--text);
 }
 .btn--toggle[aria-pressed="true"]:hover {
-  background: rgba(87, 148, 242, 0.28);
+  background: rgba(87, 148, 242, 0.12);
 }
 .popover--history {
   position: absolute;
