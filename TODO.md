@@ -6,8 +6,6 @@ Visual Bug: the first point in the live session graph has a diagonal line to the
 
 Bug:  "GET /favicon.ico HTTP/1.1" 404 Not Found
 
-Bug: README / user-facing text has visible encoding corruption (e.g. Win key, arrows, symbols render as mojibake)
-
 Bug: warning signs appear on the timeline when they ahve not been reached yet
 
 ## Fixed (closed)
@@ -47,6 +45,9 @@ Fixed: notification onclick fires window.focus() + notif.close() (v1.0.277)
 
 ~~Bug: when inputting 0 value in warnings, it fails silently~~
 Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid — thresholds must be >= 1." (v1.0.278)
+
+~~Bug: README / user-facing text has visible encoding corruption (e.g. Win key, arrows, symbols render as mojibake)~~
+Fixed: normalized the README quick-start and alerts copy to plain text so it renders consistently across viewers (v1.0.281)
 
 ---
 
