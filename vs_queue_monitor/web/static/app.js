@@ -1526,6 +1526,10 @@
         toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
         return;
       }
+      // Chrome/Edge may show a quiet bell in the address bar rather than a modal dialog.
+      if (window._windowMode !== "chromium_app") {
+        toast("Look for a notification bell icon in the address bar — click it and select Allow.");
+      }
       var t0 = Date.now();
       try {
         localStorage.setItem("vsqm_notif_asked", "1");
@@ -1545,11 +1549,17 @@
                 } catch (e) {}
                 toast("Notifications enabled.");
               } else if (p === "denied") {
-                if (Date.now() - t0 < 300) {
-                  _notifUnsupported = true;
-                  toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+                // < 800 ms: browser returned denied without a dialog (quiet UI auto-deny
+                // or pre-existing block). In standalone mode the title bar hosts the prompt.
+                if (Date.now() - t0 < 800) {
+                  if (window._windowMode === "chromium_app") {
+                    toast("Click the bell icon in the title bar to allow notifications, then try again.", "warn");
+                  } else {
+                    _notifUnsupported = true;
+                    toast("Notifications blocked. Open Edge/Chrome site settings for this page and set Notifications to Allow.", "warn");
+                  }
                 } else {
-                  toast("Notifications were denied in the browser.", "warn");
+                  toast("Notifications were denied — open site settings to allow them.", "warn");
                 }
                 syncHint();
               }
@@ -1626,13 +1636,18 @@
 
       if (_notifBannersBlocked()) {
         if (!popOn) {
-          fetch("/api/clear_notification_permission", { method: "POST" })
-            .then(function () {
-              toast("Notification permission reset — reopen VS Queue Monitor to grant access.", "warn");
-            })
-            .catch(function () {
-              toast("Could not reset notification permission. Try reinstalling the app.", "warn");
-            });
+          if (window._windowMode === "chromium_app") {
+            // Standalone profile is ours — reset its stored permission so the next launch pre-grants it.
+            fetch("/api/clear_notification_permission", { method: "POST" })
+              .then(function () {
+                toast("Notification permission reset — reopen VS Queue Monitor to grant access.", "warn");
+              })
+              .catch(function () {
+                toast("Could not reset notification permission.", "warn");
+              });
+          } else {
+            toast("Notifications blocked — open site settings in your browser and set Notifications to Allow for this page.", "warn");
+          }
         } else {
           postConfig({ popup_enabled: false })
             .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })

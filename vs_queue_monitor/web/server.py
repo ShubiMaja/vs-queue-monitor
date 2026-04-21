@@ -286,13 +286,22 @@ def _preconfigure_chromium_notification_permission(port: int) -> None:
 
     Writing the allow entry before launching Chrome/Edge means Notification.permission is
     already "granted" when the page loads — no runtime prompt needed.
+
+    We also delete "Secure Preferences" (Edge/Chrome's encrypted shadow copy) so the browser
+    falls back to reading our plain Preferences file.  Without this, Edge ignores the plain
+    file for security-sensitive settings such as notification permissions.
     """
     import json as _json
     import time as _time
 
-    prefs_path = Path(_chromium_user_data_dir()) / "Default" / "Preferences"
+    profile_dir = Path(_chromium_user_data_dir()) / "Default"
+    prefs_path = profile_dir / "Preferences"
     try:
-        prefs_path.parent.mkdir(parents=True, exist_ok=True)
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        # Remove the encrypted shadow so Edge/Chrome reads our plain Preferences.
+        secure = profile_dir / "Secure Preferences"
+        if secure.exists():
+            secure.unlink()
         data: dict = {}
         if prefs_path.exists():
             try:
@@ -569,6 +578,10 @@ async def _api_clear_notification_permission(request: Request) -> JSONResponse:
     if not prefs_path.exists():
         return JSONResponse({"ok": True, "note": "no profile yet"})
     try:
+        # Also remove Secure Preferences so the browser falls back to reading our plain file.
+        secure = prefs_path.parent / "Secure Preferences"
+        if secure.exists():
+            secure.unlink()
         data = _json.loads(prefs_path.read_text(encoding="utf-8"))
         notif = (
             data.get("profile", {})
