@@ -1237,6 +1237,19 @@ select.inp:focus-visible {
 .settings-inp {
   width: 100%;
 }
+.settings-path-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.settings-path-row .settings-inp {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settings-path-btn {
+  align-self: stretch;
+  min-width: 34px;
+}
 .settings-intro {
   margin-bottom: 14px;
 }
@@ -1520,6 +1533,9 @@ select.inp:focus-visible {
 .tour-overlay:not(.hidden) {
   pointer-events: auto;
 }
+body.tour-open {
+  overflow: hidden;
+}
 .tour-spotlight {
   position: absolute;
   border: 2px solid var(--accent);
@@ -1539,6 +1555,8 @@ select.inp:focus-visible {
 .tour-card {
   position: absolute;
   max-width: 380px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
   background: var(--card);
   border: 1px solid var(--accent);
   border-radius: 10px;

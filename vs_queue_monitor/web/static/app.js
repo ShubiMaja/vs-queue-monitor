@@ -185,6 +185,58 @@
     }).join("\n");
   }
 
+  function displayMetricOrFallback(value, fallback) {
+    var raw = value == null ? "" : String(value).trim();
+    if (!raw || raw === "—") {
+      return fallback || "Estimating…";
+    }
+    return raw;
+  }
+
+  function warningNotificationPayload(state, alertMsg, seq) {
+    return {
+      title: "Queue warning",
+      body: formatNotificationBody([
+        alertMsg,
+        "Position: " + displayMetricOrFallback(state.position, "Unknown"),
+        "Estimated remaining: " + displayMetricOrFallback(state.remaining, "Estimating…"),
+        "Status: " + displayMetricOrFallback(state.status, "Unknown"),
+      ]),
+      kind: "warning",
+      tag: "vsqm-threshold-" + seq,
+      renotify: true,
+    };
+  }
+
+  function completionNotificationPayload(state, seq) {
+    return {
+      title: "Queue wait finished",
+      body: formatNotificationBody([
+        "Past queue wait reached.",
+        "Current position: " + displayMetricOrFallback(state.position, "0"),
+        "Status: " + displayMetricOrFallback(state.status, "Connecting"),
+        "Remaining: 0s",
+      ]),
+      kind: "completion",
+      tag: "vsqm-completion-" + seq,
+      renotify: true,
+    };
+  }
+
+  function failureNotificationPayload(state, seq) {
+    return {
+      title: "Queue interrupted",
+      body: formatNotificationBody([
+        "Monitoring is still watching the log for recovery.",
+        "Status: " + displayMetricOrFallback(state.status, "Interrupted"),
+        "Last change: " + displayMetricOrFallback(state.last_change, "No recent queue movement"),
+      ]),
+      kind: "failure",
+      tag: "vsqm-failure-" + seq,
+      renotify: true,
+    };
+  }
+
   /**
    * Richer desktop notifications: app icon, badge, timestamp; pass tag to control deduplication in the OS.
    */
@@ -826,25 +878,9 @@
         typeof Notification !== "undefined" &&
         Notification.permission === "granted"
       ) {
-        var posStr =
-          s.position != null && String(s.position).trim() !== ""
-            ? String(s.position).trim()
-            : null;
-        var statStr =
-          s.status != null && String(s.status).trim() !== ""
-            ? String(s.status).trim()
-            : null;
-        var detail = [];
-        if (posStr != null) detail.push("Position " + posStr);
-        if (statStr) detail.push(statStr);
-        var threshBody = alertMsg;
-        if (detail.length) threshBody = alertMsg + "\n\n" + detail.join(" · ");
         fireDesktopNotification(
-          "Threshold crossed",
-          {
-            body: threshBody,
-            tag: "vsqm-threshold-" + aseq,
-          },
+          warningNotificationPayload(s, alertMsg, aseq).title,
+          warningNotificationPayload(s, alertMsg, aseq),
           "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
         );
       }
@@ -860,12 +896,8 @@
         Notification.permission === "granted"
       ) {
         fireDesktopNotification(
-          "Queue wait finished",
-          {
-            body:
-              "Past queue wait — connecting (position 0).\n\nThe in-queue wait is over; the app shows live connection status.",
-            tag: "vsqm-completion-" + cseq,
-          },
+          completionNotificationPayload(s, cseq).title,
+          completionNotificationPayload(s, cseq),
           "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
         );
       }
@@ -874,10 +906,6 @@
 
     const fseq = typeof s.failure_notify_seq === "number" ? s.failure_notify_seq : 0;
     if (lastFailureSeq !== null && fseq > lastFailureSeq) {
-      var failureMsg = "Queue interrupted — still watching the log.";
-      if (s.last_change && String(s.last_change).trim() && String(s.last_change).trim() !== "—") {
-        failureMsg += "\n\nLast change: " + String(s.last_change).trim();
-      }
       toast("Queue interrupted — still watching the log.", "warn");
       if (
         s.failure_popup &&
@@ -885,12 +913,8 @@
         Notification.permission === "granted"
       ) {
         fireDesktopNotification(
-          "Queue interrupted",
-          {
-            body: failureMsg,
-            tag: "vsqm-failure-" + fseq,
-            renotify: true,
-          },
+          failureNotificationPayload(s, fseq).title,
+          failureNotificationPayload(s, fseq),
           "Could not show a desktop notification (check Windows Settings → System → Notifications for this app).",
         );
       }
@@ -1158,6 +1182,8 @@
     const btnSkip = $("tourSkip");
 
     function placeCard() {
+      var margin = 16;
+      card.style.transform = "";
       const step = steps[idx];
       if (step.sel) {
         const el = document.querySelector(step.sel);
@@ -1169,9 +1195,17 @@
           spotlight.style.width = r.width + 12 + "px";
           spotlight.style.height = r.height + 12 + "px";
           overlay.classList.add("active");
-          card.style.transform = "";
-          card.style.left = Math.min(window.innerWidth - 400, r.left) + "px";
-          card.style.top = Math.min(window.innerHeight - 220, r.bottom + 16) + "px";
+          card.style.left = margin + "px";
+          card.style.top = margin + "px";
+          const cr = card.getBoundingClientRect();
+          var maxLeft = Math.max(margin, window.innerWidth - cr.width - margin);
+          var maxTop = Math.max(margin, window.innerHeight - cr.height - margin);
+          var left = Math.max(margin, Math.min(maxLeft, r.left));
+          var belowTop = r.bottom + margin;
+          var aboveTop = r.top - cr.height - margin;
+          var top = belowTop <= maxTop ? belowTop : (aboveTop >= margin ? aboveTop : maxTop);
+          card.style.left = left + "px";
+          card.style.top = Math.max(margin, top) + "px";
         } else {
           overlay.classList.remove("active");
           spotlight.style.display = "none";
@@ -1189,6 +1223,7 @@
     }
 
     function show() {
+      document.body.classList.add("tour-open");
       overlay.classList.remove("hidden");
       overlay.setAttribute("aria-hidden", "false");
       const step = steps[idx];
@@ -1202,6 +1237,7 @@
     }
 
     function hide() {
+      document.body.classList.remove("tour-open");
       overlay.classList.add("hidden");
       overlay.setAttribute("aria-hidden", "true");
       overlay.classList.remove("active");
@@ -2221,23 +2257,43 @@
           enabled:
             window._lastState == null || window._lastState.popup_enabled !== false,
           settingName: "Warning popup",
-          title: "Warning test notification",
-          body:
-            "This is a sample warning banner.\n\nReal warning alerts include the crossed threshold, your position, and current status.",
+          payload: {
+            title: "Queue warning",
+            body: formatNotificationBody([
+              "Sample threshold warning.",
+              "Position: 9",
+              "Estimated remaining: 12m 30s",
+              "Status: Monitoring",
+            ]),
+            kind: "warning",
+          },
         },
         completion: {
           enabled: !!(window._lastState && window._lastState.completion_popup),
           settingName: "Completion popup",
-          title: "Completion test notification",
-          body:
-            "This is a sample completion banner.\n\nReal completion alerts fire when the queue wait is over and the client moves past the queue.",
+          payload: {
+            title: "Queue wait finished",
+            body: formatNotificationBody([
+              "Sample completion banner.",
+              "Current position: 0",
+              "Status: Connecting",
+              "Remaining: 0s",
+            ]),
+            kind: "completion",
+          },
         },
         failure: {
           enabled: !!(window._lastState && window._lastState.failure_popup),
           settingName: "Failure popup",
-          title: "Failure test notification",
-          body:
-            "This is a sample failure banner.\n\nReal failure alerts fire if queue monitoring drops into the interrupted state.",
+          payload: {
+            title: "Queue interrupted",
+            body: formatNotificationBody([
+              "Sample interruption banner.",
+              "Status: Interrupted",
+              "Last change: 2026-04-21 12:34:56",
+            ]),
+            kind: "failure",
+          },
         },
       };
       var cfg = popupMap[kind];
@@ -2255,9 +2311,10 @@
         return;
       }
       fireDesktopNotification(
-        cfg.title,
+        cfg.payload.title,
         {
-          body: cfg.body,
+          body: cfg.payload.body,
+          kind: cfg.payload.kind,
           tag: "vsqm-test-" + kind + "-" + Date.now(),
           renotify: true,
         },
@@ -2584,6 +2641,25 @@
           });
       };
     }
+    function wireSoundFilePicker(buttonId, inputId, label) {
+      var btnPick = $(buttonId);
+      var input = $(inputId);
+      if (!btnPick || !input) return;
+      btnPick.onclick = function () {
+        pickPath("file")
+          .then(function (j) {
+            if (j.cancelled || !j.path) return;
+            input.value = j.path;
+            toast(label + " set from file picker");
+          })
+          .catch(function (e) {
+            toast(String(e.message || e), "warn");
+          });
+      };
+    }
+    wireSoundFilePicker("btnPickWarnSound", "inpSetWarnSound", "Warning sound");
+    wireSoundFilePicker("btnPickCompSound", "inpSetCompSound", "Completion sound");
+    wireSoundFilePicker("btnPickFailSound", "inpSetFailSound", "Failure sound");
     var btnCopyPng = $("btnCopyPng");
     if (btnCopyPng) {
       btnCopyPng.onclick = function () {

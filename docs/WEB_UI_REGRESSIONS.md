@@ -29,6 +29,12 @@ Rules:
 - When a repeated sample notification should still visibly re-alert, include `renotify: true`.
 - Do not switch back to fixed tags like `vsqm-test` or `vsqm-setup-grant`; Chrome/Edge may collapse them and appear "broken".
 - Header-toggle notification enable flow must request permission directly from the click path.
+- Each alert type must keep its own visual identity:
+  - warning uses the warning icon and includes estimated remaining time when available
+  - completion uses the completion icon and makes it explicit that queue wait is over
+  - failure uses the failure icon and explains that monitoring is still watching the log
+- Keep notification bodies structured and scan-friendly with one fact per line instead of a loose paragraph.
+- Test buttons in Settings should mirror the real alert type they belong to.
 
 Why:
 - Chrome/Edge can suppress banners for repeated notifications that reuse the same tag.
@@ -37,6 +43,36 @@ Why:
 Related files:
 - `vs_queue_monitor/web/static/app.js`
 - `vs_queue_monitor/web/server.py` only for permission-reset support in embedded Chromium mode
+
+## Alert settings parity
+
+Warning, Completion, and Failure settings should behave like one family of controls.
+
+Rules:
+- Keep all three tabs structurally aligned: popup toggle, inline test action, sound toggle, and sound-file field.
+- `Failure popup` defaults to on, the same way Warning and Completion popups do.
+- Sound-file inputs should provide an embedded file-picker button on the right instead of forcing manual path entry.
+- Avoid reintroducing one-off controls that exist in only one alert tab unless the product explicitly calls for it.
+
+Why:
+- These tabs drifted repeatedly and confused users about which alert types actually support popup, sound, and testing.
+
+## Tutorial overlay
+
+The guided tour must own scrolling while it is open.
+
+Rules:
+- Opening the tutorial should lock background page scrolling.
+- The tour card must stay clamped within the visible viewport.
+- If the card content is taller than the viewport, the card itself should scroll instead of the page behind it.
+- Reposition logic should use the card's actual rendered size, not a hard-coded height guess.
+
+Why:
+- Background-only scrolling makes the tour feel broken and can hide the `Next` button off-screen.
+
+Related files:
+- `vs_queue_monitor/web/static/app.js`
+- `vs_queue_monitor/web/static/styles.css`
 
 ## Graph settings contract
 
@@ -94,3 +130,21 @@ Quick manual checklist:
 - Header notification toggle still enables/disables browser notifications.
 - `Send test notification` still shows a real banner in Chrome/Edge when permission is granted.
 
+## Recent UI decisions from this thread
+
+These are intentional UX choices, not accidents. Do not casually undo them.
+
+- The graph toolbar uses compact controls:
+  - `Live` is an icon-only lightning toggle.
+  - History copy is icon-only.
+  - History settings live behind the small gear popover.
+- Turning `Live` on should switch graph scope back to `Latest session (auto)`.
+- Settings should not duplicate graph toolbar controls like time mode or scale mode.
+- Alert tabs should stay parallel in structure and wording.
+- History should fill available desktop height and become internally scrollable instead of leaving blank space or growing forever.
+- Info stats should pack upward instead of spacing themselves out vertically.
+- `Cur Pos` is the preferred wording over `End Pos`.
+- Warning threshold editors must accept and preserve CSV plus range forms like `10, 5, 1` and `8-10`.
+- Warning threshold hints should be visible near the editor so the accepted format is discoverable.
+- The graph overlay should use one metric per line and avoid redundant `Min/Max` rows when they repeat `Start/Current`.
+- Commit coherent feature changes instead of letting multiple UI fixes pile up uncommitted.
