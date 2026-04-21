@@ -20,6 +20,7 @@
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
   var _historyAutoscroll = true;
+  var _tourAutoShowFn = null;   // set by setupTour so applyState can trigger it
 
   function lsGetPath() {
     try {
@@ -1069,6 +1070,7 @@
   }
 
   function applyState(s) {
+    if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];
     var rateDisplay = s.queue_rate;
     if (rateDisplay == null || (typeof rateDisplay === "string" && (!rateDisplay.trim() || rateDisplay.trim() === "—"))) {
@@ -1557,15 +1559,17 @@
       if (!overlay.classList.contains("hidden")) placeCard();
     });
 
+    // Expose so applyState can trigger the tour on the first WS message too
+    // (fetch below can fail if the server is still starting).
+    _tourAutoShowFn = function (tutorialDone) {
+      if (!tutorialDone) { idx = 0; show(); }
+      _tourAutoShowFn = null; // fire once
+    };
+
     fetch("/api/state")
-      .then(function (r) {
-        return r.json();
-      })
+      .then(function (r) { return r.json(); })
       .then(function (s) {
-        if (!s.tutorial_done) {
-          idx = 0;
-          show();
-        }
+        if (_tourAutoShowFn) _tourAutoShowFn(!!s.tutorial_done);
       })
       .catch(function () {});
   }
