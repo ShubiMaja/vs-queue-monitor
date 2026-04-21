@@ -688,13 +688,11 @@
 
   function syncGraphToolbarButtons(s) {
     if (!s) return;
-    var btnLiveText = $("btnGraphLiveText");
-    if (btnLiveText) btnLiveText.textContent = "LIVE";
     var btnLive = $("btnGraphLive");
     if (btnLive) {
       var liveOn = s.graph_live_view !== false;
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
-      btnLive.title = liveOn ? "Live follow: On (click to turn off)" : "Live follow: Off (click to turn on)";
+      btnLive.title = liveOn ? "Live follow on" : "Live follow off";
       btnLive.setAttribute("aria-label", btnLive.title);
     }
     var btnTimeText = $("btnGraphTimeModeText");
