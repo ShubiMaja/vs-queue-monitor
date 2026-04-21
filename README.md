@@ -89,7 +89,7 @@ A tray icon appears in the notification area while the service is running. Right
 
 ## Alerts
 
-Default warning thresholds: position **10, 5, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. **Settings (⚙)** now has matching Warning, Completion, and Failure tabs, each with popup, sound, sound-file, inline test controls, and built-in file picker buttons for custom sounds.
+Default warning thresholds: position **15, 10, 5, 3, 2, 1**. Edit in the **Warnings** KPI (+ or ✎). Alerts fire when your position drops *below* a threshold, once per threshold per run. **Settings (⚙)** now has matching Warning, Completion, and Failure tabs, each with popup, sound, sound-file, inline test controls, and built-in file picker buttons for custom sounds.
 
 ## Remote access via ngrok
 

@@ -156,7 +156,7 @@ MAX_DRAW_POINTS = MAX_GRAPH_POINTS
 # When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
 SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
-DEFAULT_ALERT_THRESHOLDS = "10, 5, 1"
+DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
