@@ -23,6 +23,9 @@ build/
 htmlcov/
 playwright-report/
 test-results/
+.pwdeps/
+.tmp-py/
+.tmp-python313.exe
 
 .mypy_cache/
 .ruff_cache/
