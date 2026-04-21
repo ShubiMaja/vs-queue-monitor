@@ -41,11 +41,12 @@ After install, relaunch any time with `~/vs-queue-monitor/run-vs-queue-monitor.s
 
 You do not need to reinstall each time. After the first setup, just launch it like a normal app:
 
-| OS | Easy way to open it |
-|---|---|
-| Windows | <kbd>Win</kbd> + <kbd>R</kbd>, type `vs-queue-monitor`, press <kbd>Enter</kbd> |
-| macOS | <kbd>Cmd</kbd> + <kbd>Space</kbd>, type `run-vs-queue-monitor`, press <kbd>Return</kbd> |
-| Linux | Open your app launcher or terminal, then run `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
+
+| OS      | Easy way to open it                                                                       |
+| --------- | ------------------------------------------------------------------------------------------- |
+| Windows | <kbd>Win</kbd> + <kbd>R</kbd>, type `vs-queue-monitor`, press <kbd>Enter</kbd>            |
+| macOS   | <kbd>Cmd</kbd> + <kbd>Space</kbd>, type `run-vs-queue-monitor`, press <kbd>Return</kbd>   |
+| Linux   | Open your app launcher or terminal, then run `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
 
 ### Already cloned / developing
 
@@ -56,18 +57,19 @@ python monitor.py
 
 ## Features
 
-| | |
-|---|---|
-| **Live queue position** | Reads your Vintage Story client log in real time |
-| **ETA & rate** | Estimates wait time from observed position changes |
-| **Progress bar** | Shows how far through the queue you've moved |
-| **Threshold alerts** | Popup + sound + desktop notification when position drops below a value |
-| **Completion alert** | Popup + sound + desktop notification when the game connects (past the queue) |
-| **Failure alert** | Popup + sound + desktop notification when monitoring drops into the interrupted state |
-| **Graph** | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV |
-| **Session history** | Per-run log of position changes |
-| **System tray** | Icon in notification area while running; right-click to open or quit |
-| **Embedded window** | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
+
+|                         |                                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Live queue position** | Reads your Vintage Story client log in real time                                                             |
+| **ETA & rate**          | Estimates wait time from observed position changes                                                           |
+| **Progress bar**        | Shows how far through the queue you've moved                                                                 |
+| **Threshold alerts**    | Popup + sound + desktop notification when position drops below a value                                       |
+| **Completion alert**    | Popup + sound + desktop notification when the game connects (past the queue)                                 |
+| **Failure alert**       | Popup + sound + desktop notification when monitoring drops into the interrupted state                        |
+| **Graph**               | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV    |
+| **Session history**     | Per-run log of position changes                                                                              |
+| **System tray**         | Icon in notification area while running; right-click to open or quit                                         |
+| **Embedded window**     | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
 ## Development notes
 
@@ -77,11 +79,12 @@ python monitor.py
 
 In the app header, paste your **VintagestoryData** folder path or click the folder icon. Typical locations:
 
-| OS | Default path |
-|----|-------------|
-| Windows | `%APPDATA%\VintagestoryData` |
-| macOS | `~/Library/Application Support/VintagestoryData` |
-| Linux | `~/.config/VintagestoryData` |
+
+| OS      | Default path                                     |
+| --------- | -------------------------------------------------- |
+| Windows | `%APPDATA%\VintagestoryData`                     |
+| macOS   | `~/Library/Application Support/VintagestoryData` |
+| Linux   | `~/.config/VintagestoryData`                     |
 
 ## System tray icon
 
@@ -89,12 +92,13 @@ A tray icon appears in the notification area while the service is running. Right
 
 ## Options
 
-| Flag | Effect |
-|------|--------|
-| `--web-browser` | Open in your default browser instead of an embedded window |
-| `--path PATH` | Set the log folder on startup |
-| `--no-start` | Open without auto-starting monitoring |
-| `--web-port PORT` | Change the listening port (default `8765`) |
+
+| Flag              | Effect                                                     |
+| ------------------- | ------------------------------------------------------------ |
+| `--web-browser`   | Open in your default browser instead of an embedded window |
+| `--path PATH`     | Set the log folder on startup                              |
+| `--no-start`      | Open without auto-starting monitoring                      |
+| `--web-port PORT` | Change the listening port (default `8765`)                 |
 
 ## Alerts
 
