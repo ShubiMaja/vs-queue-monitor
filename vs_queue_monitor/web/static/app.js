@@ -817,28 +817,51 @@
 
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
+  var _offlineMode = false;
+
+  function _showOfflineBanner() {
+    var b = document.getElementById("offlineBanner");
+    if (b) b.classList.remove("hidden");
+  }
+
+  function _hideOfflineBanner() {
+    var b = document.getElementById("offlineBanner");
+    if (b) b.classList.add("hidden");
+  }
+
+  function _enterOfflineMode() {
+    _offlineMode = true;
+    _disconnectOverlayShown = false;
+    var overlay = document.getElementById("serverStoppedOverlay");
+    if (overlay) overlay.classList.add("hidden");
+    _showOfflineBanner();
+  }
 
   function _showDisconnectOverlay() {
-    if (_disconnectOverlayShown) return;
+    if (_disconnectOverlayShown || _offlineMode) return;
     _disconnectOverlayShown = true;
     var overlay = document.getElementById("serverStoppedOverlay");
     if (!overlay) return;
     overlay.classList.remove("hidden");
-    var btn = document.getElementById("btnCloseTab");
-    if (btn) btn.addEventListener("click", function () { window.close(); });
+    var btnClose = document.getElementById("btnCloseTab");
+    if (btnClose) btnClose.addEventListener("click", function () { window.close(); }, { once: true });
+    var btnOffline = document.getElementById("btnOfflineMode");
+    if (btnOffline) btnOffline.addEventListener("click", _enterOfflineMode, { once: true });
   }
 
   function _hideDisconnectOverlay() {
-    if (!_disconnectOverlayShown) return;
     _disconnectOverlayShown = false;
+    _offlineMode = false;
     var overlay = document.getElementById("serverStoppedOverlay");
     if (overlay) overlay.classList.add("hidden");
+    _hideOfflineBanner();
   }
 
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(proto + "//" + location.host + "/ws");
     ws.onmessage = function (ev) {
+      var wasOffline = _offlineMode;
       _wsEverConnected = true;
       _hideDisconnectOverlay();
       try {
@@ -846,16 +869,18 @@
         window._lastState = s;
         applyState(s);
       } catch (e) {}
+      if (wasOffline) toast("Reconnected — live data resumed.");
     };
     ws.onopen = function () {
       _wsEverConnected = true;
-      _hideDisconnectOverlay();
+      if (!_offlineMode) _hideDisconnectOverlay();
     };
     ws.onclose = function () {
-      if (_wsEverConnected) _showDisconnectOverlay();
+      if (_wsEverConnected && !_offlineMode) _showDisconnectOverlay();
       setTimeout(connectWs, 1500);
     };
   }
+
 
   function setupTour() {
     const steps = [

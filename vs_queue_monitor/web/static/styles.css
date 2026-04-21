@@ -1140,6 +1140,29 @@ select.inp:focus-visible {
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+.server-stopped-overlay__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9998;
+  background: #5a3e00;
+  border-bottom: 1px solid #8a6200;
+  color: #ffd580;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.offline-banner.hidden { display: none; }
 
 .toast-host {
   position: fixed;

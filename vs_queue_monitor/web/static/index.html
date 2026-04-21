@@ -416,12 +416,18 @@
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
+    <div id="offlineBanner" class="offline-banner hidden" role="status" aria-live="polite">
+      <span>Offline — last known data shown. Restart VS Queue Monitor to reconnect.</span>
+    </div>
     <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alert" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
       <div class="server-stopped-overlay__box">
         <div class="server-stopped-overlay__spinner" aria-hidden="true"></div>
         <h2 id="serverStoppedTitle">Connection lost — Reconnecting…</h2>
-        <p id="serverStoppedDesc">The monitor server is unreachable. This page will resume automatically if it comes back.</p>
-        <button type="button" class="btn btn--ghost btn--small" id="btnCloseTab">Close this tab</button>
+        <p id="serverStoppedDesc">The monitor server is unreachable. Restart VS Queue Monitor to reconnect, or resume to browse the last known data.</p>
+        <div class="server-stopped-overlay__actions">
+          <button type="button" class="btn btn--primary btn--small" id="btnOfflineMode">Resume in Offline Mode</button>
+          <button type="button" class="btn btn--secondary btn--small" id="btnCloseTab">Close this tab</button>
+        </div>
       </div>
     </div>
     <script src="/vendor/dayjs.min.js"></script>
