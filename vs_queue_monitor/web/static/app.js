@@ -116,7 +116,10 @@
     var tx = $("pathSummaryText");
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
-    if (tx) tx.textContent = raw ? raw : "Select log folder or file…";
+    if (tx) {
+      tx.textContent = raw ? raw : "Select log folder or file…";
+      tx.classList.toggle("path-summary__text--has-path", !!raw);
+    }
     if (btn) btn.classList.toggle("path-summary--empty", !raw);
     if (btn) {
       btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";

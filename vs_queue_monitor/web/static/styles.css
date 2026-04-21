@@ -377,6 +377,10 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.path-summary__text--has-path {
+  direction: rtl;
+  unicode-bidi: plaintext;
+}
 .path-summary:hover {
   filter: brightness(1.06);
 }
