@@ -28,6 +28,16 @@ cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl
 
 After install, relaunch any time with `~/vs-queue-monitor/run-vs-queue-monitor.sh` or **⌘ Space → `run-vs-queue-monitor`** on macOS.
 
+### Relaunch later
+
+You do not need to reinstall each time. After the first setup, just launch it like a normal app:
+
+| OS | Easy way to open it |
+|---|---|
+| Windows | <kbd>Win</kbd> + <kbd>R</kbd>, type `vs-queue-monitor`, press <kbd>Enter</kbd> |
+| macOS | <kbd>⌘</kbd> + <kbd>Space</kbd>, type `run-vs-queue-monitor`, press <kbd>Return</kbd> |
+| Linux | Open your app launcher or terminal, then run `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
+
 ### Already cloned / developing
 
 ```bash
