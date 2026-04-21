@@ -6,6 +6,7 @@ from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
 from vs_queue_monitor.web.hooks_web import WebMonitorHooks
+from vs_queue_monitor.web.server import _queue_sessions_for_engine
 
 
 class SmokeHooks(WebMonitorHooks):
@@ -103,3 +104,25 @@ def test_completion_then_disconnect_then_requeue() -> None:
     assert engine.status_var.get() == "Monitoring"
     assert engine.position_var.get() == "12"
     assert engine.last_position == 12
+
+
+def test_active_session_zero_not_listed_as_failed_history() -> None:
+    root = Path(".tmp-release-smoke-tests-session-list")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 10",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine._last_queue_run_session = 0
+
+    sessions = _queue_sessions_for_engine(engine)
+    assert sessions == [], sessions

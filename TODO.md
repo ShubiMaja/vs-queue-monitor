@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: our session appears in the list as a failed session~~
+Fixed: the web server now filters the active session out of the dropdown even when its session id is 0, so the live run no longer shows up as a bogus failed historical entry (v1.0.294)
+
 ~~Bug: blue dot covers the check mark on the graph~~
 Fixed: final historical/completed point now uses the terminal connect/disconnect icon instead of drawing the normal blue point underneath it (v1.0.293)
 

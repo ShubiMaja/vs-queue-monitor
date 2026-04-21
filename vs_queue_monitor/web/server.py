@@ -76,7 +76,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any
     try:
         sessions = queue_sessions_for_log_tail(path)
         active_id = engine._last_queue_run_session
-        if active_id:
+        if active_id is not None and int(active_id) >= 0:
             sessions = [s for s in sessions if s.get("session_id") != active_id]
         return sessions
     except Exception:
