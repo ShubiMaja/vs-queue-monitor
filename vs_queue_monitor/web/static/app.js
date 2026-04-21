@@ -325,7 +325,12 @@
         if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
       }
     }
-    return new Notification(title, o);
+    var notif = new Notification(title, o);
+    notif.onclick = function () {
+      window.focus();
+      notif.close();
+    };
+    return notif;
   }
 
   function fireDesktopNotification(title, extra, failMessage) {

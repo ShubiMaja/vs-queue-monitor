@@ -714,6 +714,23 @@
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText(String(lastV), lx + 10, ly);
+
+      // For completed/historical sessions, overlay the final event icon on the
+      // marker dot so the viewer can see at a glance how the session ended.
+      var isHistorical = !running || progress >= 1.0;
+      if (isHistorical && graphEvents.length) {
+        var lastEvent = null;
+        for (var ei = graphEvents.length - 1; ei >= 0; ei--) {
+          var ge = graphEvents[ei];
+          if (ge && isFinite(ge.t) && ge.t >= t0 - 1e-6 && ge.t <= t1 + 1e-6) {
+            lastEvent = ge;
+            break;
+          }
+        }
+        if (lastEvent) {
+          drawGraphEventMarker(ctx, lastEvent.kind, lx, ly);
+        }
+      }
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {
