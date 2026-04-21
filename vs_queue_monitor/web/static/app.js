@@ -332,11 +332,79 @@
 
   function fireDesktopNotification(title, extra, failMessage) {
     try {
-      return desktopNotify(title, extra);
+      return serviceWorkerNotify(title, extra)
+        .catch(function () {
+          return desktopNotify(title, extra);
+        })
+        .catch(function () {
+          if (failMessage) toast(failMessage, "warn");
+          return null;
+        });
     } catch (e) {
       if (failMessage) toast(failMessage, "warn");
       return null;
     }
+  }
+
+  var NOTIFY_SW_SCOPE = "/notify-sw/";
+
+  function getNotificationServiceWorkerPath() {
+    return "/notify-sw.js";
+  }
+
+  function getNotificationServiceWorkerScope() {
+    return NOTIFY_SW_SCOPE;
+  }
+
+  function registerNotificationServiceWorker() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+      return Promise.resolve(null);
+    }
+    return navigator.serviceWorker
+      .register(getNotificationServiceWorkerPath(), {
+        scope: getNotificationServiceWorkerScope(),
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function getNotificationServiceWorkerRegistration() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+      return Promise.resolve(null);
+    }
+    return navigator.serviceWorker
+      .getRegistration(getNotificationServiceWorkerScope())
+      .then(function (reg) {
+        if (reg) return reg;
+        return registerNotificationServiceWorker();
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function serviceWorkerNotify(title, extra) {
+    return getNotificationServiceWorkerRegistration().then(function (reg) {
+      if (!reg || typeof reg.showNotification !== "function") {
+        throw new Error("Notification service worker unavailable");
+      }
+      var kind = extra && extra.kind ? String(extra.kind) : "";
+      var iconUrl = notifyIconUrl(notificationIconPath(kind));
+      var o = {
+        icon: iconUrl,
+        badge: iconUrl,
+        timestamp: Date.now(),
+        lang: "en",
+      };
+      if (extra && typeof extra === "object") {
+        var k;
+        for (k in extra) {
+          if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
+        }
+      }
+      return reg.showNotification(title, o);
+    });
   }
 
   function cleanupLegacyNotificationServiceWorker() {
@@ -347,6 +415,9 @@
       regs.forEach(function (reg) {
         var scope = String((reg && reg.scope) || "");
         if (scope.indexOf(location.origin + "/") === 0) {
+          if (scope.indexOf(location.origin + getNotificationServiceWorkerScope()) === 0) {
+            return;
+          }
           reg.unregister().catch(function () {});
         }
       });
@@ -3168,6 +3239,15 @@
       };
     }
 
+    safeInit("registerNotificationServiceWorker", function () {
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        registerNotificationServiceWorker();
+      }
+    });
+
     var bs = $("btnCopyStats");
     if (bs) {
       bs.onclick = function () {
@@ -3547,7 +3627,7 @@
   safeInit("setupRestoreBanner", setupRestoreBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
-  safeInit("setupNotificationsLegacy", setupNotificationsLegacy);
+  safeInit("setupNotifications", setupNotifications);
   safeInit("setupHelpCmd", setupHelpCmd);
   safeInit("setupPathModal", setupPathModal);
   safeInit("setupModalTabTrap", setupModalTabTrap);
