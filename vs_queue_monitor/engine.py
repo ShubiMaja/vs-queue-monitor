@@ -140,6 +140,7 @@ class QueueMonitorEngine:
         self._mpp_floor_value: Optional[float] = None
         self._interrupted_mode: bool = False
         self._interrupt_baseline_session: int = -1
+        self._interrupt_entry_queue_line_epoch: Optional[float] = None
         self._dismissed_new_queue_session: Optional[int] = None
         self._interrupted_elapsed_sec: Optional[float] = None
         self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
@@ -481,6 +482,7 @@ class QueueMonitorEngine:
         self._interrupted_mode = True
         self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
         self._interrupt_baseline_session = self._last_queue_run_session
+        self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
         self._dismissed_new_queue_session = None
         self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
         self._set_status_line('Interrupted', danger=True)
@@ -489,12 +491,19 @@ class QueueMonitorEngine:
             msg += f' ({detail})'
         self.write_history(msg)
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int) -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
         if position is None:
             return
         if queue_sess <= self._interrupt_baseline_session:
-            return
+            # Session count can appear lower than baseline when the log grew between sessions
+            # and old boundary lines scrolled out of the tail window.  If the most recent
+            # queue line is provably newer than the epoch we entered interrupted state, it is
+            # a new run regardless of the apparent session count.
+            entry_epoch = self._interrupt_entry_queue_line_epoch
+            if (last_queue_line_epoch is None or entry_epoch is None
+                    or last_queue_line_epoch <= entry_epoch):
+                return
         if queue_sess == self._dismissed_new_queue_session:
             return
         if self._pending_new_queue_session == queue_sess:
@@ -712,7 +721,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
@@ -744,7 +753,21 @@ class QueueMonitorEngine:
                         prev_pos = self.last_position
                         now = time.time()
                         stale_limit = QUEUE_UPDATE_INTERVAL_SEC * QUEUE_STALE_TIMEOUT_MULT
-                        new_queue_run = self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session
+                        # A new run is normally indicated by a higher session count in the tail.
+                        # If the log grew between sessions and old boundaries scrolled out of the
+                        # tail window, queue_sess may appear lower; fall back to epoch comparison.
+                        new_queue_run = (
+                            self._last_queue_run_session >= 0
+                            and (
+                                queue_sess > self._last_queue_run_session
+                                or (
+                                    queue_sess < self._last_queue_run_session
+                                    and last_queue_line_epoch is not None
+                                    and self._last_queue_line_epoch is not None
+                                    and last_queue_line_epoch > self._last_queue_line_epoch
+                                )
+                            )
+                        )
                         if not new_queue_run and prev_pos is not None and (position > prev_pos) and (position - prev_pos >= QUEUE_RESET_JUMP_THRESHOLD):
                             position = prev_pos
                         if position is not None and position <= 1 and left:
