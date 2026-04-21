@@ -17,7 +17,6 @@
   /** True after we POST saved local path because the engine had no source_path (sync with localStorage). */
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
-  var _notificationSwRegPromise = null;
 
   function lsGetPath() {
     try {
@@ -159,30 +158,6 @@
     }
   }
 
-  function ensureNotificationServiceWorker() {
-    if (
-      typeof navigator === "undefined" ||
-      !navigator.serviceWorker ||
-      typeof window === "undefined" ||
-      !window.isSecureContext
-    ) {
-      return Promise.resolve(null);
-    }
-    if (_notificationSwRegPromise) return _notificationSwRegPromise;
-    _notificationSwRegPromise = navigator.serviceWorker
-      .register("/sw.js", { scope: "/" })
-      .then(function () {
-        return navigator.serviceWorker.ready;
-      })
-      .then(function (reg) {
-        return reg || null;
-      })
-      .catch(function () {
-        return null;
-      });
-    return _notificationSwRegPromise;
-  }
-
   /**
    * Richer desktop notifications: app icon, badge, timestamp; pass tag to control deduplication in the OS.
    */
@@ -199,27 +174,30 @@
         if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
       }
     }
-    return ensureNotificationServiceWorker().then(function (reg) {
-      if (reg && typeof reg.showNotification === "function") {
-        return reg.showNotification(title, o);
-      }
-      return new Notification(title, o);
-    });
+    return new Notification(title, o);
   }
 
   function fireDesktopNotification(title, extra, failMessage) {
     try {
-      var result = desktopNotify(title, extra);
-      if (result && typeof result.then === "function") {
-        result.catch(function () {
-          if (failMessage) toast(failMessage, "warn");
-        });
-      }
-      return result;
+      return desktopNotify(title, extra);
     } catch (e) {
       if (failMessage) toast(failMessage, "warn");
       return null;
     }
+  }
+
+  function cleanupLegacyNotificationServiceWorker() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+      return;
+    }
+    navigator.serviceWorker.getRegistrations().then(function (regs) {
+      regs.forEach(function (reg) {
+        var scope = String((reg && reg.scope) || "");
+        if (scope.indexOf(location.origin + "/") === 0) {
+          reg.unregister().catch(function () {});
+        }
+      });
+    }).catch(function () {});
   }
 
   function postConfig(patch) {
@@ -386,7 +364,7 @@
     var stats = computeGraphSessionStats();
     var text =
       "Start Pos: " + (stats.startPos == null ? "—" : stats.startPos) + "\n" +
-      "End Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
+      "Cur Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
       "Pos Delta: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
       "Duration: " +
       (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
@@ -650,7 +628,6 @@
 
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
-    $("infoPath").textContent = s.resolved_path || "—";
     $("infoGlo").textContent = s.global_rate || "—";
 
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
@@ -1793,6 +1770,262 @@
     syncHint();
   }
 
+  function setupNotificationsLegacy() {
+    var btn = $("btnNotify");
+
+    function syncHint() {
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
+      var st = "pending";
+      var label = "Desktop notifications — click to allow in the browser";
+      var hint = "Notifications pending — click to allow the browser prompt";
+      if (typeof Notification === "undefined" || _notifUnsupported ||
+          (typeof Notification !== "undefined" && Notification.permission === "denied")) {
+        var bannerNote = (typeof Notification === "undefined" || _notifUnsupported)
+          ? " (banners need a browser tab)"
+          : " (banners blocked — allow in browser settings)";
+        if (popOn) {
+          st = "live";
+          label = "Sound alerts on — click to turn off" + bannerNote;
+          hint = "Sound alerts on" + bannerNote;
+        } else {
+          st = "off";
+          label = "Sound alerts off — click to turn on" + bannerNote;
+          hint = "Sound alerts off — click to turn on";
+        }
+      } else if (!popOn) {
+        st = "off";
+        if (Notification.permission === "granted") {
+          label = "Desktop notifications off — click to turn on";
+          hint = "Notifications off — click to turn desktop alerts back on";
+        } else {
+          label = "Desktop notifications off — click to turn on and allow browser notifications";
+          hint = "Click to enable Warning popup and allow the browser prompt";
+        }
+      } else if (Notification.permission === "granted") {
+        st = "live";
+        label = "Desktop notifications on — click to turn off";
+        hint = "Notifications on — click to turn off desktop alerts";
+      } else {
+        st = "pending";
+        label = "Desktop notifications — click to allow in the browser";
+        hint = "Notifications pending — click to allow the browser prompt";
+      }
+      if (btn) {
+        btn.setAttribute("data-state", st);
+        btn.setAttribute("aria-checked", st === "live" ? "true" : "false");
+        btn.setAttribute("aria-label", label);
+        btn.title = hint;
+      }
+    }
+    notifySyncHint = syncHint;
+
+    function requestPermissionFlow(onGranted) {
+      if (typeof Notification === "undefined") {
+        _notifUnsupported = true;
+        syncHint();
+        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        return;
+      }
+      if (Notification.permission === "denied" && !_notifEverAsked) {
+        _notifUnsupported = true;
+        syncHint();
+        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        return;
+      }
+      var t0 = Date.now();
+      try {
+        localStorage.setItem("vsqm_notif_asked", "1");
+        _notifEverAsked = true;
+        var req = Notification.requestPermission();
+        if (req && typeof req.then === "function") {
+          req
+            .then(function (p) {
+              syncHint();
+              if (p === "granted") {
+                try {
+                  desktopNotify("Notifications enabled", {
+                    body:
+                      "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+                    tag: "vsqm-setup-grant",
+                  });
+                } catch (e) {}
+                if (typeof onGranted === "function") onGranted();
+                toast("Notifications enabled.");
+              } else if (p === "denied") {
+                if (Date.now() - t0 < 300) {
+                  _notifUnsupported = true;
+                  toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+                } else {
+                  toast("Notifications were denied in the browser.", "warn");
+                }
+                syncHint();
+              }
+            })
+            .catch(function () {
+              syncHint();
+              toast("Could not request notification permission.", "warn");
+            });
+        } else {
+          syncHint();
+          if (Notification.permission === "granted") {
+            try {
+              desktopNotify("Notifications enabled", {
+                body:
+                  "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+                tag: "vsqm-setup-grant",
+              });
+            } catch (e) {}
+            if (typeof onGranted === "function") onGranted();
+            toast("Notifications enabled.");
+          }
+        }
+      } catch (e) {
+        _notifUnsupported = true;
+        syncHint();
+        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
+      }
+    }
+
+    function bumpPopupEnabled(on) {
+      if (window._lastState) window._lastState.popup_enabled = !!on;
+    }
+
+    function showExampleDesktopNotification() {
+      try {
+        desktopNotify("Threshold alerts active", {
+          body:
+            "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+          tag: "vsqm-example-" + Date.now(),
+        });
+      } catch (e) {}
+    }
+
+    function _isBannerUnsupported() {
+      return _notifUnsupported || typeof Notification === "undefined";
+    }
+
+    function _notifBannersBlocked() {
+      return typeof Notification !== "undefined" && Notification.permission === "denied";
+    }
+
+    function onNotifyClick() {
+      var popOn =
+        window._lastState == null || window._lastState.popup_enabled !== false;
+
+      if (_isBannerUnsupported()) {
+        if (popOn) {
+          postConfig({ popup_enabled: false })
+            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
+            .catch(function (e) { toast(String(e.message || e), "warn"); });
+        } else {
+          postConfig({ popup_enabled: true })
+            .then(function () {
+              bumpPopupEnabled(true);
+              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+              syncHint();
+            })
+            .catch(function (e) { toast(String(e.message || e), "warn"); });
+        }
+        return;
+      }
+
+      if (_notifBannersBlocked()) {
+        if (!popOn) {
+          fetch("/api/clear_notification_permission", { method: "POST" })
+            .then(function () {
+              toast("Notification permission reset — reopen VS Queue Monitor to grant access.", "warn");
+            })
+            .catch(function () {
+              toast("Could not reset notification permission. Try reinstalling the app.", "warn");
+            });
+        } else {
+          postConfig({ popup_enabled: false })
+            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
+            .catch(function (e) { toast(String(e.message || e), "warn"); });
+        }
+        return;
+      }
+
+      var perm = Notification.permission;
+      if (perm === "granted") {
+        if (popOn) {
+          postConfig({ popup_enabled: false })
+            .then(function () {
+              bumpPopupEnabled(false);
+              toast("Desktop notifications off.");
+              syncHint();
+            })
+            .catch(function (e) {
+              toast(String(e.message || e), "warn");
+            });
+        } else {
+          postConfig({ popup_enabled: true })
+            .then(function () {
+              bumpPopupEnabled(true);
+              showExampleDesktopNotification();
+              toast("Desktop notifications on.");
+              syncHint();
+            })
+            .catch(function (e) {
+              toast(String(e.message || e), "warn");
+            });
+        }
+        return;
+      }
+      if (!popOn) {
+        function enablePopupsAfterGrant() {
+          postConfig({ popup_enabled: true })
+            .then(function () {
+              bumpPopupEnabled(true);
+              syncHint();
+            })
+            .catch(function (e) {
+              toast(String(e.message || e), "warn");
+            });
+        }
+        if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+          requestPermissionFlow(enablePopupsAfterGrant);
+        } else {
+          enablePopupsAfterGrant();
+        }
+        return;
+      }
+      requestPermissionFlow();
+    }
+    if (btn) {
+      btn.addEventListener("click", onNotifyClick);
+    }
+    var btnTest = $("btnTestNotify");
+    if (btnTest) {
+      btnTest.addEventListener("click", function () {
+        if (_isBannerUnsupported()) {
+          toast("Desktop banners aren't available in this window — open in a browser to test them.", "warn");
+          return;
+        }
+        var pOn =
+          window._lastState == null || window._lastState.popup_enabled !== false;
+        if (!pOn) {
+          toast("Turn on Warning popup first (same setting as the header switch).", "warn");
+          return;
+        }
+        if (Notification.permission !== "granted") {
+          toast("Allow notifications from the header switch first.", "warn");
+          return;
+        }
+        try {
+          desktopNotify("Test notification", {
+            body:
+              "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
+            tag: "vsqm-test",
+          });
+        } catch (e) {}
+        toast("Test sent — check the system tray if you see no banner.");
+      });
+    }
+    syncHint();
+  }
+
   function setupHelpCmd() {
     $("btnHelp").onclick = function () {
       fetch("/api/meta")
@@ -2098,7 +2331,13 @@
             typeof Notification !== "undefined" &&
             Notification.permission === "granted"
           ) {
-            showExampleDesktopNotification();
+            try {
+              desktopNotify("Threshold alerts active", {
+                body:
+                  "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+                tag: "vsqm-example-" + Date.now(),
+              });
+            } catch (e) {}
           }
           if (notifySyncHint) notifySyncHint();
           hideEl($("modalSettings"));
@@ -2322,8 +2561,8 @@
   setupInfoHistoryResize();
   setupRestoreBanner();
   setupNewQueueModal();
-  ensureNotificationServiceWorker();
-  setupNotifications();
+  cleanupLegacyNotificationServiceWorker();
+  setupNotificationsLegacy();
   setupHelpCmd();
   setupPathModal();
   setupModalTabTrap();

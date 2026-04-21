@@ -46,6 +46,8 @@ body {
   overflow-x: hidden;
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Screen-reader only (WCAG accessible names for icon-only controls) */
@@ -525,6 +527,8 @@ select.inp:focus-visible {
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* KPI strip: equal seven columns on wide screens; auto-fit when narrow */
@@ -959,8 +963,25 @@ select.inp:focus-visible {
 .info-history__card .history__pre {
   border: none;
   border-radius: 0;
-  min-height: 120px;
+  min-height: 0;
   flex: 1;
+}
+
+@media (min-width: 901px) {
+  .info-history {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .info-history__main,
+  .info-history__side,
+  .info-history__card,
+  .info-history__card .info__grid,
+  .info-history__card .history__pre {
+    min-height: 0;
+  }
+  .info-history__card .history__pre {
+    max-height: none;
+  }
 }
 
 .progress {
