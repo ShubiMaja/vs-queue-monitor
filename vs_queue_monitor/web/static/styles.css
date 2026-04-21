@@ -1185,6 +1185,8 @@ select.inp:focus-visible {
   min-height: 120px;
   max-height: min(50vh, 320px);
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   font-size: 0.8rem;
   line-height: 1.45;
   white-space: pre-wrap;

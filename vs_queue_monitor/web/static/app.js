@@ -12,12 +12,14 @@
   var LS_PATH_LEGACY = "vsqm_web_last_path";
   var LS_SESSION = "vs_queue_monitor_selected_session_v1";
   var LS_SESSION_LEGACY = "vsqm_selected_session_v1";
+  var LS_HISTORY_AUTOSCROLL = "vs_queue_monitor_history_autoscroll_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
   /** True after we POST saved local path because the engine had no source_path (sync with localStorage). */
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
+  var _historyAutoscroll = true;
 
   function lsGetPath() {
     try {
@@ -47,6 +49,20 @@
     try {
       localStorage.setItem(LS_SESSION, val);
       localStorage.removeItem(LS_SESSION_LEGACY);
+    } catch (e) {}
+  }
+  function lsGetHistoryAutoscroll() {
+    try {
+      var v = localStorage.getItem(LS_HISTORY_AUTOSCROLL);
+      if (v == null || v === "") return true;
+      return v !== "0";
+    } catch (e) {
+      return true;
+    }
+  }
+  function lsSetHistoryAutoscroll(val) {
+    try {
+      localStorage.setItem(LS_HISTORY_AUTOSCROLL, val ? "1" : "0");
     } catch (e) {}
   }
 
@@ -123,6 +139,15 @@
     if (!ms || ms.classList.contains("hidden")) return;
     hideEl(ms);
     focusElSoon($("btnSettings"));
+  }
+
+  function syncHistoryAutoscrollButton() {
+    var btn = $("btnHistoryAutoscroll");
+    if (!btn) return;
+    btn.setAttribute("aria-pressed", _historyAutoscroll ? "true" : "false");
+    btn.title = _historyAutoscroll ? "Autoscroll on" : "Autoscroll off";
+    btn.setAttribute("aria-label", btn.title);
+    btn.classList.toggle("btn--toggle-on", _historyAutoscroll);
   }
 
   function bindBackdropDismiss(backdropEl, onDismiss) {
@@ -1218,8 +1243,12 @@
 
     const hp = $("historyPre");
     if (hp && s.history_tail) {
+      var pinnedToBottom =
+        hp.scrollHeight - hp.scrollTop - hp.clientHeight <= 12;
       hp.textContent = s.history_tail.join("\n");
-      hp.scrollTop = hp.scrollHeight;
+      if (_historyAutoscroll || pinnedToBottom) {
+        hp.scrollTop = hp.scrollHeight;
+      }
     }
 
     var mnq = $("modalNewQueue");
@@ -2749,6 +2778,23 @@
     });
   }
 
+  function setupHistoryAutoscroll() {
+    _historyAutoscroll = lsGetHistoryAutoscroll();
+    syncHistoryAutoscrollButton();
+    var btn = $("btnHistoryAutoscroll");
+    if (btn) {
+      btn.onclick = function () {
+        _historyAutoscroll = !_historyAutoscroll;
+        lsSetHistoryAutoscroll(_historyAutoscroll);
+        syncHistoryAutoscrollButton();
+        if (_historyAutoscroll) {
+          var hp = $("historyPre");
+          if (hp) hp.scrollTop = hp.scrollHeight;
+        }
+      };
+    }
+  }
+
   function setupPathModal() {
     var modal = $("modalPath");
     var inpHidden = $("inpPath");
@@ -3439,6 +3485,7 @@
   safeInit("setupChrome", setupChrome);
   safeInit("setupSettingsTabs", setupSettingsTabs);
   safeInit("setupPopovers", setupPopovers);
+  safeInit("setupHistoryAutoscroll", setupHistoryAutoscroll);
   safeInit("setupSessionSelect", setupSessionSelect);
   safeInit("setupGraphCanvas", setupGraphCanvas);
   safeInit("setupGraphZoom", setupGraphZoom);
