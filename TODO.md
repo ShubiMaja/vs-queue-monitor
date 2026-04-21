@@ -4,8 +4,6 @@
 
 Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction — step vertex logic looks correct; may be a rendering artifact or downsampling edge case)
 
-Bug:  "GET /favicon.ico HTTP/1.1" 404 Not Found
-
 Bug: warning signs appear on the timeline when they ahve not been reached yet
 
 ## Fixed (closed)
@@ -48,6 +46,9 @@ Fixed: warnIfZeroThreshold() toasts "Threshold 0 is not valid — thresholds mus
 
 ~~Bug: README / user-facing text has visible encoding corruption (e.g. Win key, arrows, symbols render as mojibake)~~
 Fixed: normalized the README quick-start and alerts copy to plain text so it renders consistently across viewers (v1.0.281)
+
+~~Bug:  "GET /favicon.ico HTTP/1.1" 404 Not Found~~
+Fixed: linked the web UI head to the existing SVG app icon so browsers stop probing for a missing default favicon (v1.0.282)
 
 ---
 
