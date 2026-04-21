@@ -8,6 +8,14 @@
 
 - zoom multiple does not auto update when zooming, why not?
 
+- sound does not work on mobile phone browser , how do we solve that? should we?
+
+- notifications not working on mobile phone browser
+
+- live follow was not on by default when i loaded the app for the first time
+
+- the trend line mysteriously appears and dissapears now on the latest session from position 28 to 25. it also apepared rendered in reverse. then after position 25 it became normal again
+
 ## Fixed (closed)
 
 ~~Bug: our session appears in the list as a failed session~~
@@ -86,6 +94,10 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 
 - It should be clear if the rate is Global Rate or other. Introduce Global Rate to stats. Global Rate: 1.8 m/p. use Global Rate in the graph overlay. rely on tooltip to explain what m/p is. min/pos
 
+- when connection is lost, message should not be absolutist. use langauge like web page *may* be lost if you refresh
+
+- add a download iconbutton next to the copy button of the chart to download the png of the chart
+
 ## Implemented
 
 ~~Tweak: release smoke coverage should exercise completion -> disconnect -> re-queue recovery~~
@@ -117,7 +129,11 @@ Done: graph time labels draw on an opaque background fill, including the rightmo
 
 # FEATURES
 
+
 Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app
+
+Feature: Snapshot every session recorded once the session ends and store it as appdata so we can perform analytics later
+
 
 Feature: Queue Scheduling
 
@@ -151,4 +167,6 @@ Feature: Auto-Leave (leave if idle for x mins)
 
 Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server)
 
-Feature: Auto-rejoin (if disconnected while in queue, try to Auto Join)
+Feature: Auto-rejoin (if disconnected while in queue, try to Auto rejoin the queue)
+
+Feature: Keep-Alive (leave the queue 1 position before you join and rejoin it -- always keep you in the queue)
