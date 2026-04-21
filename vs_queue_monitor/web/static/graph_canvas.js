@@ -310,12 +310,23 @@
       var cy = y0 + plotH / 2;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      var emptyLine1, emptyLine2;
+      if (!state.running && !(state.source_path || "").trim()) {
+        emptyLine1 = "Queue data will appear here";
+        emptyLine2 = "← Set a log folder above, then click Start";
+      } else if (state.running && (state.source_path || "").trim()) {
+        emptyLine1 = "Waiting for queue data…";
+        emptyLine2 = "Join a server queue and position changes will plot here.";
+      } else {
+        emptyLine1 = "No data yet";
+        emptyLine2 = "Queue position will plot here from the log.";
+      }
       ctx.fillStyle = th.ui_graph_empty;
       ctx.font = "15px system-ui,Segoe UI,sans-serif";
-      ctx.fillText("No data yet", cx, cy - 10);
+      ctx.fillText(emptyLine1, cx, cy - 10);
       ctx.fillStyle = th.ui_graph_axis;
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
-      ctx.fillText("Queue position will plot here from the log.", cx, cy + 12);
+      ctx.fillText(emptyLine2, cx, cy + 12);
       ctx.textAlign = "start";
       ctx.textBaseline = "alphabetic";
       canvas._drawState = {
