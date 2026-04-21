@@ -873,20 +873,6 @@ select.inp:focus-visible {
   color: var(--accent);
 }
 
-/* PNG export overlay button — top-right corner of canvas */
-.graph-export-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 2;
-  opacity: 0.55;
-  transition: opacity 0.15s;
-  pointer-events: auto;
-}
-.graph-export-btn:hover,
-.graph-export-btn:focus-visible {
-  opacity: 1;
-}
 
 #graphCanvas {
   width: 100%;
