@@ -9,16 +9,12 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 ### Windows - paste into Command Prompt or Windows Run `Win+R`
 
 ```bat
-cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | py -3 -"
+cmd /k "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
 ```
 
-This clones the repo, installs dependencies, and opens the monitor. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
+This clones the repo, installs dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
 
-**Python not installed yet?** Use this instead - it opens the Python installer if needed:
-
-```bat
-cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
-```
+**Python not installed yet?** The same command works - it opens the Python installer page if needed.
 
 ### macOS / Linux
 

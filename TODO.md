@@ -2,8 +2,6 @@
 
 ## Open
 
-Bug: the initial entry point commands should never fail silently. they should always open a terminal and that terminal should never close without showing a status for better or worse and user interaction to close the terminal
-
 ## Fixed (closed)
 
 ~~Bug: When a log file is not loaded its really unclear that this is the problem.~~
@@ -54,6 +52,9 @@ Fixed: graph warning markers now trigger only after the position drops below a t
 ~~Visual Bug: the first point in the live session graph has a diagonal line to the second point, then continues normally as a step graph (needs reproduction â€” step vertex logic looks correct; may be a rendering artifact or downsampling edge case)~~
 Fixed: coalesced duplicate-timestamp samples before building step vertices so same-second updates cannot create a diagonal first segment (v1.0.284)
 
+~~Bug: the initial entry point commands should never fail silently. they should always open a terminal and that terminal should never close without showing a status for better or worse and user interaction to close the terminal~~
+Fixed: Windows quick start now goes through bootstrap-windows.cmd, keeps the terminal open, shows an explicit final status, and pauses before closing (v1.0.285)
+
 ---
 
 # TWEAKS
@@ -63,6 +64,8 @@ Fixed: coalesced duplicate-timestamp samples before building step vertices so sa
 Tweak: add a table of contents to the readme
 
 Tweak: Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
+
+Tweak: don't take responsibility for installing python for the user. just link them the official python website and exit gracefully if there is no python in the main script
 
 ## Implemented
 
