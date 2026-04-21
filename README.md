@@ -6,13 +6,13 @@ Monitor your **Vintage Story** connect queue — live position, estimated wait t
 
 ## Quick start
 
-### Windows — paste into Command Prompt
+### Windows — paste into Command Prompt or Windows Run ⊞ R
 
 ```bat
 cmd /c "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | py -3 -"
 ```
 
-This clones the repo, installs dependencies, and opens the monitor. After install, relaunch any time with **Win+R → `vs-queue-monitor`** or the Desktop shortcut.
+This clones the repo, installs dependencies, and opens the monitor. After install, relaunch any time with **⊞ R → `vs-queue-monitor`** or the Desktop shortcut.
 
 **Python not installed yet?** Use this instead — it opens the Python installer if needed:
 
