@@ -807,12 +807,53 @@ def queue_sessions_for_log_tail(
     text = read_log_file_tail_text(log_file, tail_bytes)
     if not text:
         return []
-    events = walk_queue_position_events(text)
-    if not events:
-        return []
     by_sess: dict[int, list[tuple[float, int]]] = defaultdict(list)
-    for t, p, sid in events:
-        by_sess[sid].append((t, p))
+    session = 0
+    last_t: Optional[float] = None
+    last_pos_by_sess: dict[int, Optional[int]] = {}
+    completed_by_sess: dict[int, bool] = defaultdict(bool)
+    saw_any = False
+    for line in text.splitlines():
+        if is_queue_run_boundary_line(line):
+            session += 1
+            continue
+        m = queue_position_match(line)
+        if m:
+            try:
+                pos = int(m.group(1))
+            except Exception:
+                continue
+            if last_pos_by_sess.get(session) == pos:
+                continue
+            t = parse_log_timestamp_epoch(line)
+            if t is None:
+                t = (last_t + 1.0) if last_t is not None else time.time()
+            last_t = t
+            last_pos_by_sess[session] = pos
+            by_sess[session].append((t, pos))
+            saw_any = True
+            continue
+        if (
+            is_post_queue_progress_line(line)
+            and by_sess.get(session)
+            and not completed_by_sess.get(session, False)
+        ):
+            last_pos = last_pos_by_sess.get(session)
+            if last_pos is None or last_pos > 1:
+                continue
+            t = parse_log_timestamp_epoch(line)
+            prev_t = by_sess[session][-1][0]
+            if t is None:
+                t = prev_t + 1.0
+            if t <= prev_t:
+                t = prev_t + 1e-3
+            by_sess[session].append((t, 0))
+            last_t = t
+            last_pos_by_sess[session] = 0
+            completed_by_sess[session] = True
+            saw_any = True
+    if not saw_any:
+        return []
     sessions: list[dict[str, Any]] = []
     key_counts: dict[str, int] = {}
     for sess_id in sorted(by_sess.keys()):
