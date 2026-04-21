@@ -62,7 +62,7 @@
     return out;
   }
 
-  function graphPlotTimeRange(points, liveView, running, singleSpan) {
+  function graphPlotTimeRange(points, extendToNow, singleSpan) {
     if (!points.length) {
       return [0, 1];
     }
@@ -76,7 +76,7 @@
     if (t1 <= t0) {
       t1 = t0 + 1e-6;
     }
-    if (liveView && running) {
+    if (extendToNow) {
       t1 = Math.max(t1, Date.now() / 1000);
     }
     return [t0, t1];
@@ -296,6 +296,8 @@
     var points = downsamplePoints(rawPoints, th.max_draw_points);
     var liveView = !!state.graph_live_view;
     var running = !!state.running;
+    var progress = typeof state.progress === "number" ? state.progress : 0;
+    var extendToNow = liveView && running && progress < 1.0;
     var logScale = !!state.graph_log_scale;
     var timeMode = state.graph_time_mode || "relative";
     var gamma = th.graph_log_gamma;
@@ -339,7 +341,7 @@
     if (viewRange && viewRange.length === 2) {
       tr = [viewRange[0], viewRange[1]];
     } else {
-      tr = graphPlotTimeRange(rangePts, liveView, running, th.single_point_graph_span_sec);
+      tr = graphPlotTimeRange(rangePts, extendToNow, th.single_point_graph_span_sec);
     }
     var t0 = tr[0];
     var t1 = tr[1];

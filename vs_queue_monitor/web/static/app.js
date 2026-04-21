@@ -2046,10 +2046,8 @@
         var tB = xToTime(Math.max(hadSel.x0, hadSel.x1));
         if (tA !== null && tB !== null && tB > tA) {
           var ds = c._drawState;
-          var rawT0 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[0][0] : null;
-          var rawT1 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[ds.rawPoints.length - 1][0] : null;
-          if (rawT0 !== null) {
-            var fullSpan = rawT1 - rawT0;
+          if (ds && ds.t0 != null && ds.t1 != null) {
+            var fullSpan = ds.t1 - ds.t0;
             window._graphZoom = (tB - tA >= fullSpan * 0.999) ? null : [tA, tB];
             updateZoomResetBtn();
           }
@@ -3296,8 +3294,8 @@
     var c = $("graphCanvas");
     var ds = c && c._drawState;
     if (!ds || !ds.rawPoints || !ds.rawPoints.length) return;
-    var rawT0 = ds.rawPoints[0][0];
-    var rawT1 = ds.rawPoints[ds.rawPoints.length - 1][0];
+    var rawT0 = ds.t0;
+    var rawT1 = ds.t1;
     var fullSpan = rawT1 - rawT0;
     if (fullSpan <= 0) return;
     var curT0 = window._graphZoom ? window._graphZoom[0] : rawT0;
@@ -3326,8 +3324,8 @@
     }
     var c = $("graphCanvas");
     var ds = c && c._drawState;
-    if (ds && ds.rawPoints && ds.rawPoints.length >= 2) {
-      var fullSpan = ds.rawPoints[ds.rawPoints.length - 1][0] - ds.rawPoints[0][0];
+    if (ds && ds.t0 != null && ds.t1 != null) {
+      var fullSpan = ds.t1 - ds.t0;
       var curSpan = window._graphZoom[1] - window._graphZoom[0];
       if (curSpan > 0 && fullSpan > curSpan * 0.999) {
         var factor = fullSpan / curSpan;
