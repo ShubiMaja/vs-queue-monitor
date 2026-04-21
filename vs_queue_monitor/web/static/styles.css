@@ -846,9 +846,9 @@ select.inp:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
 }
-.graph-toolbar__btns > #btnCopyPng {
+.graph-toolbar__copy {
   margin-left: auto;
 }
 
