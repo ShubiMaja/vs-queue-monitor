@@ -1787,6 +1787,14 @@
         requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
+    function warnIfZeroThreshold(rawStr) {
+      var tokens = String(rawStr || "").replace(/,/g, " ").split(/\s+/);
+      var hasZero = tokens.some(function (t) {
+        var n = parseInt(t, 10);
+        return !isNaN(n) && n <= 0;
+      });
+      if (hasZero) toast("Threshold 0 is not valid — thresholds must be ≥ 1.", "warn");
+    }
     $("btnWarnOk").onclick = function () {
       let normalized;
       try {
@@ -1795,6 +1803,7 @@
         toast(String(err.message || err), "warn");
         return;
       }
+      warnIfZeroThreshold($("inpWarn").value);
       postConfig({ alert_thresholds: normalized })
         .then(function (state) {
           if (state && typeof state === "object") {
@@ -1837,6 +1846,7 @@
         toast(String(err.message || err), "warn");
         return;
       }
+      warnIfZeroThreshold(addRaw);
       postConfig({ alert_thresholds: merged })
         .then(function (state) {
           if (state && typeof state === "object") {
