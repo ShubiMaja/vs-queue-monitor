@@ -408,7 +408,7 @@
     if (!tickTimes.length || tickTimes[0] - t0 > interval * 0.4) {
       tickTimes.unshift(t0);
     }
-    if (tickTimes[tickTimes.length - 1] < t1 - interval * 0.4 || (liveView && running)) {
+    if (Math.abs(tickTimes[tickTimes.length - 1] - t1) > 1e-6) {
       tickTimes.push(t1);
     }
     var dedup = [];
@@ -423,6 +423,11 @@
           dedup.push(tv);
         }
       });
+    if (!dedup.length || Math.abs(dedup[dedup.length - 1] - t1) > 1e-6) {
+      dedup.push(t1);
+    } else {
+      dedup[dedup.length - 1] = t1;
+    }
     tickTimes = dedup;
 
     var minLabelDx = Math.max(76, Math.min(130, plotW / 7.5));
