@@ -650,21 +650,21 @@ select.inp:focus-visible {
   background:
     linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0.08) 0%,
-      rgba(255, 255, 255, 0.08) 28%,
-      rgba(255, 255, 255, 0.28) 50%,
-      rgba(255, 255, 255, 0.08) 72%,
-      rgba(255, 255, 255, 0.08) 100%
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.06) 35%,
+      rgba(255, 255, 255, 0.22) 50%,
+      rgba(255, 255, 255, 0.06) 65%,
+      rgba(255, 255, 255, 0.06) 100%
     );
-  background-size: 180% 100%;
-  animation: kpi-throbber 1.8s ease-in-out infinite alternate;
+  background-size: 300% 100%;
+  animation: kpi-throbber 1.4s linear infinite;
 }
 @keyframes kpi-throbber {
   0% {
-    background-position: 0% 0;
+    background-position: 200% 0;
   }
   100% {
-    background-position: 100% 0;
+    background-position: -100% 0;
   }
 }
 @media (max-width: 640px) {
