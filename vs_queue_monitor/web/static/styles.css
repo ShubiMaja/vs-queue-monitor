@@ -1300,6 +1300,13 @@ select.inp:focus-visible {
   align-items: center;
   justify-content: center;
 }
+/* When the handle sits between two sibling sections in a flex-column gap layout,
+   pull it flush against both neighbours so it appears on the visible boundary. */
+.resize-handle--between {
+  margin: calc(-1 * var(--space-4)) 0;
+  position: relative;
+  z-index: 1;
+}
 .resize-handle--h::after {
   content: '';
   display: block;
