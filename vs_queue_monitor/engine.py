@@ -510,11 +510,16 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None) -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
-        if position is None:
+        # Use total boundary count when available: catches a new run the moment its boundary
+        # line appears, before the first position line arrives (which is when queue_sess updates).
+        effective_sess = queue_sess
+        if total_queue_boundaries is not None and total_queue_boundaries > queue_sess:
+            effective_sess = total_queue_boundaries
+        if position is None and effective_sess <= self._interrupt_baseline_session:
             return
-        if queue_sess <= self._interrupt_baseline_session:
+        if effective_sess <= self._interrupt_baseline_session:
             # Session count can appear lower than baseline when the log grew between sessions
             # and old boundary lines scrolled out of the tail window.  If the most recent
             # queue line is provably newer than the epoch we entered interrupted state, it is
@@ -523,13 +528,13 @@ class QueueMonitorEngine:
             if (last_queue_line_epoch is None or entry_epoch is None
                     or last_queue_line_epoch <= entry_epoch):
                 return
-        if queue_sess == self._dismissed_new_queue_session:
+        if effective_sess == self._dismissed_new_queue_session:
             return
-        if self._pending_new_queue_session == queue_sess:
+        if self._pending_new_queue_session == effective_sess:
             return
         async_ui = getattr(self._hooks, 'new_queue_dialog_async', None)
         if callable(async_ui) and async_ui():
-            self._pending_new_queue_session = queue_sess
+            self._pending_new_queue_session = effective_sess
             return
         if self._hooks.ask_yes_no(
             'New queue detected',
@@ -537,7 +542,7 @@ class QueueMonitorEngine:
         ):
             self._accept_new_queue_from_log()
         else:
-            self._dismissed_new_queue_session = queue_sess
+            self._dismissed_new_queue_session = effective_sess
 
     def resolve_new_queue_offer(self, accept: bool) -> None:
         """Used by the local web UI when ``new_queue_dialog_async`` deferred the dialog."""
@@ -733,6 +738,7 @@ class QueueMonitorEngine:
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)
+                    total_queue_boundaries = count_queue_run_boundaries(text)
                     last_queue_line_epoch = parse_tail_last_queue_line_epoch(text)
                     if last_queue_line_epoch is not None:
                         self._last_queue_line_epoch = last_queue_line_epoch
@@ -740,7 +746,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False

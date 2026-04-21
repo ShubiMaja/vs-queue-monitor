@@ -893,6 +893,10 @@ def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
     return last_pos, last_sess
 
 
+def count_queue_run_boundaries(data: str) -> int:
+    return sum(1 for line in data.splitlines() if is_queue_run_boundary_line(line))
+
+
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     """Last timestamp (epoch seconds) of any raw queue line in the buffer.
 
