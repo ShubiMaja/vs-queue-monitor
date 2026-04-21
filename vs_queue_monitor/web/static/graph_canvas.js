@@ -445,12 +445,13 @@
       ctx.moveTo(x, y1);
       ctx.lineTo(x, y1 + 4);
       ctx.stroke();
-      if (lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
+      var isLast = idx === tickTimes.length - 1;
+      if (isLast || lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
         ctx.fillStyle = textColor;
         ctx.font = "11px system-ui,Segoe UI,sans-serif";
-        ctx.textAlign = "center";
+        ctx.textAlign = isLast ? "right" : "center";
         ctx.textBaseline = "top";
-        ctx.fillText(label, x, y1 + 14);
+        ctx.fillText(label, isLast ? x + 2 : x, y1 + 14);
         lastXLabel = x;
       }
       if (idx > 0 && idx < tickTimes.length - 1) {
