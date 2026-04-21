@@ -83,17 +83,35 @@
   }
 
   function buildStepVertices(points) {
+    var normalized = [];
     var stepVertices = [];
     var i;
     for (i = 0; i < points.length; i++) {
-      var t = points[i][0];
-      var p = points[i][1];
+      var rawT = points[i][0];
+      var rawP = points[i][1];
+      if (!normalized.length) {
+        normalized.push([rawT, rawP]);
+        continue;
+      }
+      var prevNorm = normalized[normalized.length - 1];
+      if (rawT < prevNorm[0]) {
+        continue;
+      }
+      if (rawT === prevNorm[0]) {
+        normalized[normalized.length - 1] = [rawT, rawP];
+        continue;
+      }
+      normalized.push([rawT, rawP]);
+    }
+    for (i = 0; i < normalized.length; i++) {
+      var t = normalized[i][0];
+      var p = normalized[i][1];
       if (i === 0) {
         stepVertices.push([t, p]);
         continue;
       }
-      var tPrev = points[i - 1][0];
-      var pPrev = points[i - 1][1];
+      var tPrev = normalized[i - 1][0];
+      var pPrev = normalized[i - 1][1];
       if (t <= tPrev) {
         continue;
       }
