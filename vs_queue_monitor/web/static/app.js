@@ -183,7 +183,6 @@
     btn.setAttribute("aria-pressed", _historyAutoscroll ? "true" : "false");
     btn.title = _historyAutoscroll ? "Autoscroll on" : "Autoscroll off";
     btn.setAttribute("aria-label", btn.title);
-    btn.classList.toggle("btn--toggle-on", _historyAutoscroll);
   }
 
   function historyPinnedToBottom(el) {
@@ -942,6 +941,20 @@
       startEpoch = points[0][0];
     }
     var activeId = Number(state && state.active_queue_session_id);
+    if (!(Number.isFinite(activeId) && activeId >= 0)) {
+      var sessions = (state && state.queue_sessions) || [];
+      var maxSessionId = -1;
+      var i;
+      for (i = 0; i < sessions.length; i++) {
+        var sessionId = Number(sessions[i] && sessions[i].session_id);
+        if (Number.isFinite(sessionId) && sessionId > maxSessionId) {
+          maxSessionId = sessionId;
+        }
+      }
+      if (maxSessionId >= 0) {
+        activeId = maxSessionId + 1;
+      }
+    }
     var latestName = Number.isFinite(activeId) && activeId >= 0
       ? ("Session " + activeId)
       : "Session";

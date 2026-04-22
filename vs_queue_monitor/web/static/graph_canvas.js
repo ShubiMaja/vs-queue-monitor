@@ -674,6 +674,10 @@
     ctx.strokeStyle = th.ui_graph_line;
     ctx.lineWidth = 2;
     ctx.lineJoin = "miter";
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, plotW, plotH);
+    ctx.clip();
     if (line.length >= 4) {
       ctx.beginPath();
       ctx.moveTo(line[0], line[1]);
@@ -691,9 +695,13 @@
       ctx.lineTo(lx0, ly0);
       ctx.stroke();
     }
+    ctx.restore();
 
+    var visibleMarker = viewPts.length ? viewPts[viewPts.length - 1] : null;
     var marker =
-      terminalCutoff >= 0 ? points[points.length - 1] : (state.current_point || points[points.length - 1]);
+      (viewRange && viewRange.length === 2)
+        ? (visibleMarker || points[points.length - 1])
+        : (terminalCutoff >= 0 ? points[points.length - 1] : (state.current_point || points[points.length - 1]));
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];
@@ -759,7 +767,7 @@
     canvas._drawState = {
       points: points,
       drawn: points,
-      rawPoints: rawPoints,
+      rawPoints: viewPts,
       t0: t0,
       t1: t1,
       fullT0: fullTr[0],

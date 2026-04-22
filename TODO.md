@@ -4,6 +4,15 @@
 
 ## Fixed (closed)
 
+~~Bug: we stopped respecting the correct format for active and inactive buttons. see the autofllow button~~
+Fixed: the History autoscroll toggle now uses the same subtle active/inactive treatment as the graph toggles, so pressed state styling is consistent again (v1.0.312)
+
+~~Bug: session id is missing for latest session e.g. if last one was session 1 we are session 2~~
+Fixed: the live session dropdown now falls back to `max historical session id + 1` when the active id is not present in state, so the latest run still gets a concrete session number (v1.0.312)
+
+~~Bug: when live follow is off the line stretches off the screen~~
+Fixed: the graph now clips the step line to the plot area and uses the visible time window for the frozen marker/trendline inputs, so future samples no longer spill past the right edge when live follow is off (v1.0.312)
+
 ~~Bug: graph action icons should sit on the top right in one row with live/trend, but not be overlaid directly on the graph~~
 Fixed: trend, live, copy, and download now share the graph header's top-right action row, so they stay aligned without covering the plot area (v1.0.310)
 
