@@ -20,6 +20,7 @@
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
   var _historyAutoscroll = true;
+  var _lastWarnPassedSig = "";
   var _tourAutoShowFn = null;   // set by setupTour so applyState can trigger it
   var _audioCtx = null;
 
@@ -1416,6 +1417,7 @@
     }
 
     const w = s.warnings || [];
+    const warnRail = $("kpiWarnRail");
     const kw = $("kpiWarnings");
     kw.innerHTML = "";
     w.forEach(function (row, i) {
@@ -1423,16 +1425,35 @@
       const sp = document.createElement("span");
       sp.textContent = row.t;
       sp.className = row.passed ? "warn-off" : "warn-on";
+      sp.setAttribute("data-threshold", String(row.t));
+      sp.setAttribute("data-passed", row.passed ? "true" : "false");
       kw.appendChild(sp);
     });
     if (!w.length) {
       kw.textContent = "—";
       kw.classList.add("kpi__val--empty");
+      _lastWarnPassedSig = "";
       kw.title =
         "Threshold positions — configure under Settings; values show when the queue crosses them.";
     } else {
       kw.classList.remove("kpi__val--empty");
       kw.removeAttribute("title");
+      var warnPassedSig = w
+        .filter(function (row) { return !!row.passed; })
+        .map(function (row) { return String(row.t); })
+        .join(",");
+      if (warnRail && warnPassedSig && warnPassedSig !== _lastWarnPassedSig) {
+        requestAnimationFrame(function () {
+          var passed = kw.querySelectorAll('[data-passed="true"]');
+          var target = passed.length ? passed[passed.length - 1] : null;
+          if (target && typeof target.scrollIntoView === "function") {
+            target.scrollIntoView({ block: "nearest", inline: "end" });
+          } else {
+            warnRail.scrollLeft = warnRail.scrollWidth;
+          }
+        });
+      }
+      _lastWarnPassedSig = warnPassedSig;
     }
 
     $("infoLastCh").textContent = s.last_change || "—";
@@ -3673,8 +3694,8 @@
     var c = $("graphCanvas");
     var ds = c && c._drawState;
     if (!ds || !ds.rawPoints || !ds.rawPoints.length) return;
-    var rawT0 = ds.t0;
-    var rawT1 = ds.t1;
+    var rawT0 = ds.fullT0 != null ? ds.fullT0 : ds.t0;
+    var rawT1 = ds.fullT1 != null ? ds.fullT1 : ds.t1;
     var fullSpan = rawT1 - rawT0;
     if (fullSpan <= 0) return;
     var curT0 = window._graphZoom ? window._graphZoom[0] : rawT0;

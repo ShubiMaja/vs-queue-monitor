@@ -2,16 +2,19 @@
 
 ## Open
 
-Bug: we stopped respecting the correct format for active and inactive buttons. see the autofollow button: the History autoscroll toggle now uses the same subtle active/inactive treatment as the graph toggles -- but the graph toggles now vioilate themselves. also copy button always is right most
-
-visual bug: warnings should scroll to last triggered warning on each trigger
-
 ## Fixed (closed)
+
+~~behavioral bug:, atm the graph overflows back to min zoom, don't do that~~
+Fixed: zooming now clamps against the graph's real full-range bounds instead of treating the current zoom window as the full extent, so zoom-out no longer snaps back unexpectedly (v1.0.316)
+
+~~visual bug: warnings should scroll to last triggered warning on each trigger~~
+Fixed: the warnings rail now auto-scrolls to the most recently triggered threshold whenever a new warning flips into the passed state (v1.0.315)
+
+~~Bug: we stopped respecting the correct format for active and inactive buttons. see the autofollow button: the History autoscroll toggle now uses the same subtle active/inactive treatment as the graph toggles -- but the graph toggles now vioilate themselves. also copy button always is right most~~
+Fixed: the graph header buttons now share the same neutral base treatment as the History controls, only pressed toggles get the subtle active state, and download now owns the far-right edge instead of copy (v1.0.315)
 
 ~~Bug: latest session index looks off... there's only 1 other session in the list. shouldnt it be 2?~~
 Fixed: the live session dropdown now uses the same one-based session numbering scheme as the historical labels, so the current run shows as the next visible session number instead of a raw zero-based id (v1.0.313)
-
-
 
 ~~Bug: session id is missing for latest session e.g. if last one was session 1 we are session 2~~
 Fixed: the live session dropdown now falls back to `max historical session id + 1` when the active id is not present in state, so the latest run still gets a concrete session number (v1.0.312)
