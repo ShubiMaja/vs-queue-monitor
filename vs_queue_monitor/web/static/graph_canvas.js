@@ -629,15 +629,9 @@
       overlayLines.push(
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
-      var overlayAvgWindow = parseInt(state.avg_window, 10);
-      if (!isFinite(overlayAvgWindow) || isNaN(overlayAvgWindow) || overlayAvgWindow < 1) {
-        overlayAvgWindow = 10;
-      }
+      var overlayGlobalRate = (state.global_rate || "").replace(" min/pos", " m/p");
       overlayLines.push(
-        overlayAvgWindow + "p Avg: " +
-          (overlayStats.avgMinPerPos == null
-            ? "-"
-            : overlayStats.avgMinPerPos.toFixed(2) + " m/p")
+        "Global Rate: " + (overlayGlobalRate && overlayGlobalRate !== "—" ? overlayGlobalRate : "-")
       );
       ctx.font = "11px system-ui,Segoe UI,sans-serif";
       ctx.textBaseline = "top";

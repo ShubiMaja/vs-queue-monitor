@@ -830,7 +830,7 @@
     var elALbl = $("infoStatAvgLbl");
     var elA = $("infoStatAvg");
     var elG = $("infoStatGlo");
-    if (elALbl) elALbl.textContent = avgWindow + "p Avg";
+    if (elALbl) elALbl.textContent = avgWindow + "p Rate";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
