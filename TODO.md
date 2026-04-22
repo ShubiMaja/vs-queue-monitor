@@ -173,6 +173,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: graph top dark band should match the left gutter thickness more closely~~
+Done: increased the graph top padding again so the top dark band is visually comparable to the left-side gutter instead of staying noticeably thinner (v1.0.346)
+
 ~~Tweak: graph top dark padding should be noticeably larger~~
 Done: increased the canvas top padding again so the dark band above the plot is clearly more substantial without changing the graph’s data range (v1.0.344)
 
