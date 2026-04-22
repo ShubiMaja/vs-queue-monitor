@@ -167,6 +167,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: progress KPI contents should be left-aligned~~
+Done: the Progress KPI row now explicitly left-aligns its percent and bar contents instead of relying on the generic flex defaults (v1.0.341)
+
 ~~Tweak: graph data should have more breathing room instead of hugging the top/right edge~~
 Done: the graph now adds a small right-biased time pad, extra vertical headroom, and flips the endpoint value label to the left side when the last point is too close to the right edge (v1.0.340)
 
