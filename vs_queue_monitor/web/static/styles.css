@@ -913,18 +913,23 @@ select.inp:focus-visible {
   background: transparent;
   border-color: var(--line);
   color: var(--muted);
+  filter: none;
 }
 .graph-toolbar__right > .btn .icon {
   opacity: 0.58;
   transition: opacity 120ms ease, transform 120ms ease;
+}
+.graph-toolbar__right > .btn:hover,
+.graph-toolbar__right > .btn:active {
+  filter: none;
+  background: transparent;
+  border-color: var(--line);
 }
 .graph-toolbar__right > .btn:hover .icon {
   opacity: 0.78;
 }
 .graph-toolbar__right > .btn.btn--toggle {
   color: var(--muted);
-}
-.graph-toolbar__right > .btn.btn--toggle .icon {
 }
 .graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"],
 .graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"]:hover {
@@ -1101,6 +1106,7 @@ select.inp:focus-visible {
   background: transparent;
   border-color: var(--line);
   color: var(--muted);
+  filter: none;
 }
 .info-history__head .btn--toggle .icon {
   opacity: 0.58;
@@ -1109,6 +1115,7 @@ select.inp:focus-visible {
 .info-history__head .btn--toggle:hover,
 .info-history__head .btn--toggle[aria-pressed="true"],
 .info-history__head .btn--toggle[aria-pressed="true"]:hover {
+  filter: none;
   background: transparent;
   border-color: var(--line);
 }
