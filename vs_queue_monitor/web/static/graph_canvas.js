@@ -86,6 +86,11 @@
     if (t1 <= t0) {
       t1 = t0 + 1e-6;
     }
+    var span = Math.max(1e-6, t1 - t0);
+    var leftPad = Math.max(2, span * 0.015);
+    var rightPad = Math.max(4, span * 0.04);
+    t0 -= leftPad;
+    t1 += rightPad;
     if (extendToNow) {
       t1 = Math.max(t1, Date.now() / 1000);
     }
@@ -363,10 +368,17 @@
     });
     var vmin = Math.min.apply(null, vals);
     var vmax = Math.max.apply(null, vals);
+    var vspan = Math.max(1, vmax - vmin);
+    var topPadVal = Math.max(0.6, vspan * 0.1);
+    var bottomPadVal = Math.max(0.2, vspan * 0.04);
     if (vmax === vmin) {
       vmax = vmin + 1;
+      vspan = 1;
+      topPadVal = Math.max(0.6, vspan * 0.1);
+      bottomPadVal = Math.max(0.2, vspan * 0.04);
     }
-    vmin = Math.max(0, vmin);
+    vmax += topPadVal;
+    vmin = Math.max(0, vmin - bottomPadVal);
 
     function xOf(t) {
       return x0 + ((t - t0) / (t1 - t0)) * plotW;
@@ -737,9 +749,12 @@
       }
       ctx.fillStyle = textColor;
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
-      ctx.textAlign = "left";
+      var markerText = String(lastV);
+      var markerTextW = ctx.measureText(markerText).width;
+      var placeLeft = lx + 10 + markerTextW > x1 - 2;
+      ctx.textAlign = placeLeft ? "right" : "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(lastV), lx + 10, ly);
+      ctx.fillText(markerText, placeLeft ? lx - 10 : lx + 10, ly);
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {

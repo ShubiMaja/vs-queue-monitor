@@ -167,6 +167,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: graph data should have more breathing room instead of hugging the top/right edge~~
+Done: the graph now adds a small right-biased time pad, extra vertical headroom, and flips the endpoint value label to the left side when the last point is too close to the right edge (v1.0.340)
+
 ~~Tweak: graph toolbar order from right to left should be copy, download, live, trendline, warning dots~~
 Done: the graph toolbar export buttons were reordered so the right edge is now `Copy`, then `Download`, followed by `Live`, `Trendline`, and `Warning dots` moving leftward (v1.0.339)
 
