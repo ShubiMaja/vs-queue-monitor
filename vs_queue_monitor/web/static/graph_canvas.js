@@ -629,9 +629,11 @@
       overlayLines.push(
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
-      var overlayGlobalRate = (state.global_rate || "").replace(" min/pos", " m/p");
       overlayLines.push(
-        "Full Rate: " + (overlayGlobalRate && overlayGlobalRate !== "—" ? overlayGlobalRate : "-")
+        "Full Rate: " +
+          (overlayStats.avgMinPerPos == null
+            ? "-"
+            : overlayStats.avgMinPerPos.toFixed(2) + " m/p")
       );
       ctx.font = "11px system-ui,Segoe UI,sans-serif";
       ctx.textBaseline = "top";

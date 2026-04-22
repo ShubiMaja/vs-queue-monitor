@@ -919,6 +919,16 @@ select.inp:focus-visible {
   opacity: 0.58;
   transition: opacity 120ms ease, transform 120ms ease;
 }
+.graph-toolbar__right > .btn:disabled {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+}
+.graph-toolbar__right > .btn:disabled .icon {
+  opacity: 0.28;
+  transform: none;
+}
 .graph-toolbar__right > .btn:hover,
 .graph-toolbar__right > .btn:active {
   filter: none;

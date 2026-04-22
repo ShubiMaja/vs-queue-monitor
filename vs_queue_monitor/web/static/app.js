@@ -859,6 +859,11 @@
         currentPos: displayCurrent && displayCurrent.length ? displayCurrent[1] : null,
       }
     );
+    var liveQueueRate = window._lastState && window._lastState.queue_rate;
+    var liveQueueRateDisplay =
+      liveQueueRate && liveQueueRate !== "—"
+        ? String(liveQueueRate).replace(" min/pos", " m/p")
+        : "";
     var elS = $("infoStatStart");
     var elE = $("infoStatEnd");
     var elC = $("infoStatCleared");
@@ -866,19 +871,22 @@
     var elALbl = $("infoStatAvgLbl");
     var elA = $("infoStatAvg");
     var elG = $("infoStatGlo");
+    var elInfoFull = $("infoGlo");
     if (elALbl) elALbl.textContent = avgWindow + "p Rate";
+    var sessionFullRate =
+      stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
       elA.textContent =
-        rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p";
+        selectedSessionKey === "latest" && liveQueueRateDisplay
+          ? liveQueueRateDisplay
+          : (rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p");
     }
-    if (elG) {
-      var grate = window._lastState && window._lastState.global_rate;
-      elG.textContent = (grate && grate !== "—") ? grate.replace(" min/pos", " m/p") : "—";
-    }
+    if (elG) elG.textContent = sessionFullRate;
+    if (elInfoFull) elInfoFull.textContent = sessionFullRate;
   }
 
   function copyStatsToClipboard() {
@@ -1425,9 +1433,14 @@
     if (!s) return;
     var btnLive = $("btnGraphLive");
     if (btnLive) {
-      var liveOn = s.graph_live_view !== false;
+      var liveAvailable = selectedSessionKey === "latest";
+      var liveOn = liveAvailable && s.graph_live_view !== false;
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
-      btnLive.title = liveOn ? "Live follow on" : "Live follow off";
+      btnLive.disabled = !liveAvailable;
+      btnLive.setAttribute("aria-disabled", liveAvailable ? "false" : "true");
+      btnLive.title = !liveAvailable
+        ? "Live follow is only available on the latest session"
+        : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
     var btnWarn = $("btnGraphWarn");
@@ -1560,8 +1573,6 @@
 
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
-    $("infoGlo").textContent = s.global_rate || "—";
-
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
     const alertMsg = (s.last_alert_message || "").trim();
     if (
@@ -3621,6 +3632,7 @@
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
+        if (selectedSessionKey !== "latest") return;
         var next = !((window._lastState && window._lastState.graph_live_view) !== false);
         var canvas = $("graphCanvas");
         var ds = canvas && canvas._drawState;
