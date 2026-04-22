@@ -12,7 +12,7 @@
     graph_log_gamma: 1.15,
     pad_left: 46,
     pad_right: 22,
-    pad_top: 46,
+    pad_top: 22,
     pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
     ui_graph_plot: "#141820",
@@ -86,10 +86,10 @@
     if (t1 <= t0) {
       t1 = t0 + 1e-6;
     }
-    var span = Math.max(1e-6, t1 - t0);
-    var rightPad = Math.max(4, span * 0.04);
-    t1 += rightPad;
     if (extendToNow) {
+      var span = Math.max(1e-6, t1 - t0);
+      var rightPad = Math.max(4, span * 0.04);
+      t1 += rightPad;
       t1 = Math.max(t1, Date.now() / 1000);
     }
     return [t0, t1];
@@ -371,7 +371,6 @@
     if (axisVmax === axisVmin) {
       axisVmax = axisVmin + 1;
     }
-    var topHeadroomPx = Math.min(56, Math.max(28, plotH * 0.12));
     var drawVmin = axisVmin;
     var drawVmax = axisVmax;
 
@@ -383,7 +382,7 @@
       var vv = Math.max(drawVmin, Math.min(drawVmax, v));
       if (!logScale) {
         var frac = (drawVmax - vv) / Math.max(1, drawVmax - drawVmin);
-        return y0 + topHeadroomPx + frac * Math.max(1, plotH - topHeadroomPx);
+        return y0 + frac * plotH;
       }
       var lvmin = Math.log(drawVmin + 1);
       var lvmax = Math.log(drawVmax + 1);
@@ -391,7 +390,7 @@
       var frac = lvmax <= lvmin ? 0 : (lvmax - lv) / (lvmax - lvmin);
       frac = Math.max(0, Math.min(1, frac));
       frac = Math.pow(frac, gamma);
-      return y0 + topHeadroomPx + frac * Math.max(1, plotH - topHeadroomPx);
+      return y0 + frac * plotH;
     }
 
     var axisColor = th.ui_graph_axis;
@@ -746,10 +745,16 @@
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
       var markerText = String(lastV);
       var markerTextW = ctx.measureText(markerText).width;
-      var placeLeft = lx + 10 + markerTextW > x1 - 2;
-      ctx.textAlign = placeLeft ? "right" : "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(markerText, placeLeft ? lx - 10 : lx + 10, ly);
+      var placeAbove = lx + 10 + markerTextW > x1 - 2;
+      if (placeAbove) {
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(markerText, lx, ly - 9);
+      } else {
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(markerText, lx + 10, ly);
+      }
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {

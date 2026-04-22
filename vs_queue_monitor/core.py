@@ -276,7 +276,7 @@ UI_GRAPH_DARK_INNER_PAD = (4, UI_INNER_PAD_Y_SM, 8, 10)
 # Plot area inside graph canvas (must match redraw_graph — same numbers for axis labels + Y-scale button).
 GRAPH_CANVAS_PAD_LEFT = 46
 GRAPH_CANVAS_PAD_RIGHT = 22
-GRAPH_CANVAS_PAD_TOP = 12
+GRAPH_CANVAS_PAD_TOP = 22
 GRAPH_CANVAS_PAD_BOTTOM = 32
 # Y-scale toggle: inset from top-right corner of plot rectangle (not canvas edge).
 GRAPH_Y_SCALE_BTN_INSET_X = 8
