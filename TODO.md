@@ -109,7 +109,6 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 
 
-- use coloered dots instead of warning, check, and x symbols for session events on the graph
 
 
 ## Implemented
@@ -146,6 +145,9 @@ Done: overlay text now says the page "may" lose the current view if the server s
 
 ~~Tweak: add download icon button next to copy button for chart PNG~~
 Done: added download button (arrow-down icon) next to Copy PNG; triggers canvas.toDataURL and an anchor download with a timestamped filename (v1.0.300)
+
+~~Tweak: use colored dots instead of warning/check/x symbols for session events~~
+Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, green=connect, red=disconnect) with dark stroke outline (v1.0.301)
 
 # FEATURES
 

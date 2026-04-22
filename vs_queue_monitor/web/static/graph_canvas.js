@@ -134,56 +134,16 @@
   }
 
   function drawGraphEventMarker(ctx, kind, x, y) {
+    var color = kind === "warning" ? "#c89b3c" : kind === "connect" ? "#2e8b57" : kind === "disconnect" ? "#b4545c" : null;
+    if (!color) return;
     ctx.save();
-    ctx.lineWidth = 1.8;
-    if (kind === "warning") {
-      ctx.fillStyle = "#c89b3c";
-      ctx.beginPath();
-      ctx.moveTo(x, y - 7);
-      ctx.lineTo(x + 7, y + 6);
-      ctx.lineTo(x - 7, y + 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.stroke();
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(x, y - 2);
-      ctx.lineTo(x, y + 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x, y + 4.5, 0.9, 0, Math.PI * 2);
-      ctx.fillStyle = "#f7f9fc";
-      ctx.fill();
-    } else if (kind === "connect") {
-      ctx.fillStyle = "#2e8b57";
-      ctx.beginPath();
-      ctx.arc(x, y, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.stroke();
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(x - 3.5, y + 0.2);
-      ctx.lineTo(x - 0.8, y + 3);
-      ctx.lineTo(x + 4, y - 2.5);
-      ctx.stroke();
-    } else if (kind === "disconnect") {
-      ctx.translate(x, y);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = "#b4545c";
-      ctx.fillRect(-5.5, -5.5, 11, 11);
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.strokeRect(-5.5, -5.5, 11, 11);
-      ctx.rotate(-Math.PI / 4);
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(-3, -3);
-      ctx.lineTo(3, 3);
-      ctx.moveTo(3, -3);
-      ctx.lineTo(-3, 3);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     ctx.restore();
   }
 
