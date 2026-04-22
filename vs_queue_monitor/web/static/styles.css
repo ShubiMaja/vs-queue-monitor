@@ -329,6 +329,14 @@ body {
   color: var(--muted);
   overflow-wrap: anywhere;
 }
+@media (max-width: 479px) {
+  .brand__tagline {
+    display: none;
+  }
+  #btnTour {
+    display: none;
+  }
+}
 .topbar__path {
   min-width: 0;
 }

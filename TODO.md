@@ -9,13 +9,10 @@
 
 - notifications not working on mobile phone browser
 
-- live follow was not on by default when i loaded the app for the first time
 
-- the trend line mysteriously appears and dissapears now on the latest session from position 28 to 25. it also apepared rendered in reverse. then after position 25 it became normal again
 
 - on mobile the trend line is not rendered well
 
-- on mobile the header and description are squeezed
 
 ## Fixed (closed)
 
@@ -93,6 +90,15 @@ Fixed: _queue_sessions_for_engine now uses the same SEED_LOG_TAIL_BYTES tail for
 
 ~~Bug: zoom multiplier does not update when zooming~~
 Fixed: updateZoomResetBtn now reads fullT0/fullT1 from _drawState (the unzoomed data range) instead of t0/t1 which reflect the current zoom window (v1.0.296)
+
+~~Bug: live follow was not on by default on first load~~
+Fixed: session selection no longer persists graph_live_view=false to config so the saved value stays true unless the user explicitly toggles it off (v1.0.295)
+
+~~Bug: trendline appears/disappears and renders in reverse~~
+Fixed: removed devicePixelRatio multiplication from trendline coordinate calculation; the canvas context already has the DPR transform applied by draw() so double-scaling caused 4x coordinate errors on HiDPI (v1.0.295)
+
+~~Bug: on mobile the header and description are squeezed~~
+Fixed: tagline hidden and Tour button removed below 480px viewport so the title and action buttons have room to breathe (v1.0.297)
 
 ---
 
