@@ -16,6 +16,10 @@
 
 - the trend line mysteriously appears and dissapears now on the latest session from position 28 to 25. it also apepared rendered in reverse. then after position 25 it became normal again
 
+- on mobile the trend line is not rendered well
+
+- on mobile the header and description are squeezed
+
 ## Fixed (closed)
 
 ~~Bug: our session appears in the list as a failed session~~
@@ -97,6 +101,9 @@ Fixed: latest live graph now freezes at the first terminal point instead of cont
 - when connection is lost, message should not be absolutist. use langauge like web page *may* be lost if you refresh
 
 - add a download iconbutton next to the copy button of the chart to download the png of the chart
+
+- use coloered dots instead of warning, check, and x symbols for session events on the graph
+
 
 ## Implemented
 
