@@ -730,7 +730,7 @@
       if (!terminalMarkerKind) {
         ctx.fillStyle = th.ui_graph_marker;
         ctx.beginPath();
-        ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+        ctx.arc(lx, ly, 5, 0, Math.PI * 2);
         ctx.fill();
       } else {
         drawGraphEventMarker(ctx, terminalMarkerKind, lx, ly);

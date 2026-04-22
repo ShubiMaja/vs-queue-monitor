@@ -495,9 +495,12 @@ def _api_state(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     hooks: WebMonitorHooks = request.app.state.hooks
     lock: threading.RLock = request.app.state.lock
-    with lock:
-        snap = build_snapshot(engine, hooks)
-    return JSONResponse(snap)
+    try:
+        with lock:
+            snap = build_snapshot(engine, hooks)
+        return JSONResponse(snap)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 async def _api_pick_path(request: Request) -> JSONResponse:
