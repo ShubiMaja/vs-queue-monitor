@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: graph top-padding work also added unwanted left-side plot padding~~
+Fixed: removed the left-side time-range padding so the graph no longer drifts inward from the left while keeping the larger dark top padding band (v1.0.345)
+
 ~~Bug: graph top-padding tweak accidentally changed the y-axis data range and produced fake fractional labels like 33.6~~
 Fixed: reverted the y-range padding math so the graph keeps true queue-value bounds while preserving the larger black top padding space (v1.0.343)
 

@@ -87,9 +87,7 @@
       t1 = t0 + 1e-6;
     }
     var span = Math.max(1e-6, t1 - t0);
-    var leftPad = Math.max(2, span * 0.015);
     var rightPad = Math.max(4, span * 0.04);
-    t0 -= leftPad;
     t1 += rightPad;
     if (extendToNow) {
       t1 = Math.max(t1, Date.now() / 1000);
