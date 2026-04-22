@@ -307,6 +307,19 @@
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             </button>
+            <button
+              type="button"
+              class="btn btn--small"
+              id="btnDownloadPng"
+              title="Download graph as PNG"
+              aria-label="Download graph as PNG"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="3" y2="15" />
+              </svg>
+            </button>
           </div>
         </div>
         <div class="graph-canvas-wrap">
@@ -601,9 +614,9 @@
     <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alert" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
       <div class="server-stopped-overlay__box">
         <div class="server-stopped-overlay__spinner" aria-hidden="true"></div>
-        <h2 id="serverStoppedTitle">Connection lost — Reconnecting…</h2>
-        <p id="serverStoppedDesc">The monitor server is unreachable. Restart VS Queue Monitor to reconnect, or dismiss to browse the last known data.</p>
-        <p class="server-stopped-overlay__warning">Data shown is frozen — not live. Reloading this page will lose it.</p>
+        <h2 id="serverStoppedTitle">Connection lost — reconnecting…</h2>
+        <p id="serverStoppedDesc">The monitor server is unreachable. Attempting to reconnect automatically — or dismiss to browse the last known data.</p>
+        <p class="server-stopped-overlay__warning">Data shown is frozen — not live. Refreshing this page may lose the current view if the server has stopped.</p>
         <div class="server-stopped-overlay__actions">
           <button type="button" class="btn btn--primary btn--small" id="btnOfflineMode">I understand</button>
         </div>

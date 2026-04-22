@@ -3280,6 +3280,21 @@
         });
       };
     }
+    var btnDownloadPng = $("btnDownloadPng");
+    if (btnDownloadPng) {
+      btnDownloadPng.onclick = function () {
+        var c = $("graphCanvas");
+        if (!c) { toast("PNG export unavailable", "warn"); return; }
+        var url = c.toDataURL("image/png");
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "vs-queue-graph-" + new Date().toISOString().slice(0, 19).replace(/:/g, "-") + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast("Graph PNG downloaded.");
+      };
+    }
     var btnGraphTimeMode = $("btnGraphTimeMode");
     if (btnGraphTimeMode) {
       btnGraphTimeMode.onclick = function () {

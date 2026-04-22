@@ -2,10 +2,6 @@
 
 ## Open
 
-
-
-
-
 ## Fixed (closed)
 
 ~~Bug: our session appears in the list as a failed session~~
@@ -111,9 +107,7 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 - It should be clear if the rate is Global Rate or other. Introduce Global Rate to stats. Global Rate: 1.8 m/p. use Global Rate in the graph overlay. rely on tooltip to explain what m/p is. min/pos
 
-- when connection is lost, message should not be absolutist. use langauge like web page *may* be lost if you refresh
 
-- add a download iconbutton next to the copy button of the chart to download the png of the chart
 
 - use coloered dots instead of warning, check, and x symbols for session events on the graph
 
@@ -146,6 +140,12 @@ Done: quick-start/docs wording now points users to the official Python download 
 
 ~~Tweak: right most (current live) timestamp should have an opaque background which allows it to always be readable even when overlapping another timestamp~~
 Done: graph time labels draw on an opaque background fill, including the rightmost current/live timestamp label (v1.0.287)
+
+~~Tweak: connection-lost message should not be absolutist~~
+Done: overlay text now says the page "may" lose the current view if the server stopped; acknowledges auto-reconnect in progress (v1.0.300)
+
+~~Tweak: add download icon button next to copy button for chart PNG~~
+Done: added download button (arrow-down icon) next to Copy PNG; triggers canvas.toDataURL and an anchor download with a timestamped filename (v1.0.300)
 
 # FEATURES
 
