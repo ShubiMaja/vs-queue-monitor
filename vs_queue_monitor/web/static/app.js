@@ -940,24 +940,13 @@
     if (points.length) {
       startEpoch = points[0][0];
     }
+    var sessions = (state && state.queue_sessions) || [];
     var activeId = Number(state && state.active_queue_session_id);
-    if (!(Number.isFinite(activeId) && activeId >= 0)) {
-      var sessions = (state && state.queue_sessions) || [];
-      var maxSessionId = -1;
-      var i;
-      for (i = 0; i < sessions.length; i++) {
-        var sessionId = Number(sessions[i] && sessions[i].session_id);
-        if (Number.isFinite(sessionId) && sessionId > maxSessionId) {
-          maxSessionId = sessionId;
-        }
-      }
-      if (maxSessionId >= 0) {
-        activeId = maxSessionId + 1;
-      }
+    var displayIndex = sessions.length + 1;
+    if (Number.isFinite(activeId) && activeId >= 0) {
+      displayIndex = Math.max(displayIndex, activeId + 1);
     }
-    var latestName = Number.isFinite(activeId) && activeId >= 0
-      ? ("Session " + activeId)
-      : "Session";
+    var latestName = "Session " + displayIndex;
     var startText = formatSessionStart(startEpoch);
     return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
   }
