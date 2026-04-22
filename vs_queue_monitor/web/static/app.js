@@ -636,14 +636,13 @@
         }
       }
     }
-    // Drag-select overlay
+    // Drag-select overlay — ctx is already scaled by DPR; pass logical pixels directly
     if (_dragSel && _dragSel.ds) {
       var ds = _dragSel.ds;
-      var dpr = window.devicePixelRatio || 1;
-      var xa = Math.min(_dragSel.x0, _dragSel.x1) * dpr;
-      var xb = Math.max(_dragSel.x0, _dragSel.x1) * dpr;
-      var ya = ds.y0 * dpr;
-      var yb = (ds.y0 + ds.plotH) * dpr;
+      var xa = Math.min(_dragSel.x0, _dragSel.x1);
+      var xb = Math.max(_dragSel.x0, _dragSel.x1);
+      var ya = ds.y0;
+      var yb = ds.y0 + ds.plotH;
       ctx.save();
       ctx.fillStyle = "rgba(88,160,255,0.15)";
       ctx.fillRect(xa, ya, xb - xa, yb - ya);
