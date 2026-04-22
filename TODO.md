@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: graph top-padding tweak accidentally changed the y-axis data range and produced fake fractional labels like 33.6~~
+Fixed: reverted the y-range padding math so the graph keeps true queue-value bounds while preserving the larger black top padding space (v1.0.343)
+
 ~~Bug: `Full Rate` was actually showing the all-time global rate instead of the displayed session rate~~
 Fixed: all `Full Rate` displays now use the full displayed session average, while `10p Rate` remains the rolling-window value (v1.0.337)
 

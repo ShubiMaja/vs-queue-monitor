@@ -368,17 +368,10 @@
     });
     var vmin = Math.min.apply(null, vals);
     var vmax = Math.max.apply(null, vals);
-    var vspan = Math.max(1, vmax - vmin);
-    var topPadVal = Math.max(0.6, vspan * 0.1);
-    var bottomPadVal = Math.max(0.2, vspan * 0.04);
     if (vmax === vmin) {
       vmax = vmin + 1;
-      vspan = 1;
-      topPadVal = Math.max(0.6, vspan * 0.1);
-      bottomPadVal = Math.max(0.2, vspan * 0.04);
     }
-    vmax += topPadVal;
-    vmin = Math.max(0, vmin - bottomPadVal);
+    vmin = Math.max(0, vmin);
 
     function xOf(t) {
       return x0 + ((t - t0) / (t1 - t0)) * plotW;
