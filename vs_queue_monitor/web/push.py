@@ -10,6 +10,35 @@ from typing import Any
 
 from ..core import get_config_path
 
+
+def _load_dotenv() -> None:
+    """Load key=value pairs from a .env file next to the project root into os.environ.
+
+    Only sets variables that are not already set in the environment. Supports
+    bare values and quoted values (single or double). Lines starting with # are
+    ignored. The .env file is looked for relative to this file's package tree.
+    """
+    env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+    if not env_path.is_file():
+        return
+    try:
+        for raw in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip()
+            if val and val[0] in ('"', "'") and val[-1] == val[0]:
+                val = val[1:-1]
+            if key and key not in os.environ:
+                os.environ[key] = val
+    except Exception:
+        pass
+
+
+_load_dotenv()
+
 try:
     from pywebpush import WebPushException, webpush  # type: ignore
 except Exception:  # pragma: no cover
@@ -40,7 +69,18 @@ def vapid_public_key() -> str:
 
 
 def vapid_private_key() -> str:
-    return _env_pref("VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY", "VSQM_VAPID_PRIVATE_KEY")
+    raw = _env_pref("VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY", "VSQM_VAPID_PRIVATE_KEY")
+    if not raw:
+        return ""
+    # If it looks like a file path (ends with .pem or .key or contains a separator),
+    # resolve it relative to the project root (.env file location).
+    p = Path(raw)
+    if not p.is_absolute() and (raw.endswith(".pem") or raw.endswith(".key") or "/" in raw or "\\" in raw):
+        project_root = Path(__file__).resolve().parent.parent.parent
+        abs_p = (project_root / p).resolve()
+        if abs_p.is_file():
+            return str(abs_p)
+    return raw
 
 
 def vapid_subject() -> str:
