@@ -864,6 +864,19 @@
     return posRaw;
   }
 
+  function trimPointsAtFirstTerminal(points) {
+    if (!points || !points.length) {
+      return [];
+    }
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (Number(points[i][1]) <= 0) {
+        return points.slice(0, i + 1);
+      }
+    }
+    return points.slice();
+  }
+
   function sessionLooksLikeCurrentRun(sess, state) {
     if (!sess || !state || !state.running || state.interrupted_mode) {
       return false;
@@ -1026,6 +1039,11 @@
     }
     var key = selectedSessionKey || "latest";
     if (key === "latest" || !s.queue_sessions || !s.queue_sessions.length) {
+      out.graph_points = trimPointsAtFirstTerminal(out.graph_points || []);
+      if (out.graph_points.length) {
+        var liveLast = out.graph_points[out.graph_points.length - 1];
+        out.current_point = [liveLast[0], liveLast[1]];
+      }
       out.graph_events = deriveGraphEvents(out, out.graph_points || [], false);
       return out;
     }
@@ -1285,6 +1303,13 @@
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
       btnLive.title = liveOn ? "Live follow on" : "Live follow off";
       btnLive.setAttribute("aria-label", btnLive.title);
+    }
+    var btnTrend = $("btnGraphTrend");
+    if (btnTrend) {
+      var trendOn = window._graphTrend !== false;
+      btnTrend.setAttribute("aria-pressed", trendOn ? "true" : "false");
+      btnTrend.title = trendOn ? "Trendline on" : "Trendline off";
+      btnTrend.setAttribute("aria-label", btnTrend.title);
     }
     var btnTimeText = $("btnGraphTimeModeText");
     if (btnTimeText) btnTimeText.textContent = (s.graph_time_mode || "relative") === "absolute" ? "ABS" : "REL";
@@ -3651,7 +3676,7 @@
     if (ds && ds.fullT0 != null && ds.fullT1 != null) {
       var fullSpan = ds.fullT1 - ds.fullT0;
       var curSpan = window._graphZoom[1] - window._graphZoom[0];
-      if (curSpan > 0 && fullSpan > curSpan * 0.999) {
+      if (curSpan > 0 && curSpan < fullSpan * 0.999) {
         var factor = fullSpan / curSpan;
         var label = factor >= 10
           ? Math.round(factor) + "×"
@@ -3677,8 +3702,7 @@
     if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
     if (btnTrend) btnTrend.onclick = function () {
       window._graphTrend = !window._graphTrend;
-      btnTrend.setAttribute("aria-pressed", String(window._graphTrend));
-      btnTrend.classList.toggle("btn--toggle-on", window._graphTrend);
+      syncGraphToolbarButtons(window._lastState || {});
       redrawGraphOnly();
     };
     var c = $("graphCanvas");

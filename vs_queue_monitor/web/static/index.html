@@ -245,8 +245,8 @@
               type="button"
               class="btn btn--small btn--icon-only btn--toggle"
               id="btnGraphTrend"
-              title="Toggle trendline"
-              aria-label="Toggle trendline"
+              title="Trendline on"
+              aria-label="Trendline on"
               aria-pressed="true"
             >
               <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -257,18 +257,14 @@
               type="button"
               class="btn btn--small btn--icon-only btn--toggle"
               id="btnGraphLive"
-              title="Toggle live time follow"
-              aria-label="Toggle live graph follow"
+              title="Live follow on"
+              aria-label="Live follow on"
               aria-pressed="true"
             >
               <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M13 2 5 14h6l-1 8 8-12h-6l1-8Z" />
               </svg>
             </button>
-          </div>
-        </div>
-        <div class="graph-canvas-wrap">
-          <div class="graph-canvas-overlay graph-canvas-overlay--top-right">
             <button
               type="button"
               class="btn btn--small btn--icon-only"
@@ -295,6 +291,8 @@
               </svg>
             </button>
           </div>
+        </div>
+        <div class="graph-canvas-wrap">
           <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
           <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
         </div>
@@ -304,7 +302,7 @@
             <span class="muted graph-toolbar__mid graph-footer__log" id="lblLogAct" role="status" aria-live="polite"></span>
             <button
               type="button"
-              class="btn btn--small btn--icon-label"
+              class="btn btn--small btn--icon-label graph-footer__mode"
               id="btnGraphTimeMode"
               title="Toggle time axis between relative and absolute"
               aria-label="Toggle time axis mode"
@@ -317,7 +315,7 @@
             </button>
             <button
               type="button"
-              class="btn btn--small btn--icon-label"
+              class="btn btn--small btn--icon-label graph-footer__mode"
               id="btnGraphScale"
               title="Toggle graph scale between linear and log"
               aria-label="Toggle graph scale"

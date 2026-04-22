@@ -4,6 +4,18 @@
 
 ## Fixed (closed)
 
+~~Bug: graph action icons should sit on the top right in one row with live/trend, but not be overlaid directly on the graph~~
+Fixed: trend, live, copy, and download now share the graph header's top-right action row, so they stay aligned without covering the plot area (v1.0.310)
+
+~~Bug: toggling ABS / LOG feels janky and jagged~~
+Fixed: the footer mode buttons now use a stable width, which stops the control row from shifting as REL/ABS or LIN/LOG changes (v1.0.310)
+
+~~Bug: when connected (Completed), the latest graph/trend keeps extending weirdly past the real endpoint~~
+Fixed: the latest displayed session is now trimmed at the first terminal connect point, so post-connect tail samples no longer stretch the step graph or trendline beyond the real queue finish (v1.0.310)
+
+~~Bug: live and trend icons do not feel visually linked to their on/off state~~
+Fixed: graph toggle buttons now update their pressed state, title, and subtle icon emphasis together so the state reads clearly without reintroducing loud highlights (v1.0.310)
+
 ~~Bug: our session appears in the list as a failed session~~
 Fixed: the web server now filters the active session out of the dropdown even when its session id is 0, so the live run no longer shows up as a bogus failed historical entry (v1.0.294)
 
@@ -105,16 +117,32 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
+- instead of callling it latest session (auto) in the dropdown, just use the same ofrmat as the older entries and have it say (latest) at the end of the name
 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
 
-~~Tweak: add a little celebratory/readiness polish to the position display~~
-Done: the Position KPI now shows `0 🎉` on completion and `1 🏃 Get Ready` at the front while leaving the underlying numeric queue state unchanged (v1.0.309)
+~~Tweak: the warn, error dots should be small, the same size as the blue dot~~
+Done: warning/connect/disconnect dots now use the same radius as the normal blue graph marker (v1.0.308)
 
-~~Tweak: graph dots / controls / labels still need a final polish pass~~
-Done: warning/disconnect dots now match the blue marker size; REL/LIN moved into the bottom-right footer beside zoom; PNG actions moved to a top-right canvas overlay; log activity copy now reads `Last log: ... ago`; KPI fallback keeps `min/pos` while stats/overlay use `m/p` (v1.0.308)
+~~Tweak: rel and lin go on the bottom right to the left of the zoom indicator~~
+Done: REL/ABS and LIN/LOG now live in the graph footer next to the zoom controls (v1.0.308)
+
+~~Tweak: shorten log active message to Last log: 2s ago~~
+Done: graph activity copy now uses the shorter "Last log: ..." wording in the footer (v1.0.308)
+
+~~Tweak: copy symbol for graph goes in the top right~~
+Done: graph copy/download actions now live in the graph header's top-right action row (v1.0.310)
+
+~~Tweak: min/pos only needs to be shown in the kpi bar. the m/p is for the stats (overlay and stats)~~
+Done: KPI fallback keeps "min/pos" while graph/info stats use the shorter "m/p" wording (v1.0.308)
+
+~~Tweak: add the tada white emoji to the position display when finally connected~~
+Done: the Position KPI now shows `0 🎉` on completion (v1.0.309)
+
+~~Tweak: add the Running man white emoji to the position display when at front~~
+Done: the Position KPI now shows `1 🏃 Get Ready` at the front (v1.0.309)
 
 ~~Tweak: release smoke coverage should exercise completion -> disconnect -> re-queue recovery~~
 Done: added a direct engine smoke test covering completion, post-completion disconnect, and new-queue adoption so this critical flow is checked without relying only on manual memory (v1.0.292)

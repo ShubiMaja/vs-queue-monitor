@@ -830,24 +830,6 @@ select.inp:focus-visible {
   overflow: hidden;
   border-radius: var(--radius-sm);
 }
-.graph-canvas-overlay {
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-.graph-canvas-overlay > .btn {
-  pointer-events: auto;
-  background: rgba(20, 24, 32, 0.82);
-  border-color: rgba(74, 82, 96, 0.7);
-  backdrop-filter: blur(2px);
-}
-.graph-canvas-overlay--top-right {
-  top: 8px;
-  right: 8px;
-}
 .graph-tooltip {
   position: fixed;
   z-index: 80;
@@ -921,11 +903,30 @@ select.inp:focus-visible {
 .graph-toolbar__right {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   flex: 0 0 auto;
   margin-left: auto;
 }
-
+.graph-toolbar__right > .btn.btn--toggle {
+  color: var(--muted);
+}
+.graph-toolbar__right > .btn.btn--toggle .icon {
+  opacity: 0.58;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.graph-toolbar__right > .btn.btn--toggle:hover .icon {
+  opacity: 0.78;
+}
+.graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"] {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(159, 167, 179, 0.12);
+}
+.graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"] .icon {
+  opacity: 0.92;
+  transform: translateY(-0.5px);
+}
 /* Zoom button group: −  [level]  + */
 .btn-group {
   display: inline-flex;
@@ -984,6 +985,11 @@ select.inp:focus-visible {
 }
 .graph-footer__zoom {
   flex: 0 0 auto;
+}
+.graph-footer__mode {
+  min-width: 74px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
 }
 .graph-footer__zoom-group {
   flex: 0 0 auto;
@@ -1137,30 +1143,6 @@ select.inp:focus-visible {
 }
 .btn--toggle[aria-pressed="true"]:hover {
   background: rgba(87, 148, 242, 0.12);
-}
-.graph-toolbar__right .btn--toggle {
-  background: transparent;
-  border-color: var(--line);
-  color: var(--muted);
-}
-.graph-toolbar__right .btn--toggle .icon {
-  opacity: 0.62;
-  transition: opacity 120ms ease;
-}
-.graph-toolbar__right .btn--toggle:hover,
-.graph-toolbar__right .btn--toggle[aria-pressed="true"],
-.graph-toolbar__right .btn--toggle[aria-pressed="true"]:hover {
-  background: transparent;
-  border-color: var(--line);
-}
-.graph-toolbar__right .btn--toggle:hover .icon {
-  opacity: 0.8;
-}
-.graph-toolbar__right .btn--toggle[aria-pressed="true"] {
-  color: var(--text);
-}
-.graph-toolbar__right .btn--toggle[aria-pressed="true"] .icon {
-  opacity: 0.92;
 }
 .popover--history {
   position: absolute;
