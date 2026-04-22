@@ -138,7 +138,7 @@
     if (!color) return;
     ctx.save();
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
     ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
@@ -633,7 +633,7 @@
         "Rate: " +
           (overlayStats.avgMinPerPos == null
             ? "-"
-            : overlayStats.avgMinPerPos.toFixed(2) + " min/pos")
+            : overlayStats.avgMinPerPos.toFixed(2) + " m/p")
       );
       ctx.font = "11px system-ui,Segoe UI,sans-serif";
       ctx.textBaseline = "top";

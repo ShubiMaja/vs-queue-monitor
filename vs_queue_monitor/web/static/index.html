@@ -243,6 +243,67 @@
           <div class="graph-toolbar__right">
             <button
               type="button"
+              class="btn btn--small btn--icon-only btn--toggle"
+              id="btnGraphTrend"
+              title="Toggle trendline"
+              aria-label="Toggle trendline"
+              aria-pressed="true"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="4" y1="20" x2="20" y2="4" stroke-dasharray="3 3"/>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-only btn--toggle"
+              id="btnGraphLive"
+              title="Toggle live time follow"
+              aria-label="Toggle live graph follow"
+              aria-pressed="true"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M13 2 5 14h6l-1 8 8-12h-6l1-8Z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="graph-canvas-wrap">
+          <div class="graph-canvas-overlay graph-canvas-overlay--top-right">
+            <button
+              type="button"
+              class="btn btn--small btn--icon-only"
+              id="btnCopyPng"
+              title="Copy graph as PNG"
+              aria-label="Copy graph as PNG"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn--small btn--icon-only"
+              id="btnDownloadPng"
+              title="Download graph as PNG"
+              aria-label="Download graph as PNG"
+            >
+              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="3" y2="15" />
+              </svg>
+            </button>
+          </div>
+          <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
+          <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
+        </div>
+        <div class="graph-footer">
+          <div class="graph-hint muted" id="graphHint">Tap or hover for details - drag or scroll to zoom.</div>
+          <div class="graph-footer__meta">
+            <span class="muted graph-toolbar__mid graph-footer__log" id="lblLogAct" role="status" aria-live="polite"></span>
+            <button
+              type="button"
               class="btn btn--small btn--icon-label"
               id="btnGraphTimeMode"
               title="Toggle time axis between relative and absolute"
@@ -271,65 +332,6 @@
               </svg>
               <span id="btnGraphScaleText">LIN</span>
             </button>
-            <button
-              type="button"
-              class="btn btn--small btn--icon-only btn--toggle"
-              id="btnGraphTrend"
-              title="Toggle trendline"
-              aria-label="Toggle trendline"
-              aria-pressed="true"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="4" y1="20" x2="20" y2="4" stroke-dasharray="3 3"/>
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn--small btn--icon-only btn--toggle"
-              id="btnGraphLive"
-              title="Toggle live time follow"
-              aria-label="Toggle live graph follow"
-              aria-pressed="true"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M13 2 5 14h6l-1 8 8-12h-6l1-8Z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn--small"
-              id="btnCopyPng"
-              title="Copy graph as PNG"
-              aria-label="Copy graph as PNG"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn--small"
-              id="btnDownloadPng"
-              title="Download graph as PNG"
-              aria-label="Download graph as PNG"
-            >
-              <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" x2="12" y1="3" y2="15" />
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div class="graph-canvas-wrap">
-          <canvas id="graphCanvas" width="1100" height="340" role="img" aria-label="Queue position time series chart"></canvas>
-          <div id="graphTooltip" class="graph-tooltip hidden" role="tooltip" aria-hidden="true"></div>
-        </div>
-        <div class="graph-footer">
-          <div class="graph-hint muted" id="graphHint">Tap or hover for details - drag or scroll to zoom.</div>
-          <div class="graph-footer__meta">
-            <span class="muted graph-toolbar__mid graph-footer__log" id="lblLogAct" role="status" aria-live="polite"></span>
             <div class="btn-group zoom-ctrl graph-footer__zoom-group" role="group" aria-label="Zoom controls">
               <button type="button" class="btn btn--small" id="btnZoomOut" title="Zoom out (mouse wheel also works)" aria-label="Zoom out time axis">−</button>
               <button type="button" class="btn btn--small zoom-ctrl__level graph-footer__zoom" id="btnZoomReset" title="Not zoomed" aria-label="Zoom level - click to reset">1x</button>

@@ -7,6 +7,9 @@
 ~~Bug: our session appears in the list as a failed session~~
 Fixed: the web server now filters the active session out of the dropdown even when its session id is 0, so the live run no longer shows up as a bogus failed historical entry (v1.0.294)
 
+~~Revisit Bug: disconnect after completion could fall into Error instead of Interrupted~~
+Fixed: enter_interrupted_state now defines its notification timestamp before building the push payload, restoring the intended Interrupted/failure path (v1.0.307)
+
 ~~Bug: blue dot covers the check mark on the graph~~
 Fixed: final historical/completed point now uses the terminal connect/disconnect icon instead of drawing the normal blue point underneath it (v1.0.293)
 
@@ -103,17 +106,16 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-- the warn, error dots should be the same size as the blue dot
+- add the tada white emoji to the position display when finally connected
 
-- rel and lin go on the bottom right to the left of the zoom indicator.
-
-- Shorten log active message to Last log: 2s ago 
-
-- copy symbol for graph goes in the top right
+- add the Running man white emoji to the position display when at front 
 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
+
+~~Tweak: graph dots / controls / labels still need a final polish pass~~
+Done: warning/disconnect dots now match the blue marker size; REL/LIN moved into the bottom-right footer beside zoom; PNG actions moved to a top-right canvas overlay; log activity copy now reads `Last log: ... ago`; KPI fallback keeps `min/pos` while stats/overlay use `m/p` (v1.0.308)
 
 ~~Tweak: release smoke coverage should exercise completion -> disconnect -> re-queue recovery~~
 Done: added a direct engine smoke test covering completion, post-completion disconnect, and new-queue adoption so this critical flow is checked without relying only on manual memory (v1.0.292)

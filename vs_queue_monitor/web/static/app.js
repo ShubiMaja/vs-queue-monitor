@@ -742,7 +742,7 @@
   function formatRateFromPoints(pts) {
     var stats = computePointSeriesStats(pts || []);
     if (stats.avgMinPerPos == null) return "";
-    return stats.avgMinPerPos.toFixed(2) + " m/p";
+    return stats.avgMinPerPos.toFixed(2) + " min/pos";
   }
 
   function formatRemainingFromPoints(pts, currentPos) {
@@ -1476,9 +1476,9 @@
       else {
         const g = s.last_log_growth_epoch;
         const now = Date.now() / 1000;
-        if (g == null) logEl.textContent = "Log: waiting for file activity";
-        else if (now - g >= 30) logEl.textContent = "Log quiet ≥30s (reconnecting or idle)";
-        else logEl.textContent = "Log active (" + Math.round(now - g) + "s since growth)";
+        if (g == null) logEl.textContent = "Last log: waiting";
+        else if (now - g >= 30) logEl.textContent = "Last log: 30s+ ago";
+        else logEl.textContent = "Last log: " + Math.round(now - g) + "s ago";
       }
     }
 
