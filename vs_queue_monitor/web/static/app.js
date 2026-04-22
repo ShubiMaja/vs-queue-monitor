@@ -407,6 +407,80 @@
     });
   }
 
+  var _pushSubscribeAttempted = false;
+  var _pushSubscribePromise = null;
+  var _pushPublicKeyCache = null;
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    var i;
+    for (i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  function fetchPushPublicKey() {
+    if (_pushPublicKeyCache) {
+      return Promise.resolve(_pushPublicKeyCache);
+    }
+    return fetch("/api/push/public_key")
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok || !j.ok || !j.public_key) {
+            throw new Error((j && j.error) || "Web push is not configured on the server");
+          }
+          _pushPublicKeyCache = j.public_key;
+          return _pushPublicKeyCache;
+        });
+      });
+  }
+
+  function subscribeBrowserPush() {
+    if (_pushSubscribePromise) {
+      return _pushSubscribePromise;
+    }
+    _pushSubscribePromise = getNotificationServiceWorkerRegistration()
+      .then(function (reg) {
+        if (!reg || !reg.pushManager) {
+          throw new Error("Push manager unavailable");
+        }
+        return fetchPushPublicKey().then(function (publicKey) {
+          return reg.pushManager.getSubscription().then(function (existing) {
+            if (existing) {
+              return existing;
+            }
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(publicKey),
+            });
+          });
+        });
+      })
+      .then(function (subscription) {
+        return fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: subscription.toJSON ? subscription.toJSON() : subscription }),
+        }).then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok || !j.ok) {
+              throw new Error((j && j.error) || "Could not save push subscription");
+            }
+            return j;
+          });
+        });
+      })
+      .catch(function (err) {
+        _pushSubscribePromise = null;
+        throw err;
+      });
+    return _pushSubscribePromise;
+  }
+
   function cleanupLegacyNotificationServiceWorker() {
     if (typeof navigator === "undefined" || !navigator.serviceWorker) {
       return;
@@ -2367,6 +2441,9 @@
               _hideNotifPermTip();
               syncHint();
               if (p === "granted") {
+                subscribeBrowserPush().catch(function (err) {
+                  toast(String(err.message || err), "warn");
+                });
                 fireDesktopNotification("Notifications enabled", {
                   body:
                     "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
@@ -2399,6 +2476,9 @@
           _hideNotifPermTip();
           syncHint();
           if (Notification.permission === "granted") {
+            subscribeBrowserPush().catch(function (err) {
+              toast(String(err.message || err), "warn");
+            });
             fireDesktopNotification("Notifications enabled", {
               body:
                 "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
@@ -2543,13 +2623,25 @@
           toast("Allow notifications from the header switch first.", "warn");
           return;
         }
-        fireDesktopNotification("Test notification", {
-          body:
-            "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-          tag: "vsqm-test-" + Date.now(),
-          renotify: true,
-        }, "Could not show a desktop notification (check your browser and OS notification settings).");
-        toast("Test sent — check the system tray if you see no banner.");
+        fetch("/api/push/test", { method: "POST" })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              if (!r.ok || !j.ok) {
+                throw new Error((j && j.error) || "Could not send backend web push test");
+              }
+              toast("Backend push test sent.");
+              return j;
+            });
+          })
+          .catch(function (err) {
+            fireDesktopNotification("Test notification", {
+              body:
+                "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
+              tag: "vsqm-test-" + Date.now(),
+              renotify: true,
+            }, "Could not show a desktop notification (check your browser and OS notification settings).");
+            toast(String(err.message || err), "warn");
+          });
       });
     }
     syncHint();
@@ -3245,6 +3337,7 @@
         Notification.permission === "granted"
       ) {
         registerNotificationServiceWorker();
+        subscribeBrowserPush().catch(function () {});
       }
     });
 

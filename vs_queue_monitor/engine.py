@@ -45,6 +45,7 @@ class QueueMonitorEngine:
 
     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
         self._hooks = hooks
+        self.push_notifier: Optional[Callable[[str, dict[str, Any]], None]] = None
         self.config: dict = load_config()
         _cfg_src = self.config.get("source_path", "")
         _cfg_src = _cfg_src.strip() if isinstance(_cfg_src, str) else ""
@@ -288,6 +289,16 @@ class QueueMonitorEngine:
     def write_history(self, message: str) -> None:
         self._hooks.append_history(message)
 
+    def _emit_push_notification(self, kind: str, payload: dict[str, Any]) -> None:
+        notifier = self.push_notifier
+        if not callable(notifier):
+            return
+        try:
+            notifier(kind, payload)
+        except Exception:
+            pass
+
+
     def _set_status_line(self, text: str, *, danger: bool = False) -> None:
         self.status_var.set(text)
 
@@ -507,6 +518,16 @@ class QueueMonitorEngine:
         self.write_history(msg)
         if self.failure_popup_enabled_var.get():
             self._hooks.show_failure_popup(detail)
+            self._emit_push_notification(
+                "failure",
+                {
+                    "title": "Queue interrupted",
+                    "body": f"Queue interrupted — still watching the log.\nStatus: {self.status_var.get() or 'Interrupted'}\nLast change: {self.last_change_var.get() or '—'}",
+                    "tag": f"vsqm-failure-{int(now * 1000)}",
+                    "kind": "failure",
+                    "renotify": True,
+                },
+            )
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
@@ -1355,6 +1376,16 @@ class QueueMonitorEngine:
             self.play_sound()
         if self.popup_enabled_var.get():
             self._hooks.show_threshold_popup(position, eta_display)
+            self._emit_push_notification(
+                "warning",
+                {
+                    "title": "Threshold alert",
+                    "body": f"Threshold alert: position {position} ({reason})\nEstimated remaining: {eta_display}\nStatus: {self.status_var.get() or 'Monitoring'}",
+                    "tag": f"vsqm-threshold-{self._last_alert_seq}",
+                    "kind": "warning",
+                    "renotify": True,
+                },
+            )
 
     def play_sound(self) -> None:
         """Threshold / warning alert sound."""
@@ -1420,3 +1451,13 @@ class QueueMonitorEngine:
             self.play_completion_sound()
         if want_popup:
             self._hooks.show_completion_popup()
+            self._emit_push_notification(
+                "completion",
+                {
+                    "title": "Queue completion",
+                    "body": f"Queue completion: past queue wait — connecting (position 0).\nStatus: {self.status_var.get() or 'Connecting'}",
+                    "tag": f"vsqm-completion-{int(now * 1000)}",
+                    "kind": "completion",
+                    "renotify": True,
+                },
+            )

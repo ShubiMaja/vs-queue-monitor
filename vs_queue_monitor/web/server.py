@@ -26,6 +26,7 @@ from .. import GITHUB_REPO_URL, VERSION
 from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
+from .push import push_configured, push_status, register_subscription, send_push_to_all, subscription_count, vapid_public_key
 from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
@@ -445,6 +446,7 @@ def _api_meta(request: Request) -> JSONResponse:
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
             "window_mode": _window_mode,
+            "push_status": push_status(),
         }
     )
 
@@ -629,6 +631,51 @@ async def _api_clear_notification_permission(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+
+def _api_push_public_key(request: Request) -> JSONResponse:
+    key = vapid_public_key()
+    if not key:
+        return JSONResponse({"ok": False, "error": "web push is not configured on the server"}, status_code=503)
+    return JSONResponse({"ok": True, "public_key": key, "configured": push_configured(), "subscriptions": subscription_count()})
+
+
+async def _api_push_subscribe(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
+    subscription = body.get("subscription")
+    if not isinstance(subscription, dict):
+        return JSONResponse({"ok": False, "error": "subscription object expected"}, status_code=400)
+    try:
+        result = register_subscription(subscription, user_agent=request.headers.get("user-agent", ""))
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, **result})
+
+
+async def _api_push_test(request: Request) -> JSONResponse:
+    payload = {
+        "title": "VS Queue Monitor test",
+        "body": "This test came from the backend web push pipeline.",
+        "tag": f"vsqm-test-{int(time.time() * 1000)}",
+        "kind": "warning",
+        "renotify": True,
+        "url": "/",
+    }
+    try:
+        result = await asyncio.to_thread(send_push_to_all, payload)
+    except RuntimeError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, **result})
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -661,6 +708,18 @@ def _init_web_stack(
     lock = threading.RLock()
     hooks = WebMonitorHooks(lock)
     engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
+
+    def _push_notify(_kind: str, payload: dict[str, Any]) -> None:
+        if not push_configured():
+            return
+        def _worker() -> None:
+            try:
+                send_push_to_all(payload)
+            except Exception:
+                logging.getLogger(__name__).exception("web push send failed")
+        threading.Thread(target=_worker, daemon=True).start()
+
+    engine.push_notifier = _push_notify
     hooks.attach_engine(engine)
     if auto_start:
         hooks.schedule(300, engine.start_monitoring)
@@ -716,6 +775,9 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
         Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
+        Route("/api/push/public_key", _api_push_public_key, methods=["GET"]),
+        Route("/api/push/subscribe", _api_push_subscribe, methods=["POST"]),
+        Route("/api/push/test", _api_push_test, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

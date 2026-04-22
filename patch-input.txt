@@ -1,0 +1,280 @@
+]633;E;{   echo '===== server.py 620-760 ====='\x3b   sed -n '620,760p' vs_queue_monitor/web/server.py\x3b    echo\x3b   echo '===== engine.py 1328-1438 ====='\x3b   sed -n '1328,1438p' vs_queue_monitor/engine.py\x3b    echo\x3b   echo '===== notify-sw.js 1-260 ====='\x3b   sed -n '1,260p' vs_queue_monitor/web/static/notify-sw.js\x3b    echo\x3b   echo '===== app.js grep ====='\x3b   grep -n "btnNotify\\|btnTestWarnNotify\\|requestPermissionFlow\\|pushManager" vs_queue_monitor/web/static/app.js\x3b } > patch-input.txt;9a5e4d45-fd81-4065-ba5f-cb07a95a4972]633;C===== server.py 620-760 =====
+            .get("exceptions", {})
+            .get("notifications", {})
+        )
+        keys_removed = [k for k in list(notif) if f"localhost:{port}" in k or f"127.0.0.1:{port}" in k]
+        for k in keys_removed:
+            del notif[k]
+        prefs_path.write_text(_json.dumps(data), encoding="utf-8")
+        return JSONResponse({"ok": True, "cleared": keys_removed})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+async def _ws_endpoint(websocket: WebSocket) -> None:
+    await websocket.accept()
+    engine: QueueMonitorEngine = websocket.app.state.engine
+    hooks: WebMonitorHooks = websocket.app.state.hooks
+    lock: threading.RLock = websocket.app.state.lock
+    try:
+        while True:
+            def snap() -> dict[str, Any]:
+                with lock:
+                    return build_snapshot(engine, hooks)
+
+            payload = await asyncio.to_thread(snap)
+            await websocket.send_text(json.dumps(payload))
+            await asyncio.sleep(0.2)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
+def _init_web_stack(
+    initial_path: str = "",
+    auto_start: bool = True,
+    port: Optional[int] = None,
+) -> tuple[Starlette, QueueMonitorEngine, WebMonitorHooks, threading.RLock, int, str]:
+    """Build engine + Starlette app; ``auto_start`` schedules monitoring like ``run_web_server``."""
+    lock = threading.RLock()
+    hooks = WebMonitorHooks(lock)
+    engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
+    hooks.attach_engine(engine)
+    if auto_start:
+        hooks.schedule(300, engine.start_monitoring)
+
+    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
+
+    app = create_app(engine, hooks, lock)
+    url = f"http://127.0.0.1:{p}/"
+    return app, engine, hooks, lock, p, url
+
+
+class _NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that always returns 200 so reloads never serve stale cached JS/CSS."""
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        # Strip conditional-request headers so StaticFiles never returns 304.
+        # Without If-Modified-Since / If-None-Match the handler always serves the full file.
+        if scope.get("type") == "http":
+            scope = {
+                **scope,
+                "headers": [
+                    (k, v)
+                    for k, v in scope.get("headers", [])
+                    if k.lower() not in (b"if-modified-since", b"if-none-match")
+                ],
+            }
+
+        async def _send_no_cache(message: Any) -> None:
+            if message["type"] == "http.response.start":
+                hdrs = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() not in (b"cache-control", b"pragma", b"expires", b"etag", b"last-modified")
+                ]
+                hdrs.extend([
+                    (b"cache-control", b"no-cache, no-store, must-revalidate"),
+                    (b"pragma", b"no-cache"),
+                    (b"expires", b"0"),
+                ])
+                message = {**message, "headers": hdrs}
+            await send(message)
+
+        await super().__call__(scope, receive, _send_no_cache)
+
+
+def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
+    routes = [
+        Route("/api/meta", _api_meta, methods=["GET"]),
+        Route("/api/state", _api_state, methods=["GET"]),
+        Route("/api/pick_path", _api_pick_path, methods=["POST"]),
+        Route("/api/config", _api_config, methods=["POST"]),
+        Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
+        Route("/api/reset_defaults", _api_reset, methods=["POST"]),
+        Route("/api/new_queue", _api_new_queue, methods=["POST"]),
+        Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
+        WebSocketRoute("/ws", _ws_endpoint),
+        Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
+    ]
+    app = Starlette(routes=routes)
+    app.state.engine = engine
+    app.state.hooks = hooks
+    app.state.lock = lock
+    return app
+
+
+def run_web_server(
+    initial_path: str = "",
+    auto_start: bool = True,
+    port: Optional[int] = None,
+    *,
+    open_external_browser: bool = False,
+) -> int:
+    """Serve the static web client on loopback.
+
+    By default opens an embedded Chromium ``--app`` window (Edge or Chrome required).
+    Pass ``open_external_browser=True`` (CLI: ``--web-browser``) to open in the default browser instead.
+    On headless machines the server runs without a window; use the URL printed to stderr.
+    """
+    global _window_mode
+    import uvicorn
+
+    from .tray import start_tray
+
+    p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
+    url = f"http://127.0.0.1:{p}/"
+
+    if not _handle_port_conflict(p, url):
+        return 0
+
+    app, _e, _h, _l, p, url = _init_web_stack(initial_path, auto_start, port)
+    _app_proc: "subprocess.Popen[bytes] | None" = None
+
+    if open_external_browser:
+        _window_mode = "browser"
+        threading.Thread(
+            target=lambda: (time.sleep(0.35), webbrowser.open(url)), daemon=True
+        ).start()
+
+===== engine.py 1328-1438 =====
+            if not marginal_spike_from_front:
+                self._alert_thresholds_fired.clear()
+        crossed: list[int] = []
+        for t in thresholds:
+            if prev_pos > t and curr_pos <= t and (t not in self._alert_thresholds_fired):
+                crossed.append(t)
+                self._alert_thresholds_fired.add(t)
+        if not crossed:
+            return (False, '')
+        crossed.sort(reverse=True)
+        parts = ', '.join((str(x) for x in crossed))
+        return (True, f'crossed threshold(s): {parts}')
+
+    def raise_alert(self, position: int, reason: str) -> None:
+        now = time.time()
+        if self.last_alert_epoch > 0.0 and now - self.last_alert_epoch < ALERT_MIN_INTERVAL_SEC:
+            return
+        self.last_alert_position = position
+        self.last_alert_epoch = now
+        self.last_alert_var.set(time.strftime('%Y-%m-%d %H:%M:%S'))
+        self.last_alert_message_var.set(f"Threshold alert: position {position} ({reason})")
+        self._last_alert_seq += 1
+        sec_rem = self.estimate_seconds_remaining()
+        eta_display = self.format_duration_remaining(sec_rem) if sec_rem is not None else '—'
+        hist_extra = f'; remaining {eta_display}' if sec_rem is not None else ''
+        self.write_history(f'Threshold alert: position {position} ({reason}){hist_extra}')
+        if self.sound_enabled_var.get():
+            self.play_sound()
+        if self.popup_enabled_var.get():
+            self._hooks.show_threshold_popup(position, eta_display)
+
+    def play_sound(self) -> None:
+        """Threshold / warning alert sound."""
+        raw = (self.alert_sound_path_var.get() or '').strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_system_alert_sound():
+            return
+        try:
+            self._hooks.bell()
+        except Exception:
+            pass
+
+    def play_completion_sound(self) -> None:
+        """Completion sound when the log shows past queue wait (see POST_QUEUE_PROGRESS_LINE_RES)."""
+        raw = (self.completion_sound_path_var.get() or '').strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_completion_system_sound():
+            return
+        try:
+            self._hooks.bell()
+        except Exception:
+            pass
+
+    def play_failure_sound(self) -> None:
+        """Interrupted/failure sound when queue monitoring drops out of the active queue flow."""
+        raw = (self.failure_sound_path_var.get() or '').strip()
+        if raw:
+            p = expand_path(raw)
+            if p.is_file() and play_alert_sound_file(p):
+                return
+        if play_default_failure_system_sound():
+            return
+        try:
+            self._hooks.bell()
+        except Exception:
+            pass
+
+    def _maybe_notify_queue_completion(self, position: int, tail_text: str) -> None:
+        """Optional sound/popup when we map to position 0 (past queue wait — see POST_QUEUE_PROGRESS_LINE_RES)."""
+        if position != 0:
+            return
+        if not tail_has_post_queue_after_last_queue_line(tail_text):
+            return
+        if self._queue_completion_notified_this_run:
+            return
+        now = time.time()
+        if self._last_queue_completion_notify_epoch > 0.0 and now - self._last_queue_completion_notify_epoch < COMPLETION_NOTIFY_MIN_INTERVAL_SEC:
+            return
+        want_sound = bool(self.completion_sound_enabled_var.get())
+        want_popup = bool(self.completion_popup_enabled_var.get())
+        if not want_sound and (not want_popup):
+            return
+        self._queue_completion_notified_this_run = True
+        self._last_queue_completion_notify_epoch = now
+        self.write_history('Queue completion: past queue wait — connecting (position 0).')
+        if want_sound:
+            self.play_completion_sound()
+        if want_popup:
+            self._hooks.show_completion_popup()
+
+===== notify-sw.js 1-260 =====
+self.addEventListener("install", function () {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", function (event) {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clients) {
+      var i;
+      for (i = 0; i < clients.length; i++) {
+        var client = clients[i];
+        if (client && "focus" in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow("/");
+      }
+      return null;
+    })
+  );
+});
+
+===== app.js grep =====
+2267:    var btn = $("btnNotify");
+2318:      var btn = document.getElementById("btnNotify");
+2336:    function requestPermissionFlow() {
+2517:            requestPermissionFlow();
+2524:      requestPermissionFlow();
+2529:    var btnTest = $("btnTestWarnNotify");
+2559:    var btn = $("btnNotify");
+2608:    function requestPermissionFlow(onGranted) {
+2840:          requestPermissionFlow(enablePopupsAfterGrant);
+2846:      requestPermissionFlow();
+2851:    var btnTestWarn = $("btnTestWarnNotify");

@@ -1,0 +1,432 @@
+]633;E;{   echo '===== git diff ====='\x3b   git diff -- vs_queue_monitor/web/server.py vs_queue_monitor/engine.py vs_queue_monitor/web/static/app.js vs_queue_monitor/web/static/notify-sw.js vs_queue_monitor/web/push.py\x3b    echo\x3b   echo '===== grep push routes/server ====='\x3b   grep -n "push/public_key\\|push/subscribe\\|push/test\\|create_app(" vs_queue_monitor/web/server.py\x3b    echo\x3b   echo '===== grep pywebpush ====='\x3b   grep -n "pywebpush\\|webpush\\|VAPID" -n vs_queue_monitor/web/push.py vs_queue_monitor/web/server.py\x3b    echo\x3b   echo '===== grep engine push hooks ====='\x3b   grep -n "send_.*push\\|push.*alert\\|push.*completion\\|push.*failure\\|raise_alert\\|_maybe_notify_queue_completion\\|enter_interrupted_state" vs_queue_monitor/engine.py vs_queue_monitor/web/push.py\x3b    echo\x3b   echo '===== env ====='\x0apython - <<'PY'\x0aimport os\x0afor k in [\x0a"VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY",\x0a"VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY",\x0a"VS_QUEUE_MONITOR_VAPID_SUBJECT",\x0a]:\x0av = os.environ.get(k)\x0aprint(k, "set" if v else "MISSING", (len(v) if v else 0))\x0aPY\x0aecho\x3b   echo '===== requirements ====='\x0apython - <<'PY'\x0atry:\x0aimport pywebpush\x0aprint("pywebpush OK")\x0aexcept Exception as e:\x0aprint("pywebpush FAIL:", e)\x0aPY\x0a} > push-debug.txt;9a5e4d45-fd81-4065-ba5f-cb07a95a4972]633;C===== git diff =====
+diff --git a/vs_queue_monitor/engine.py b/vs_queue_monitor/engine.py
+index df24592..eb14712 100644
+--- a/vs_queue_monitor/engine.py
++++ b/vs_queue_monitor/engine.py
+@@ -45,6 +45,7 @@ class QueueMonitorEngine:
+ 
+     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
+         self._hooks = hooks
++        self.push_notifier: Optional[Callable[[str, dict[str, Any]], None]] = None
+         self.config: dict = load_config()
+         _cfg_src = self.config.get("source_path", "")
+         _cfg_src = _cfg_src.strip() if isinstance(_cfg_src, str) else ""
+@@ -288,6 +289,16 @@ class QueueMonitorEngine:
+     def write_history(self, message: str) -> None:
+         self._hooks.append_history(message)
+ 
++    def _emit_push_notification(self, kind: str, payload: dict[str, Any]) -> None:
++        notifier = self.push_notifier
++        if not callable(notifier):
++            return
++        try:
++            notifier(kind, payload)
++        except Exception:
++            pass
++
++
+     def _set_status_line(self, text: str, *, danger: bool = False) -> None:
+         self.status_var.set(text)
+ 
+@@ -507,6 +518,16 @@ class QueueMonitorEngine:
+         self.write_history(msg)
+         if self.failure_popup_enabled_var.get():
+             self._hooks.show_failure_popup(detail)
++            self._emit_push_notification(
++                "failure",
++                {
++                    "title": "Queue interrupted",
++                    "body": f"Queue interrupted — still watching the log.\nStatus: {self.status_var.get() or 'Interrupted'}\nLast change: {self.last_change_var.get() or '—'}",
++                    "tag": f"vsqm-failure-{int(now * 1000)}",
++                    "kind": "failure",
++                    "renotify": True,
++                },
++            )
+         if self.failure_sound_enabled_var.get():
+             self.play_failure_sound()
+ 
+@@ -1355,6 +1376,16 @@ class QueueMonitorEngine:
+             self.play_sound()
+         if self.popup_enabled_var.get():
+             self._hooks.show_threshold_popup(position, eta_display)
++            self._emit_push_notification(
++                "warning",
++                {
++                    "title": "Threshold alert",
++                    "body": f"Threshold alert: position {position} ({reason})\nEstimated remaining: {eta_display}\nStatus: {self.status_var.get() or 'Monitoring'}",
++                    "tag": f"vsqm-threshold-{self._last_alert_seq}",
++                    "kind": "warning",
++                    "renotify": True,
++                },
++            )
+ 
+     def play_sound(self) -> None:
+         """Threshold / warning alert sound."""
+@@ -1420,3 +1451,13 @@ class QueueMonitorEngine:
+             self.play_completion_sound()
+         if want_popup:
+             self._hooks.show_completion_popup()
++            self._emit_push_notification(
++                "completion",
++                {
++                    "title": "Queue completion",
++                    "body": f"Queue completion: past queue wait — connecting (position 0).\nStatus: {self.status_var.get() or 'Connecting'}",
++                    "tag": f"vsqm-completion-{int(now * 1000)}",
++                    "kind": "completion",
++                    "renotify": True,
++                },
++            )
+diff --git a/vs_queue_monitor/web/server.py b/vs_queue_monitor/web/server.py
+index bcecf66..c2beeff 100644
+--- a/vs_queue_monitor/web/server.py
++++ b/vs_queue_monitor/web/server.py
+@@ -26,6 +26,7 @@ from .. import GITHUB_REPO_URL, VERSION
+ from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
+ from ..engine import QueueMonitorEngine
+ from .hooks_web import WebMonitorHooks
++from .push import push_configured, push_status, register_subscription, send_push_to_all, subscription_count, vapid_public_key
+ from .theme import chrome_theme_css_vars, graph_theme_dict
+ 
+ _STATIC = Path(__file__).resolve().parent / "static"
+@@ -445,6 +446,7 @@ def _api_meta(request: Request) -> JSONResponse:
+             "graph_theme": graph_theme_dict(),
+             "chrome_theme": chrome_theme_css_vars(),
+             "window_mode": _window_mode,
++            "push_status": push_status(),
+         }
+     )
+ 
+@@ -629,6 +631,51 @@ async def _api_clear_notification_permission(request: Request) -> JSONResponse:
+         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+ 
+ 
++
++def _api_push_public_key(request: Request) -> JSONResponse:
++    key = vapid_public_key()
++    if not key:
++        return JSONResponse({"ok": False, "error": "web push is not configured on the server"}, status_code=503)
++    return JSONResponse({"ok": True, "public_key": key, "configured": push_configured(), "subscriptions": subscription_count()})
++
++
++async def _api_push_subscribe(request: Request) -> JSONResponse:
++    try:
++        body = await request.json()
++    except Exception:
++        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
++    if not isinstance(body, dict):
++        return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
++    subscription = body.get("subscription")
++    if not isinstance(subscription, dict):
++        return JSONResponse({"ok": False, "error": "subscription object expected"}, status_code=400)
++    try:
++        result = register_subscription(subscription, user_agent=request.headers.get("user-agent", ""))
++    except ValueError as exc:
++        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
++    except Exception as exc:
++        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
++    return JSONResponse({"ok": True, **result})
++
++
++async def _api_push_test(request: Request) -> JSONResponse:
++    payload = {
++        "title": "VS Queue Monitor test",
++        "body": "This test came from the backend web push pipeline.",
++        "tag": f"vsqm-test-{int(time.time() * 1000)}",
++        "kind": "warning",
++        "renotify": True,
++        "url": "/",
++    }
++    try:
++        result = await asyncio.to_thread(send_push_to_all, payload)
++    except RuntimeError as exc:
++        return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
++    except Exception as exc:
++        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
++    return JSONResponse({"ok": True, **result})
++
++
+ async def _ws_endpoint(websocket: WebSocket) -> None:
+     await websocket.accept()
+     engine: QueueMonitorEngine = websocket.app.state.engine
+@@ -661,6 +708,18 @@ def _init_web_stack(
+     lock = threading.RLock()
+     hooks = WebMonitorHooks(lock)
+     engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
++
++    def _push_notify(_kind: str, payload: dict[str, Any]) -> None:
++        if not push_configured():
++            return
++        def _worker() -> None:
++            try:
++                send_push_to_all(payload)
++            except Exception:
++                logging.getLogger(__name__).exception("web push send failed")
++        threading.Thread(target=_worker, daemon=True).start()
++
++    engine.push_notifier = _push_notify
+     hooks.attach_engine(engine)
+     if auto_start:
+         hooks.schedule(300, engine.start_monitoring)
+@@ -716,6 +775,9 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
+         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
+         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
+         Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
++        Route("/api/push/public_key", _api_push_public_key, methods=["GET"]),
++        Route("/api/push/subscribe", _api_push_subscribe, methods=["POST"]),
++        Route("/api/push/test", _api_push_test, methods=["POST"]),
+         WebSocketRoute("/ws", _ws_endpoint),
+         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
+     ]
+diff --git a/vs_queue_monitor/web/static/app.js b/vs_queue_monitor/web/static/app.js
+index fa5dd3b..a280100 100644
+--- a/vs_queue_monitor/web/static/app.js
++++ b/vs_queue_monitor/web/static/app.js
+@@ -407,6 +407,80 @@
+     });
+   }
+ 
++  var _pushSubscribeAttempted = false;
++  var _pushSubscribePromise = null;
++  var _pushPublicKeyCache = null;
++
++  function urlBase64ToUint8Array(base64String) {
++    var padding = "=".repeat((4 - base64String.length % 4) % 4);
++    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
++    var rawData = window.atob(base64);
++    var outputArray = new Uint8Array(rawData.length);
++    var i;
++    for (i = 0; i < rawData.length; ++i) {
++      outputArray[i] = rawData.charCodeAt(i);
++    }
++    return outputArray;
++  }
++
++  function fetchPushPublicKey() {
++    if (_pushPublicKeyCache) {
++      return Promise.resolve(_pushPublicKeyCache);
++    }
++    return fetch("/api/push/public_key")
++      .then(function (r) {
++        return r.json().then(function (j) {
++          if (!r.ok || !j.ok || !j.public_key) {
++            throw new Error((j && j.error) || "Web push is not configured on the server");
++          }
++          _pushPublicKeyCache = j.public_key;
++          return _pushPublicKeyCache;
++        });
++      });
++  }
++
++  function subscribeBrowserPush() {
++    if (_pushSubscribePromise) {
++      return _pushSubscribePromise;
++    }
++    _pushSubscribePromise = getNotificationServiceWorkerRegistration()
++      .then(function (reg) {
++        if (!reg || !reg.pushManager) {
++          throw new Error("Push manager unavailable");
++        }
++        return fetchPushPublicKey().then(function (publicKey) {
++          return reg.pushManager.getSubscription().then(function (existing) {
++            if (existing) {
++              return existing;
++            }
++            return reg.pushManager.subscribe({
++              userVisibleOnly: true,
++              applicationServerKey: urlBase64ToUint8Array(publicKey),
++            });
++          });
++        });
++      })
++      .then(function (subscription) {
++        return fetch("/api/push/subscribe", {
++          method: "POST",
++          headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({ subscription: subscription.toJSON ? subscription.toJSON() : subscription }),
++        }).then(function (r) {
++          return r.json().then(function (j) {
++            if (!r.ok || !j.ok) {
++              throw new Error((j && j.error) || "Could not save push subscription");
++            }
++            return j;
++          });
++        });
++      })
++      .catch(function (err) {
++        _pushSubscribePromise = null;
++        throw err;
++      });
++    return _pushSubscribePromise;
++  }
++
+   function cleanupLegacyNotificationServiceWorker() {
+     if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+       return;
+@@ -2367,6 +2441,9 @@
+               _hideNotifPermTip();
+               syncHint();
+               if (p === "granted") {
++                subscribeBrowserPush().catch(function (err) {
++                  toast(String(err.message || err), "warn");
++                });
+                 fireDesktopNotification("Notifications enabled", {
+                   body:
+                     "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+@@ -2399,6 +2476,9 @@
+           _hideNotifPermTip();
+           syncHint();
+           if (Notification.permission === "granted") {
++            subscribeBrowserPush().catch(function (err) {
++              toast(String(err.message || err), "warn");
++            });
+             fireDesktopNotification("Notifications enabled", {
+               body:
+                 "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
+@@ -2543,13 +2623,25 @@
+           toast("Allow notifications from the header switch first.", "warn");
+           return;
+         }
+-        fireDesktopNotification("Test notification", {
+-          body:
+-            "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
+-          tag: "vsqm-test-" + Date.now(),
+-          renotify: true,
+-        }, "Could not show a desktop notification (check your browser and OS notification settings).");
+-        toast("Test sent — check the system tray if you see no banner.");
++        fetch("/api/push/test", { method: "POST" })
++          .then(function (r) {
++            return r.json().then(function (j) {
++              if (!r.ok || !j.ok) {
++                throw new Error((j && j.error) || "Could not send backend web push test");
++              }
++              toast("Backend push test sent.");
++              return j;
++            });
++          })
++          .catch(function (err) {
++            fireDesktopNotification("Test notification", {
++              body:
++                "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
++              tag: "vsqm-test-" + Date.now(),
++              renotify: true,
++            }, "Could not show a desktop notification (check your browser and OS notification settings).");
++            toast(String(err.message || err), "warn");
++          });
+       });
+     }
+     syncHint();
+@@ -3245,6 +3337,7 @@
+         Notification.permission === "granted"
+       ) {
+         registerNotificationServiceWorker();
++        subscribeBrowserPush().catch(function () {});
+       }
+     });
+ 
+diff --git a/vs_queue_monitor/web/static/notify-sw.js b/vs_queue_monitor/web/static/notify-sw.js
+index 366f591..2541290 100644
+--- a/vs_queue_monitor/web/static/notify-sw.js
++++ b/vs_queue_monitor/web/static/notify-sw.js
+@@ -6,19 +6,60 @@ self.addEventListener("activate", function (event) {
+   event.waitUntil(self.clients.claim());
+ });
+ 
++self.addEventListener("push", function (event) {
++  var data = {};
++  try {
++    data = event.data ? event.data.json() : {};
++  } catch (_err) {
++    try {
++      data = { body: event.data ? event.data.text() : "" };
++    } catch (_err2) {
++      data = {};
++    }
++  }
++  var kind = data && data.kind ? String(data.kind) : "";
++  var icon = data && data.icon ? data.icon : (kind === "completion" ? "/notify-completion.svg" : kind === "failure" ? "/notify-failure.svg" : kind === "warning" ? "/notify-warning.svg" : "/notify-icon.svg");
++  var options = {
++    body: data && data.body ? String(data.body) : "",
++    icon: icon,
++    badge: data && data.badge ? data.badge : icon,
++    tag: data && data.tag ? String(data.tag) : "vsqm-push",
++    renotify: !!(data && data.renotify),
++    data: {
++      url: data && data.url ? String(data.url) : "/",
++    },
++  };
++  event.waitUntil(
++    self.registration.showNotification(
++      data && data.title ? String(data.title) : "VS Queue Monitor",
++      options
++    )
++  );
++});
++
+ self.addEventListener("notificationclick", function (event) {
+   event.notification.close();
++  var targetUrl = "/";
++  if (event.notification && event.notification.data && event.notification.data.url) {
++    targetUrl = event.notification.data.url;
++  }
+   event.waitUntil(
+     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clients) {
+       var i;
+       for (i = 0; i < clients.length; i++) {
+         var client = clients[i];
+-        if (client && "focus" in client) {
++        if (!client) continue;
++        if ("focus" in client) {
++          if ("navigate" in client) {
++            try {
++              client.navigate(targetUrl);
++            } catch (_err) {}
++          }
+           return client.focus();
+         }
+       }
+       if (self.clients.openWindow) {
+-        return self.clients.openWindow("/");
++        return self.clients.openWindow(targetUrl);
+       }
+       return null;
+     })
+
+===== grep push routes/server =====
+729:    app = create_app(engine, hooks, lock)
+768:def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
+778:        Route("/api/push/public_key", _api_push_public_key, methods=["GET"]),
+779:        Route("/api/push/subscribe", _api_push_subscribe, methods=["POST"]),
+780:        Route("/api/push/test", _api_push_test, methods=["POST"]),
+
+===== grep pywebpush =====
+vs_queue_monitor/web/push.py:14:    from pywebpush import WebPushException, webpush  # type: ignore
+vs_queue_monitor/web/push.py:17:    webpush = None  # type: ignore
+vs_queue_monitor/web/push.py:39:    return _env_pref("VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY", "VSQM_VAPID_PUBLIC_KEY")
+vs_queue_monitor/web/push.py:43:    return _env_pref("VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY", "VSQM_VAPID_PRIVATE_KEY")
+vs_queue_monitor/web/push.py:48:        "VS_QUEUE_MONITOR_VAPID_SUBJECT",
+vs_queue_monitor/web/push.py:49:        "VSQM_VAPID_SUBJECT",
+vs_queue_monitor/web/push.py:50:        "WEBPUSH_VAPID_SUBJECT",
+vs_queue_monitor/web/push.py:55:    return bool(webpush and vapid_public_key() and vapid_private_key())
+vs_queue_monitor/web/push.py:61:        "pywebpush_available": bool(webpush),
+vs_queue_monitor/web/push.py:135:    assert webpush is not None
+vs_queue_monitor/web/push.py:144:                webpush(
+
+===== grep engine push hooks =====
+vs_queue_monitor/engine.py:504:    def enter_interrupted_state(self, detail: str='') -> None:
+vs_queue_monitor/engine.py:771:                        self.enter_interrupted_state('Connection lost (final teardown).')
+vs_queue_monitor/engine.py:783:                        self.enter_interrupted_state('Connection lost after queue completion.')
+vs_queue_monitor/engine.py:852:                                self.enter_interrupted_state('Stale latch (queue lines did not recover).')
+vs_queue_monitor/engine.py:866:                                    self.enter_interrupted_state('No new queue log lines (stale).')
+vs_queue_monitor/engine.py:912:                                self.raise_alert(position, reason)
+vs_queue_monitor/engine.py:913:                            self._maybe_notify_queue_completion(position, text)
+vs_queue_monitor/engine.py:1362:    def raise_alert(self, position: int, reason: str) -> None:
+vs_queue_monitor/engine.py:1432:    def _maybe_notify_queue_completion(self, position: int, tail_text: str) -> None:
+vs_queue_monitor/web/push.py:132:def send_push_to_all(payload: dict[str, Any]) -> dict[str, Any]:
+
+===== env =====
+VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY set 3
+VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY set 3
+VS_QUEUE_MONITOR_VAPID_SUBJECT set 27
+
+===== requirements =====
+pywebpush OK
