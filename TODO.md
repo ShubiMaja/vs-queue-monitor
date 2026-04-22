@@ -170,6 +170,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: graph top dark padding should be noticeably larger~~
+Done: increased the canvas top padding again so the dark band above the plot is clearly more substantial without changing the graph’s data range (v1.0.344)
+
 ~~Tweak: graph top padding should be at least as generous as the right-side spacing~~
 Done: increased the canvas top padding so the graph has clearly more headroom and no longer feels tighter at the top than at the right edge (v1.0.342)
 

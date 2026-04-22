@@ -12,7 +12,7 @@
     graph_log_gamma: 1.15,
     pad_left: 46,
     pad_right: 22,
-    pad_top: 24,
+    pad_top: 34,
     pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
     ui_graph_plot: "#141820",
