@@ -4,7 +4,6 @@
 
 
 
-- on mobile the trend line is not rendered well
 
 
 ## Fixed (closed)
@@ -98,6 +97,9 @@ Fixed: added Web Audio API beep playback in the browser; alert/completion/failur
 
 ~~Bug: notifications not working on mobile phone browser~~
 Fixed: requestPermissionFlow now detects non-secure context and shows a clear message that HTTPS is required for mobile notifications, with a pointer to ngrok/SSH tunnel setup in Help; removed misleading "Sound alerts still work" copy that implied server-side sound plays on the device (v1.0.298)
+
+~~Bug: on mobile the trend line is not rendered well~~
+Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile display coordinates were 9x off before v1.0.295 (v1.0.295)
 
 ---
 
