@@ -989,7 +989,7 @@
     var out = [];
     var i;
     var thresholds = [];
-    var showWarnings = !isPastSession && !!state;
+    var showWarnings = !isPastSession && !!state && window._graphShowWarnings !== false;
     if (showWarnings) {
       try {
         thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
@@ -1332,6 +1332,13 @@
       btnLive.title = liveOn ? "Live follow on" : "Live follow off";
       btnLive.setAttribute("aria-label", btnLive.title);
     }
+    var btnWarn = $("btnGraphWarn");
+    if (btnWarn) {
+      var warnOn = window._graphShowWarnings !== false;
+      btnWarn.setAttribute("aria-pressed", warnOn ? "true" : "false");
+      btnWarn.title = warnOn ? "Warning dots on" : "Warning dots off";
+      btnWarn.setAttribute("aria-label", btnWarn.title);
+    }
     var btnTrend = $("btnGraphTrend");
     if (btnTrend) {
       var trendOn = window._graphTrend !== false;
@@ -1652,6 +1659,7 @@
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 340;
   window._graphZoom = null;
   window._graphTrend = true;
+  window._graphShowWarnings = true;
 
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
@@ -3801,6 +3809,12 @@
     if (btnIn) btnIn.onclick = function () { zoomGraph(0.5, null); };
     if (btnOut) btnOut.onclick = function () { zoomGraph(2, null); };
     if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
+    var btnWarnToggle = $("btnGraphWarn");
+    if (btnWarnToggle) btnWarnToggle.onclick = function () {
+      window._graphShowWarnings = !window._graphShowWarnings;
+      syncGraphToolbarButtons(window._lastState || {});
+      redrawGraphOnly();
+    };
     if (btnTrend) btnTrend.onclick = function () {
       window._graphTrend = !window._graphTrend;
       syncGraphToolbarButtons(window._lastState || {});
