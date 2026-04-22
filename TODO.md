@@ -167,6 +167,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: graph toolbar order from right to left should be copy, download, live, trendline, warning dots~~
+Done: the graph toolbar export buttons were reordered so the right edge is now `Copy`, then `Download`, followed by `Live`, `Trendline`, and `Warning dots` moving leftward (v1.0.339)
+
 ~~Tweak: warning dots should be disabled on non-current sessions for now~~
 Done: the Warning dots toolbar button now disables and grays out on past sessions, matching the fact that warning markers are only available on the latest session (v1.0.338)
 
