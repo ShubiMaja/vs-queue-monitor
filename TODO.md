@@ -2,11 +2,8 @@
 
 ## Open
 
-- on reset all default, we load the default path but monitoring does not begin
 
-- latest session has a duplicate entry in the session list (latest session + session id - date)
 
-- zoom multiple does not auto update when zooming, why not?
 
 - sound does not work on mobile phone browser , how do we solve that? should we?
 
@@ -87,6 +84,15 @@ Fixed: zero/negative values inside CSV and ranges now block saving entirely inst
 
 ~~Bug: Once connected, focused on the latest session and in live mode, the graph continues to update and the lines goes off the graph~~
 Fixed: latest live graph now freezes at the first terminal point instead of continuing to advance on later post-connect `0` samples (v1.0.289)
+
+~~Bug: on reset all defaults, monitoring does not begin~~
+Fixed: reset_defaults() now calls start_monitoring() after resetting so the engine immediately tries to start with the default path (v1.0.296)
+
+~~Bug: latest session has a duplicate entry in the session list~~
+Fixed: _queue_sessions_for_engine now uses the same SEED_LOG_TAIL_BYTES tail for both the session list and active-session detection so session counters are consistent (v1.0.296)
+
+~~Bug: zoom multiplier does not update when zooming~~
+Fixed: updateZoomResetBtn now reads fullT0/fullT1 from _drawState (the unzoomed data range) instead of t0/t1 which reflect the current zoom window (v1.0.296)
 
 ---
 

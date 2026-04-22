@@ -23,7 +23,14 @@ from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import GITHUB_REPO_URL, VERSION
-from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
+from ..core import (
+    SEED_LOG_TAIL_BYTES,
+    get_config_path,
+    parse_alert_thresholds,
+    parse_tail_last_queue_reading,
+    queue_sessions_for_log_tail,
+    read_log_file_tail_text,
+)
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
 from .push import push_configured, push_status, register_subscription, send_push_to_all, subscription_count, vapid_public_key
@@ -75,9 +82,14 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any
     if path is None or not path.is_file():
         return []
     try:
-        sessions = queue_sessions_for_log_tail(path)
-        active_id = engine._last_queue_run_session
-        if active_id is not None and int(active_id) >= 0:
+        # Use the same SEED_LOG_TAIL_BYTES tail for both calls so session counters
+        # (which start at 0 within the tail window) are consistent with each other.
+        # Using engine._last_queue_run_session would disagree because polling uses
+        # the smaller TAIL_BYTES window.
+        tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
+        sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
+        if tail_text and engine.running:
+            _pos, active_id = parse_tail_last_queue_reading(tail_text)
             sessions = [s for s in sessions if s.get("session_id") != active_id]
         return sessions
     except Exception:

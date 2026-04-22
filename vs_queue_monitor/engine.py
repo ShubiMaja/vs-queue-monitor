@@ -285,6 +285,8 @@ class QueueMonitorEngine:
         self.persist_config()
         self.write_history('Settings reset to defaults.')
         self._refresh_warnings_kpi()
+        self._starting = False
+        self.start_monitoring()
 
     def write_history(self, message: str) -> None:
         self._hooks.append_history(message)

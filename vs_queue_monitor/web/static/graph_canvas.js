@@ -380,11 +380,12 @@
     }
 
     var rangePts = rawPoints.length ? rawPoints : points;
+    var fullTr = graphPlotTimeRange(rangePts, extendToNow, th.single_point_graph_span_sec);
     var tr;
     if (viewRange && viewRange.length === 2) {
       tr = [viewRange[0], viewRange[1]];
     } else {
-      tr = graphPlotTimeRange(rangePts, extendToNow, th.single_point_graph_span_sec);
+      tr = fullTr;
     }
     var t0 = tr[0];
     var t1 = tr[1];
@@ -801,6 +802,8 @@
       rawPoints: rawPoints,
       t0: t0,
       t1: t1,
+      fullT0: fullTr[0],
+      fullT1: fullTr[1],
       x0: x0,
       x1: x1,
       y0: y0,

@@ -3522,8 +3522,8 @@
     }
     var c = $("graphCanvas");
     var ds = c && c._drawState;
-    if (ds && ds.t0 != null && ds.t1 != null) {
-      var fullSpan = ds.t1 - ds.t0;
+    if (ds && ds.fullT0 != null && ds.fullT1 != null) {
+      var fullSpan = ds.fullT1 - ds.fullT0;
       var curSpan = window._graphZoom[1] - window._graphZoom[0];
       if (curSpan > 0 && fullSpan > curSpan * 0.999) {
         var factor = fullSpan / curSpan;
