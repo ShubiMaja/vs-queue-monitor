@@ -941,11 +941,7 @@
       startEpoch = points[0][0];
     }
     var sessions = (state && state.queue_sessions) || [];
-    var activeId = Number(state && state.active_queue_session_id);
     var displayIndex = sessions.length + 1;
-    if (Number.isFinite(activeId) && activeId >= 0) {
-      displayIndex = Math.max(displayIndex, activeId + 1);
-    }
     var latestName = "Session " + displayIndex;
     var startText = formatSessionStart(startEpoch);
     return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
