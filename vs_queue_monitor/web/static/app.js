@@ -989,7 +989,7 @@
     var out = [];
     var i;
     var thresholds = [];
-    var showWarnings = !isPastSession && state && state.graph_live_view !== false;
+    var showWarnings = !isPastSession && !!state;
     if (showWarnings) {
       try {
         thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
