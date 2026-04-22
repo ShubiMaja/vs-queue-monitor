@@ -45,6 +45,66 @@ except Exception:  # pragma: no cover
     WebPushException = Exception  # type: ignore
     webpush = None  # type: ignore
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
+_SECRETS_DIR = _PROJECT_ROOT / ".secrets"
+_PRIVATE_KEY_FILE = _SECRETS_DIR / "vapid_private.pem"
+
+
+def _read_env_file() -> dict[str, str]:
+    if not _ENV_FILE.is_file():
+        return {}
+    result: dict[str, str] = {}
+    for raw in _ENV_FILE.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        v = v.strip()
+        if v and v[0] in ('"', "'") and v[-1] == v[0]:
+            v = v[1:-1]
+        result[k.strip()] = v
+    return result
+
+
+def _write_env_file(data: dict[str, str]) -> None:
+    _ENV_FILE.write_text(
+        "\n".join(f"{k}={v}" for k, v in data.items()) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _auto_setup_vapid() -> None:
+    """Generate VAPID keys automatically on first run if pywebpush is available."""
+    if _PRIVATE_KEY_FILE.is_file() and os.environ.get("VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY", "").strip():
+        return
+    try:
+        import base64
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        from py_vapid import Vapid
+    except Exception:
+        return
+    try:
+        v = Vapid()
+        v.generate_keys()
+        _SECRETS_DIR.mkdir(exist_ok=True)
+        _PRIVATE_KEY_FILE.write_bytes(v.private_pem())
+        pub_bytes = v.public_key.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+        public_key = base64.urlsafe_b64encode(pub_bytes).rstrip(b"=").decode()
+        existing = _read_env_file()
+        existing.setdefault("VS_QUEUE_MONITOR_VAPID_SUBJECT", "mailto:vsqm@example.invalid")
+        existing["VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY"] = public_key
+        existing["VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY"] = ".secrets/vapid_private.pem"
+        _write_env_file(existing)
+        os.environ.setdefault("VS_QUEUE_MONITOR_VAPID_SUBJECT", existing["VS_QUEUE_MONITOR_VAPID_SUBJECT"])
+        os.environ["VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY"] = public_key
+        os.environ["VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY"] = str(_PRIVATE_KEY_FILE)
+    except Exception:
+        pass
+
+
+_auto_setup_vapid()
+
 _PUSH_LOCK = threading.RLock()
 
 

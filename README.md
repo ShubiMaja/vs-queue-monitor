@@ -147,6 +147,26 @@ The tunnel forwards your laptop's port 8765 to the server's loopback - nothing i
 
 > **Tip:** add `-N` to the SSH command (`ssh -N -L ...`) to open just the tunnel without a shell.
 
+## Mobile push notifications (optional)
+
+Push notifications let your phone buzz when you reach the front of the queue — even if the browser tab is in the background. They require HTTPS (ngrok or an SSH tunnel works) and a one-time browser permission grant.
+
+**1. Install the push dependency** (if not already installed):
+
+```bash
+pip install pywebpush
+```
+
+**2. Restart VS Queue Monitor.** VAPID keys are generated automatically on first startup when `pywebpush` is available. Keys are written to `.secrets/vapid_private.pem` and `.env` — no manual setup needed.
+
+**3. Open the app over HTTPS** (ngrok or SSH tunnel — see sections above).
+
+**4. Click the bell icon** in the top bar and grant notification permission. The browser registers your device automatically. Every subscribed device will receive push notifications going forward.
+
+> **Why HTTPS?** Browsers block push subscriptions on plain HTTP outside localhost. Use ngrok or an SSH tunnel for remote/mobile access.
+>
+> **Custom email in VAPID subject:** If you want to use your own email instead of the default placeholder, set `VS_QUEUE_MONITOR_VAPID_SUBJECT=mailto:you@example.com` in `.env` before first startup, or run `python setup-push-notifications.py` to regenerate keys interactively.
+
 ## Disclaimer
 
 **Not affiliated with Vintage Story.** AI-assisted code - validate alerts and ETAs yourself. No warranty.
