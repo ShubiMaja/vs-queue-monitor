@@ -2,13 +2,16 @@
 
 ## Open
 
+Bug: we stopped respecting the correct format for active and inactive buttons. see the autofollow button: the History autoscroll toggle now uses the same subtle active/inactive treatment as the graph toggles -- but the graph toggles now vioilate themselves. also copy button always is right most
+
+visual bug: warnings should scroll to last triggered warning on each trigger
+
 ## Fixed (closed)
 
 ~~Bug: latest session index looks off... there's only 1 other session in the list. shouldnt it be 2?~~
 Fixed: the live session dropdown now uses the same one-based session numbering scheme as the historical labels, so the current run shows as the next visible session number instead of a raw zero-based id (v1.0.313)
 
-~~Bug: we stopped respecting the correct format for active and inactive buttons. see the autofllow button~~
-Fixed: the History autoscroll toggle now uses the same subtle active/inactive treatment as the graph toggles, so pressed state styling is consistent again (v1.0.312)
+
 
 ~~Bug: session id is missing for latest session e.g. if last one was session 1 we are session 2~~
 Fixed: the live session dropdown now falls back to `max historical session id + 1` when the active id is not present in state, so the latest run still gets a concrete session number (v1.0.312)

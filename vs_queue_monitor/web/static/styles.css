@@ -909,15 +909,22 @@ select.inp:focus-visible {
   flex: 0 0 auto;
   margin-left: auto;
 }
+.graph-toolbar__right > .btn {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--muted);
+}
+.graph-toolbar__right > .btn .icon {
+  opacity: 0.58;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.graph-toolbar__right > .btn:hover .icon {
+  opacity: 0.78;
+}
 .graph-toolbar__right > .btn.btn--toggle {
   color: var(--muted);
 }
 .graph-toolbar__right > .btn.btn--toggle .icon {
-  opacity: 0.58;
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-.graph-toolbar__right > .btn.btn--toggle:hover .icon {
-  opacity: 0.78;
 }
 .graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"] {
   color: var(--text);
