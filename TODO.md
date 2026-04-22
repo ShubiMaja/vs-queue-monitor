@@ -117,11 +117,13 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
-- instead of callling it latest session (auto) in the dropdown, just use the same ofrmat as the older entries and have it say (latest) at the end of the name
 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
+
+~~Tweak: instead of callling it latest session (auto) in the dropdown, just use the same ofrmat as the older entries and have it say (latest) at the end of the name~~
+Done: the live session dropdown entry now follows the same `Session — timestamp` format as historical rows and appends `(latest)` instead of using the special `Latest session (auto)` wording (v1.0.311)
 
 ~~Tweak: the warn, error dots should be small, the same size as the blue dot~~
 Done: warning/connect/disconnect dots now use the same radius as the normal blue graph marker (v1.0.308)

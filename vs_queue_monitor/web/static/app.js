@@ -921,6 +921,34 @@
     return Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2;
   }
 
+  function formatLatestSessionOptionLabel(state, latestStatus) {
+    var startEpoch = null;
+    var points = (state && state.graph_points) || [];
+    if (points.length) {
+      startEpoch = points[0][0];
+    }
+    var activeId = Number(state && state.active_queue_session_id);
+    var latestName = Number.isFinite(activeId) && activeId >= 0
+      ? ("Session " + activeId)
+      : "Session";
+    var startText = formatSessionStart(startEpoch);
+    return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
+  }
+
+  function formatLatestSessionOptionLabelClean(state, latestStatus) {
+    var startEpoch = null;
+    var points = (state && state.graph_points) || [];
+    if (points.length) {
+      startEpoch = points[0][0];
+    }
+    var activeId = Number(state && state.active_queue_session_id);
+    var latestName = Number.isFinite(activeId) && activeId >= 0
+      ? ("Session " + activeId)
+      : "Session";
+    var startText = formatSessionStart(startEpoch);
+    return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
+  }
+
   function parseAlertThresholdValues(raw) {
     const set = {};
     function addToken(part) {
@@ -1095,7 +1123,7 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.textContent = latestStatus.icon + " Latest session (auto)";
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
     opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
