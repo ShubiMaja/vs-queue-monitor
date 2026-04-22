@@ -88,9 +88,36 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any
         # the smaller TAIL_BYTES window.
         tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
         sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
+        active_ids: set[int] = set()
+        if getattr(engine, "_last_queue_run_session", None) is not None:
+            try:
+                active_ids.add(int(engine._last_queue_run_session))
+            except Exception:
+                pass
         if tail_text and engine.running:
-            _pos, active_id = parse_tail_last_queue_reading(tail_text)
-            sessions = [s for s in sessions if s.get("session_id") != active_id]
+            _pos, tail_active_id = parse_tail_last_queue_reading(tail_text)
+            try:
+                active_ids.add(int(tail_active_id))
+            except Exception:
+                pass
+        if active_ids:
+            sessions = [s for s in sessions if int(s.get("session_id", -1)) not in active_ids]
+        if engine.running and not engine._interrupted_mode and sessions:
+            live_pos = engine.last_position
+            if live_pos is None and engine.current_point is not None:
+                live_pos = engine.current_point[1]
+            latest = sessions[-1]
+            latest_points = latest.get("points") or []
+            latest_completed = any(
+                isinstance(pt, (list, tuple)) and len(pt) >= 2 and int(pt[1]) <= 0
+                for pt in latest_points
+            )
+            if (
+                live_pos is not None
+                and not latest_completed
+                and int(latest.get("end_pos", -1)) == int(live_pos)
+            ):
+                sessions = sessions[:-1]
         return sessions
     except Exception:
         return []
@@ -444,6 +471,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
         "queue_sessions": _queue_sessions_for_engine(engine),
+        "active_queue_session_id": int(getattr(engine, "_last_queue_run_session", -1)),
         "build_fingerprint": _build_fingerprint(),
     }
 

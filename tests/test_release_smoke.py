@@ -126,3 +126,30 @@ def test_active_session_zero_not_listed_as_failed_history() -> None:
 
     sessions = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
+
+
+def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
+    root = Path(".tmp-release-smoke-tests-live-fallback")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 10",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine.running = True
+    engine._interrupted_mode = False
+    engine._last_queue_run_session = 99
+    engine.last_position = 10
+    engine.current_point = (1775763085.0, 10)
+    engine.graph_points = [(1775763055.0, 12), (1775763085.0, 10)]
+
+    sessions = _queue_sessions_for_engine(engine)
+    assert sessions == [], sessions

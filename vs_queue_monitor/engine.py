@@ -507,6 +507,7 @@ class QueueMonitorEngine:
         """Freeze elapsed and show Interrupted, but keep polling the log (no stop)."""
         if self._interrupted_mode:
             return
+        now = time.time()
         self._interrupted_mode = True
         self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
         self._interrupt_baseline_session = self._last_queue_run_session

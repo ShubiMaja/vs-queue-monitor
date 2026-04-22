@@ -849,6 +849,50 @@
     return { icon: "✕", label: "Failed" };
   }
 
+  function sessionLooksLikeCurrentRun(sess, state) {
+    if (!sess || !state || !state.running || state.interrupted_mode) {
+      return false;
+    }
+    var activeId = Number(state.active_queue_session_id);
+    var sessId = Number(sess.session_id);
+    if (Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
+      return true;
+    }
+    var pts = state.graph_points || [];
+    if (!pts.length) {
+      return false;
+    }
+    var currentPos = null;
+    if (state.current_point && state.current_point.length >= 2) {
+      currentPos = Number(state.current_point[1]);
+    }
+    if (!Number.isFinite(currentPos)) {
+      currentPos = Number(pts[pts.length - 1][1]);
+    }
+    if (!Number.isFinite(currentPos)) {
+      return false;
+    }
+    var sessPoints = sess.points || [];
+    var sessCompleted = false;
+    var i;
+    for (i = 0; i < sessPoints.length; i++) {
+      if (Number(sessPoints[i][1]) <= 0) {
+        sessCompleted = true;
+        break;
+      }
+    }
+    if (sessCompleted) {
+      return false;
+    }
+    var sessEndPos = Number(sess.end_pos);
+    if (!Number.isFinite(sessEndPos) || sessEndPos !== currentPos) {
+      return false;
+    }
+    var graphStart = Number(pts[0][0]);
+    var sessStart = Number(sess.start_epoch);
+    return Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2;
+  }
+
   function parseAlertThresholdValues(raw) {
     const set = {};
     function addToken(part) {
@@ -1007,7 +1051,9 @@
     if (!sel) {
       return;
     }
-    var sessions = s.queue_sessions || [];
+    var sessions = (s.queue_sessions || []).filter(function (sess) {
+      return !sessionLooksLikeCurrentRun(sess, s);
+    });
     sel.innerHTML = "";
     var opt0 = document.createElement("option");
     opt0.value = "latest";
