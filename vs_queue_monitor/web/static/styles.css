@@ -844,6 +844,9 @@ select.inp:focus-visible {
 .graph-canvas-wrap:focus-within .graph-canvas-actions {
   opacity: 1;
 }
+@media (hover: none) {
+  .graph-canvas-actions { opacity: 1; }
+}
 .graph-tooltip {
   position: fixed;
   z-index: 80;

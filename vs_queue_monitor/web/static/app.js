@@ -1634,6 +1634,7 @@
   function resizeCanvas() {
     if (!window._displayState) return;
     const c = $("graphCanvas");
+    if (!c) return;
     const wrap = c.parentElement;
     if (!wrap) return;
     const dpr = window.devicePixelRatio || 1;
@@ -2436,6 +2437,55 @@
         redrawGraphOnly();
       }
       c.style.cursor = "";
+    });
+
+    // Touch drag-to-zoom mirrors mouse drag
+    c.addEventListener("touchstart", function (ev) {
+      if (ev.touches.length !== 1) return;
+      var touch = ev.touches[0];
+      var rect = c.getBoundingClientRect();
+      var st = c._drawState;
+      if (!st) return;
+      var x = touch.clientX - rect.left;
+      if (x < st.x0 || x > st.x0 + st.plotW) return;
+      _dragStartX = x;
+      _dragSel = null;
+      ev.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchmove", function (ev) {
+      if (_dragStartX === null || ev.touches.length !== 1) return;
+      var touch = ev.touches[0];
+      var rect = c.getBoundingClientRect();
+      var curX = Math.max(0, Math.min(rect.width, touch.clientX - rect.left));
+      var st = c._drawState;
+      if (!st) return;
+      curX = Math.max(st.x0, Math.min(st.x0 + st.plotW, curX));
+      if (Math.abs(curX - _dragStartX) >= 4) {
+        _dragSel = { x0: _dragStartX, x1: curX, ds: st };
+        hideGraphTooltip();
+        window._graphHover = null;
+        redrawGraphOnly();
+      }
+      ev.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchend", function (ev) {
+      if (_dragStartX === null) return;
+      var hadSel = _dragSel;
+      _dragStartX = null;
+      if (hadSel && Math.abs(hadSel.x1 - hadSel.x0) >= 8) {
+        var tA = xToTime(Math.min(hadSel.x0, hadSel.x1));
+        var tB = xToTime(Math.max(hadSel.x0, hadSel.x1));
+        if (tA !== null && tB !== null && tB > tA) {
+          var ds = c._drawState;
+          if (ds && ds.t0 != null && ds.t1 != null) {
+            var fullSpan = ds.t1 - ds.t0;
+            window._graphZoom = (tB - tA >= fullSpan * 0.999) ? null : [tA, tB];
+            updateZoomResetBtn();
+          }
+        }
+      }
+      _dragSel = null;
+      redrawGraphOnly();
     });
   }
 
@@ -3769,6 +3819,35 @@
       zoomGraph(e.deltaY > 0 ? 1.5 : 1 / 1.5, centerT);
       e.preventDefault();
     }, { passive: false });
+
+    // Pinch-to-zoom on touch
+    var _pinchDist = null;
+    c.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) _pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }, { passive: true });
+    c.addEventListener("touchmove", function (e) {
+      if (e.touches.length !== 2 || _pinchDist === null) return;
+      var newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (newDist > 0) {
+        var factor = _pinchDist / newDist;
+        var midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        var rect = c.getBoundingClientRect();
+        var ds = c._drawState;
+        var centerT = ds ? ds.t0 + ((midX - rect.left - ds.x0) / ds.plotW) * (ds.t1 - ds.t0) : null;
+        zoomGraph(factor, centerT);
+        _pinchDist = newDist;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    c.addEventListener("touchend", function (e) {
+      if (e.touches.length < 2) _pinchDist = null;
+    }, { passive: true });
   }
 
   function setupGraphResize() {
