@@ -105,7 +105,6 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
-- It should be clear if the rate is Global Rate or other. Introduce Global Rate to stats. Global Rate: 1.8 m/p. use Global Rate in the graph overlay. rely on tooltip to explain what m/p is. min/pos
 
 
 
@@ -148,6 +147,9 @@ Done: added download button (arrow-down icon) next to Copy PNG; triggers canvas.
 
 ~~Tweak: use colored dots instead of warning/check/x symbols for session events~~
 Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, green=connect, red=disconnect) with dark stroke outline (v1.0.301)
+
+~~Tweak: clarify rate display; add Global Rate to stats; use m/p with tooltip~~
+Done: stats mini-panel now shows Avg Rate and Global Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302)
 
 # FEATURES
 

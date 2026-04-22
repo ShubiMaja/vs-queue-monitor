@@ -742,7 +742,7 @@
   function formatRateFromPoints(pts) {
     var stats = computePointSeriesStats(pts || []);
     if (stats.avgMinPerPos == null) return "";
-    return stats.avgMinPerPos.toFixed(2) + " min/pos";
+    return stats.avgMinPerPos.toFixed(2) + " m/p";
   }
 
   function formatRemainingFromPoints(pts, currentPos) {
@@ -769,13 +769,18 @@
     var elC = $("infoStatCleared");
     var elSp = $("infoStatSpan");
     var elA = $("infoStatAvg");
+    var elG = $("infoStatGlo");
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
       elA.textContent =
-        stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos";
+        stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
+    }
+    if (elG) {
+      var grate = window._lastState && window._lastState.global_rate;
+      elG.textContent = (grate && grate !== "—") ? grate.replace(" min/pos", " m/p") : "—";
     }
   }
 
@@ -789,7 +794,7 @@
       (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
       "\n" +
       "Rate: " +
-      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos") +
+      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p") +
       "\n";
     navigator.clipboard.writeText(text).then(
       function () {
