@@ -371,10 +371,9 @@
     if (axisVmax === axisVmin) {
       axisVmax = axisVmin + 1;
     }
+    var topHeadroomPx = Math.min(56, Math.max(28, plotH * 0.12));
     var drawVmin = axisVmin;
     var drawVmax = axisVmax;
-    var drawSpan = Math.max(1, axisVmax - axisVmin);
-    drawVmax += Math.max(0.6, drawSpan * 0.1);
 
     function xOf(t) {
       return x0 + ((t - t0) / (t1 - t0)) * plotW;
@@ -384,7 +383,7 @@
       var vv = Math.max(drawVmin, Math.min(drawVmax, v));
       if (!logScale) {
         var frac = (drawVmax - vv) / Math.max(1, drawVmax - drawVmin);
-        return y0 + frac * plotH;
+        return y0 + topHeadroomPx + frac * Math.max(1, plotH - topHeadroomPx);
       }
       var lvmin = Math.log(drawVmin + 1);
       var lvmax = Math.log(drawVmax + 1);
@@ -392,7 +391,7 @@
       var frac = lvmax <= lvmin ? 0 : (lvmax - lv) / (lvmax - lvmin);
       frac = Math.max(0, Math.min(1, frac));
       frac = Math.pow(frac, gamma);
-      return y0 + frac * plotH;
+      return y0 + topHeadroomPx + frac * Math.max(1, plotH - topHeadroomPx);
     }
 
     var axisColor = th.ui_graph_axis;
