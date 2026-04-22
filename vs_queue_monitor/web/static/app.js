@@ -796,6 +796,32 @@
     return computePointSeriesStats(pts);
   }
 
+  function computeRollingWindowMinPerPos(pts, avgWindow, opts) {
+    var points = pts || [];
+    var options = opts || {};
+    var windowSize = parseInt(avgWindow, 10);
+    if (!isFinite(windowSize) || isNaN(windowSize) || windowSize < 2) windowSize = 10;
+    if (points.length < 2) return null;
+    var recent = points.slice(-(windowSize + 1));
+    if (recent.length < 2) return null;
+    var t0 = Number(recent[0][0]);
+    var p0 = Number(recent[0][1]);
+    var t1 = Number(recent[recent.length - 1][0]);
+    var p1 = Number(recent[recent.length - 1][1]);
+    if (!isFinite(t0) || !isFinite(t1) || !isFinite(p0) || !isFinite(p1)) return null;
+    var drop = p0 - p1;
+    if (!(drop > 0)) return null;
+    var currentPos = Number(options.currentPos);
+    var dt;
+    if (options.useLiveNow && currentPos !== 0) {
+      dt = (Date.now() / 1000) - t0;
+    } else {
+      dt = t1 - t0;
+    }
+    if (!(dt > 0)) return null;
+    return dt / (drop * 60);
+  }
+
   function formatRateFromPoints(pts) {
     var stats = computePointSeriesStats(pts || []);
     if (stats.avgMinPerPos == null) return "";
@@ -823,6 +849,16 @@
     var stats = computeGraphSessionStats();
     var avgWindow = parseInt(window._lastState && window._lastState.avg_window, 10);
     if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
+    var displayPoints = (window._displayState && window._displayState.graph_points) || [];
+    var displayCurrent = window._displayState && window._displayState.current_point;
+    var rollingMpp = computeRollingWindowMinPerPos(
+      displayPoints,
+      avgWindow,
+      {
+        useLiveNow: selectedSessionKey === "latest" && !!(window._lastState && window._lastState.running),
+        currentPos: displayCurrent && displayCurrent.length ? displayCurrent[1] : null,
+      }
+    );
     var elS = $("infoStatStart");
     var elE = $("infoStatEnd");
     var elC = $("infoStatCleared");
@@ -837,7 +873,7 @@
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
       elA.textContent =
-        stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
+        rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p";
     }
     if (elG) {
       var grate = window._lastState && window._lastState.global_rate;

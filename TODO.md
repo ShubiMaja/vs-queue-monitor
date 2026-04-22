@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: Info stats `10p Rate` can disagree with the KPI rate because it is using a full-session average~~
+Fixed: the Info stats rolling-rate row now uses a true rolling-window calculation over the last N points, including live dwell for the active latest session, so it matches the KPI rate logic instead of showing a mislabeled full-session average (v1.0.336)
+
 ~~Bug: the web app sometimes plays a synthetic beep even when a normal configured alert sound exists~~
 Fixed: the browser now requests the effective warning/completion/failure sound from the local server and only falls back to the Web Audio beep when there is no usable sound file or playback fails (v1.0.331)
 
