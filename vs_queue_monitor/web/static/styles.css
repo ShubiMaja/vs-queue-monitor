@@ -1147,6 +1147,9 @@ select.inp:focus-visible {
   min-width: 32px;
   padding-left: 10px;
   padding-right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn--toggle[aria-pressed="true"] {
   background: rgba(87, 148, 242, 0.08);
