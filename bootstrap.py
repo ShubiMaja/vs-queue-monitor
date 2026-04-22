@@ -243,6 +243,28 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
         _eprint("(Could not create desktop shortcut; you can run vs-queue-monitor.cmd from the install folder.)")
 
 
+def _setup_push_notifications(py: Path, root: Path) -> None:
+    """Trigger VAPID key auto-generation so push notifications work from the first start."""
+    _eprint("Setting up push notifications...")
+    r = subprocess.run(
+        [
+            str(py),
+            "-c",
+            (
+                "import sys; sys.path.insert(0, r'" + str(root) + "'); "
+                "from vs_queue_monitor.web.push import _auto_setup_vapid, push_configured; "
+                "_auto_setup_vapid(); "
+                "print('  Push notifications ready.' if push_configured() "
+                "else '  Push notifications unavailable (pywebpush not installed).', file=sys.stderr)"
+            ),
+        ],
+        cwd=root,
+        check=False,
+    )
+    if r.returncode != 0:
+        _eprint("  (Push notification setup skipped.)")
+
+
 def _should_run_monitor_after_install() -> bool:
     """Respect VS_QUEUE_MONITOR_SKIP_RUN; if stdin is a TTY, ask to start now."""
     sk = os.environ.get("VS_QUEUE_MONITOR_SKIP_RUN", "").strip().lower()
@@ -293,6 +315,7 @@ def main() -> None:
 
     py = _ensure_venv(root)
     _pip_install(py, root)
+    _setup_push_notifications(py, root)
     _create_windows_desktop_shortcut(root)
     _print_launch_hint(root)
 
