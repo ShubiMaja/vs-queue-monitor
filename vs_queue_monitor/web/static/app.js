@@ -23,6 +23,7 @@
   var _lastWarnPassedSig = "";
   var _tourAutoShowFn = null;   // set by setupTour so applyState can trigger it
   var _audioCtx = null;
+  var _activeAlertAudio = [];
 
   function _getAudioContext() {
     if (_audioCtx) return _audioCtx;
@@ -56,6 +57,63 @@
         _beep();
       }
     } catch (e) {}
+  }
+
+  function _soundPathForKind(kind, state) {
+    if (!state) return "";
+    if (kind === "warning") return (state.alert_sound_path || "").trim();
+    if (kind === "completion") return (state.completion_sound_path || "").trim();
+    if (kind === "failure") return (state.failure_sound_path || "").trim();
+    return "";
+  }
+
+  function _soundUrlForKind(kind, state) {
+    var marker = _soundPathForKind(kind, state) || "default";
+    return "/api/sound/" + encodeURIComponent(kind) + "?v=" + encodeURIComponent(marker);
+  }
+
+  function _trackAlertAudio(audio) {
+    if (!audio) return;
+    _activeAlertAudio.push(audio);
+    function cleanup() {
+      var idx = _activeAlertAudio.indexOf(audio);
+      if (idx >= 0) _activeAlertAudio.splice(idx, 1);
+    }
+    audio.addEventListener("ended", cleanup, { once: true });
+    audio.addEventListener("error", cleanup, { once: true });
+  }
+
+  function playAlertSoundOrBeep(kind, state, fallbackFreq, fallbackDur) {
+    var url = _soundUrlForKind(kind, state);
+    var audio = null;
+    var fellBack = false;
+    function cleanup() {
+      if (!audio) return;
+      var idx = _activeAlertAudio.indexOf(audio);
+      if (idx >= 0) _activeAlertAudio.splice(idx, 1);
+      audio = null;
+    }
+    function fallback() {
+      if (fellBack) return;
+      fellBack = true;
+      cleanup();
+      playBrowserBeep(fallbackFreq, fallbackDur);
+    }
+    try {
+      audio = new Audio(url);
+      audio.preload = "auto";
+      _trackAlertAudio(audio);
+      audio.addEventListener("error", fallback, { once: true });
+      var playResult = audio.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.catch(function () {
+          fallback();
+        });
+      }
+    } catch (e) {
+      cleanup();
+      fallback();
+    }
   }
 
   function lsGetPath() {
@@ -1473,7 +1531,7 @@
       alertMsg !== "—"
     ) {
       toast(alertMsg, "warn");
-      if (s.sound_enabled !== false) { playBrowserBeep(880, 0.35); }
+      if (s.sound_enabled !== false) { playAlertSoundOrBeep("warning", s, 880, 0.35); }
       if (
         s.popup_enabled &&
         typeof Notification !== "undefined" &&
@@ -1491,7 +1549,7 @@
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
       toast("Queue completion: past queue wait - connecting (position 0).", "");
-      if (s.completion_sound !== false) { playBrowserBeep(1320, 0.5); }
+      if (s.completion_sound !== false) { playAlertSoundOrBeep("completion", s, 1320, 0.5); }
       if (
         s.completion_popup &&
         typeof Notification !== "undefined" &&
@@ -1509,7 +1567,7 @@
     const fseq = typeof s.failure_notify_seq === "number" ? s.failure_notify_seq : 0;
     if (lastFailureSeq !== null && fseq > lastFailureSeq) {
       toast("Queue interrupted — still watching the log.", "warn");
-      if (s.failure_sound !== false) { playBrowserBeep(440, 0.4); }
+      if (s.failure_sound !== false) { playAlertSoundOrBeep("failure", s, 440, 0.4); }
       if (
         s.failure_popup &&
         typeof Notification !== "undefined" &&

@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -25,6 +25,10 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
     SEED_LOG_TAIL_BYTES,
+    default_alert_sound_path_for_display,
+    default_completion_sound_path_for_display,
+    default_failure_sound_path_for_display,
+    expand_path,
     get_config_path,
     parse_alert_thresholds,
     parse_tail_last_queue_reading,
@@ -483,6 +487,54 @@ def _api_state(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+def _effective_sound_path(engine: QueueMonitorEngine, kind: str) -> Path | None:
+    if kind == "warning":
+        raw = (engine.alert_sound_path_var.get() or "").strip()
+        fallback = default_alert_sound_path_for_display
+    elif kind == "completion":
+        raw = (engine.completion_sound_path_var.get() or "").strip()
+        fallback = default_completion_sound_path_for_display
+    elif kind == "failure":
+        raw = (engine.failure_sound_path_var.get() or "").strip()
+        fallback = default_failure_sound_path_for_display
+    else:
+        return None
+    if raw:
+        path = expand_path(raw)
+        return path if path.is_file() else None
+    fallback_raw = fallback().strip()
+    if not fallback_raw:
+        return None
+    path = Path(fallback_raw)
+    return path if path.is_file() else None
+
+
+def _audio_media_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        return "audio/wav"
+    if suffix == ".mp3":
+        return "audio/mpeg"
+    if suffix == ".ogg" or suffix == ".oga":
+        return "audio/ogg"
+    if suffix == ".aiff" or suffix == ".aif":
+        return "audio/aiff"
+    if suffix == ".m4a":
+        return "audio/mp4"
+    return "application/octet-stream"
+
+
+def _api_sound(request: Request) -> Response:
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    kind = str(request.path_params.get("kind", "")).strip().lower()
+    with lock:
+        path = _effective_sound_path(engine, kind)
+    if path is None:
+        return Response(status_code=404)
+    return FileResponse(path, media_type=_audio_media_type(path), filename=path.name)
+
+
 async def _api_pick_path(request: Request) -> JSONResponse:
     """Open a native folder or file picker on the machine running Python (localhost UI)."""
     if not _gui_display_available():
@@ -798,6 +850,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
         Route("/api/state", _api_state, methods=["GET"]),
+        Route("/api/sound/{kind:str}", _api_sound, methods=["GET"]),
         Route("/api/pick_path", _api_pick_path, methods=["POST"]),
         Route("/api/config", _api_config, methods=["POST"]),
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
