@@ -849,6 +849,21 @@
     return { icon: "✕", label: "Failed" };
   }
 
+  function formatPositionDisplay(posRaw, statusRaw) {
+    var pos = posRaw == null ? "" : String(posRaw).trim();
+    var status = statusRaw == null ? "" : String(statusRaw).trim().toLowerCase();
+    if (!pos || pos === "—") {
+      return posRaw;
+    }
+    if (status === "completed" && pos === "0") {
+      return pos + " 🎉";
+    }
+    if (status === "at front" && pos === "1") {
+      return pos + " 🏃 Get Ready";
+    }
+    return posRaw;
+  }
+
   function sessionLooksLikeCurrentRun(sess, state) {
     if (!sess || !state || !state.running || state.interrupted_mode) {
       return false;
@@ -1306,7 +1321,7 @@
 
     setKpiMetric(
       $("kpiPos"),
-      s.position,
+      formatPositionDisplay(s.position, s.status),
       "No queue position in the log yet — start monitoring or check the log path.",
     );
     setKpiMetric($("kpiStatus"), s.status, "Engine status — idle until monitoring starts.");

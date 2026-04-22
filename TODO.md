@@ -106,13 +106,12 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-- add the tada white emoji to the position display when finally connected
-
-- add the Running man white emoji to the position display when at front 
-
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
+
+~~Tweak: add a little celebratory/readiness polish to the position display~~
+Done: the Position KPI now shows `0 🎉` on completion and `1 🏃 Get Ready` at the front while leaving the underlying numeric queue state unchanged (v1.0.309)
 
 ~~Tweak: graph dots / controls / labels still need a final polish pass~~
 Done: warning/disconnect dots now match the blue marker size; REL/LIN moved into the bottom-right footer beside zoom; PNG actions moved to a top-right canvas overlay; log activity copy now reads `Last log: ... ago`; KPI fallback keeps `min/pos` while stats/overlay use `m/p` (v1.0.308)
