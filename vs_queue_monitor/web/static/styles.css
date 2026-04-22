@@ -830,23 +830,6 @@ select.inp:focus-visible {
   overflow: hidden;
   border-radius: var(--radius-sm);
 }
-.graph-canvas-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 10;
-}
-.graph-canvas-wrap:hover .graph-canvas-actions,
-.graph-canvas-wrap:focus-within .graph-canvas-actions {
-  opacity: 1;
-}
-@media (hover: none) {
-  .graph-canvas-actions { opacity: 1; }
-}
 .graph-tooltip {
   position: fixed;
   z-index: 80;
@@ -943,7 +926,10 @@ select.inp:focus-visible {
 }
 .graph-toolbar__right > .btn.btn--toggle .icon {
 }
-.graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"] {
+.graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"],
+.graph-toolbar__right > .btn.btn--toggle[aria-pressed="true"]:hover {
+  background: transparent;
+  border-color: var(--line);
   color: var(--text);
   box-shadow: inset 0 0 0 1px rgba(159, 167, 179, 0.12);
 }

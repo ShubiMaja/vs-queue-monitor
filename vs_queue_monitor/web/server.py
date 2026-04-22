@@ -77,50 +77,29 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
+def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
+    """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
+
+    The engine's ``_last_queue_run_session`` is counted against the smaller TAIL_BYTES window
+    and disagrees with the session IDs in the SEED window used by ``queue_sessions_for_log_tail``.
+    Deriving the active ID directly from the SEED tail keeps all session IDs in the same
+    coordinate space, preventing historical sessions from being incorrectly filtered and
+    phantom sessions from leaking into the dropdown.
+    """
     path = engine.current_log_file
     if path is None or not path.is_file():
-        return []
+        return [], -1
     try:
-        # Use the same SEED_LOG_TAIL_BYTES tail for both calls so session counters
-        # (which start at 0 within the tail window) are consistent with each other.
-        # Using engine._last_queue_run_session would disagree because polling uses
-        # the smaller TAIL_BYTES window.
         tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
         sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-        active_ids: set[int] = set()
-        if getattr(engine, "_last_queue_run_session", None) is not None:
-            try:
-                active_ids.add(int(engine._last_queue_run_session))
-            except Exception:
-                pass
+        seed_active_id = -1
         if tail_text and engine.running:
-            _pos, tail_active_id = parse_tail_last_queue_reading(tail_text)
-            try:
-                active_ids.add(int(tail_active_id))
-            except Exception:
-                pass
-        if active_ids:
-            sessions = [s for s in sessions if int(s.get("session_id", -1)) not in active_ids]
-        if engine.running and not engine._interrupted_mode and sessions:
-            live_pos = engine.last_position
-            if live_pos is None and engine.current_point is not None:
-                live_pos = engine.current_point[1]
-            latest = sessions[-1]
-            latest_points = latest.get("points") or []
-            latest_completed = any(
-                isinstance(pt, (list, tuple)) and len(pt) >= 2 and int(pt[1]) <= 0
-                for pt in latest_points
-            )
-            if (
-                live_pos is not None
-                and not latest_completed
-                and int(latest.get("end_pos", -1)) == int(live_pos)
-            ):
-                sessions = sessions[:-1]
-        return sessions
+            _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+        if seed_active_id >= 0:
+            sessions = [s for s in sessions if int(s.get("session_id", -1)) != seed_active_id]
+        return sessions, seed_active_id
     except Exception:
-        return []
+        return [], -1
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -427,6 +406,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         rate_hdr = f"RATE (Rolling {n})"
     except Exception:
         rate_hdr = "RATE"
+    queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
     return {
         "version": VERSION,
         "running": engine.running,
@@ -470,8 +450,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
-        "queue_sessions": _queue_sessions_for_engine(engine),
-        "active_queue_session_id": int(getattr(engine, "_last_queue_run_session", -1)),
+        "queue_sessions": queue_sessions,
+        "active_queue_session_id": active_session_id,
         "build_fingerprint": _build_fingerprint(),
     }
 

@@ -758,6 +758,8 @@ class QueueMonitorEngine:
                 text = read_log_file_tail_text(self.current_log_file, TAIL_BYTES)
                 if text is None:
                     self._set_status_line('Waiting for log file')
+                elif not text.strip():
+                    self._set_status_line('Log file found — waiting for data')
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)

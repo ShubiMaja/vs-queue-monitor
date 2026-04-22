@@ -2,11 +2,23 @@
 
 ## Open
 
--  fix the colors for the graph buttons... fix them to use subtle highlights like history doe
+~~fix the colors for the graph buttons... fix them to use subtle highlights like history does~~
+Fixed: graph toolbar toggle buttons now explicitly cancel the global blue-tint pressed state with `background: transparent; border-color: var(--line)`, matching the same subtle treatment used by history controls (v1.0.323)
 
-- Every time i start and stop monitoring, the session id of the latest session increments
+~~copy and download buttons should be on the top right panel of graph together with live and trend button~~
+Fixed: copy and download moved from hover-only canvas overlay back into `.graph-toolbar__right` alongside trendline and live-follow; they now inherit the same muted icon/transparent styling as the other toolbar buttons (v1.0.323)
 
-- When monitoring stops a magical session is created out of thin air which is a non live session of the session before it
+~~Every time i start and stop monitoring, the session id of the latest session increments~~
+Fixed: `_queue_sessions_for_engine` no longer uses `engine._last_queue_run_session` (which is counted in the small TAIL_BYTES window) to filter the active session; it now derives the active session ID directly from the same SEED_LOG_TAIL_BYTES tail used by `queue_sessions_for_log_tail`, keeping both in the same coordinate space (v1.0.323)
+
+~~When monitoring stops a magical session is created out of thin air which is a non live session of the session before it~~
+Fixed: same root cause as session-id increment — TAIL/SEED window mismatch caused `active_ids` to filter a wrong historical session while the real current session leaked into the dropdown; resolved by the SEED-only filter (v1.0.323)
+
+~~when the logs file is empty status shows as error~~
+Fixed: empty log file (text = "") now shows "Log file found — waiting for data" instead of falling through to "Warning: no queue detected" (v1.0.323)
+
+~~there should be a way to indicate that the log file was loaded but contains no data yet~~
+Fixed: same as above — empty file gets its own status distinct from "Waiting for log file" (no file) and "Warning: no queue detected" (file has content but no queue lines) (v1.0.323)
 
 ## Fixed (closed)
 
