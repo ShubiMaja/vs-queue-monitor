@@ -103,12 +103,15 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
+- the warn, error dots should be the same size as the blue dot
+
+- rel and lin go on the bottom right to the left of the zoom indicator.
+
+- Shorten log active message to Last log: 2s ago 
+
+- copy symbol for graph goes in the top right
+
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
-
-
-
-
-
 
 ## Implemented
 
