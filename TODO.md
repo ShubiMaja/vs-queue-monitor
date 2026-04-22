@@ -167,6 +167,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: warning dots should be disabled on non-current sessions for now~~
+Done: the Warning dots toolbar button now disables and grays out on past sessions, matching the fact that warning markers are only available on the latest session (v1.0.338)
+
 ~~Tweak: latest session number should count sessions with data, not raw log boundaries~~
 Done: the live session number now advances by the visible historical sessions-with-data count rather than raw boundary count, which keeps the latest-session label in step with what the dropdown actually shows (v1.0.324)
 

@@ -1445,9 +1445,14 @@
     }
     var btnWarn = $("btnGraphWarn");
     if (btnWarn) {
-      var warnOn = window._graphShowWarnings !== false;
+      var warnAvailable = selectedSessionKey === "latest";
+      var warnOn = warnAvailable && window._graphShowWarnings !== false;
       btnWarn.setAttribute("aria-pressed", warnOn ? "true" : "false");
-      btnWarn.title = warnOn ? "Warning dots on" : "Warning dots off";
+      btnWarn.disabled = !warnAvailable;
+      btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
+      btnWarn.title = !warnAvailable
+        ? "Warning dots are only available on the latest session"
+        : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
     var btnTrend = $("btnGraphTrend");
@@ -3921,6 +3926,7 @@
     if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
     var btnWarnToggle = $("btnGraphWarn");
     if (btnWarnToggle) btnWarnToggle.onclick = function () {
+      if (selectedSessionKey !== "latest") return;
       window._graphShowWarnings = !window._graphShowWarnings;
       syncGraphToolbarButtons(window._lastState || {});
       redrawGraphOnly();
