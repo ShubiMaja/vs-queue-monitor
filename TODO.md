@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the web app sometimes plays a synthetic beep even when a normal configured alert sound exists~~
+Fixed: the browser now requests the effective warning/completion/failure sound from the local server and only falls back to the Web Audio beep when there is no usable sound file or playback fails (v1.0.331)
+
 ~~fix the colors for the graph buttons... fix them to use subtle highlights like history does~~
 Fixed: graph toolbar toggle buttons now explicitly cancel the global blue-tint pressed state with `background: transparent; border-color: var(--line)`, matching the same subtle treatment used by history controls (v1.0.323)
 
@@ -157,6 +160,21 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 - Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
 
 ## Implemented
+
+~~Tweak: latest session number should count sessions with data, not raw log boundaries~~
+Done: the live session number now advances by the visible historical sessions-with-data count rather than raw boundary count, which keeps the latest-session label in step with what the dropdown actually shows (v1.0.324)
+
+~~Tweak: add a warning dots toggle to the graph toolbar~~
+Done: the graph toolbar now includes a dedicated warning-dots toggle so warning markers can be shown or hidden without leaving the chart controls (v1.0.325)
+
+~~Tweak: warning dots toggle icon should be an empty circle~~
+Done: the warning-dots toggle settled on a plain empty-circle icon and the icon-only controls were vertically centered to match the rest of the graph toolbar (v1.0.327/330)
+
+~~Tweak: graph toolbar icon highlights should stay subtle like History controls~~
+Done: graph icon buttons now use the same neutral base and subtle pressed treatment as the History controls instead of brighter tinted highlights (v1.0.330)
+
+~~Tweak: stats should call the rolling window `10p Rate`, while the canvas overlay should show the global rate~~
+Done: the Info stats row now labels the rolling metric as `10p Rate`, the KPI bar wording stays unchanged, and the canvas overlay now surfaces `Global Rate` instead of the rolling-window value (v1.0.333)
 
 ~~Tweak: instead of callling it latest session (auto) in the dropdown, just use the same ofrmat as the older entries and have it say (latest) at the end of the name~~
 Done: the live session dropdown entry now follows the same `Session — timestamp` format as historical rows and appends `(latest)` instead of using the special `Latest session (auto)` wording (v1.0.311)
