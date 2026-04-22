@@ -99,7 +99,7 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 ### Must stay aligned (behavioral parity)
 
 - **Queue semantics:** Position, “at front,” **completed** (past queue wait), **interrupted**, and **no queue detected** mean the same thing.
-- **Numbers:** Rolling rate, global rate, elapsed, ETA, progress percent, and alert firing rules (downward crossings; once per threshold per run; completion ≠ “threshold at 0”).
+- **Numbers:** Rolling rate, full rate, elapsed, ETA, progress percent, and alert firing rules (downward crossings; once per threshold per run; completion ≠ “threshold at 0”).
 - **Settings meaning:** Poll interval, thresholds, rolling window, alert toggles, “log every change” defaults and effects on History.
 - **Vocabulary:** Same status strings/KPI labels where space allows.
 

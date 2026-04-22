@@ -174,7 +174,7 @@ Done: the warning-dots toggle settled on a plain empty-circle icon and the icon-
 Done: graph icon buttons now use the same neutral base and subtle pressed treatment as the History controls instead of brighter tinted highlights (v1.0.330)
 
 ~~Tweak: stats should call the rolling window `10p Rate`, while the canvas overlay should show the global rate~~
-Done: the Info stats row now labels the rolling metric as `10p Rate`, the KPI bar wording stays unchanged, and the canvas overlay now surfaces `Global Rate` instead of the rolling-window value (v1.0.333)
+Done: the Info stats row now labels the rolling metric as `10p Rate`, the KPI bar wording stays unchanged, and the canvas overlay now surfaces `Full Rate` instead of the rolling-window value (v1.0.333)
 
 ~~Tweak: instead of callling it latest session (auto) in the dropdown, just use the same ofrmat as the older entries and have it say (latest) at the end of the name~~
 Done: the live session dropdown entry now follows the same `Session — timestamp` format as historical rows and appends `(latest)` instead of using the special `Latest session (auto)` wording (v1.0.311)
@@ -237,7 +237,7 @@ Done: added download button (arrow-down icon) next to Copy PNG; triggers canvas.
 Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, green=connect, red=disconnect) with dark stroke outline (v1.0.301)
 
 ~~Tweak: clarify rate display; add Global Rate to stats; use m/p with tooltip~~
-Done: stats mini-panel now shows Avg Rate and Global Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302)
+Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302)
 
 # FEATURES
 

@@ -631,7 +631,7 @@
       );
       var overlayGlobalRate = (state.global_rate || "").replace(" min/pos", " m/p");
       overlayLines.push(
-        "Global Rate: " + (overlayGlobalRate && overlayGlobalRate !== "—" ? overlayGlobalRate : "-")
+        "Full Rate: " + (overlayGlobalRate && overlayGlobalRate !== "—" ? overlayGlobalRate : "-")
       );
       ctx.font = "11px system-ui,Segoe UI,sans-serif";
       ctx.textBaseline = "top";
