@@ -2,6 +2,8 @@
 
 ## Open
 
+## Fixed (closed)
+
 ~~fix the colors for the graph buttons... fix them to use subtle highlights like history does~~
 Fixed: graph toolbar toggle buttons now explicitly cancel the global blue-tint pressed state with `background: transparent; border-color: var(--line)`, matching the same subtle treatment used by history controls (v1.0.323)
 
@@ -19,8 +21,6 @@ Fixed: empty log file (text = "") now shows "Log file found — waiting for data
 
 ~~there should be a way to indicate that the log file was loaded but contains no data yet~~
 Fixed: same as above — empty file gets its own status distinct from "Waiting for log file" (no file) and "Warning: no queue detected" (file has content but no queue lines) (v1.0.323)
-
-## Fixed (closed)
 
 ~~behavioral bug:, atm the graph overflows back to min zoom, don't do that~~
 Fixed: zooming now clamps against the graph's real full-range bounds instead of treating the current zoom window as the full extent, so zoom-out no longer snaps back unexpectedly (v1.0.316)
