@@ -607,17 +607,23 @@ async def _api_config(request: Request) -> JSONResponse:
 def _api_toggle(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     lock: threading.RLock = request.app.state.lock
-    with lock:
-        engine.toggle_monitoring()
-    return JSONResponse({"ok": True})
+    try:
+        with lock:
+            engine.toggle_monitoring()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 def _api_reset(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     lock: threading.RLock = request.app.state.lock
-    with lock:
-        engine.reset_defaults()
-    return JSONResponse({"ok": True})
+    try:
+        with lock:
+            engine.reset_defaults()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 async def _api_new_queue(request: Request) -> JSONResponse:
