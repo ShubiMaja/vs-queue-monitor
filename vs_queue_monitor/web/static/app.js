@@ -582,15 +582,16 @@
         if (Math.abs(denom2) > 1e-9) {
           var bSlope = (n2 * sumTV - sumT * sumV) / denom2;
           var aInter = (sumV - bSlope * sumT) / n2;
-          var dpr2 = window.devicePixelRatio || 1;
+          // xOf/yOf return logical-pixel coords; the canvas context is already
+          // scaled by devicePixelRatio from the draw() call, so no dpr multiply.
           var txA = ds2.t0, txB = ds2.t1;
           var tyA = aInter + bSlope * txA, tyB = aInter + bSlope * txB;
-          var pxA = ds2.xOf(txA) * dpr2, pxB = ds2.xOf(txB) * dpr2;
-          var pyA = ds2.yOf(tyA) * dpr2, pyB = ds2.yOf(tyB) * dpr2;
+          var pxA = ds2.xOf(txA), pxB = ds2.xOf(txB);
+          var pyA = ds2.yOf(tyA), pyB = ds2.yOf(tyB);
           ctx.save();
           ctx.strokeStyle = "rgba(255,200,80,0.7)";
-          ctx.lineWidth = 1.5 * dpr2;
-          ctx.setLineDash([4 * dpr2, 4 * dpr2]);
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
           ctx.beginPath();
           ctx.moveTo(pxA, pyA);
           ctx.lineTo(pxB, pyB);
@@ -1048,36 +1049,22 @@
     }
     sel.addEventListener("change", function () {
       selectedSessionKey = sel.value || "latest";
+      // Do NOT persist graph_live_view here — session changes are transient display
+      // decisions and should not overwrite the saved live-follow preference.
       var nextLive = selectedSessionKey === "latest";
-      function finishSessionChange() {
-        try {
-          lsSetSession(selectedSessionKey);
-        } catch (e) {}
-        updateSessionBadge();
-        if (window._lastState) {
-          syncGraphToolbarButtons(window._lastState);
-          window._displayState = buildDisplayState(window._lastState);
-          redrawGraphOnly();
-          renderSessionStats();
-        }
+      if (window._lastState) {
+        window._lastState.graph_live_view = nextLive;
       }
-      if (!window._lastState) {
-        finishSessionChange();
-        return;
+      try {
+        lsSetSession(selectedSessionKey);
+      } catch (e) {}
+      updateSessionBadge();
+      if (window._lastState) {
+        syncGraphToolbarButtons(window._lastState);
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+        renderSessionStats();
       }
-      postConfig({ graph_live_view: nextLive })
-        .then(function (state) {
-          if (state && typeof state === "object") {
-            window._lastState = state;
-          } else if (window._lastState) {
-            window._lastState.graph_live_view = nextLive;
-          }
-          finishSessionChange();
-        })
-        .catch(function (e) {
-          toast(String(e.message || e), "warn");
-          finishSessionChange();
-        });
     });
   }
 
@@ -3481,6 +3468,14 @@
         }
         postReset()
           .then(function () {
+            return fetch("/api/state").then(function (r) { return r.json(); });
+          })
+          .then(function (s) {
+            if (s && typeof s === "object") {
+              window._lastState = s;
+              applyState(s);
+            }
+            $("modalSettings") && $("modalSettings").classList.add("hidden");
             toast("All settings reset to defaults.");
           })
           .catch(function (e) {
