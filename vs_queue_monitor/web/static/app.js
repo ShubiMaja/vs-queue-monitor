@@ -821,12 +821,16 @@
 
   function renderSessionStats() {
     var stats = computeGraphSessionStats();
+    var avgWindow = parseInt(window._lastState && window._lastState.avg_window, 10);
+    if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
     var elS = $("infoStatStart");
     var elE = $("infoStatEnd");
     var elC = $("infoStatCleared");
     var elSp = $("infoStatSpan");
+    var elALbl = $("infoStatAvgLbl");
     var elA = $("infoStatAvg");
     var elG = $("infoStatGlo");
+    if (elALbl) elALbl.textContent = avgWindow + "p Avg";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);

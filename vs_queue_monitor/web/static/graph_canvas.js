@@ -629,8 +629,12 @@
       overlayLines.push(
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
+      var overlayAvgWindow = parseInt(state.avg_window, 10);
+      if (!isFinite(overlayAvgWindow) || isNaN(overlayAvgWindow) || overlayAvgWindow < 1) {
+        overlayAvgWindow = 10;
+      }
       overlayLines.push(
-        "Rate: " +
+        overlayAvgWindow + "p Avg: " +
           (overlayStats.avgMinPerPos == null
             ? "-"
             : overlayStats.avgMinPerPos.toFixed(2) + " m/p")
