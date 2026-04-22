@@ -4,13 +4,6 @@
 
 
 
-
-- sound does not work on mobile phone browser , how do we solve that? should we?
-
-- notifications not working on mobile phone browser
-
-
-
 - on mobile the trend line is not rendered well
 
 
@@ -99,6 +92,12 @@ Fixed: removed devicePixelRatio multiplication from trendline coordinate calcula
 
 ~~Bug: on mobile the header and description are squeezed~~
 Fixed: tagline hidden and Tour button removed below 480px viewport so the title and action buttons have room to breathe (v1.0.297)
+
+~~Bug: sound does not work on mobile phone browser~~
+Fixed: added Web Audio API beep playback in the browser; alert/completion/failure events now play a browser-side tone (gated on sound settings) so mobile users hear alerts when the tab is open regardless of whether the server machine is audible (v1.0.298)
+
+~~Bug: notifications not working on mobile phone browser~~
+Fixed: requestPermissionFlow now detects non-secure context and shows a clear message that HTTPS is required for mobile notifications, with a pointer to ngrok/SSH tunnel setup in Help; removed misleading "Sound alerts still work" copy that implied server-side sound plays on the device (v1.0.298)
 
 ---
 

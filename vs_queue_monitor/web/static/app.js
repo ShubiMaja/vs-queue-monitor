@@ -21,6 +21,41 @@
   var notifySyncHint = null;
   var _historyAutoscroll = true;
   var _tourAutoShowFn = null;   // set by setupTour so applyState can trigger it
+  var _audioCtx = null;
+
+  function _getAudioContext() {
+    if (_audioCtx) return _audioCtx;
+    try {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {}
+    return _audioCtx;
+  }
+
+  function playBrowserBeep(freq, dur) {
+    try {
+      var ctx = _getAudioContext();
+      if (!ctx) return;
+      function _beep() {
+        try {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.value = freq || 880;
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (dur || 0.3));
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + (dur || 0.3));
+        } catch (e) {}
+      }
+      if (ctx.state === "suspended") {
+        ctx.resume().then(_beep).catch(function () {});
+      } else {
+        _beep();
+      }
+    } catch (e) {}
+  }
 
   function lsGetPath() {
     try {
@@ -1292,6 +1327,7 @@
       alertMsg !== "—"
     ) {
       toast(alertMsg, "warn");
+      if (s.sound_enabled !== false) { playBrowserBeep(880, 0.35); }
       if (
         s.popup_enabled &&
         typeof Notification !== "undefined" &&
@@ -1309,6 +1345,7 @@
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
       toast("Queue completion: past queue wait - connecting (position 0).", "");
+      if (s.completion_sound !== false) { playBrowserBeep(1320, 0.5); }
       if (
         s.completion_popup &&
         typeof Notification !== "undefined" &&
@@ -1326,6 +1363,7 @@
     const fseq = typeof s.failure_notify_seq === "number" ? s.failure_notify_seq : 0;
     if (lastFailureSeq !== null && fseq > lastFailureSeq) {
       toast("Queue interrupted — still watching the log.", "warn");
+      if (s.failure_sound !== false) { playBrowserBeep(440, 0.4); }
       if (
         s.failure_popup &&
         typeof Notification !== "undefined" &&
@@ -2398,13 +2436,20 @@
       if (typeof Notification === "undefined") {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        var httpsHint = (!window.isSecureContext && location.hostname !== "localhost")
+          ? " For mobile notifications, access this app over HTTPS (see Help for ngrok/SSH tunnel setup)."
+          : "";
+        toast("Desktop banners aren't supported here — open in a browser for that." + httpsHint, "warn");
+        return;
+      }
+      if (!window.isSecureContext && location.hostname !== "localhost") {
+        toast("Browser notifications require HTTPS on mobile. Access via ngrok or an SSH tunnel — see Help for setup.", "warn");
         return;
       }
       if (Notification.permission === "denied" && !_notifEverAsked) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
         return;
       }
       // Show a contextual tip near the bell button with browser-specific guidance.
@@ -2479,7 +2524,7 @@
         _hideNotifPermTip();
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't available in this window.", "warn");
       }
     }
 
@@ -2520,7 +2565,7 @@
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
               syncHint();
             })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
@@ -2688,13 +2733,13 @@
       if (typeof Notification === "undefined") {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't supported here — open in a browser for that.", "warn");
         return;
       }
       if (Notification.permission === "denied" && !_notifEverAsked) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
         return;
       }
       var t0 = Date.now();
@@ -2718,7 +2763,7 @@
               } else if (p === "denied") {
                 if (Date.now() - t0 < 300) {
                   _notifUnsupported = true;
-                  toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+                  toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
                 } else {
                   toast("Notifications were denied in the browser.", "warn");
                 }
@@ -2745,7 +2790,7 @@
       } catch (e) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't available in this window.", "warn");
       }
     }
 
@@ -2853,7 +2898,7 @@
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
               syncHint();
             })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
