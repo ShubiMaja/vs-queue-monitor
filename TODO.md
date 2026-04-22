@@ -4,6 +4,9 @@
 
 ## Fixed (closed)
 
+~~Bug: increasing the graph top band did not add any real visual headroom above the plotted line~~
+Fixed: the graph now adds top visual headroom inside the plotted y-range while keeping axis labels based on the true queue values, so the line no longer hugs the top without inventing fake fractional bounds (v1.0.347)
+
 ~~Bug: graph top-padding work also added unwanted left-side plot padding~~
 Fixed: removed the left-side time-range padding so the graph no longer drifts inward from the left while keeping the larger dark top padding band (v1.0.345)
 

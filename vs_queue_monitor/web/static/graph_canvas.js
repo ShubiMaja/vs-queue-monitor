@@ -366,23 +366,28 @@
     });
     var vmin = Math.min.apply(null, vals);
     var vmax = Math.max.apply(null, vals);
-    if (vmax === vmin) {
-      vmax = vmin + 1;
+    var axisVmin = Math.max(0, vmin);
+    var axisVmax = vmax;
+    if (axisVmax === axisVmin) {
+      axisVmax = axisVmin + 1;
     }
-    vmin = Math.max(0, vmin);
+    var drawVmin = axisVmin;
+    var drawVmax = axisVmax;
+    var drawSpan = Math.max(1, axisVmax - axisVmin);
+    drawVmax += Math.max(0.6, drawSpan * 0.1);
 
     function xOf(t) {
       return x0 + ((t - t0) / (t1 - t0)) * plotW;
     }
 
     function yOf(v) {
-      var vv = Math.max(vmin, Math.min(vmax, v));
+      var vv = Math.max(drawVmin, Math.min(drawVmax, v));
       if (!logScale) {
-        var frac = (vmax - vv) / Math.max(1, vmax - vmin);
+        var frac = (drawVmax - vv) / Math.max(1, drawVmax - drawVmin);
         return y0 + frac * plotH;
       }
-      var lvmin = Math.log(vmin + 1);
-      var lvmax = Math.log(vmax + 1);
+      var lvmin = Math.log(drawVmin + 1);
+      var lvmax = Math.log(drawVmax + 1);
       var lv = Math.log(vv + 1);
       var frac = lvmax <= lvmin ? 0 : (lvmax - lv) / (lvmax - lvmin);
       frac = Math.max(0, Math.min(1, frac));
@@ -401,22 +406,22 @@
     ctx.stroke();
 
     var tickStep = 5;
-    var start = Math.floor(vmin / tickStep) * tickStep;
-    var end = Math.ceil((vmax + tickStep - 1) / tickStep) * tickStep;
+    var start = Math.floor(axisVmin / tickStep) * tickStep;
+    var end = Math.ceil((axisVmax + tickStep - 1) / tickStep) * tickStep;
     var tickVals = [];
     var val;
     for (val = start; val <= end; val += tickStep) {
-      if (vmin <= val && val <= vmax) {
-        if (val === 0 && vmin > 0) {
+      if (axisVmin <= val && val <= axisVmax) {
+        if (val === 0 && axisVmin > 0) {
           continue;
         }
         tickVals.push(val);
       }
     }
-    if (vmin <= 5 && 5 <= vmax) {
+    if (axisVmin <= 5 && 5 <= axisVmax) {
       tickVals.push(1, 2, 3, 4, 5);
     }
-    tickVals.push(vmin, vmax);
+    tickVals.push(axisVmin, axisVmax);
     tickVals = Array.from(new Set(tickVals)).sort(function (a, b) {
       return b - a;
     });
