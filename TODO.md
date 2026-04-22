@@ -2,6 +2,12 @@
 
 ## Open
 
+-  fix the colors for the graph buttons... fix them to use subtle highlights like history doe
+
+- Every time i start and stop monitoring, the session id of the latest session increments
+
+- When monitoring stops a magical session is created out of thin air which is a non live session of the session before it
+
 ## Fixed (closed)
 
 ~~behavioral bug:, atm the graph overflows back to min zoom, don't do that~~
