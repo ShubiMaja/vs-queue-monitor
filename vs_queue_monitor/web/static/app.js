@@ -1732,7 +1732,7 @@
         html:
           '<p class="tutorial-lead"><strong>~2 minutes</strong> — set your logs folder, tune warnings and rolling average, then start.</p>' +
           "<ul class=\"tutorial-list\"><li>Paste the <strong>folder</strong> that contains <code>client-main.log</code> (Python reads the disk; nothing is uploaded).</li>" +
-          "<li>Warnings default to <strong>10, 5, 1</strong> (alerts on downward crossings).</li>" +
+          "<li>Warnings default to <strong>15, 10, 5, 3, 2, 1</strong> (alerts on downward crossings).</li>" +
           "<li>Rolling average defaults to <strong>10</strong> points.</li></ul>",
         sel: null,
       },
