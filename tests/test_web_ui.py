@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from playwright.sync_api import Page, expect
 
 
@@ -12,3 +15,27 @@ def test_dashboard_loads(page: Page, base_url: str) -> None:
     expect(page.locator("#pathSummaryText")).to_be_visible()
     expect(page.locator("#btnStartStop")).to_be_visible()
     expect(page.locator("#infoServer")).to_be_visible()
+
+
+def test_server_target_renders_for_seeded_log(page: Page, base_url: str, tmp_path: Path) -> None:
+    log_dir = tmp_path / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    filler = "9.4.2026 22:31:00 [Debug] filler " + ("x" * 240)
+    lines = [
+        "9.4.2026 22:30:53 [Notification] Connecting to gamma.example.net...",
+        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+    ] + [filler for _ in range(700)] + [
+        "9.4.2026 22:40:00 [Notification] Client is in connect queue at position: 11",
+    ]
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    r = page.context.request.post(
+        f"{base_url.rstrip('/')}/api/config",
+        data=json.dumps({"source_path": str(log_dir)}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.ok, r.text()
+
+    page.goto(base_url)
+    expect(page.locator("#infoServer")).to_have_text("gamma.example.net", timeout=15000)
