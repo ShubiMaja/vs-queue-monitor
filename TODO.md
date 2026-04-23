@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: adopting a detected queue run could bounce straight back into Interrupted and feel like an infinite loop~~
+Fixed: when an adopted queue run is already disconnected/reconnecting, the engine now keeps that run in Interrupted state instead of forcing a brief Monitoring state and re-entering Interrupted on the next poll (v1.1.11)
+
 ~~Bug: sound-file upload failed unless `python-multipart` was installed~~
 Fixed: the web sound upload endpoint now accepts raw file bytes with filename/type headers instead of multipart form parsing, so upload no longer depends on `python-multipart` (v1.1.10)
 

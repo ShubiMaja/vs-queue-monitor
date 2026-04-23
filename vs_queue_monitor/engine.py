@@ -590,11 +590,7 @@ class QueueMonitorEngine:
 
     def _accept_new_queue_from_log(self) -> None:
         """Leave interrupted state and seed the graph from the current log (new queue run)."""
-        self._interrupted_mode = False
-        self._interrupted_elapsed_sec = None
-        self._frozen_rates_at_interrupt = None
         self._dismissed_new_queue_session = None
-        self._interrupt_baseline_session = -1
         path = self.current_log_file
         if path is None or not path.is_file():
             self.write_history('Cannot load new queue: log file missing.')
@@ -612,7 +608,32 @@ class QueueMonitorEngine:
         self._queue_completion_notified_this_run = False
         ok = self._reseed_graph_for_new_run(path)
         if ok:
-            self._set_status_line('Monitoring')
+            tail_text = read_log_file_tail_text(path, TAIL_BYTES)
+            adopted_kind = None
+            adopted_pos = None
+            if tail_text:
+                adopted_kind, _tail_pos = classify_tail_connection_state(tail_text)
+                adopted_pos, _tail_sess = parse_tail_last_queue_reading(tail_text)
+            stays_interrupted = (
+                adopted_kind == 'disconnected'
+                or (
+                    adopted_kind in ('reconnecting', 'grace')
+                    and not (adopted_pos is not None and adopted_pos <= 1)
+                )
+            )
+            if stays_interrupted:
+                self._interrupted_mode = True
+                self._interrupt_baseline_session = self._last_queue_run_session
+                self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
+                self._set_status_line('Interrupted', danger=True)
+                self.write_history('Adopted detected queue run; it is already interrupted, still watching the log.')
+            else:
+                self._interrupted_mode = False
+                self._interrupted_elapsed_sec = None
+                self._frozen_rates_at_interrupt = None
+                self._interrupt_baseline_session = -1
+                self._interrupt_entry_queue_line_epoch = None
+                self._set_status_line('Monitoring')
         else:
             self.write_history('Could not find queue data in the log for the new run.')
             self._set_status_line('Warning: no queue detected', danger=True)
