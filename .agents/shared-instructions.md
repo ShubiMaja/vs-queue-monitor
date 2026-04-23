@@ -30,7 +30,8 @@ When you finish a coherent change set:
 2. Update `README.md` when the change affects users.
 3. Run `python -m py_compile` on changed Python files before committing.
 4. Commit intentional changes with a clear message.
-5. Do not run `git push` unless the user explicitly asks.
+5. When a commit represents a release checkpoint, RC, stable milestone, or other user-designated snapshot, create an annotated git tag for it after the commit.
+6. Do not run `git push` unless the user explicitly asks.
 
 Do not commit generated junk, caches, secrets, or unrelated files.
 
