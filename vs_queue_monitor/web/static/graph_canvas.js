@@ -745,16 +745,9 @@
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
       var markerText = String(lastV);
       var markerTextW = ctx.measureText(markerText).width;
-      var placeAbove = lx + 10 + markerTextW > x1 - 2;
-      if (placeAbove) {
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
-        ctx.fillText(markerText, lx, ly - 9);
-      } else {
-        ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
-        ctx.fillText(markerText, lx + 10, ly);
-      }
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(markerText, Math.min(lx + 10, x1 - markerTextW - 2), ly);
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {
