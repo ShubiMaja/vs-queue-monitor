@@ -804,7 +804,15 @@
     var windowSize = parseInt(avgWindow, 10);
     if (!isFinite(windowSize) || isNaN(windowSize) || windowSize < 2) windowSize = 10;
     if (points.length < 2) return null;
-    var recent = points.slice(-(windowSize + 1));
+    // Deduplicate consecutive same-position heartbeat points so the window
+    // counts actual position changes, not poll ticks at a steady position.
+    var changes = [];
+    var lastPos = null;
+    for (var ci = 0; ci < points.length; ci++) {
+      var cp = Number(points[ci][1]);
+      if (cp !== lastPos) { changes.push(points[ci]); lastPos = cp; }
+    }
+    var recent = changes.slice(-(windowSize + 1));
     if (recent.length < 2) return null;
     var t0 = Number(recent[0][0]);
     var p0 = Number(recent[0][1]);
@@ -882,9 +890,10 @@
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
-      elA.textContent = rollingMpp != null
-        ? rollingMpp.toFixed(2) + " m/p"
+      var tenPRate = rollingMpp != null ? rollingMpp.toFixed(2) + " m/p"
+        : stats.avgMinPerPos != null ? stats.avgMinPerPos.toFixed(2) + " m/p"
         : (liveQueueRateDisplay || "—");
+      elA.textContent = tenPRate;
     }
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
