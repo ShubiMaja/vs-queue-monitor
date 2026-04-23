@@ -669,8 +669,10 @@
       var ds2 = canvas._drawState;
       if (ds2 && ds2.rawPoints && ds2.rawPoints.length >= 2) {
         var pts2 = ds2.rawPoints;
+        // Normalize timestamps to avoid catastrophic cancellation with large Unix epoch values.
+        var tBase = pts2[0][0];
         var n2 = pts2.length, sumT = 0, sumV = 0, sumTT = 0, sumTV = 0, i2;
-        for (i2 = 0; i2 < n2; i2++) { sumT += pts2[i2][0]; sumV += pts2[i2][1]; sumTT += pts2[i2][0] * pts2[i2][0]; sumTV += pts2[i2][0] * pts2[i2][1]; }
+        for (i2 = 0; i2 < n2; i2++) { var dt = pts2[i2][0] - tBase; sumT += dt; sumV += pts2[i2][1]; sumTT += dt * dt; sumTV += dt * pts2[i2][1]; }
         var denom2 = n2 * sumTT - sumT * sumT;
         if (Math.abs(denom2) > 1e-9) {
           var bSlope = (n2 * sumTV - sumT * sumV) / denom2;
@@ -678,7 +680,7 @@
           // xOf/yOf return logical-pixel coords; the canvas context is already
           // scaled by devicePixelRatio from the draw() call, so no dpr multiply.
           var txA = ds2.t0, txB = ds2.t1;
-          var tyA = aInter + bSlope * txA, tyB = aInter + bSlope * txB;
+          var tyA = aInter + bSlope * (txA - tBase), tyB = aInter + bSlope * (txB - tBase);
           var pxA = ds2.xOf(txA), pxB = ds2.xOf(txB);
           var pyA = ds2.yOf(tyA), pyB = ds2.yOf(tyB);
           ctx.save();
