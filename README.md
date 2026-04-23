@@ -74,6 +74,7 @@ python monitor.py
 
 ## Development notes
 
+- Documentation hub: [docs/README.md](docs/README.md)
 - Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
 - Release checkpoints use annotated git tags. Current stable release candidate tag: `stable-rc`.
 - Playwright web tests now sandbox config into a repo-local temp root and should not touch your real `%APPDATA%` / `XDG_CONFIG_HOME` settings.

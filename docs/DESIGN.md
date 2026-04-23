@@ -2,6 +2,12 @@
 
 This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a maintainable format.
 
+For documentation ownership:
+
+- `docs/README.md` is the documentation map
+- `WEB_UI_REGRESSIONS.md` holds web-client regression guardrails
+- `TODO.md` holds active/deferred/fixed bug history
+
 **Scope.** The shipping product is a **Python** application with a **local web UI** (Starlette on loopback + static client), sharing one engine (`vs_queue_monitor/engine.py`). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---

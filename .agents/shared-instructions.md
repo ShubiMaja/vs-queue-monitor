@@ -4,8 +4,9 @@ This file is the shared instruction baseline for coding agents working in this r
 
 ## Source Of Truth
 
-`docs/DESIGN.md` is the source of truth for product intent, UX decisions, vocabulary, and interaction patterns.
+`docs/README.md` is the documentation map. `docs/DESIGN.md` is the source of truth for product intent, UX decisions, vocabulary, and interaction patterns.
 
+- Consult `docs/README.md` first when deciding where documentation changes belong.
 - Consult `docs/DESIGN.md` before changing user-visible behavior.
 - If a requested change conflicts with the design contract, update the design doc first, then implement.
 - If a change affects user-visible behavior, update:
