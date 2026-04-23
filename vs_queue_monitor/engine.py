@@ -465,6 +465,7 @@ class QueueMonitorEngine:
         self._hooks.show_start_loading(False)
         self._apply_seed_result(seed_data)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
+        self._adopt_interrupted_tail_on_start(resolved)
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -482,6 +483,23 @@ class QueueMonitorEngine:
         if t is None or not completion_would_fire_for_tail(t):
             return
         self._queue_completion_notified_this_run = True
+
+    def _adopt_interrupted_tail_on_start(self, log_file: Path) -> None:
+        """If startup seeded a run that is already interrupted, keep it as the interrupted baseline."""
+        t = read_log_file_tail_text(log_file, TAIL_BYTES)
+        if not t:
+            return
+        kind, _tail_pos = classify_tail_connection_state(t)
+        pos, _queue_sess = parse_tail_last_queue_reading(t)
+        if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1)):
+            self._interrupted_mode = True
+            self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
+            self._interrupt_baseline_session = self._last_queue_run_session
+            self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
+            self._dismissed_new_queue_session = self._last_queue_run_session
+            self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
+            self._set_status_line('Interrupted', danger=True)
+            self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""

@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: after reload or restart, the latest already-disconnected run could be seeded and then re-offered as a new run again~~
+Fixed: startup now adopts an already-interrupted latest tail as the interrupted baseline immediately, so the same seeded disconnected session is not re-offered as a fresh run after restart (v1.1.13)
+
 ~~Bug: interrupted-mode new-run detection could keep offering runs that were already interrupted by the time they were seen~~
 Fixed: interrupted-mode detection now suppresses adoption prompts for newest runs that already classify as disconnected/reconnecting, so only genuinely live fresh runs are offered (v1.1.12)
 
