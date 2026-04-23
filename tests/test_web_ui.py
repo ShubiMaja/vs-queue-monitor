@@ -8,6 +8,13 @@ from pathlib import Path
 from playwright.sync_api import Page, expect
 
 
+def test_web_tests_use_isolated_config(page: Page, base_url: str) -> None:
+    r = page.context.request.get(f"{base_url.rstrip('/')}/api/meta")
+    assert r.ok, r.text()
+    meta = r.json()
+    assert ".tmp-playwright-config" in meta["config_path"]
+
+
 def test_dashboard_loads(page: Page, base_url: str) -> None:
     page.goto(base_url)
     expect(page.locator(".brand__title")).to_contain_text("VS Queue Monitor")

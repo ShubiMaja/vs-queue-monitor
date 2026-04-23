@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: Playwright web tests could persist `/api/config` changes into the real user config under `%APPDATA%`~~
+Fixed: test server fixtures now sandbox `APPDATA`/`XDG_CONFIG_HOME` into a repo-local temp config root, and browser coverage asserts the isolated config path is in use (v1.1.28)
+
 ~~Tweak: session-scoped log parsing was duplicated across multiple helpers, making session drift bugs easier to introduce~~
 Fixed: shared session-line iteration now drives queue-session parsing helpers so boundary/session semantics stay aligned across queue readings, session lists, and server-target parsing (v1.1.27)
 
@@ -220,6 +223,8 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
+
+Tweak: Mobile app should take full advantage of browser width as much as possible without uneccesasry padding
 
 ## Implemented
 

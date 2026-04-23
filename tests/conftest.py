@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import socket
 import threading
+from pathlib import Path
 from typing import Generator
 
 import pytest
@@ -42,7 +45,30 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def live_server_url() -> Generator[str, None, None]:
+def isolated_config_root() -> Generator[Path, None, None]:
+    root = Path(".tmp-playwright-config")
+    shutil.rmtree(root, ignore_errors=True)
+    root.mkdir(parents=True, exist_ok=True)
+    old_appdata = os.environ.get("APPDATA")
+    old_xdg = os.environ.get("XDG_CONFIG_HOME")
+    os.environ["APPDATA"] = str(root)
+    os.environ["XDG_CONFIG_HOME"] = str(root)
+    try:
+        yield root
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+        if old_appdata is None:
+            os.environ.pop("APPDATA", None)
+        else:
+            os.environ["APPDATA"] = old_appdata
+        if old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = old_xdg
+
+
+@pytest.fixture(scope="session")
+def live_server_url(isolated_config_root: Path) -> Generator[str, None, None]:
     lock = threading.RLock()
     hooks = WebMonitorHooks(lock)
     engine = QueueMonitorEngine(hooks, initial_path="", auto_start=False)
