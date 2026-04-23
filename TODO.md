@@ -281,6 +281,7 @@ Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed 
 
 # FEATURES
 
+Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.
 
 Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app
 
