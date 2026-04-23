@@ -56,6 +56,16 @@ pip install -r requirements.txt
 python monitor.py
 ```
 
+### Opening in a browser
+
+When the app is running it serves a local web UI on port **8765** (default). You can open it in any browser at any time — the embedded Chromium window and a standalone browser tab share the same live state:
+
+```
+http://localhost:8765
+```
+
+Use `--web-browser` to skip the embedded window and open your default browser instead. Use `--web-port PORT` to change the port.
+
 ## Features
 
 
