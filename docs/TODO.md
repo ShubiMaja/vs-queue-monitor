@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the server target feature was wired in state, but the current Info panel markup/binding did not actually render it~~
+Fixed: the Info panel now shows `Server` at the bottom, the web state binds `server_target` into that field, and the browser smoke test checks that the element exists (v1.1.23)
+
 ~~Bug: `10p Rate` and `Full Rate` in the Info stats panel could keep changing during Interrupted because the frontend kept recomputing them from the live latest-session graph~~
 Fixed: the Info stats panel now treats the active latest interrupted session as frozen, so `10p Rate` and `Full Rate` show `—` instead of continuing to recalculate while interrupted (v1.1.18)
 

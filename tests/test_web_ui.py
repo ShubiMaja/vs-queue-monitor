@@ -11,3 +11,4 @@ def test_dashboard_loads(page: Page, base_url: str) -> None:
     # Label is hidden above 900px (wide layout collapses it); check the path input itself instead
     expect(page.locator("#pathSummaryText")).to_be_visible()
     expect(page.locator("#btnStartStop")).to_be_visible()
+    expect(page.locator("#infoServer")).to_be_visible()

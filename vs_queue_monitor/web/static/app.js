@@ -1593,6 +1593,7 @@
 
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
+    $("infoServer").textContent = s.server_target || "—";
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
     const alertMsg = (s.last_alert_message || "").trim();
     if (
