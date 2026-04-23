@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
+from itertools import islice
 from typing import Any, Callable, Optional
 
 from ..refs import BoolRef, StrRef
@@ -114,5 +115,8 @@ class WebMonitorHooks:
     def window_geometry_for_save(self) -> str:
         return ""
 
-    def history_lines(self) -> list[str]:
-        return list(self._history)
+    def history_lines(self, limit: Optional[int] = None) -> list[str]:
+        if limit is None or limit >= len(self._history):
+            return list(self._history)
+        start = len(self._history) - limit
+        return list(islice(self._history, start, None))

@@ -8,6 +8,12 @@
 
 ## Fixed (closed)
 
+~~Tweak: session-scoped log parsing was duplicated across multiple helpers, making session drift bugs easier to introduce~~
+Fixed: shared session-line iteration now drives queue-session parsing helpers so boundary/session semantics stay aligned across queue readings, session lists, and server-target parsing (v1.1.27)
+
+~~Tweak: the web snapshot path did extra copying for history and rolling-window graph calculations~~
+Fixed: web history retrieval now slices the deque directly for the requested tail, and rolling-window rate helpers reuse a single deque snapshot/trail extraction path instead of repeatedly copying graph points (v1.1.27)
+
 ~~Bug: the Server field could still stay empty because the active queue session could advance past `Connecting to ...` due to extra non-queue boundary lines like `Initialized Server Connection`~~
 Fixed: server-target parsing now binds `Connecting to ...` to the next actual queue-position session, so the active session still gets the server even when extra boundary lines appear before queue positions (v1.1.26)
 

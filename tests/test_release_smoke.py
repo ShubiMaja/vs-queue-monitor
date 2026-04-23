@@ -181,6 +181,13 @@ def test_parse_tail_latest_connect_target_handles_extra_boundary_before_queue() 
     assert parse_tail_latest_connect_target(text, 2) == "tops.vintagestory.at"
 
 
+def test_history_lines_limit_returns_tail_slice() -> None:
+    hooks = WebMonitorHooks(threading.RLock())
+    for idx in range(5):
+        hooks._history.append(f"line-{idx}")
+    assert hooks.history_lines(2) == ["line-3", "line-4"]
+
+
 def test_server_target_refresh_falls_back_to_seed_window() -> None:
     root = Path(".tmp-release-smoke-tests-server-target")
     if root.exists():

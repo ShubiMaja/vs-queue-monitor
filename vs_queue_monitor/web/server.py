@@ -449,7 +449,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
-        "history_tail": hooks.history_lines()[-400:],
+        "history_tail": hooks.history_lines(400),
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),

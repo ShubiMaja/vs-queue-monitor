@@ -1141,17 +1141,23 @@ class QueueMonitorEngine:
         v_eff = speed * self._pred_speed_scale
         return remaining_positions / v_eff
 
-    def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
+    def _window_recent_points_and_trail(self) -> tuple[list[tuple[float, int]], list[int]]:
+        """Return the rolling-window slice and its position trail with one deque snapshot."""
         points = list(self.graph_points)
         if len(points) < 2:
-            return (None, 0, [p for _t, p in points])
+            return (points, [p for _t, p in points])
         try:
             window_points = int(float(self.avg_window_var.get()))
         except Exception:
             window_points = DEFAULT_PREDICTION_WINDOW_POINTS
         window_points = max(2, min(10000, window_points))
         recent = points[-(window_points + 1):]
-        trail = [p for _t, p in recent]
+        return (recent, [p for _t, p in recent])
+
+    def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
+        recent, trail = self._window_recent_points_and_trail()
+        if len(recent) < 2:
+            return (None, 0, trail)
         rates: list[float] = []
         for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
             dt = t1 - t0
@@ -1180,16 +1186,9 @@ class QueueMonitorEngine:
         At **position 0** (queue finished in the log), weights use the last sample time so the
         value does not drift after completion.
         """
-        points = list(self.graph_points)
-        if len(points) < 2:
-            return (None, 0, [p for _t, p in points])
-        try:
-            window_points = int(float(self.avg_window_var.get()))
-        except Exception:
-            window_points = DEFAULT_PREDICTION_WINDOW_POINTS
-        window_points = max(2, min(10000, window_points))
-        recent = points[-(window_points + 1):]
-        trail = [p for _t, p in recent]
+        recent, trail = self._window_recent_points_and_trail()
+        if len(recent) < 2:
+            return (None, 0, trail)
         now = time.time()
         if self._current_queue_position() == 0 and len(recent) >= 2:
             now = float(recent[-1][0])
@@ -1217,15 +1216,8 @@ class QueueMonitorEngine:
 
     def _window_recent_points(self) -> list[tuple[float, int]]:
         """Last N graph points per rolling window setting (same slice as speed helpers)."""
-        points = list(self.graph_points)
-        if len(points) < 2:
-            return []
-        try:
-            window_points = int(float(self.avg_window_var.get()))
-        except Exception:
-            window_points = DEFAULT_PREDICTION_WINDOW_POINTS
-        window_points = max(2, min(10000, window_points))
-        return points[-(window_points + 1):]
+        recent, _trail = self._window_recent_points_and_trail()
+        return recent if len(recent) >= 2 else []
 
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
         """Net positions per second over the rolling window.

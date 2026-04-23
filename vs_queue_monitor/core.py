@@ -14,7 +14,7 @@ import traceback
 from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Iterator, Optional, Union
 
 try:
     import winsound  # type: ignore
@@ -820,14 +820,12 @@ def queue_sessions_for_log_tail(
     if not text:
         return []
     by_sess: dict[int, list[tuple[float, int]]] = defaultdict(list)
-    session = 0
     last_t: Optional[float] = None
     last_pos_by_sess: dict[int, Optional[int]] = {}
     completed_by_sess: dict[int, bool] = defaultdict(bool)
     saw_any = False
-    for line in text.splitlines():
-        if is_queue_run_boundary_line(line):
-            session += 1
+    for session, line, is_boundary in iter_session_log_lines(text):
+        if is_boundary:
             continue
         m = queue_position_match(line)
         if m:
@@ -894,12 +892,10 @@ def queue_sessions_for_log_tail(
 def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
     """Parse queue position events as (time, position, queue_run_session); sorted by time."""
     out: list[tuple[float, int, int]] = []
-    session = 0
     last_t: Optional[float] = None
     last_pos: Optional[int] = None
-    for line in data.splitlines():
-        if is_queue_run_boundary_line(line):
-            session += 1
+    for session, line, is_boundary in iter_session_log_lines(data):
+        if is_boundary:
             continue
         m = queue_position_match(line)
         if not m:
@@ -928,11 +924,9 @@ def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
     (e.g. 108) when the log order is the ground truth for “current” position.
     """
     last_pos: Optional[int] = None
-    session = 0
     last_sess = 0
-    for line in data.splitlines():
-        if is_queue_run_boundary_line(line):
-            session += 1
+    for session, line, is_boundary in iter_session_log_lines(data):
+        if is_boundary:
             continue
         m = queue_position_match(line)
         if not m:
@@ -946,26 +940,34 @@ def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
     return last_pos, last_sess
 
 
+def iter_session_log_lines(data: str) -> Iterator[tuple[int, str, bool]]:
+    """Yield stripped log lines with the current queue-session id and boundary flag."""
+    session = 0
+    for raw in data.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        is_boundary = is_queue_run_boundary_line(line)
+        if is_boundary:
+            session += 1
+        yield session, line, is_boundary
+
+
 def parse_tail_latest_connect_target(data: str, session_id: Optional[int] = None) -> Optional[str]:
     """Latest ``Connecting to ...`` target in the tail, optionally scoped to one queue session."""
-    session = 0
     latest_target: Optional[str] = None
     target_by_session: dict[int, str] = {}
     pending_target: Optional[str] = None
-    for line in data.splitlines():
-        s = line.strip()
-        if not s:
-            continue
-        m = CONNECTING_TO_TARGET_RE.search(s)
+    for session, line, is_boundary in iter_session_log_lines(data):
+        m = CONNECTING_TO_TARGET_RE.search(line)
         if m:
             target = m.group(1).strip().rstrip(".")
             if target:
                 latest_target = target
                 pending_target = target
-        if is_queue_run_boundary_line(s):
-            session += 1
+        if is_boundary:
             continue
-        if pending_target and queue_position_match(s):
+        if pending_target and queue_position_match(line):
             target_by_session.setdefault(session, pending_target)
     if session_id is None:
         return latest_target
