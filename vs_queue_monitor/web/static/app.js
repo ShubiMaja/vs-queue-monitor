@@ -861,11 +861,17 @@
     if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
     var displayPoints = (window._displayState && window._displayState.graph_points) || [];
     var displayCurrent = window._displayState && window._displayState.current_point;
+    var interruptedLatest =
+      selectedSessionKey === "latest" &&
+      !!(window._lastState && window._lastState.interrupted_mode);
     var rollingMpp = computeRollingWindowMinPerPos(
       displayPoints,
       avgWindow,
       {
-        useLiveNow: selectedSessionKey === "latest" && !!(window._lastState && window._lastState.running),
+        useLiveNow:
+          selectedSessionKey === "latest" &&
+          !!(window._lastState && window._lastState.running) &&
+          !interruptedLatest,
         currentPos: displayCurrent && displayCurrent.length ? displayCurrent[1] : null,
       }
     );
@@ -884,13 +890,14 @@
     var elInfoFull = $("infoGlo");
     if (elALbl) elALbl.textContent = avgWindow + "p Rate";
     var sessionFullRate =
-      stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
+      interruptedLatest || stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
-      var tenPRate = rollingMpp != null ? rollingMpp.toFixed(2) + " m/p"
+      var tenPRate = interruptedLatest ? "—"
+        : rollingMpp != null ? rollingMpp.toFixed(2) + " m/p"
         : stats.avgMinPerPos != null ? stats.avgMinPerPos.toFixed(2) + " m/p"
         : (liveQueueRateDisplay || "—");
       elA.textContent = tenPRate;

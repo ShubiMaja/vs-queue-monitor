@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: `10p Rate` and `Full Rate` in the Info stats panel could keep changing during Interrupted because the frontend kept recomputing them from the live latest-session graph~~
+Fixed: the Info stats panel now treats the active latest interrupted session as frozen, so `10p Rate` and `Full Rate` show `—` instead of continuing to recalculate while interrupted (v1.1.18)
+
 ~~Bug: while actively monitoring an interrupted run, elapsed could overcount or stay wrong compared with the stopped view because interruption froze time from wall-clock state instead of the last real queue sample~~
 Fixed: `enter_interrupted_state()` now snapshots elapsed from the last queue sample and immediately refreshes the display, so interrupted monitoring shows the same frozen elapsed basis as the stopped view (v1.1.17)
 
