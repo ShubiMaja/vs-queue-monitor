@@ -11,7 +11,7 @@
     single_point_graph_span_sec: 60,
     graph_log_gamma: 1.15,
     pad_left: 46,
-    pad_right: 22,
+    pad_right: 42,
     pad_top: 22,
     pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
