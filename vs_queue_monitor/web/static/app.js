@@ -16,6 +16,9 @@
   var LS_GRAPH_TIME_MODE = "vs_queue_monitor_graph_time_mode_v1";
   var LS_GRAPH_SCALE = "vs_queue_monitor_graph_scale_v1";
   var LS_GRAPH_LIVE = "vs_queue_monitor_graph_live_v1";
+  var LS_NOTIFY_WARNING_POPUP = "vs_queue_monitor_warning_popup_v1";
+  var LS_NOTIFY_COMPLETION_POPUP = "vs_queue_monitor_completion_popup_v1";
+  var LS_NOTIFY_FAILURE_POPUP = "vs_queue_monitor_failure_popup_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -209,11 +212,37 @@
       localStorage.removeItem(LS_GRAPH_LIVE);
     } catch (e) {}
   }
+  function lsGetOptionalBool(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      if (v == null || v === "") return !!fallback;
+      return v !== "0";
+    } catch (e) {
+      return !!fallback;
+    }
+  }
+  function lsSetOptionalBool(key, val) {
+    try {
+      localStorage.setItem(key, val ? "1" : "0");
+    } catch (e) {}
+  }
   function applyClientGraphPrefs(s) {
     if (!s) return s;
     s.graph_time_mode = lsGetGraphTimeMode();
     s.graph_log_scale = lsGetGraphScale();
     s.graph_live_view = lsGetGraphLive();
+    return s;
+  }
+  function applyClientNotificationPrefs(s) {
+    if (!s) return s;
+    s.popup_enabled = lsGetOptionalBool(LS_NOTIFY_WARNING_POPUP, s.popup_enabled !== false);
+    s.completion_popup = lsGetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, !!s.completion_popup);
+    s.failure_popup = lsGetOptionalBool(LS_NOTIFY_FAILURE_POPUP, !!s.failure_popup);
+    return s;
+  }
+  function applyClientViewerPrefs(s) {
+    applyClientGraphPrefs(s);
+    applyClientNotificationPrefs(s);
     return s;
   }
 
@@ -655,7 +684,7 @@
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
-        return j.state || j;
+        return applyClientViewerPrefs(j.state || j);
       });
     });
   }
@@ -1225,7 +1254,7 @@
   }
 
   function buildDisplayState(s) {
-    applyClientGraphPrefs(s);
+    applyClientViewerPrefs(s);
     var out = {};
     var k;
     for (k in s) {
@@ -1492,7 +1521,7 @@
 
   function syncGraphToolbarButtons(s) {
     if (!s) return;
-    applyClientGraphPrefs(s);
+    applyClientViewerPrefs(s);
     var btnLive = $("btnGraphLive");
     if (btnLive) {
       var liveAvailable = selectedSessionKey === "latest";
@@ -1543,7 +1572,7 @@
   }
 
   function applyState(s) {
-    applyClientGraphPrefs(s);
+    applyClientViewerPrefs(s);
     if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];
     var rateDisplay = s.queue_rate;
@@ -2926,6 +2955,7 @@
     }
 
     function bumpPopupEnabled(on) {
+      lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, !!on);
       if (window._lastState) window._lastState.popup_enabled = !!on;
     }
 
@@ -2955,17 +2985,13 @@
 
       if (_isBannerUnsupported()) {
         if (popOn) {
-          postConfig({ popup_enabled: false })
-            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(false);
+          toast("Alerts off.");
+          syncHint();
         } else {
-          postConfig({ popup_enabled: true })
-            .then(function () {
-              bumpPopupEnabled(true);
-              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
-              syncHint();
-            })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(true);
+          toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+          syncHint();
         }
         return;
       }
@@ -2985,9 +3011,9 @@
             toast("Notifications blocked — open site settings in your browser and set Notifications to Allow for this page.", "warn");
           }
         } else {
-          postConfig({ popup_enabled: false })
-            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(false);
+          toast("Alerts off.");
+          syncHint();
         }
         return;
       }
@@ -2995,39 +3021,21 @@
       var perm = Notification.permission;
       if (perm === "granted") {
         if (popOn) {
-          postConfig({ popup_enabled: false })
-            .then(function () {
-              bumpPopupEnabled(false);
-              toast("Desktop notifications off.");
-              syncHint();
-            })
-            .catch(function (e) {
-              toast(String(e.message || e), "warn");
-            });
+          bumpPopupEnabled(false);
+          toast("Desktop notifications off.");
+          syncHint();
         } else {
-          postConfig({ popup_enabled: true })
-            .then(function () {
-              bumpPopupEnabled(true);
-              showExampleDesktopNotification();
-              toast("Desktop notifications on.");
-              syncHint();
-            })
-            .catch(function (e) {
-              toast(String(e.message || e), "warn");
-            });
+          bumpPopupEnabled(true);
+          showExampleDesktopNotification();
+          toast("Desktop notifications on.");
+          syncHint();
         }
         return;
       }
       if (!popOn) {
-        postConfig({ popup_enabled: true })
-          .then(function () {
-            bumpPopupEnabled(true);
-            syncHint();
-            requestPermissionFlow();
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
+        bumpPopupEnabled(true);
+        syncHint();
+        requestPermissionFlow();
         return;
       }
       requestPermissionFlow();
@@ -3192,6 +3200,7 @@
     }
 
     function bumpPopupEnabled(on) {
+      lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, !!on);
       if (window._lastState) window._lastState.popup_enabled = !!on;
     }
 
@@ -3288,17 +3297,13 @@
 
       if (_isBannerUnsupported()) {
         if (popOn) {
-          postConfig({ popup_enabled: false })
-            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(false);
+          toast("Alerts off.");
+          syncHint();
         } else {
-          postConfig({ popup_enabled: true })
-            .then(function () {
-              bumpPopupEnabled(true);
-              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
-              syncHint();
-            })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(true);
+          toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+          syncHint();
         }
         return;
       }
@@ -3313,9 +3318,9 @@
               toast("Could not reset notification permission. Try reinstalling the app.", "warn");
             });
         } else {
-          postConfig({ popup_enabled: false })
-            .then(function () { bumpPopupEnabled(false); toast("Alerts off."); syncHint(); })
-            .catch(function (e) { toast(String(e.message || e), "warn"); });
+          bumpPopupEnabled(false);
+          toast("Alerts off.");
+          syncHint();
         }
         return;
       }
@@ -3323,39 +3328,21 @@
       var perm = Notification.permission;
       if (perm === "granted") {
         if (popOn) {
-          postConfig({ popup_enabled: false })
-            .then(function () {
-              bumpPopupEnabled(false);
-              toast("Desktop notifications off.");
-              syncHint();
-            })
-            .catch(function (e) {
-              toast(String(e.message || e), "warn");
-            });
+          bumpPopupEnabled(false);
+          toast("Desktop notifications off.");
+          syncHint();
         } else {
-          postConfig({ popup_enabled: true })
-            .then(function () {
-              bumpPopupEnabled(true);
-              showExampleDesktopNotification();
-              toast("Desktop notifications on.");
-              syncHint();
-            })
-            .catch(function (e) {
-              toast(String(e.message || e), "warn");
-            });
+          bumpPopupEnabled(true);
+          showExampleDesktopNotification();
+          toast("Desktop notifications on.");
+          syncHint();
         }
         return;
       }
       if (!popOn) {
         function enablePopupsAfterGrant() {
-          postConfig({ popup_enabled: true })
-            .then(function () {
-              bumpPopupEnabled(true);
-              syncHint();
-            })
-            .catch(function (e) {
-              toast(String(e.message || e), "warn");
-            });
+          bumpPopupEnabled(true);
+          syncHint();
         }
         if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
           requestPermissionFlow(enablePopupsAfterGrant);
@@ -3891,12 +3878,15 @@
       btnSaveSettings.onclick = function () {
         var prevPopupEnabled =
           window._lastState == null || window._lastState.popup_enabled !== false;
+        var nextWarningPopup = !!($("chkPop") && $("chkPop").checked);
+        var nextCompletionPopup = !!($("chkCompPop") && $("chkCompPop").checked);
+        var nextFailurePopup = !!($("chkFailPop") && $("chkFailPop").checked);
+        lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, nextWarningPopup);
+        lsSetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, nextCompletionPopup);
+        lsSetOptionalBool(LS_NOTIFY_FAILURE_POPUP, nextFailurePopup);
         var patch = {
-          popup_enabled: !!($("chkPop") && $("chkPop").checked),
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
-          completion_popup: !!($("chkCompPop") && $("chkCompPop").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
-          failure_popup: !!($("chkFailPop") && $("chkFailPop").checked),
           failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
         };
         var iws = $("inpSetWarnSound");
@@ -3907,15 +3897,14 @@
         if (ifs) patch.failure_sound_path = ifs.value.trim();
         postConfig(patch)
           .then(function (state) {
-            var nextPopupEnabled = !!patch.popup_enabled;
             if (state && typeof state === "object") {
               window._lastState = state;
             } else if (window._lastState) {
-              window._lastState.popup_enabled = nextPopupEnabled;
+              window._lastState.popup_enabled = nextWarningPopup;
               window._lastState.sound_enabled = !!patch.sound_enabled;
-              window._lastState.completion_popup = !!patch.completion_popup;
+              window._lastState.completion_popup = nextCompletionPopup;
               window._lastState.completion_sound = !!patch.completion_sound;
-              window._lastState.failure_popup = !!patch.failure_popup;
+              window._lastState.failure_popup = nextFailurePopup;
               window._lastState.failure_sound = !!patch.failure_sound;
               if (Object.prototype.hasOwnProperty.call(patch, "failure_sound_path")) {
                 window._lastState.failure_sound_path = patch.failure_sound_path;
@@ -3930,7 +3919,7 @@
             }
             if (
               !prevPopupEnabled &&
-              nextPopupEnabled &&
+              nextWarningPopup &&
               typeof Notification !== "undefined" &&
               Notification.permission === "granted"
             ) {

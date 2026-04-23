@@ -557,8 +557,11 @@ class QueueMonitorEngine:
         if detail:
             msg += f' ({detail})'
         self.write_history(msg)
-        if self.failure_popup_enabled_var.get():
+        want_failure_popup = bool(self.failure_popup_enabled_var.get())
+        want_web_failure_event = bool(getattr(self._hooks, "browser_client_notifications", False))
+        if want_failure_popup or want_web_failure_event:
             self._hooks.show_failure_popup(detail)
+        if want_failure_popup:
             self._emit_push_notification(
                 "failure",
                 {
@@ -1520,15 +1523,17 @@ class QueueMonitorEngine:
             return
         want_sound = bool(self.completion_sound_enabled_var.get())
         want_popup = bool(self.completion_popup_enabled_var.get())
-        if not want_sound and (not want_popup):
+        want_web_completion_event = bool(getattr(self._hooks, "browser_client_notifications", False))
+        if not want_sound and (not want_popup) and (not want_web_completion_event):
             return
         self._queue_completion_notified_this_run = True
         self._last_queue_completion_notify_epoch = now
         self.write_history('Queue completion: past queue wait — connecting (position 0).')
         if want_sound:
             self.play_completion_sound()
-        if want_popup:
+        if want_popup or want_web_completion_event:
             self._hooks.show_completion_popup()
+        if want_popup:
             self._emit_push_notification(
                 "completion",
                 {

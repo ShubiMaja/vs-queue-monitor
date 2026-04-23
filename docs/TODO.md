@@ -11,6 +11,9 @@
 ~~Tweak: graph display preferences were persisted in shared server config even though they are browser-only viewer choices~~
 Fixed: graph `Live`, `REL/ABS`, and `LIN/LOG` now live in browser local storage instead of server config; the engine no longer persists them in `config.json`, and the browser applies them locally on top of shared monitor state (v1.1.31)
 
+~~Tweak: browser desktop notification toggles were shared even though banners should be per client~~
+Fixed: web `Warning popup`, `Completion popup`, `Failure popup`, and the header bell are now browser-local per-client settings; shared engine config still owns sound behavior and non-browser popup hooks where that has a real benefit (v1.1.32)
+
 ~~Bug: Playwright web tests could persist `/api/config` changes into the real user config under `%APPDATA%`~~
 Fixed: test server fixtures now sandbox `APPDATA`/`XDG_CONFIG_HOME` into a repo-local temp config root, and browser coverage asserts the isolated config path is in use (v1.1.28)
 
