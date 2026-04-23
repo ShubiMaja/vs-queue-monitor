@@ -35,6 +35,18 @@ When you finish a coherent change set:
 
 Do not commit generated junk, caches, secrets, or unrelated files.
 
+### Browser Test Discipline
+
+- Playwright and browser-smoke tests must never reuse or mutate the real user config under `%APPDATA%` / `XDG_CONFIG_HOME`.
+- Keep browser-test config/state isolated in a test-specific sandbox path.
+- For browser-visible bugs, do not declare success from code inspection alone when a real browser check is possible.
+- Prefer this order for UI/browser bug verification:
+  1. reproduce in Playwright or the real browser
+  2. confirm the relevant API/state is correct
+  3. confirm the rendered UI matches that state
+  4. only then declare the fix complete
+- When a bug is only reproduced against a real user log, verify against that real log path instead of relying only on synthetic fixtures.
+
 ## Project-Specific Product Rules
 
 - Users often ship only `monitor.py`, so avoid adding hard runtime dependencies on neighboring files unless the behavior degrades gracefully.

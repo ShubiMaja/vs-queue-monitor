@@ -145,7 +145,16 @@ Before calling the product stable or cutting a release candidate:
 
 - Run the focused engine/interrupted regression suite.
 - Run the lightweight browser smoke tests for dashboard load and browser notification permission flow.
+- Ensure browser tests use an isolated config root and do not write to the real user settings.
 - Create an annotated git tag for the verified checkpoint.
+
+### 3.4 Browser verification discipline
+
+- Browser-visible bugs should be verified in a real browser path whenever practical, not only by reading code.
+- Synthetic fixtures are useful, but when a bug depends on a real log shape or real persisted state, verify it against the actual log/config path too.
+- A fix is not considered complete until both of these are true:
+  - the relevant backend/API state is correct
+  - the browser actually renders that state correctly
 
 ---
 
