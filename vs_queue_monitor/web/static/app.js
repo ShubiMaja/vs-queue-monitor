@@ -19,6 +19,7 @@
   var LS_NOTIFY_WARNING_POPUP = "vs_queue_monitor_warning_popup_v1";
   var LS_NOTIFY_COMPLETION_POPUP = "vs_queue_monitor_completion_popup_v1";
   var LS_NOTIFY_FAILURE_POPUP = "vs_queue_monitor_failure_popup_v1";
+  var LS_UPDATE_NOTIFY = "vs_queue_monitor_update_notify_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -239,6 +240,15 @@
     s.completion_popup = lsGetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, !!s.completion_popup);
     s.failure_popup = lsGetOptionalBool(LS_NOTIFY_FAILURE_POPUP, !!s.failure_popup);
     return s;
+  }
+  function lsGetUpdateNotify() {
+    try {
+      var v = localStorage.getItem(LS_UPDATE_NOTIFY);
+      return v === null || v === "1";
+    } catch (e) { return true; }
+  }
+  function lsSetUpdateNotify(val) {
+    try { localStorage.setItem(LS_UPDATE_NOTIFY, val ? "1" : "0"); } catch (e) {}
   }
   function applyClientViewerPrefs(s) {
     applyClientGraphPrefs(s);
@@ -1496,6 +1506,8 @@
     if (ics) ics.value = s.completion_sound_path || "";
     var ifs = $("inpSetFailSound");
     if (ifs) ifs.value = s.failure_sound_path || "";
+    var chkUpdateNotify = $("chkUpdateNotify");
+    if (chkUpdateNotify) chkUpdateNotify.checked = lsGetUpdateNotify();
   }
 
   function activateSettingsTab(tabName) {
@@ -1821,12 +1833,16 @@
     }
 
     var updateBanner = $("updateBanner");
-    if (updateBanner && s.update_available && !window._updateDismissed) {
-      var msg = $("updateBannerMsg");
-      if (msg) msg.textContent = s.update_release_name
-        ? "Update available: " + s.update_release_name
-        : "Update available";
-      updateBanner.classList.remove("hidden");
+    if (updateBanner) {
+      if (s.update_available && !window._updateDismissed && lsGetUpdateNotify()) {
+        var msg = $("updateBannerMsg");
+        if (msg) msg.textContent = s.update_release_name
+          ? "Update available: " + s.update_release_name
+          : "Update available";
+        updateBanner.classList.remove("hidden");
+      } else if (!s.update_available || !lsGetUpdateNotify()) {
+        updateBanner.classList.add("hidden");
+      }
     }
 
     rebuildSessionDropdown(s);
@@ -3929,6 +3945,13 @@
         lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, nextWarningPopup);
         lsSetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, nextCompletionPopup);
         lsSetOptionalBool(LS_NOTIFY_FAILURE_POPUP, nextFailurePopup);
+        var nextUpdateNotify = !!($("chkUpdateNotify") && $("chkUpdateNotify").checked);
+        lsSetUpdateNotify(nextUpdateNotify);
+        if (!nextUpdateNotify) {
+          window._updateDismissed = true;
+          var ub = $("updateBanner");
+          if (ub) ub.classList.add("hidden");
+        }
         var patch = {
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),

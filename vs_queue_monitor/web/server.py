@@ -449,7 +449,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
     except Exception:
         rate_hdr = "RATE"
     queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
-    return {
+    result = {
         "version": VERSION,
         "running": engine.running,
         "interrupted_mode": engine._interrupted_mode,

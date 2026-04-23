@@ -976,10 +976,11 @@ select.inp:focus-visible {
   opacity: 0.78;
 }
 .graph-toolbar__right > .btn--toolbar-export {
+  background: var(--card);
   color: var(--text);
 }
 .graph-toolbar__right > .btn--toolbar-export .icon {
-  opacity: 0.9;
+  opacity: 1;
 }
 .graph-toolbar__right > .btn--toolbar-export:hover,
 .graph-toolbar__right > .btn--toolbar-export:active {
