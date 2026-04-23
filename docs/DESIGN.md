@@ -137,6 +137,15 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 - Users understand **position**, **monitoring state**, **elapsed**, and **rough remaining** at a glance.
 - No dead ends: invalid paths show clear errors; **Waiting for log file** is understandable.
 - Completion UX aligns with **log-backed “past queue wait”**, not “position 1”.
+- Release checkpoints are explicit: RC/stable milestone builds are committed, verified, and marked with annotated git tags rather than being treated as implicit branch states.
+
+### 3.3 Release gate
+
+Before calling the product stable or cutting a release candidate:
+
+- Run the focused engine/interrupted regression suite.
+- Run the lightweight browser smoke tests for dashboard load and browser notification permission flow.
+- Create an annotated git tag for the verified checkpoint.
 
 ---
 
