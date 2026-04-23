@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the Server field could still stay empty on reload for older active sessions because `Connecting to ...` had already scrolled out of the short live tail, and the parser could attach targets to the wrong session~~
+Fixed: server-target refresh now falls back to the broader seed window when needed, and `Connecting to ...` is mapped back to the current boundary-counted session so active-session reloads can still show the server target (v1.1.25)
+
 ~~Bug: the Server field could stay empty because the backend no longer exposed/persisted the parsed `Connecting to ...` target~~
 Fixed: restored the shared parser, engine state, and web snapshot field for the current server target; the value now persists once learned and is covered by smoke tests (v1.1.24)
 

@@ -170,6 +170,29 @@ def test_parse_tail_latest_connect_target_picks_current_session() -> None:
     assert parse_tail_latest_connect_target(text) == "beta.example.net"
 
 
+def test_server_target_refresh_falls_back_to_seed_window() -> None:
+    root = Path(".tmp-release-smoke-tests-server-target")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    filler = "9.4.2026 22:31:00 [Debug] filler " + ("x" * 240)
+    lines = [
+        "9.4.2026 22:30:53 [Notification] Connecting to gamma.example.net...",
+        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+    ] + [filler for _ in range(700)] + [
+        "9.4.2026 22:40:00 [Notification] Client is in connect queue at position: 11",
+    ]
+    _write_log(log_path, lines)
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine.server_target_var.set("—")
+    engine._refresh_server_target_from_log(log_path, 1)
+
+    assert engine.server_target_var.get() == "gamma.example.net"
+
+
 def test_startup_seeded_interrupted_run_keeps_elapsed() -> None:
     root = Path(".tmp-release-smoke-tests-startup-interrupted")
     if root.exists():

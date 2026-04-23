@@ -321,7 +321,13 @@ class QueueMonitorEngine:
             self.server_target_var.set(target)
 
     def _refresh_server_target_from_log(self, log_file: Path, session_id: Optional[int] = None) -> None:
-        self._refresh_server_target_from_tail_text(read_log_file_tail_text(log_file, TAIL_BYTES), session_id)
+        tail_text = read_log_file_tail_text(log_file, TAIL_BYTES)
+        target = parse_tail_latest_connect_target(tail_text or "", session_id)
+        if target is None and TAIL_BYTES < SEED_LOG_TAIL_BYTES:
+            seed_text = read_log_file_tail_text(log_file, SEED_LOG_TAIL_BYTES)
+            target = parse_tail_latest_connect_target(seed_text or "", session_id)
+        if target:
+            self.server_target_var.set(target)
 
     def _refresh_warnings_kpi(self) -> None:
         """Warnings rail is driven by the web snapshot; no desktop widgets to refresh."""

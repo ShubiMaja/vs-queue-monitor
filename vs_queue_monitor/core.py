@@ -955,14 +955,14 @@ def parse_tail_latest_connect_target(data: str, session_id: Optional[int] = None
         s = line.strip()
         if not s:
             continue
+        if is_queue_run_boundary_line(s):
+            session += 1
         m = CONNECTING_TO_TARGET_RE.search(s)
         if m:
             target = m.group(1).strip().rstrip(".")
             if target:
                 latest_target = target
-                target_by_session[session + 1] = target
-        if is_queue_run_boundary_line(s):
-            session += 1
+                target_by_session[session] = target
     if session_id is None:
         return latest_target
     return target_by_session.get(session_id)
