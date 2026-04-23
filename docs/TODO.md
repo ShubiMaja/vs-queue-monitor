@@ -1,5 +1,8 @@
 # BUGS
 
+
+
+
 ## Open
 
 ## Deferred (not to be solved yet)
@@ -220,6 +223,10 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
+
+Tweak: No queue detected warning should be :warning symbo: No Queue!
+
+Questions: should we allow multiple queue monitor location? What would the impact be?
 
 Tweak: Mobile app should take full advantage of browser width as much as possible without uneccesasry padding
 
