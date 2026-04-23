@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the Server field could stay empty because the backend no longer exposed/persisted the parsed `Connecting to ...` target~~
+Fixed: restored the shared parser, engine state, and web snapshot field for the current server target; the value now persists once learned and is covered by smoke tests (v1.1.24)
+
 ~~Bug: the server target feature was wired in state, but the current Info panel markup/binding did not actually render it~~
 Fixed: the Info panel now shows `Server` at the bottom, the web state binds `server_target` into that field, and the browser smoke test checks that the element exists (v1.1.23)
 

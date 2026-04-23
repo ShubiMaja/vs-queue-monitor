@@ -425,6 +425,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "last_alert": engine.last_alert_var.get(),
         "last_alert_message": engine.last_alert_message_var.get(),
         "last_alert_seq": int(getattr(engine, "_last_alert_seq", 0)),
+        "server_target": engine.server_target_var.get(),
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
         "graph_points": pts,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
 from vs_queue_monitor.web.hooks_web import WebMonitorHooks
-from vs_queue_monitor.core import compute_seed_graph_from_log
+from vs_queue_monitor.core import compute_seed_graph_from_log, parse_tail_latest_connect_target
 from vs_queue_monitor.web.server import _queue_sessions_for_engine
 
 
@@ -154,6 +154,20 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
 
     sessions, _active_id = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
+
+
+def test_parse_tail_latest_connect_target_picks_current_session() -> None:
+    text = "\n".join(
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to alpha.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:32:00 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:32:05 [Notification] Client is in connect queue at position: 9",
+        ]
+    )
+    assert parse_tail_latest_connect_target(text, 1) == "alpha.example.net"
+    assert parse_tail_latest_connect_target(text, 2) == "beta.example.net"
+    assert parse_tail_latest_connect_target(text) == "beta.example.net"
 
 
 def test_startup_seeded_interrupted_run_keeps_elapsed() -> None:

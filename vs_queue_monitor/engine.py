@@ -56,6 +56,7 @@ class QueueMonitorEngine:
         self.resolved_path_var = hooks.string_var("")
         self.status_var = hooks.string_var("Idle")
         self.position_var = hooks.string_var("—")
+        self.server_target_var = hooks.string_var("—")
         self.last_change_var = hooks.string_var("—")
         self.last_alert_var = hooks.string_var("—")
         self.last_alert_message_var = hooks.string_var("—")
@@ -246,6 +247,7 @@ class QueueMonitorEngine:
         self.resolved_path_var.set('')
         self._set_status_line('Idle')
         self._set_position_display(None)
+        self.server_target_var.set('—')
         self.elapsed_var.set('—')
         self.predicted_remaining_var.set('—')
         self.queue_rate_var.set('—')
@@ -310,6 +312,16 @@ class QueueMonitorEngine:
             self.position_var.set('—')
         else:
             self.position_var.set(str(pos))
+
+    def _refresh_server_target_from_tail_text(self, tail_text: Optional[str], session_id: Optional[int] = None) -> None:
+        if not tail_text:
+            return
+        target = parse_tail_latest_connect_target(tail_text, session_id)
+        if target:
+            self.server_target_var.set(target)
+
+    def _refresh_server_target_from_log(self, log_file: Path, session_id: Optional[int] = None) -> None:
+        self._refresh_server_target_from_tail_text(read_log_file_tail_text(log_file, TAIL_BYTES), session_id)
 
     def _refresh_warnings_kpi(self) -> None:
         """Warnings rail is driven by the web snapshot; no desktop widgets to refresh."""
@@ -464,6 +476,7 @@ class QueueMonitorEngine:
         self.persist_config()
         self._hooks.show_start_loading(False)
         self._apply_seed_result(seed_data)
+        self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
         self.start_timer()
@@ -740,6 +753,7 @@ class QueueMonitorEngine:
         data = compute_seed_graph_from_log(log_file)
         if data is not None:
             self._apply_seed_result(data)
+            self._refresh_server_target_from_log(log_file, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
             self._suppress_completion_notify_if_tail_already_completed(log_file)
             return True
         text = read_log_file_tail_text(log_file, TAIL_BYTES)
@@ -835,6 +849,7 @@ class QueueMonitorEngine:
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)
+                    self._refresh_server_target_from_tail_text(text, queue_sess)
                     total_queue_boundaries = count_queue_run_boundaries(text)
                     last_queue_line_epoch = parse_tail_last_queue_line_epoch(text)
                     if last_queue_line_epoch is not None:

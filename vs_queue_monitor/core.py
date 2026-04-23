@@ -29,6 +29,8 @@ QUEUE_RE = re.compile(
     re.IGNORECASE,
 )
 
+CONNECTING_TO_TARGET_RE = re.compile(r"(?i)\bconnecting\s+to\s+(.+?)(?:\.\.\.|$)")
+
 
 def queue_position_match(line: str) -> Optional[re.Match[str]]:
     """Best queue-index match on this line, or None.
@@ -942,6 +944,28 @@ def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
         last_pos = pos
         last_sess = session
     return last_pos, last_sess
+
+
+def parse_tail_latest_connect_target(data: str, session_id: Optional[int] = None) -> Optional[str]:
+    """Latest ``Connecting to ...`` target in the tail, optionally scoped to one queue session."""
+    session = 0
+    latest_target: Optional[str] = None
+    target_by_session: dict[int, str] = {}
+    for line in data.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        m = CONNECTING_TO_TARGET_RE.search(s)
+        if m:
+            target = m.group(1).strip().rstrip(".")
+            if target:
+                latest_target = target
+                target_by_session[session + 1] = target
+        if is_queue_run_boundary_line(s):
+            session += 1
+    if session_id is None:
+        return latest_target
+    return target_by_session.get(session_id)
 
 
 def count_queue_run_boundaries(data: str) -> int:
