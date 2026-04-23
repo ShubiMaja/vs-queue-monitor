@@ -951,18 +951,22 @@ def parse_tail_latest_connect_target(data: str, session_id: Optional[int] = None
     session = 0
     latest_target: Optional[str] = None
     target_by_session: dict[int, str] = {}
+    pending_target: Optional[str] = None
     for line in data.splitlines():
         s = line.strip()
         if not s:
             continue
-        if is_queue_run_boundary_line(s):
-            session += 1
         m = CONNECTING_TO_TARGET_RE.search(s)
         if m:
             target = m.group(1).strip().rstrip(".")
             if target:
                 latest_target = target
-                target_by_session[session] = target
+                pending_target = target
+        if is_queue_run_boundary_line(s):
+            session += 1
+            continue
+        if pending_target and queue_position_match(s):
+            target_by_session.setdefault(session, pending_target)
     if session_id is None:
         return latest_target
     return target_by_session.get(session_id)

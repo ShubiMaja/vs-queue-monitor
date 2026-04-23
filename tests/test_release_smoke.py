@@ -170,6 +170,17 @@ def test_parse_tail_latest_connect_target_picks_current_session() -> None:
     assert parse_tail_latest_connect_target(text) == "beta.example.net"
 
 
+def test_parse_tail_latest_connect_target_handles_extra_boundary_before_queue() -> None:
+    text = "\n".join(
+        [
+            "23.4.2026 20:09:17 [Notification] Connecting to tops.vintagestory.at...",
+            "23.4.2026 20:09:17 [Notification] Initialized Server Connection",
+            "23.4.2026 20:09:20 [Notification] Client is in connect queue at position: 71",
+        ]
+    )
+    assert parse_tail_latest_connect_target(text, 2) == "tops.vintagestory.at"
+
+
 def test_server_target_refresh_falls_back_to_seed_window() -> None:
     root = Path(".tmp-release-smoke-tests-server-target")
     if root.exists():

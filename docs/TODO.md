@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the Server field could still stay empty because the active queue session could advance past `Connecting to ...` due to extra non-queue boundary lines like `Initialized Server Connection`~~
+Fixed: server-target parsing now binds `Connecting to ...` to the next actual queue-position session, so the active session still gets the server even when extra boundary lines appear before queue positions (v1.1.26)
+
 ~~Bug: the Server field could still stay empty on reload for older active sessions because `Connecting to ...` had already scrolled out of the short live tail, and the parser could attach targets to the wrong session~~
 Fixed: server-target refresh now falls back to the broader seed window when needed, and `Connecting to ...` is mapped back to the current boundary-counted session so active-session reloads can still show the server target (v1.1.25)
 
