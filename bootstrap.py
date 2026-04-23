@@ -11,9 +11,9 @@ On Windows, after pip install, creates a Desktop shortcut to ``vs-queue-monitor.
 Piped installs (``curl ... | python -``) start the app without prompting. Set
 ``VS_QUEUE_MONITOR_SKIP_RUN=1`` to exit after install without starting.
 
-After a full clone, Windows users can double-click «Run VS Queue Monitor.bat»
+After a full clone, Windows users can double-click ``Run VS Queue Monitor.bat``
 or use Win+R with ``vs-queue-monitor.cmd`` (see README). If Python is not installed, those
-launchers warn you, open the Python install page, and exit.
+launchers warn you, open the official Python download page, and exit.
 
 Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
 the README one-liner; it checks for ``py`` / ``python`` before piping this script.
@@ -88,7 +88,7 @@ def _venv_python(venv_dir: Path) -> Path:
 
 
 def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
-    _eprint("→", " ".join(cmd))
+    _eprint("->", " ".join(cmd))
     r = subprocess.run(cmd, cwd=cwd, env=env)
     if r.returncode != 0:
         raise SystemExit(r.returncode)
@@ -98,7 +98,7 @@ def _ensure_git_repo(root: Path) -> None:
     """Ensure ``root`` is a git checkout of the app (clone or pull)."""
     git_dir = root / ".git"
     if git_dir.is_dir():
-        _eprint("Updating existing clone…")
+        _eprint("Updating existing clone...")
         try:
             _run(["git", "-C", str(root), "pull", "--ff-only"], cwd=root)
         except SystemExit:
@@ -116,14 +116,14 @@ def _ensure_git_repo(root: Path) -> None:
         except OSError:
             raise SystemExit(1)
 
-    _eprint(f"Cloning {REPO_URL} (branch {REPO_BRANCH})…")
+    _eprint(f"Cloning {REPO_URL} (branch {REPO_BRANCH})...")
     try:
         _run(
             ["git", "clone", "--depth", "1", "-b", REPO_BRANCH, REPO_URL, str(root)],
             cwd=parent,
         )
     except SystemExit:
-        _eprint("Retrying clone without branch pin…")
+        _eprint("Retrying clone without branch pin...")
         if root.exists():
             import shutil
 
@@ -148,7 +148,7 @@ def _pip_install(py: Path, root: Path) -> None:
     if not req.is_file():
         _eprint(f"Missing requirements.txt in {root}")
         raise SystemExit(1)
-    _eprint("Installing dependencies (pip)…")
+    _eprint("Installing dependencies (pip)...")
     _run([str(py), "-m", "pip", "install", "--upgrade", "pip"], cwd=root)
     _run([str(py), "-m", "pip", "install", "-r", str(req)], cwd=root)
 
@@ -186,8 +186,8 @@ def _ps_single_quoted(s: str) -> str:
 def _create_windows_desktop_shortcut(root: Path) -> None:
     """Create a .lnk on the Desktop pointing at vs-queue-monitor.cmd (or legacy vsqm.cmd / .bat).
 
-    Skips silently when the shortcut already exists.  When it does not exist and stdin is a TTY,
-    asks the user first.  Non-interactive runs (piped bootstrap) create it automatically.
+    Skips silently when the shortcut already exists. When it does not exist and stdin is a TTY,
+    asks the user first. Non-interactive runs (piped bootstrap) create it automatically.
     """
     if sys.platform != "win32":
         return
@@ -204,16 +204,16 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
     if not launcher.is_file():
         launcher = root / "Run VS Queue Monitor.bat"
     if not launcher.is_file():
-        _eprint("(No vs-queue-monitor.cmd / Run VS Queue Monitor.bat — skipping desktop shortcut.)")
+        _eprint("(No vs-queue-monitor.cmd / Run VS Queue Monitor.bat - skipping desktop shortcut.)")
         return
     desktop = _windows_desktop_dir()
     if desktop is None:
-        _eprint("(Could not resolve Desktop — skipping shortcut.)")
+        _eprint("(Could not resolve Desktop - skipping shortcut.)")
         return
     lnk = desktop / f"{_APP_SHORTCUT_STEM}.lnk"
 
     if lnk.exists():
-        return  # already there — nothing to do
+        return  # already there - nothing to do
 
     if sys.stdin.isatty():
         try:
@@ -229,7 +229,7 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
         f"$s = $ws.CreateShortcut({_ps_single_quoted(str(lnk))}); "
         f"$s.TargetPath = {_ps_single_quoted(str(launcher.resolve()))}; "
         f"$s.WorkingDirectory = {_ps_single_quoted(str(root.resolve()))}; "
-        f"$s.Description = {_ps_single_quoted(_APP_SHORTCUT_STEM + ' — Vintage Story queue monitor')}; "
+        f"$s.Description = {_ps_single_quoted(_APP_SHORTCUT_STEM + ' - Vintage Story queue monitor')}; "
         "$s.Save()"
     )
     r = subprocess.run(
@@ -241,6 +241,28 @@ def _create_windows_desktop_shortcut(root: Path) -> None:
         _eprint(f"Desktop shortcut created: {lnk}")
     else:
         _eprint("(Could not create desktop shortcut; you can run vs-queue-monitor.cmd from the install folder.)")
+
+
+def _setup_push_notifications(py: Path, root: Path) -> None:
+    """Trigger VAPID key auto-generation so push notifications work from the first start."""
+    _eprint("Setting up push notifications...")
+    r = subprocess.run(
+        [
+            str(py),
+            "-c",
+            (
+                "import sys; sys.path.insert(0, r'" + str(root) + "'); "
+                "from vs_queue_monitor.web.push import _auto_setup_vapid, push_configured; "
+                "_auto_setup_vapid(); "
+                "print('  Push notifications ready.' if push_configured() "
+                "else '  Push notifications unavailable (pywebpush not installed).', file=sys.stderr)"
+            ),
+        ],
+        cwd=root,
+        check=False,
+    )
+    if r.returncode != 0:
+        _eprint("  (Push notification setup skipped.)")
 
 
 def _should_run_monitor_after_install() -> bool:
@@ -261,23 +283,23 @@ def _should_run_monitor_after_install() -> bool:
 def _print_launch_hint(root: Path) -> None:
     """Tell users which file to double-click / run after install."""
     _eprint("")
-    _eprint("—" * 58)
+    _eprint("-" * 58)
     _eprint("Run this app later from the project folder:")
     if sys.platform == "win32":
         bat = root / "Run VS Queue Monitor.bat"
         if bat.is_file():
-            _eprint(f'  • Double-click: {bat.name}')
+            _eprint(f"  * Double-click: {bat.name}")
         else:
-            _eprint("  • Double-click: Run VS Queue Monitor.bat  (included in a full git checkout)")
+            _eprint("  * Double-click: Run VS Queue Monitor.bat  (included in a full git checkout)")
         if (root / "vs-queue-monitor.cmd").is_file():
-            _eprint("  • Win+R: add this folder to your user PATH, then run  vs-queue-monitor   (see README)")
-        _eprint(rf"  • Or terminal: {root / '.venv' / 'Scripts' / 'python.exe'} monitor.py")
+            _eprint("  * Win+R: add this folder to your user PATH, then run  vs-queue-monitor   (see README)")
+        _eprint(rf"  * Or terminal: {root / '.venv' / 'Scripts' / 'python.exe'} monitor.py")
     else:
         sh = root / "run-vs-queue-monitor.sh"
         if sh.is_file():
-            _eprint(f"  • Terminal: ./{sh.name}   (once: chmod +x {sh.name})")
-        _eprint("  • Or: python3 monitor.py")
-    _eprint("—" * 58)
+            _eprint(f"  * Terminal: ./{sh.name}   (once: chmod +x {sh.name})")
+        _eprint("  * Or: python3 monitor.py")
+    _eprint("-" * 58)
     _eprint("")
 
 
@@ -293,6 +315,7 @@ def main() -> None:
 
     py = _ensure_venv(root)
     _pip_install(py, root)
+    _setup_push_notifications(py, root)
     _create_windows_desktop_shortcut(root)
     _print_launch_hint(root)
 
@@ -302,7 +325,7 @@ def main() -> None:
 
     monitor = root / "monitor.py"
     args = [str(py), str(monitor), *sys.argv[1:]]
-    _eprint("Starting VS Queue Monitor…")
+    _eprint("Starting VS Queue Monitor...")
     env = os.environ.copy()
     # So subprocess inherits sane cwd for relative paths
     os.chdir(root)

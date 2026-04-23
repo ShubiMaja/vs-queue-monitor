@@ -91,7 +91,7 @@ At position `1`, still show REMAINING using a one-step model (and fallback when 
 
 ### Defaults
 
-Default warning thresholds: `10, 5, 1` (`DEFAULT_ALERT_THRESHOLDS`).
+Default warning thresholds: `15, 10, 5, 3, 2, 1` (`DEFAULT_ALERT_THRESHOLDS`).
 
 ---
 

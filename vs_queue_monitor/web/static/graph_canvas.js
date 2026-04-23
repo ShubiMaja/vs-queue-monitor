@@ -11,8 +11,8 @@
     single_point_graph_span_sec: 60,
     graph_log_gamma: 1.15,
     pad_left: 46,
-    pad_right: 22,
-    pad_top: 12,
+    pad_right: 42,
+    pad_top: 22,
     pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
     ui_graph_plot: "#141820",
@@ -62,7 +62,17 @@
     return out;
   }
 
-  function graphPlotTimeRange(points, liveView, running, singleSpan) {
+  function terminalCutoffIndex(points) {
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (points[i][1] <= 0) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function graphPlotTimeRange(points, extendToNow, singleSpan) {
     if (!points.length) {
       return [0, 1];
     }
@@ -76,24 +86,45 @@
     if (t1 <= t0) {
       t1 = t0 + 1e-6;
     }
-    if (liveView && running) {
+    if (extendToNow) {
+      var span = Math.max(1e-6, t1 - t0);
+      var rightPad = Math.max(4, span * 0.04);
+      t1 += rightPad;
       t1 = Math.max(t1, Date.now() / 1000);
     }
     return [t0, t1];
   }
 
   function buildStepVertices(points) {
+    var normalized = [];
     var stepVertices = [];
     var i;
     for (i = 0; i < points.length; i++) {
-      var t = points[i][0];
-      var p = points[i][1];
+      var rawT = points[i][0];
+      var rawP = points[i][1];
+      if (!normalized.length) {
+        normalized.push([rawT, rawP]);
+        continue;
+      }
+      var prevNorm = normalized[normalized.length - 1];
+      if (rawT < prevNorm[0]) {
+        continue;
+      }
+      if (rawT === prevNorm[0]) {
+        normalized[normalized.length - 1] = [rawT, rawP];
+        continue;
+      }
+      normalized.push([rawT, rawP]);
+    }
+    for (i = 0; i < normalized.length; i++) {
+      var t = normalized[i][0];
+      var p = normalized[i][1];
       if (i === 0) {
         stepVertices.push([t, p]);
         continue;
       }
-      var tPrev = points[i - 1][0];
-      var pPrev = points[i - 1][1];
+      var tPrev = normalized[i - 1][0];
+      var pPrev = normalized[i - 1][1];
       if (t <= tPrev) {
         continue;
       }
@@ -106,56 +137,16 @@
   }
 
   function drawGraphEventMarker(ctx, kind, x, y) {
+    var color = kind === "warning" ? "#c89b3c" : kind === "connect" ? "#2e8b57" : kind === "disconnect" ? "#b4545c" : null;
+    if (!color) return;
     ctx.save();
-    ctx.lineWidth = 1.8;
-    if (kind === "warning") {
-      ctx.fillStyle = "#c89b3c";
-      ctx.beginPath();
-      ctx.moveTo(x, y - 7);
-      ctx.lineTo(x + 7, y + 6);
-      ctx.lineTo(x - 7, y + 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.stroke();
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(x, y - 2);
-      ctx.lineTo(x, y + 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(x, y + 4.5, 0.9, 0, Math.PI * 2);
-      ctx.fillStyle = "#f7f9fc";
-      ctx.fill();
-    } else if (kind === "connect") {
-      ctx.fillStyle = "#2e8b57";
-      ctx.beginPath();
-      ctx.arc(x, y, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.stroke();
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(x - 3.5, y + 0.2);
-      ctx.lineTo(x - 0.8, y + 3);
-      ctx.lineTo(x + 4, y - 2.5);
-      ctx.stroke();
-    } else if (kind === "disconnect") {
-      ctx.translate(x, y);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = "#b4545c";
-      ctx.fillRect(-5.5, -5.5, 11, 11);
-      ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
-      ctx.strokeRect(-5.5, -5.5, 11, 11);
-      ctx.rotate(-Math.PI / 4);
-      ctx.strokeStyle = "#f7f9fc";
-      ctx.beginPath();
-      ctx.moveTo(-3, -3);
-      ctx.lineTo(3, 3);
-      ctx.moveTo(3, -3);
-      ctx.lineTo(-3, 3);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(12, 15, 18, 0.78)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -293,9 +284,15 @@
     var y1 = padTop + plotH;
 
     var rawPoints = state.graph_points || [];
-    var points = downsamplePoints(rawPoints, th.max_draw_points);
     var liveView = !!state.graph_live_view;
     var running = !!state.running;
+    var progress = typeof state.progress === "number" ? state.progress : 0;
+    var terminalCutoff = liveView ? terminalCutoffIndex(rawPoints) : -1;
+    if (terminalCutoff >= 0) {
+      rawPoints = rawPoints.slice(0, terminalCutoff + 1);
+    }
+    var points = downsamplePoints(rawPoints, th.max_draw_points);
+    var extendToNow = liveView && running && progress < 1.0;
     var logScale = !!state.graph_log_scale;
     var timeMode = state.graph_time_mode || "relative";
     var gamma = th.graph_log_gamma;
@@ -308,12 +305,23 @@
       var cy = y0 + plotH / 2;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
+      var emptyLine1, emptyLine2;
+      if (!state.running && !(state.source_path || "").trim()) {
+        emptyLine1 = "Queue data will appear here";
+        emptyLine2 = "← Set a log folder above, then click Start";
+      } else if (state.running && (state.source_path || "").trim()) {
+        emptyLine1 = "Waiting for queue data…";
+        emptyLine2 = "Join a server queue and position changes will plot here.";
+      } else {
+        emptyLine1 = "No data yet";
+        emptyLine2 = "Queue position will plot here from the log.";
+      }
       ctx.fillStyle = th.ui_graph_empty;
       ctx.font = "15px system-ui,Segoe UI,sans-serif";
-      ctx.fillText("No data yet", cx, cy - 10);
+      ctx.fillText(emptyLine1, cx, cy - 10);
       ctx.fillStyle = th.ui_graph_axis;
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
-      ctx.fillText("Queue position will plot here from the log.", cx, cy + 12);
+      ctx.fillText(emptyLine2, cx, cy + 12);
       ctx.textAlign = "start";
       ctx.textBaseline = "alphabetic";
       canvas._drawState = {
@@ -335,11 +343,12 @@
     }
 
     var rangePts = rawPoints.length ? rawPoints : points;
+    var fullTr = graphPlotTimeRange(rangePts, extendToNow, th.single_point_graph_span_sec);
     var tr;
     if (viewRange && viewRange.length === 2) {
       tr = [viewRange[0], viewRange[1]];
     } else {
-      tr = graphPlotTimeRange(rangePts, liveView, running, th.single_point_graph_span_sec);
+      tr = fullTr;
     }
     var t0 = tr[0];
     var t1 = tr[1];
@@ -357,23 +366,26 @@
     });
     var vmin = Math.min.apply(null, vals);
     var vmax = Math.max.apply(null, vals);
-    if (vmax === vmin) {
-      vmax = vmin + 1;
+    var axisVmin = Math.max(0, vmin);
+    var axisVmax = vmax;
+    if (axisVmax === axisVmin) {
+      axisVmax = axisVmin + 1;
     }
-    vmin = Math.max(0, vmin);
+    var drawVmin = axisVmin;
+    var drawVmax = axisVmax;
 
     function xOf(t) {
       return x0 + ((t - t0) / (t1 - t0)) * plotW;
     }
 
     function yOf(v) {
-      var vv = Math.max(vmin, Math.min(vmax, v));
+      var vv = Math.max(drawVmin, Math.min(drawVmax, v));
       if (!logScale) {
-        var frac = (vmax - vv) / Math.max(1, vmax - vmin);
+        var frac = (drawVmax - vv) / Math.max(1, drawVmax - drawVmin);
         return y0 + frac * plotH;
       }
-      var lvmin = Math.log(vmin + 1);
-      var lvmax = Math.log(vmax + 1);
+      var lvmin = Math.log(drawVmin + 1);
+      var lvmax = Math.log(drawVmax + 1);
       var lv = Math.log(vv + 1);
       var frac = lvmax <= lvmin ? 0 : (lvmax - lv) / (lvmax - lvmin);
       frac = Math.max(0, Math.min(1, frac));
@@ -392,22 +404,22 @@
     ctx.stroke();
 
     var tickStep = 5;
-    var start = Math.floor(vmin / tickStep) * tickStep;
-    var end = Math.ceil((vmax + tickStep - 1) / tickStep) * tickStep;
+    var start = Math.floor(axisVmin / tickStep) * tickStep;
+    var end = Math.ceil((axisVmax + tickStep - 1) / tickStep) * tickStep;
     var tickVals = [];
     var val;
     for (val = start; val <= end; val += tickStep) {
-      if (vmin <= val && val <= vmax) {
-        if (val === 0 && vmin > 0) {
+      if (axisVmin <= val && val <= axisVmax) {
+        if (val === 0 && axisVmin > 0) {
           continue;
         }
         tickVals.push(val);
       }
     }
-    if (vmin <= 5 && 5 <= vmax) {
+    if (axisVmin <= 5 && 5 <= axisVmax) {
       tickVals.push(1, 2, 3, 4, 5);
     }
-    tickVals.push(vmin, vmax);
+    tickVals.push(axisVmin, axisVmax);
     tickVals = Array.from(new Set(tickVals)).sort(function (a, b) {
       return b - a;
     });
@@ -437,6 +449,22 @@
         ctx.moveTo(x0, y);
         ctx.lineTo(x1, y);
         ctx.stroke();
+      }
+    }
+
+    // Draw event icons ON the axis line before time labels so labels render over them.
+    var graphEvents = state.graph_events || [];
+    if (graphEvents.length) {
+      for (j = 0; j < graphEvents.length; j++) {
+        var event = graphEvents[j];
+        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
+          continue;
+        }
+        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
+          continue;
+        }
+        var ex = xOf(event.t);
+        drawGraphEventMarker(ctx, event.kind, ex, y1);
       }
     }
 
@@ -506,11 +534,16 @@
       ctx.stroke();
       var isLast = idx === tickTimes.length - 1;
       if (isLast || lastXLabel === null || Math.abs(x - lastXLabel) >= minLabelDx) {
-        ctx.fillStyle = textColor;
         ctx.font = "11px system-ui,Segoe UI,sans-serif";
-        ctx.textAlign = isLast ? "right" : "center";
         ctx.textBaseline = "top";
-        ctx.fillText(label, isLast ? x + 2 : x, y1 + 14);
+        var lx = isLast ? x + 2 : x;
+        var lw = ctx.measureText(label).width;
+        var lbgX = isLast ? lx - lw - 2 : lx - lw / 2 - 2;
+        ctx.fillStyle = th.ui_graph_bg;
+        ctx.fillRect(lbgX, y1 + 13, lw + 4, 13);
+        ctx.fillStyle = textColor;
+        ctx.textAlign = isLast ? "right" : "center";
+        ctx.fillText(label, lx, y1 + 14);
         lastXLabel = x;
       }
       if (idx > 0 && idx < tickTimes.length - 1) {
@@ -603,10 +636,10 @@
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
       overlayLines.push(
-        "Rate: " +
+        "Full Rate: " +
           (overlayStats.avgMinPerPos == null
             ? "-"
-            : overlayStats.avgMinPerPos.toFixed(2) + " min/pos")
+            : overlayStats.avgMinPerPos.toFixed(2) + " m/p")
       );
       ctx.font = "11px system-ui,Segoe UI,sans-serif";
       ctx.textBaseline = "top";
@@ -647,6 +680,10 @@
     ctx.strokeStyle = th.ui_graph_line;
     ctx.lineWidth = 2;
     ctx.lineJoin = "miter";
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, plotW, plotH);
+    ctx.clip();
     if (line.length >= 4) {
       ctx.beginPath();
       ctx.moveTo(line[0], line[1]);
@@ -664,50 +701,58 @@
       ctx.lineTo(lx0, ly0);
       ctx.stroke();
     }
+    ctx.restore();
 
-    var marker = state.current_point || points[points.length - 1];
-    var graphEvents = state.graph_events || [];
-    if (graphEvents.length) {
-      var eventStacks = {};
-      for (j = 0; j < graphEvents.length; j++) {
-        var event = graphEvents[j];
-        if (!event || !isFinite(event.t) || !isFinite(event.pos)) {
-          continue;
-        }
-        if (event.t < t0 - 1e-6 || event.t > t1 + 1e-6) {
-          continue;
-        }
-        var ex = xOf(event.t);
-        var baseY = yOf(event.pos);
-        var stackKey = Math.round(ex / 14) + ":" + Math.round(baseY / 14);
-        var stackIndex = eventStacks[stackKey] || 0;
-        eventStacks[stackKey] = stackIndex + 1;
-        var ey = Math.max(y0 + 10, baseY - 14 - stackIndex * 16);
-        if (baseY - ey > 8) {
-          ctx.strokeStyle = th.ui_graph_axis;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(ex, baseY - 5);
-          ctx.lineTo(ex, ey + 8);
-          ctx.stroke();
-        }
-        drawGraphEventMarker(ctx, event.kind, ex, ey);
-      }
-    }
+    var visibleMarker = viewPts.length ? viewPts[viewPts.length - 1] : null;
+    var marker =
+      (viewRange && viewRange.length === 2)
+        ? (visibleMarker || points[points.length - 1])
+        : (terminalCutoff >= 0 ? points[points.length - 1] : (state.current_point || points[points.length - 1]));
     if (marker) {
       var lastT = marker[0];
       var lastV = marker[1];
       var lx = xOf(lastT);
       var ly = yOf(lastV);
-      ctx.fillStyle = th.ui_graph_marker;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 4, 0, Math.PI * 2);
-      ctx.fill();
+      var isHistorical = !running || progress >= 1.0;
+      var terminalMarkerKind = null;
+      if (isHistorical && graphEvents.length) {
+        var lastEvent = null;
+        for (var ei = graphEvents.length - 1; ei >= 0; ei--) {
+          var ge = graphEvents[ei];
+          if (
+            ge &&
+            ge.kind !== "warning" &&
+            isFinite(ge.t) &&
+            ge.t >= t0 - 1e-6 &&
+            ge.t <= t1 + 1e-6
+          ) {
+            lastEvent = ge;
+            break;
+          }
+        }
+        if (lastEvent) terminalMarkerKind = lastEvent.kind;
+      }
+
+      if (!terminalMarkerKind) {
+        ctx.fillStyle = th.ui_graph_marker;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        drawGraphEventMarker(ctx, terminalMarkerKind, lx, ly);
+      }
       ctx.fillStyle = textColor;
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
-      ctx.textAlign = "left";
+      var markerText = String(lastV);
+      var markerTextW = ctx.measureText(markerText).width;
       ctx.textBaseline = "middle";
-      ctx.fillText(String(lastV), lx + 10, ly);
+      if (lx + 10 + markerTextW <= x1 - 2) {
+        ctx.textAlign = "left";
+        ctx.fillText(markerText, lx + 10, ly);
+      } else {
+        ctx.textAlign = "right";
+        ctx.fillText(markerText, lx - 8, ly);
+      }
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {
@@ -735,9 +780,11 @@
     canvas._drawState = {
       points: points,
       drawn: points,
-      rawPoints: rawPoints,
+      rawPoints: viewPts,
       t0: t0,
       t1: t1,
+      fullT0: fullTr[0],
+      fullT1: fullTr[1],
       x0: x0,
       x1: x1,
       y0: y0,

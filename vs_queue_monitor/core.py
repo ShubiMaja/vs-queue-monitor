@@ -117,9 +117,19 @@ QUEUE_RUN_BOUNDARY_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)\breturned\s+to\s+(?:the\s+)?main\s+menu\b"),
     re.compile(r"(?i)\b(?:server|client)\s+shut\s+down\b"),
 )
-DEFAULT_PATH = "$APPDATA/VintagestoryData"
+
 TAIL_BYTES = 128 * 1024
 
+def get_default_vintagestory_path() -> Path:
+    if sys.platform == "win32":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base_dir = Path.home() / "Library" / "Application Support"
+    else:
+        base_dir = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+
+    return base_dir / "VintagestoryData"
+DEFAULT_PATH = str(get_default_vintagestory_path())
 
 def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
     """Path shown in Logs folder: always a directory string. Saved or CLI paths to a file become its parent."""
@@ -156,7 +166,7 @@ MAX_DRAW_POINTS = MAX_GRAPH_POINTS
 # When only one sample exists, map X across this span so axes and the marker are visible (not a sliver).
 SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
-DEFAULT_ALERT_THRESHOLDS = "10, 5, 1"
+DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
@@ -266,7 +276,7 @@ UI_GRAPH_DARK_INNER_PAD = (4, UI_INNER_PAD_Y_SM, 8, 10)
 # Plot area inside graph canvas (must match redraw_graph — same numbers for axis labels + Y-scale button).
 GRAPH_CANVAS_PAD_LEFT = 46
 GRAPH_CANVAS_PAD_RIGHT = 22
-GRAPH_CANVAS_PAD_TOP = 12
+GRAPH_CANVAS_PAD_TOP = 22
 GRAPH_CANVAS_PAD_BOTTOM = 32
 # Y-scale toggle: inset from top-right corner of plot rectangle (not canvas edge).
 GRAPH_Y_SCALE_BTN_INSET_X = 8
@@ -1180,6 +1190,14 @@ def compute_seed_graph_from_log(
     authoritative_pos, queue_run_session_id = (
         parse_tail_last_queue_reading(text) if text else (None, 0)
     )
+    # Map to position 0 if post-queue signal already in the tail (same logic as poll_once).
+    if (
+        authoritative_pos is not None
+        and authoritative_pos <= 1
+        and text
+        and tail_has_post_queue_after_last_queue_line(text)
+    ):
+        authoritative_pos = 0
 
     segment_points = segment_tuples[-MAX_GRAPH_POINTS:]
     first_le_one_epoch = first_position_at_or_before_front_epoch(segment_tuples)

@@ -1,3 +1,8 @@
+# Smoke release check
+.smoke-release-check/
+.tmp-release-smoke-tests*/
+
+# Claude
 .claude/settings.*json
 
 # Byte-compiled / cache
@@ -23,6 +28,9 @@ build/
 htmlcov/
 playwright-report/
 test-results/
+.pwdeps/
+.tmp-py/
+.tmp-python313.exe
 
 .mypy_cache/
 .ruff_cache/

@@ -17,15 +17,27 @@ from typing import Any, Optional
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import GITHUB_REPO_URL, VERSION
-from ..core import get_config_path, parse_alert_thresholds, queue_sessions_for_log_tail
+from ..core import (
+    SEED_LOG_TAIL_BYTES,
+    default_alert_sound_path_for_display,
+    default_completion_sound_path_for_display,
+    default_failure_sound_path_for_display,
+    expand_path,
+    get_config_path,
+    parse_alert_thresholds,
+    parse_tail_last_queue_reading,
+    queue_sessions_for_log_tail,
+    read_log_file_tail_text,
+)
 from ..engine import QueueMonitorEngine
 from .hooks_web import WebMonitorHooks
+from .push import push_configured, push_status, register_subscription, send_push_to_all, subscription_count, vapid_public_key
 from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
@@ -69,14 +81,29 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
+def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
+    """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
+
+    The engine's ``_last_queue_run_session`` is counted against the smaller TAIL_BYTES window
+    and disagrees with the session IDs in the SEED window used by ``queue_sessions_for_log_tail``.
+    Deriving the active ID directly from the SEED tail keeps all session IDs in the same
+    coordinate space, preventing historical sessions from being incorrectly filtered and
+    phantom sessions from leaking into the dropdown.
+    """
     path = engine.current_log_file
     if path is None or not path.is_file():
-        return []
+        return [], -1
     try:
-        return queue_sessions_for_log_tail(path)
+        tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
+        sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
+        seed_active_id = -1
+        if tail_text and engine.running:
+            _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+        if seed_active_id >= 0:
+            sessions = [s for s in sessions if int(s.get("session_id", -1)) != seed_active_id]
+        return sessions, seed_active_id
     except Exception:
-        return []
+        return [], -1
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -383,6 +410,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         rate_hdr = f"RATE (Rolling {n})"
     except Exception:
         rate_hdr = "RATE"
+    queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
     return {
         "version": VERSION,
         "running": engine.running,
@@ -426,7 +454,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
-        "queue_sessions": _queue_sessions_for_engine(engine),
+        "queue_sessions": queue_sessions,
+        "active_queue_session_id": active_session_id,
         "build_fingerprint": _build_fingerprint(),
     }
 
@@ -441,6 +470,7 @@ def _api_meta(request: Request) -> JSONResponse:
             "graph_theme": graph_theme_dict(),
             "chrome_theme": chrome_theme_css_vars(),
             "window_mode": _window_mode,
+            "push_status": push_status(),
         }
     )
 
@@ -449,9 +479,60 @@ def _api_state(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     hooks: WebMonitorHooks = request.app.state.hooks
     lock: threading.RLock = request.app.state.lock
+    try:
+        with lock:
+            snap = build_snapshot(engine, hooks)
+        return JSONResponse(snap)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+def _effective_sound_path(engine: QueueMonitorEngine, kind: str) -> Path | None:
+    if kind == "warning":
+        raw = (engine.alert_sound_path_var.get() or "").strip()
+        fallback = default_alert_sound_path_for_display
+    elif kind == "completion":
+        raw = (engine.completion_sound_path_var.get() or "").strip()
+        fallback = default_completion_sound_path_for_display
+    elif kind == "failure":
+        raw = (engine.failure_sound_path_var.get() or "").strip()
+        fallback = default_failure_sound_path_for_display
+    else:
+        return None
+    if raw:
+        path = expand_path(raw)
+        return path if path.is_file() else None
+    fallback_raw = fallback().strip()
+    if not fallback_raw:
+        return None
+    path = Path(fallback_raw)
+    return path if path.is_file() else None
+
+
+def _audio_media_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix == ".wav":
+        return "audio/wav"
+    if suffix == ".mp3":
+        return "audio/mpeg"
+    if suffix == ".ogg" or suffix == ".oga":
+        return "audio/ogg"
+    if suffix == ".aiff" or suffix == ".aif":
+        return "audio/aiff"
+    if suffix == ".m4a":
+        return "audio/mp4"
+    return "application/octet-stream"
+
+
+def _api_sound(request: Request) -> Response:
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    kind = str(request.path_params.get("kind", "")).strip().lower()
     with lock:
-        snap = build_snapshot(engine, hooks)
-    return JSONResponse(snap)
+        path = _effective_sound_path(engine, kind)
+    if path is None:
+        return Response(status_code=404)
+    return FileResponse(path, media_type=_audio_media_type(path), filename=path.name)
 
 
 async def _api_pick_path(request: Request) -> JSONResponse:
@@ -561,17 +642,23 @@ async def _api_config(request: Request) -> JSONResponse:
 def _api_toggle(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     lock: threading.RLock = request.app.state.lock
-    with lock:
-        engine.toggle_monitoring()
-    return JSONResponse({"ok": True})
+    try:
+        with lock:
+            engine.toggle_monitoring()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 def _api_reset(request: Request) -> JSONResponse:
     engine: QueueMonitorEngine = request.app.state.engine
     lock: threading.RLock = request.app.state.lock
-    with lock:
-        engine.reset_defaults()
-    return JSONResponse({"ok": True})
+    try:
+        with lock:
+            engine.reset_defaults()
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 async def _api_new_queue(request: Request) -> JSONResponse:
@@ -625,6 +712,51 @@ async def _api_clear_notification_permission(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+
+def _api_push_public_key(request: Request) -> JSONResponse:
+    key = vapid_public_key()
+    if not key:
+        return JSONResponse({"ok": False, "error": "web push is not configured on the server"}, status_code=503)
+    return JSONResponse({"ok": True, "public_key": key, "configured": push_configured(), "subscriptions": subscription_count()})
+
+
+async def _api_push_subscribe(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"ok": False, "error": "object expected"}, status_code=400)
+    subscription = body.get("subscription")
+    if not isinstance(subscription, dict):
+        return JSONResponse({"ok": False, "error": "subscription object expected"}, status_code=400)
+    try:
+        result = register_subscription(subscription, user_agent=request.headers.get("user-agent", ""))
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, **result})
+
+
+async def _api_push_test(request: Request) -> JSONResponse:
+    payload = {
+        "title": "VS Queue Monitor test",
+        "body": "This test came from the backend web push pipeline.",
+        "tag": f"vsqm-test-{int(time.time() * 1000)}",
+        "kind": "warning",
+        "renotify": True,
+        "url": "/",
+    }
+    try:
+        result = await asyncio.to_thread(send_push_to_all, payload)
+    except RuntimeError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, **result})
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -657,6 +789,18 @@ def _init_web_stack(
     lock = threading.RLock()
     hooks = WebMonitorHooks(lock)
     engine = QueueMonitorEngine(hooks, initial_path=initial_path, auto_start=False)
+
+    def _push_notify(_kind: str, payload: dict[str, Any]) -> None:
+        if not push_configured():
+            return
+        def _worker() -> None:
+            try:
+                send_push_to_all(payload)
+            except Exception:
+                logging.getLogger(__name__).exception("web push send failed")
+        threading.Thread(target=_worker, daemon=True).start()
+
+    engine.push_notifier = _push_notify
     hooks.attach_engine(engine)
     if auto_start:
         hooks.schedule(300, engine.start_monitoring)
@@ -706,12 +850,16 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
         Route("/api/state", _api_state, methods=["GET"]),
+        Route("/api/sound/{kind:str}", _api_sound, methods=["GET"]),
         Route("/api/pick_path", _api_pick_path, methods=["POST"]),
         Route("/api/config", _api_config, methods=["POST"]),
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
         Route("/api/reset_defaults", _api_reset, methods=["POST"]),
         Route("/api/new_queue", _api_new_queue, methods=["POST"]),
         Route("/api/clear_notification_permission", _api_clear_notification_permission, methods=["POST"]),
+        Route("/api/push/public_key", _api_push_public_key, methods=["GET"]),
+        Route("/api/push/subscribe", _api_push_subscribe, methods=["POST"]),
+        Route("/api/push/test", _api_push_test, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

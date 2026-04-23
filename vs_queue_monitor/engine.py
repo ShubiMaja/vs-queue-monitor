@@ -45,6 +45,7 @@ class QueueMonitorEngine:
 
     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
         self._hooks = hooks
+        self.push_notifier: Optional[Callable[[str, dict[str, Any]], None]] = None
         self.config: dict = load_config()
         _cfg_src = self.config.get("source_path", "")
         _cfg_src = _cfg_src.strip() if isinstance(_cfg_src, str) else ""
@@ -284,9 +285,21 @@ class QueueMonitorEngine:
         self.persist_config()
         self.write_history('Settings reset to defaults.')
         self._refresh_warnings_kpi()
+        self._starting = False
+        self.start_monitoring()
 
     def write_history(self, message: str) -> None:
         self._hooks.append_history(message)
+
+    def _emit_push_notification(self, kind: str, payload: dict[str, Any]) -> None:
+        notifier = self.push_notifier
+        if not callable(notifier):
+            return
+        try:
+            notifier(kind, payload)
+        except Exception:
+            pass
+
 
     def _set_status_line(self, text: str, *, danger: bool = False) -> None:
         self.status_var.set(text)
@@ -494,6 +507,7 @@ class QueueMonitorEngine:
         """Freeze elapsed and show Interrupted, but keep polling the log (no stop)."""
         if self._interrupted_mode:
             return
+        now = time.time()
         self._interrupted_mode = True
         self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
         self._interrupt_baseline_session = self._last_queue_run_session
@@ -507,16 +521,25 @@ class QueueMonitorEngine:
         self.write_history(msg)
         if self.failure_popup_enabled_var.get():
             self._hooks.show_failure_popup(detail)
+            self._emit_push_notification(
+                "failure",
+                {
+                    "title": "Queue interrupted",
+                    "body": f"Queue interrupted — still watching the log.\nStatus: {self.status_var.get() or 'Interrupted'}\nLast change: {self.last_change_var.get() or '—'}",
+                    "tag": f"vsqm-failure-{int(now * 1000)}",
+                    "kind": "failure",
+                    "renotify": True,
+                },
+            )
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
-        # Use total boundary count when available: catches a new run the moment its boundary
-        # line appears, before the first position line arrives (which is when queue_sess updates).
+        # Use total boundary count only when there is also at least one new position line in the
+        # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
+        # mid-game reconnect lines that appear without an accompanying queue position line.
         effective_sess = queue_sess
-        if total_queue_boundaries is not None and total_queue_boundaries > queue_sess:
-            effective_sess = total_queue_boundaries
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
         if effective_sess <= self._interrupt_baseline_session:
@@ -735,6 +758,8 @@ class QueueMonitorEngine:
                 text = read_log_file_tail_text(self.current_log_file, TAIL_BYTES)
                 if text is None:
                     self._set_status_line('Waiting for log file')
+                elif not text.strip():
+                    self._set_status_line('Log file found — waiting for data')
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)
@@ -749,6 +774,18 @@ class QueueMonitorEngine:
                         self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
+                        self._queue_stale_latched = False
+                        self._queue_stale_logged_once = False
+                        self._last_queue_position_change_epoch = None
+                        self._last_queue_line_epoch = None
+                        self._progress_at_front_entry = None
+                        self._left_connect_queue_detected = False
+                        self._position_one_reached_at = None
+                        self._connect_phase_started_epoch = None
+                        self._set_position_display(None)
+                        self.last_position = None
+                    elif self._left_connect_queue_detected and kind in ('reconnecting', 'grace'):
+                        self.enter_interrupted_state('Connection lost after queue completion.')
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
@@ -1344,6 +1381,16 @@ class QueueMonitorEngine:
             self.play_sound()
         if self.popup_enabled_var.get():
             self._hooks.show_threshold_popup(position, eta_display)
+            self._emit_push_notification(
+                "warning",
+                {
+                    "title": "Threshold alert",
+                    "body": f"Threshold alert: position {position} ({reason})\nEstimated remaining: {eta_display}\nStatus: {self.status_var.get() or 'Monitoring'}",
+                    "tag": f"vsqm-threshold-{self._last_alert_seq}",
+                    "kind": "warning",
+                    "renotify": True,
+                },
+            )
 
     def play_sound(self) -> None:
         """Threshold / warning alert sound."""
@@ -1409,3 +1456,13 @@ class QueueMonitorEngine:
             self.play_completion_sound()
         if want_popup:
             self._hooks.show_completion_popup()
+            self._emit_push_notification(
+                "completion",
+                {
+                    "title": "Queue completion",
+                    "body": f"Queue completion: past queue wait — connecting (position 0).\nStatus: {self.status_var.get() or 'Connecting'}",
+                    "tag": f"vsqm-completion-{int(now * 1000)}",
+                    "kind": "completion",
+                    "renotify": True,
+                },
+            )

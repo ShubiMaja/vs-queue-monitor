@@ -20,6 +20,101 @@
   var _pathRehydratePosted = false;
   var notifySyncHint = null;
   var _historyAutoscroll = true;
+  var _lastWarnPassedSig = "";
+  var _tourAutoShowFn = null;   // set by setupTour so applyState can trigger it
+  var _audioCtx = null;
+  var _activeAlertAudio = [];
+
+  function _getAudioContext() {
+    if (_audioCtx) return _audioCtx;
+    try {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {}
+    return _audioCtx;
+  }
+
+  function playBrowserBeep(freq, dur) {
+    try {
+      var ctx = _getAudioContext();
+      if (!ctx) return;
+      function _beep() {
+        try {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.value = freq || 880;
+          gain.gain.setValueAtTime(0.25, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (dur || 0.3));
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + (dur || 0.3));
+        } catch (e) {}
+      }
+      if (ctx.state === "suspended") {
+        ctx.resume().then(_beep).catch(function () {});
+      } else {
+        _beep();
+      }
+    } catch (e) {}
+  }
+
+  function _soundPathForKind(kind, state) {
+    if (!state) return "";
+    if (kind === "warning") return (state.alert_sound_path || "").trim();
+    if (kind === "completion") return (state.completion_sound_path || "").trim();
+    if (kind === "failure") return (state.failure_sound_path || "").trim();
+    return "";
+  }
+
+  function _soundUrlForKind(kind, state) {
+    var marker = _soundPathForKind(kind, state) || "default";
+    return "/api/sound/" + encodeURIComponent(kind) + "?v=" + encodeURIComponent(marker);
+  }
+
+  function _trackAlertAudio(audio) {
+    if (!audio) return;
+    _activeAlertAudio.push(audio);
+    function cleanup() {
+      var idx = _activeAlertAudio.indexOf(audio);
+      if (idx >= 0) _activeAlertAudio.splice(idx, 1);
+    }
+    audio.addEventListener("ended", cleanup, { once: true });
+    audio.addEventListener("error", cleanup, { once: true });
+  }
+
+  function playAlertSoundOrBeep(kind, state, fallbackFreq, fallbackDur) {
+    var url = _soundUrlForKind(kind, state);
+    var audio = null;
+    var fellBack = false;
+    function cleanup() {
+      if (!audio) return;
+      var idx = _activeAlertAudio.indexOf(audio);
+      if (idx >= 0) _activeAlertAudio.splice(idx, 1);
+      audio = null;
+    }
+    function fallback() {
+      if (fellBack) return;
+      fellBack = true;
+      cleanup();
+      playBrowserBeep(fallbackFreq, fallbackDur);
+    }
+    try {
+      audio = new Audio(url);
+      audio.preload = "auto";
+      _trackAlertAudio(audio);
+      audio.addEventListener("error", fallback, { once: true });
+      var playResult = audio.play();
+      if (playResult && typeof playResult.catch === "function") {
+        playResult.catch(function () {
+          fallback();
+        });
+      }
+    } catch (e) {
+      cleanup();
+      fallback();
+    }
+  }
 
   function lsGetPath() {
     try {
@@ -147,7 +242,6 @@
     btn.setAttribute("aria-pressed", _historyAutoscroll ? "true" : "false");
     btn.title = _historyAutoscroll ? "Autoscroll on" : "Autoscroll off";
     btn.setAttribute("aria-label", btn.title);
-    btn.classList.toggle("btn--toggle-on", _historyAutoscroll);
   }
 
   function historyPinnedToBottom(el) {
@@ -264,10 +358,9 @@
 
   function warningNotificationPayload(state, alertMsg, seq) {
     return {
-      title: "Queue warning",
+      title: "Threshold alert",
       body: formatNotificationBody([
         alertMsg,
-        "Position: " + displayMetricOrFallback(state.position, "Unknown"),
         "Estimated remaining: " + displayMetricOrFallback(state.remaining, "Estimating…"),
         "Status: " + displayMetricOrFallback(state.status, "Unknown"),
       ]),
@@ -279,12 +372,10 @@
 
   function completionNotificationPayload(state, seq) {
     return {
-      title: "Queue wait finished",
+      title: "Queue completion",
       body: formatNotificationBody([
-        "Past queue wait reached.",
-        "Current position: " + displayMetricOrFallback(state.position, "0"),
+        "Queue completion: past queue wait - connecting (position 0).",
         "Status: " + displayMetricOrFallback(state.status, "Connecting"),
-        "Remaining: 0s",
       ]),
       kind: "completion",
       tag: "vsqm-completion-" + seq,
@@ -296,7 +387,7 @@
     return {
       title: "Queue interrupted",
       body: formatNotificationBody([
-        "Monitoring is still watching the log for recovery.",
+        "Queue interrupted - still watching the log.",
         "Status: " + displayMetricOrFallback(state.status, "Interrupted"),
         "Last change: " + displayMetricOrFallback(state.last_change, "No recent queue movement"),
       ]),
@@ -324,16 +415,163 @@
         if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
       }
     }
-    return new Notification(title, o);
+    var notif = new Notification(title, o);
+    notif.onclick = function () {
+      window.focus();
+      notif.close();
+    };
+    return notif;
   }
 
   function fireDesktopNotification(title, extra, failMessage) {
     try {
-      return desktopNotify(title, extra);
+      return serviceWorkerNotify(title, extra)
+        .catch(function () {
+          return desktopNotify(title, extra);
+        })
+        .catch(function () {
+          if (failMessage) toast(failMessage, "warn");
+          return null;
+        });
     } catch (e) {
       if (failMessage) toast(failMessage, "warn");
       return null;
     }
+  }
+
+  var NOTIFY_SW_SCOPE = "/notify-sw/";
+
+  function getNotificationServiceWorkerPath() {
+    return "/notify-sw.js";
+  }
+
+  function getNotificationServiceWorkerScope() {
+    return NOTIFY_SW_SCOPE;
+  }
+
+  function registerNotificationServiceWorker() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+      return Promise.resolve(null);
+    }
+    return navigator.serviceWorker
+      .register(getNotificationServiceWorkerPath(), {
+        scope: getNotificationServiceWorkerScope(),
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function getNotificationServiceWorkerRegistration() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+      return Promise.resolve(null);
+    }
+    return navigator.serviceWorker
+      .getRegistration(getNotificationServiceWorkerScope())
+      .then(function (reg) {
+        if (reg) return reg;
+        return registerNotificationServiceWorker();
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function serviceWorkerNotify(title, extra) {
+    return getNotificationServiceWorkerRegistration().then(function (reg) {
+      if (!reg || typeof reg.showNotification !== "function") {
+        throw new Error("Notification service worker unavailable");
+      }
+      var kind = extra && extra.kind ? String(extra.kind) : "";
+      var iconUrl = notifyIconUrl(notificationIconPath(kind));
+      var o = {
+        icon: iconUrl,
+        badge: iconUrl,
+        timestamp: Date.now(),
+        lang: "en",
+      };
+      if (extra && typeof extra === "object") {
+        var k;
+        for (k in extra) {
+          if (Object.prototype.hasOwnProperty.call(extra, k)) o[k] = extra[k];
+        }
+      }
+      return reg.showNotification(title, o);
+    });
+  }
+
+  var _pushSubscribeAttempted = false;
+  var _pushSubscribePromise = null;
+  var _pushPublicKeyCache = null;
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    var i;
+    for (i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  function fetchPushPublicKey() {
+    if (_pushPublicKeyCache) {
+      return Promise.resolve(_pushPublicKeyCache);
+    }
+    return fetch("/api/push/public_key")
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok || !j.ok || !j.public_key) {
+            throw new Error((j && j.error) || "Web push is not configured on the server");
+          }
+          _pushPublicKeyCache = j.public_key;
+          return _pushPublicKeyCache;
+        });
+      });
+  }
+
+  function subscribeBrowserPush() {
+    if (_pushSubscribePromise) {
+      return _pushSubscribePromise;
+    }
+    _pushSubscribePromise = getNotificationServiceWorkerRegistration()
+      .then(function (reg) {
+        if (!reg || !reg.pushManager) {
+          throw new Error("Push manager unavailable");
+        }
+        return fetchPushPublicKey().then(function (publicKey) {
+          return reg.pushManager.getSubscription().then(function (existing) {
+            if (existing) {
+              return existing;
+            }
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(publicKey),
+            });
+          });
+        });
+      })
+      .then(function (subscription) {
+        return fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: subscription.toJSON ? subscription.toJSON() : subscription }),
+        }).then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok || !j.ok) {
+              throw new Error((j && j.error) || "Could not save push subscription");
+            }
+            return j;
+          });
+        });
+      })
+      .catch(function (err) {
+        _pushSubscribePromise = null;
+        throw err;
+      });
+    return _pushSubscribePromise;
   }
 
   function cleanupLegacyNotificationServiceWorker() {
@@ -344,6 +582,9 @@
       regs.forEach(function (reg) {
         var scope = String((reg && reg.scope) || "");
         if (scope.indexOf(location.origin + "/") === 0) {
+          if (scope.indexOf(location.origin + getNotificationServiceWorkerScope()) === 0) {
+            return;
+          }
           reg.unregister().catch(function () {});
         }
       });
@@ -434,15 +675,16 @@
         if (Math.abs(denom2) > 1e-9) {
           var bSlope = (n2 * sumTV - sumT * sumV) / denom2;
           var aInter = (sumV - bSlope * sumT) / n2;
-          var dpr2 = window.devicePixelRatio || 1;
+          // xOf/yOf return logical-pixel coords; the canvas context is already
+          // scaled by devicePixelRatio from the draw() call, so no dpr multiply.
           var txA = ds2.t0, txB = ds2.t1;
           var tyA = aInter + bSlope * txA, tyB = aInter + bSlope * txB;
-          var pxA = ds2.xOf(txA) * dpr2, pxB = ds2.xOf(txB) * dpr2;
-          var pyA = ds2.yOf(tyA) * dpr2, pyB = ds2.yOf(tyB) * dpr2;
+          var pxA = ds2.xOf(txA), pxB = ds2.xOf(txB);
+          var pyA = ds2.yOf(tyA), pyB = ds2.yOf(tyB);
           ctx.save();
           ctx.strokeStyle = "rgba(255,200,80,0.7)";
-          ctx.lineWidth = 1.5 * dpr2;
-          ctx.setLineDash([4 * dpr2, 4 * dpr2]);
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
           ctx.beginPath();
           ctx.moveTo(pxA, pyA);
           ctx.lineTo(pxB, pyB);
@@ -452,14 +694,13 @@
         }
       }
     }
-    // Drag-select overlay
+    // Drag-select overlay — ctx is already scaled by DPR; pass logical pixels directly
     if (_dragSel && _dragSel.ds) {
       var ds = _dragSel.ds;
-      var dpr = window.devicePixelRatio || 1;
-      var xa = Math.min(_dragSel.x0, _dragSel.x1) * dpr;
-      var xb = Math.max(_dragSel.x0, _dragSel.x1) * dpr;
-      var ya = ds.y0 * dpr;
-      var yb = (ds.y0 + ds.plotH) * dpr;
+      var xa = Math.min(_dragSel.x0, _dragSel.x1);
+      var xb = Math.max(_dragSel.x0, _dragSel.x1);
+      var ya = ds.y0;
+      var yb = ds.y0 + ds.plotH;
       ctx.save();
       ctx.fillStyle = "rgba(88,160,255,0.15)";
       ctx.fillRect(xa, ya, xb - xa, yb - ya);
@@ -487,6 +728,17 @@
       return h + ":" + String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
     }
     return m + ":" + String(ss).padStart(2, "0");
+  }
+
+  function formatShortDuration(totalSeconds) {
+    if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) return "—";
+    var s = Math.round(totalSeconds);
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    var ss = s % 60;
+    if (h > 0) return h + "h " + m + "m";
+    if (m > 0) return m + "m " + (ss > 0 ? ss + "s" : "");
+    return ss + "s";
   }
 
   /** Graph tooltip: sub-second as N.NNs, otherwise same as stats (e.g. 1:33, 1:05:02). */
@@ -544,6 +796,32 @@
     return computePointSeriesStats(pts);
   }
 
+  function computeRollingWindowMinPerPos(pts, avgWindow, opts) {
+    var points = pts || [];
+    var options = opts || {};
+    var windowSize = parseInt(avgWindow, 10);
+    if (!isFinite(windowSize) || isNaN(windowSize) || windowSize < 2) windowSize = 10;
+    if (points.length < 2) return null;
+    var recent = points.slice(-(windowSize + 1));
+    if (recent.length < 2) return null;
+    var t0 = Number(recent[0][0]);
+    var p0 = Number(recent[0][1]);
+    var t1 = Number(recent[recent.length - 1][0]);
+    var p1 = Number(recent[recent.length - 1][1]);
+    if (!isFinite(t0) || !isFinite(t1) || !isFinite(p0) || !isFinite(p1)) return null;
+    var drop = p0 - p1;
+    if (!(drop > 0)) return null;
+    var currentPos = Number(options.currentPos);
+    var dt;
+    if (options.useLiveNow && currentPos !== 0) {
+      dt = (Date.now() / 1000) - t0;
+    } else {
+      dt = t1 - t0;
+    }
+    if (!(dt > 0)) return null;
+    return dt / (drop * 60);
+  }
+
   function formatRateFromPoints(pts) {
     var stats = computePointSeriesStats(pts || []);
     if (stats.avgMinPerPos == null) return "";
@@ -569,19 +847,46 @@
 
   function renderSessionStats() {
     var stats = computeGraphSessionStats();
+    var avgWindow = parseInt(window._lastState && window._lastState.avg_window, 10);
+    if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
+    var displayPoints = (window._displayState && window._displayState.graph_points) || [];
+    var displayCurrent = window._displayState && window._displayState.current_point;
+    var rollingMpp = computeRollingWindowMinPerPos(
+      displayPoints,
+      avgWindow,
+      {
+        useLiveNow: selectedSessionKey === "latest" && !!(window._lastState && window._lastState.running),
+        currentPos: displayCurrent && displayCurrent.length ? displayCurrent[1] : null,
+      }
+    );
+    var liveQueueRate = window._lastState && window._lastState.queue_rate;
+    var liveQueueRateDisplay =
+      liveQueueRate && liveQueueRate !== "—"
+        ? String(liveQueueRate).replace(" min/pos", " m/p")
+        : "";
     var elS = $("infoStatStart");
     var elE = $("infoStatEnd");
     var elC = $("infoStatCleared");
     var elSp = $("infoStatSpan");
+    var elALbl = $("infoStatAvgLbl");
     var elA = $("infoStatAvg");
+    var elG = $("infoStatGlo");
+    var elInfoFull = $("infoGlo");
+    if (elALbl) elALbl.textContent = avgWindow + "p Rate";
+    var sessionFullRate =
+      stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
       elA.textContent =
-        stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos";
+        selectedSessionKey === "latest" && liveQueueRateDisplay
+          ? liveQueueRateDisplay
+          : (rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p");
     }
+    if (elG) elG.textContent = sessionFullRate;
+    if (elInfoFull) elInfoFull.textContent = sessionFullRate;
   }
 
   function copyStatsToClipboard() {
@@ -594,7 +899,7 @@
       (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
       "\n" +
       "Rate: " +
-      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " min/pos") +
+      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p") +
       "\n";
     navigator.clipboard.writeText(text).then(
       function () {
@@ -649,6 +954,105 @@
     return { icon: "✕", label: "Failed" };
   }
 
+  function formatPositionDisplay(posRaw, statusRaw) {
+    var pos = posRaw == null ? "" : String(posRaw).trim();
+    var status = statusRaw == null ? "" : String(statusRaw).trim().toLowerCase();
+    if (!pos || pos === "—") {
+      return posRaw;
+    }
+    if (status === "completed" && pos === "0") {
+      return pos + " 🎉";
+    }
+    if (status === "at front" && pos === "1") {
+      return pos + " 🏃 Get Ready";
+    }
+    return posRaw;
+  }
+
+  function trimPointsAtFirstTerminal(points) {
+    if (!points || !points.length) {
+      return [];
+    }
+    var i;
+    for (i = 0; i < points.length; i++) {
+      if (Number(points[i][1]) <= 0) {
+        return points.slice(0, i + 1);
+      }
+    }
+    return points.slice();
+  }
+
+  function sessionLooksLikeCurrentRun(sess, state) {
+    if (!sess || !state || !state.running || state.interrupted_mode) {
+      return false;
+    }
+    var activeId = Number(state.active_queue_session_id);
+    var sessId = Number(sess.session_id);
+    if (Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
+      return true;
+    }
+    var pts = state.graph_points || [];
+    if (!pts.length) {
+      return false;
+    }
+    var currentPos = null;
+    if (state.current_point && state.current_point.length >= 2) {
+      currentPos = Number(state.current_point[1]);
+    }
+    if (!Number.isFinite(currentPos)) {
+      currentPos = Number(pts[pts.length - 1][1]);
+    }
+    if (!Number.isFinite(currentPos)) {
+      return false;
+    }
+    var sessPoints = sess.points || [];
+    var sessCompleted = false;
+    var i;
+    for (i = 0; i < sessPoints.length; i++) {
+      if (Number(sessPoints[i][1]) <= 0) {
+        sessCompleted = true;
+        break;
+      }
+    }
+    if (sessCompleted) {
+      return false;
+    }
+    var sessEndPos = Number(sess.end_pos);
+    if (!Number.isFinite(sessEndPos) || sessEndPos !== currentPos) {
+      return false;
+    }
+    var graphStart = Number(pts[0][0]);
+    var sessStart = Number(sess.start_epoch);
+    return Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2;
+  }
+
+  function formatLatestSessionOptionLabel(state, latestStatus) {
+    var startEpoch = null;
+    var points = (state && state.graph_points) || [];
+    if (points.length) {
+      startEpoch = points[0][0];
+    }
+    var activeId = Number(state && state.active_queue_session_id);
+    var latestName = Number.isFinite(activeId) && activeId >= 0
+      ? ("Session " + activeId)
+      : "Session";
+    var startText = formatSessionStart(startEpoch);
+    return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
+  }
+
+  function formatLatestSessionOptionLabelClean(state, latestStatus) {
+    var startEpoch = null;
+    var points = (state && state.graph_points) || [];
+    if (points.length) {
+      startEpoch = points[0][0];
+    }
+    var sessions = (state && state.queue_sessions) || [];
+    var displayIndex = sessions.length + 1;
+    var latestName = "Session " + displayIndex;
+    var startText = formatSessionStart(startEpoch);
+    return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
+  }
+
   function parseAlertThresholdValues(raw) {
     const set = {};
     function addToken(part) {
@@ -691,7 +1095,7 @@
     var out = [];
     var i;
     var thresholds = [];
-    var showWarnings = !isPastSession && state && state.graph_live_view !== false;
+    var showWarnings = !isPastSession && !!state && window._graphShowWarnings !== false;
     if (showWarnings) {
       try {
         thresholds = parseAlertThresholdValues((state && state.alert_thresholds) || "");
@@ -700,28 +1104,18 @@
       }
       for (i = 0; i < thresholds.length; i++) {
         var threshold = thresholds[i];
-        var warned = false;
         for (var j = 1; j < points.length; j++) {
           var prevPos = points[j - 1][1];
           var currPos = points[j][1];
-          if (prevPos > threshold && currPos <= threshold) {
+          if (prevPos >= threshold && currPos < threshold) {
             out.push({
               kind: "warning",
               t: points[j][0],
               pos: currPos,
               threshold: threshold,
             });
-            warned = true;
             break;
           }
-        }
-        if (!warned && points[0][1] <= threshold) {
-          out.push({
-            kind: "warning",
-            t: points[0][0],
-            pos: points[0][1],
-            threshold: threshold,
-          });
         }
       }
     }
@@ -767,6 +1161,11 @@
     }
     var key = selectedSessionKey || "latest";
     if (key === "latest" || !s.queue_sessions || !s.queue_sessions.length) {
+      out.graph_points = trimPointsAtFirstTerminal(out.graph_points || []);
+      if (out.graph_points.length) {
+        var liveLast = out.graph_points[out.graph_points.length - 1];
+        out.current_point = [liveLast[0], liveLast[1]];
+      }
       out.graph_events = deriveGraphEvents(out, out.graph_points || [], false);
       return out;
     }
@@ -796,6 +1195,9 @@
       return out;
     }
     out.graph_points = sess.points;
+    out.graph_live_view = false;
+    out.running = false;
+    out.progress = 1.0;
     var last = sess.points[sess.points.length - 1];
     out.current_point = [last[0], last[1]];
     out.graph_events = deriveGraphEvents(out, out.graph_points || [], true);
@@ -807,7 +1209,9 @@
     if (!sel) {
       return;
     }
-    var sessions = s.queue_sessions || [];
+    var sessions = (s.queue_sessions || []).filter(function (sess) {
+      return !sessionLooksLikeCurrentRun(sess, s);
+    });
     sel.innerHTML = "";
     var opt0 = document.createElement("option");
     opt0.value = "latest";
@@ -816,7 +1220,7 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.textContent = latestStatus.icon + " Latest session (auto)";
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
     opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
@@ -889,36 +1293,24 @@
     }
     sel.addEventListener("change", function () {
       selectedSessionKey = sel.value || "latest";
+      // Do NOT persist graph_live_view here — session changes are transient display
+      // decisions and should not overwrite the saved live-follow preference.
       var nextLive = selectedSessionKey === "latest";
-      function finishSessionChange() {
-        try {
-          lsSetSession(selectedSessionKey);
-        } catch (e) {}
-        updateSessionBadge();
-        if (window._lastState) {
-          syncGraphToolbarButtons(window._lastState);
-          window._displayState = buildDisplayState(window._lastState);
-          redrawGraphOnly();
-          renderSessionStats();
-        }
+      if (window._lastState) {
+        window._lastState.graph_live_view = nextLive;
       }
-      if (!window._lastState) {
-        finishSessionChange();
-        return;
+      window._graphZoom = null;
+      try {
+        lsSetSession(selectedSessionKey);
+      } catch (e) {}
+      updateSessionBadge();
+      updateZoomResetBtn();
+      if (window._lastState) {
+        syncGraphToolbarButtons(window._lastState);
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+        renderSessionStats();
       }
-      postConfig({ graph_live_view: nextLive })
-        .then(function (state) {
-          if (state && typeof state === "object") {
-            window._lastState = state;
-          } else if (window._lastState) {
-            window._lastState.graph_live_view = nextLive;
-          }
-          finishSessionChange();
-        })
-        .catch(function (e) {
-          toast(String(e.message || e), "warn");
-          finishSessionChange();
-        });
     });
   }
 
@@ -1034,10 +1426,34 @@
     if (!s) return;
     var btnLive = $("btnGraphLive");
     if (btnLive) {
-      var liveOn = s.graph_live_view !== false;
+      var liveAvailable = selectedSessionKey === "latest";
+      var liveOn = liveAvailable && s.graph_live_view !== false;
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
-      btnLive.title = liveOn ? "Live follow on" : "Live follow off";
+      btnLive.disabled = !liveAvailable;
+      btnLive.setAttribute("aria-disabled", liveAvailable ? "false" : "true");
+      btnLive.title = !liveAvailable
+        ? "Live follow is only available on the latest session"
+        : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
+    }
+    var btnWarn = $("btnGraphWarn");
+    if (btnWarn) {
+      var warnAvailable = selectedSessionKey === "latest";
+      var warnOn = warnAvailable && window._graphShowWarnings !== false;
+      btnWarn.setAttribute("aria-pressed", warnOn ? "true" : "false");
+      btnWarn.disabled = !warnAvailable;
+      btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
+      btnWarn.title = !warnAvailable
+        ? "Warning dots are only available on the latest session"
+        : (warnOn ? "Warning dots on" : "Warning dots off");
+      btnWarn.setAttribute("aria-label", btnWarn.title);
+    }
+    var btnTrend = $("btnGraphTrend");
+    if (btnTrend) {
+      var trendOn = window._graphTrend !== false;
+      btnTrend.setAttribute("aria-pressed", trendOn ? "true" : "false");
+      btnTrend.title = trendOn ? "Trendline on" : "Trendline off";
+      btnTrend.setAttribute("aria-label", btnTrend.title);
     }
     var btnTimeText = $("btnGraphTimeModeText");
     if (btnTimeText) btnTimeText.textContent = (s.graph_time_mode || "relative") === "absolute" ? "ABS" : "REL";
@@ -1058,6 +1474,7 @@
   }
 
   function applyState(s) {
+    if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];
     var rateDisplay = s.queue_rate;
     if (rateDisplay == null || (typeof rateDisplay === "string" && (!rateDisplay.trim() || rateDisplay.trim() === "—"))) {
@@ -1073,7 +1490,7 @@
 
     setKpiMetric(
       $("kpiPos"),
-      s.position,
+      formatPositionDisplay(s.position, s.status),
       "No queue position in the log yet — start monitoring or check the log path.",
     );
     setKpiMetric($("kpiStatus"), s.status, "Engine status — idle until monitoring starts.");
@@ -1113,6 +1530,7 @@
     }
 
     const w = s.warnings || [];
+    const warnRail = $("kpiWarnRail");
     const kw = $("kpiWarnings");
     kw.innerHTML = "";
     w.forEach(function (row, i) {
@@ -1120,22 +1538,39 @@
       const sp = document.createElement("span");
       sp.textContent = row.t;
       sp.className = row.passed ? "warn-off" : "warn-on";
+      sp.setAttribute("data-threshold", String(row.t));
+      sp.setAttribute("data-passed", row.passed ? "true" : "false");
       kw.appendChild(sp);
     });
     if (!w.length) {
       kw.textContent = "—";
       kw.classList.add("kpi__val--empty");
+      _lastWarnPassedSig = "";
       kw.title =
         "Threshold positions — configure under Settings; values show when the queue crosses them.";
     } else {
       kw.classList.remove("kpi__val--empty");
       kw.removeAttribute("title");
+      var warnPassedSig = w
+        .filter(function (row) { return !!row.passed; })
+        .map(function (row) { return String(row.t); })
+        .join(",");
+      if (warnRail && warnPassedSig && warnPassedSig !== _lastWarnPassedSig) {
+        requestAnimationFrame(function () {
+          var passed = kw.querySelectorAll('[data-passed="true"]');
+          var target = passed.length ? passed[passed.length - 1] : null;
+          if (target && typeof target.scrollIntoView === "function") {
+            target.scrollIntoView({ block: "nearest", inline: "end" });
+          } else {
+            warnRail.scrollLeft = warnRail.scrollWidth;
+          }
+        });
+      }
+      _lastWarnPassedSig = warnPassedSig;
     }
 
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
-    $("infoGlo").textContent = s.global_rate || "—";
-
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
     const alertMsg = (s.last_alert_message || "").trim();
     if (
@@ -1145,6 +1580,7 @@
       alertMsg !== "—"
     ) {
       toast(alertMsg, "warn");
+      if (s.sound_enabled !== false) { playAlertSoundOrBeep("warning", s, 880, 0.35); }
       if (
         s.popup_enabled &&
         typeof Notification !== "undefined" &&
@@ -1161,7 +1597,8 @@
 
     const cseq = typeof s.completion_notify_seq === "number" ? s.completion_notify_seq : 0;
     if (lastCompletionSeq !== null && cseq > lastCompletionSeq) {
-      toast("Past queue wait — connecting (position 0).", "");
+      toast("Queue completion: past queue wait - connecting (position 0).", "");
+      if (s.completion_sound !== false) { playAlertSoundOrBeep("completion", s, 1320, 0.5); }
       if (
         s.completion_popup &&
         typeof Notification !== "undefined" &&
@@ -1179,6 +1616,7 @@
     const fseq = typeof s.failure_notify_seq === "number" ? s.failure_notify_seq : 0;
     if (lastFailureSeq !== null && fseq > lastFailureSeq) {
       toast("Queue interrupted — still watching the log.", "warn");
+      if (s.failure_sound !== false) { playAlertSoundOrBeep("failure", s, 440, 0.4); }
       if (
         s.failure_popup &&
         typeof Notification !== "undefined" &&
@@ -1240,9 +1678,9 @@
       else {
         const g = s.last_log_growth_epoch;
         const now = Date.now() / 1000;
-        if (g == null) logEl.textContent = "Log: waiting for file activity";
-        else if (now - g >= 30) logEl.textContent = "Log quiet ≥30s (reconnecting or idle)";
-        else logEl.textContent = "Log active (" + Math.round(now - g) + "s since growth)";
+        if (g == null) logEl.textContent = "Last log: waiting";
+        else if (now - g >= 30) logEl.textContent = "Last log: 30s+ ago";
+        else logEl.textContent = "Last log: " + Math.round(now - g) + "s ago";
       }
     }
 
@@ -1307,6 +1745,7 @@
   function resizeCanvas() {
     if (!window._displayState) return;
     const c = $("graphCanvas");
+    if (!c) return;
     const wrap = c.parentElement;
     if (!wrap) return;
     const dpr = window.devicePixelRatio || 1;
@@ -1326,7 +1765,8 @@
   window._displayState = null;
   window._graphH = parseInt(localStorage.getItem('vsqm_graph_h') || '', 10) || 340;
   window._graphZoom = null;
-  window._graphTrend = false;
+  window._graphTrend = true;
+  window._graphShowWarnings = true;
 
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
@@ -1403,7 +1843,7 @@
         html:
           '<p class="tutorial-lead"><strong>~2 minutes</strong> — set your logs folder, tune warnings and rolling average, then start.</p>' +
           "<ul class=\"tutorial-list\"><li>Paste the <strong>folder</strong> that contains <code>client-main.log</code> (Python reads the disk; nothing is uploaded).</li>" +
-          "<li>Warnings default to <strong>10, 5, 1</strong> (alerts on downward crossings).</li>" +
+          "<li>Warnings default to <strong>15, 10, 5, 3, 2, 1</strong> (alerts on downward crossings).</li>" +
           "<li>Rolling average defaults to <strong>10</strong> points.</li></ul>",
         sel: null,
       },
@@ -1439,7 +1879,7 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p>Use the chart toolbar for <strong>LIN/LOG</strong> and <strong>REL/ABS</strong>. Tap or hover the chart for a <strong>tooltip</strong>. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
+          "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
@@ -1546,15 +1986,17 @@
       if (!overlay.classList.contains("hidden")) placeCard();
     });
 
+    // Expose so applyState can trigger the tour on the first WS message too
+    // (fetch below can fail if the server is still starting).
+    _tourAutoShowFn = function (tutorialDone) {
+      if (!tutorialDone) { idx = 0; show(); }
+      _tourAutoShowFn = null; // fire once
+    };
+
     fetch("/api/state")
-      .then(function (r) {
-        return r.json();
-      })
+      .then(function (r) { return r.json(); })
       .then(function (s) {
-        if (!s.tutorial_done) {
-          idx = 0;
-          show();
-        }
+        if (_tourAutoShowFn) _tourAutoShowFn(!!s.tutorial_done);
       })
       .catch(function () {});
   }
@@ -1767,9 +2209,31 @@
         requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
+    function validateThresholdInput(rawStr) {
+      var tokens = String(rawStr || "").replace(/,/g, " ").split(/\s+/);
+      var i;
+      for (i = 0; i < tokens.length; i++) {
+        var t = String(tokens[i] || "").trim();
+        if (!t) continue;
+        var range = /^(-?\d+)\s*-\s*(-?\d+)$/.exec(t);
+        if (range) {
+          var a = parseInt(range[1], 10);
+          var b = parseInt(range[2], 10);
+          if ((!isNaN(a) && a <= 0) || (!isNaN(b) && b <= 0)) {
+            throw new Error("Threshold 0 is not valid — thresholds must be ≥ 1.");
+          }
+          continue;
+        }
+        var n = parseInt(t, 10);
+        if (!isNaN(n) && n <= 0) {
+          throw new Error("Threshold 0 is not valid — thresholds must be ≥ 1.");
+        }
+      }
+    }
     $("btnWarnOk").onclick = function () {
       let normalized;
       try {
+        validateThresholdInput($("inpWarn").value);
         normalized = formatAlertThresholdValues($("inpWarn").value.trim());
       } catch (err) {
         toast(String(err.message || err), "warn");
@@ -1812,6 +2276,7 @@
       const raw = window._lastState ? window._lastState.alert_thresholds : "10, 5, 1";
       let merged;
       try {
+        validateThresholdInput(addRaw);
         merged = mergeAlertThresholdsString(raw, addRaw);
       } catch (err) {
         toast(String(err.message || err), "warn");
@@ -2035,10 +2500,8 @@
         var tB = xToTime(Math.max(hadSel.x0, hadSel.x1));
         if (tA !== null && tB !== null && tB > tA) {
           var ds = c._drawState;
-          var rawT0 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[0][0] : null;
-          var rawT1 = ds && ds.rawPoints && ds.rawPoints.length ? ds.rawPoints[ds.rawPoints.length - 1][0] : null;
-          if (rawT0 !== null) {
-            var fullSpan = rawT1 - rawT0;
+          if (ds && ds.t0 != null && ds.t1 != null) {
+            var fullSpan = ds.t1 - ds.t0;
             window._graphZoom = (tB - tA >= fullSpan * 0.999) ? null : [tA, tB];
             updateZoomResetBtn();
           }
@@ -2087,6 +2550,58 @@
       }
       c.style.cursor = "";
     });
+
+    // Touch drag-to-zoom — inline attach/detach so no permanent global listener
+    c.addEventListener("touchstart", function (ev) {
+      if (ev.touches.length !== 1) return;
+      var touch = ev.touches[0];
+      var rect = c.getBoundingClientRect();
+      var st = c._drawState;
+      if (!st) return;
+      var x = touch.clientX - rect.left;
+      if (x < st.x0 || x > st.x0 + st.plotW) return;
+      _dragStartX = x;
+      _dragSel = null;
+      function onMove(ev) {
+        if (ev.touches.length !== 1) return;
+        var t = ev.touches[0];
+        var r = c.getBoundingClientRect();
+        var curX = Math.max(0, Math.min(r.width, t.clientX - r.left));
+        var st = c._drawState;
+        if (!st) return;
+        curX = Math.max(st.x0, Math.min(st.x0 + st.plotW, curX));
+        if (Math.abs(curX - _dragStartX) >= 4) {
+          _dragSel = { x0: _dragStartX, x1: curX, ds: st };
+          hideGraphTooltip();
+          window._graphHover = null;
+          redrawGraphOnly();
+        }
+        ev.preventDefault();
+      }
+      function onEnd() {
+        document.removeEventListener("touchmove", onMove);
+        document.removeEventListener("touchend", onEnd);
+        var hadSel = _dragSel;
+        _dragStartX = null;
+        if (hadSel && Math.abs(hadSel.x1 - hadSel.x0) >= 8) {
+          var tA = xToTime(Math.min(hadSel.x0, hadSel.x1));
+          var tB = xToTime(Math.max(hadSel.x0, hadSel.x1));
+          if (tA !== null && tB !== null && tB > tA) {
+            var ds = c._drawState;
+            if (ds && ds.t0 != null && ds.t1 != null) {
+              var fullSpan = ds.t1 - ds.t0;
+              window._graphZoom = (tB - tA >= fullSpan * 0.999) ? null : [tA, tB];
+              updateZoomResetBtn();
+            }
+          }
+        }
+        _dragSel = null;
+        redrawGraphOnly();
+      }
+      document.addEventListener("touchmove", onMove, { passive: false });
+      document.addEventListener("touchend", onEnd);
+      ev.preventDefault();
+    }, { passive: false });
   }
 
   function setupRestoreBanner() {
@@ -2228,13 +2743,20 @@
       if (typeof Notification === "undefined") {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        var httpsHint = (!window.isSecureContext && location.hostname !== "localhost")
+          ? " For mobile notifications, access this app over HTTPS (see Help for ngrok/SSH tunnel setup)."
+          : "";
+        toast("Desktop banners aren't supported here — open in a browser for that." + httpsHint, "warn");
+        return;
+      }
+      if (!window.isSecureContext && location.hostname !== "localhost") {
+        toast("Browser notifications require HTTPS on mobile. Access via ngrok or an SSH tunnel — see Help for setup.", "warn");
         return;
       }
       if (Notification.permission === "denied" && !_notifEverAsked) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
         return;
       }
       // Show a contextual tip near the bell button with browser-specific guidance.
@@ -2258,6 +2780,9 @@
               _hideNotifPermTip();
               syncHint();
               if (p === "granted") {
+                subscribeBrowserPush().catch(function (err) {
+                  toast(String(err.message || err), "warn");
+                });
                 fireDesktopNotification("Notifications enabled", {
                   body:
                     "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
@@ -2290,6 +2815,9 @@
           _hideNotifPermTip();
           syncHint();
           if (Notification.permission === "granted") {
+            subscribeBrowserPush().catch(function (err) {
+              toast(String(err.message || err), "warn");
+            });
             fireDesktopNotification("Notifications enabled", {
               body:
                 "VS Queue Monitor can show desktop banners when queue thresholds are crossed.\n\nText matches the in-app toast for each alert.",
@@ -2303,7 +2831,7 @@
         _hideNotifPermTip();
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't available in this window.", "warn");
       }
     }
 
@@ -2344,7 +2872,7 @@
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
               syncHint();
             })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
@@ -2434,13 +2962,25 @@
           toast("Allow notifications from the header switch first.", "warn");
           return;
         }
-        fireDesktopNotification("Test notification", {
-          body:
-            "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-          tag: "vsqm-test-" + Date.now(),
-          renotify: true,
-        }, "Could not show a desktop notification (check your browser and OS notification settings).");
-        toast("Test sent — check the system tray if you see no banner.");
+        fetch("/api/push/test", { method: "POST" })
+          .then(function (r) {
+            return r.json().then(function (j) {
+              if (!r.ok || !j.ok) {
+                throw new Error((j && j.error) || "Could not send backend web push test");
+              }
+              toast("Backend push test sent.");
+              return j;
+            });
+          })
+          .catch(function (err) {
+            fireDesktopNotification("Test notification", {
+              body:
+                "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
+              tag: "vsqm-test-" + Date.now(),
+              renotify: true,
+            }, "Could not show a desktop notification (check your browser and OS notification settings).");
+            toast(String(err.message || err), "warn");
+          });
       });
     }
     syncHint();
@@ -2500,13 +3040,13 @@
       if (typeof Notification === "undefined") {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't supported here — open in a browser for that. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't supported here — open in a browser for that.", "warn");
         return;
       }
       if (Notification.permission === "denied" && !_notifEverAsked) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+        toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
         return;
       }
       var t0 = Date.now();
@@ -2530,7 +3070,7 @@
               } else if (p === "denied") {
                 if (Date.now() - t0 < 300) {
                   _notifUnsupported = true;
-                  toast("Desktop banners aren't available in this window. Sound alerts still work. Open in a browser to enable banners.", "warn");
+                  toast("Desktop banners aren't available in this window. Open in a browser to enable banners.", "warn");
                 } else {
                   toast("Notifications were denied in the browser.", "warn");
                 }
@@ -2557,7 +3097,7 @@
       } catch (e) {
         _notifUnsupported = true;
         syncHint();
-        toast("Desktop banners aren't available in this window. Sound alerts still work.", "warn");
+        toast("Desktop banners aren't available in this window.", "warn");
       }
     }
 
@@ -2603,12 +3143,10 @@
           enabled: !!(window._lastState && window._lastState.completion_popup),
           settingName: "Completion popup",
           payload: {
-            title: "Queue wait finished",
+            title: "Queue completion",
             body: formatNotificationBody([
-              "Sample completion banner.",
-              "Current position: 0",
+              "Queue completion: past queue wait - connecting (position 0).",
               "Status: Connecting",
-              "Remaining: 0s",
             ]),
             kind: "completion",
           },
@@ -2619,7 +3157,7 @@
           payload: {
             title: "Queue interrupted",
             body: formatNotificationBody([
-              "Sample interruption banner.",
+              "Queue interrupted - still watching the log.",
               "Status: Interrupted",
               "Last change: 2026-04-21 12:34:56",
             ]),
@@ -2667,7 +3205,7 @@
           postConfig({ popup_enabled: true })
             .then(function () {
               bumpPopupEnabled(true);
-              toast("Sound alerts on. Desktop banners aren't available in this window — open in a browser for those.");
+              toast("Alerts on. Desktop banners aren't available in this window — open in a browser for those.");
               syncHint();
             })
             .catch(function (e) { toast(String(e.message || e), "warn"); });
@@ -2963,7 +3501,23 @@
     var btnStartStop = $("btnStartStop");
     if (btnStartStop) {
       btnStartStop.onclick = function () {
-        postToggle().catch(function (e) {
+        var wasRunning = !!(window._lastState && window._lastState.running);
+        postToggle().then(function () {
+          if (!wasRunning) {
+            selectedSessionKey = "latest";
+            var sel = $("selSession");
+            if (sel) sel.value = "latest";
+            if (window._lastState) window._lastState.graph_live_view = true;
+            postConfig({ graph_live_view: true }).catch(function () {});
+            window._graphZoom = null;
+            if (window._lastState) {
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          }
+        }).catch(function (e) {
           toast(String(e), "warn");
         });
       };
@@ -3049,6 +3603,21 @@
         });
       };
     }
+    var btnDownloadPng = $("btnDownloadPng");
+    if (btnDownloadPng) {
+      btnDownloadPng.onclick = function () {
+        var c = $("graphCanvas");
+        if (!c) { toast("PNG export unavailable", "warn"); return; }
+        var url = c.toDataURL("image/png");
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = "vs-queue-graph-" + new Date().toISOString().slice(0, 19).replace(/:/g, "-") + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast("Graph PNG downloaded.");
+      };
+    }
     var btnGraphTimeMode = $("btnGraphTimeMode");
     if (btnGraphTimeMode) {
       btnGraphTimeMode.onclick = function () {
@@ -3077,6 +3646,7 @@
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
+        if (selectedSessionKey !== "latest") return;
         var next = !((window._lastState && window._lastState.graph_live_view) !== false);
         var canvas = $("graphCanvas");
         var ds = canvas && canvas._drawState;
@@ -3131,6 +3701,16 @@
           });
       };
     }
+
+    safeInit("registerNotificationServiceWorker", function () {
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        registerNotificationServiceWorker();
+        subscribeBrowserPush().catch(function () {});
+      }
+    });
 
     var bs = $("btnCopyStats");
     if (bs) {
@@ -3267,9 +3847,20 @@
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {
+        if (!window.confirm("Reset all settings to defaults?\n\nThis will clear your log path, thresholds, sounds, and all other saved settings. This cannot be undone.")) {
+          return;
+        }
         postReset()
           .then(function () {
-            toast("Defaults reset");
+            return fetch("/api/state").then(function (r) { return r.json(); });
+          })
+          .then(function (s) {
+            if (s && typeof s === "object") {
+              window._lastState = s;
+              applyState(s);
+            }
+            $("modalSettings") && $("modalSettings").classList.add("hidden");
+            toast("All settings reset to defaults.");
           })
           .catch(function (e) {
             toast(String(e), "warn");
@@ -3285,8 +3876,8 @@
     var c = $("graphCanvas");
     var ds = c && c._drawState;
     if (!ds || !ds.rawPoints || !ds.rawPoints.length) return;
-    var rawT0 = ds.rawPoints[0][0];
-    var rawT1 = ds.rawPoints[ds.rawPoints.length - 1][0];
+    var rawT0 = ds.fullT0 != null ? ds.fullT0 : ds.t0;
+    var rawT1 = ds.fullT1 != null ? ds.fullT1 : ds.t1;
     var fullSpan = rawT1 - rawT0;
     if (fullSpan <= 0) return;
     var curT0 = window._graphZoom ? window._graphZoom[0] : rawT0;
@@ -3315,10 +3906,10 @@
     }
     var c = $("graphCanvas");
     var ds = c && c._drawState;
-    if (ds && ds.rawPoints && ds.rawPoints.length >= 2) {
-      var fullSpan = ds.rawPoints[ds.rawPoints.length - 1][0] - ds.rawPoints[0][0];
+    if (ds && ds.fullT0 != null && ds.fullT1 != null) {
+      var fullSpan = ds.fullT1 - ds.fullT0;
       var curSpan = window._graphZoom[1] - window._graphZoom[0];
-      if (curSpan > 0 && fullSpan > curSpan * 0.999) {
+      if (curSpan > 0 && curSpan < fullSpan * 0.999) {
         var factor = fullSpan / curSpan;
         var label = factor >= 10
           ? Math.round(factor) + "×"
@@ -3342,10 +3933,16 @@
     if (btnIn) btnIn.onclick = function () { zoomGraph(0.5, null); };
     if (btnOut) btnOut.onclick = function () { zoomGraph(2, null); };
     if (btnReset) btnReset.onclick = function () { window._graphZoom = null; redrawGraphOnly(); updateZoomResetBtn(); };
+    var btnWarnToggle = $("btnGraphWarn");
+    if (btnWarnToggle) btnWarnToggle.onclick = function () {
+      if (selectedSessionKey !== "latest") return;
+      window._graphShowWarnings = !window._graphShowWarnings;
+      syncGraphToolbarButtons(window._lastState || {});
+      redrawGraphOnly();
+    };
     if (btnTrend) btnTrend.onclick = function () {
       window._graphTrend = !window._graphTrend;
-      btnTrend.setAttribute("aria-pressed", String(window._graphTrend));
-      btnTrend.classList.toggle("btn--toggle-on", window._graphTrend);
+      syncGraphToolbarButtons(window._lastState || {});
       redrawGraphOnly();
     };
     var c = $("graphCanvas");
@@ -3361,6 +3958,35 @@
       zoomGraph(e.deltaY > 0 ? 1.5 : 1 / 1.5, centerT);
       e.preventDefault();
     }, { passive: false });
+
+    // Pinch-to-zoom on touch
+    var _pinchDist = null;
+    c.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) _pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }, { passive: true });
+    c.addEventListener("touchmove", function (e) {
+      if (e.touches.length !== 2 || _pinchDist === null) return;
+      var newDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (newDist > 0) {
+        var factor = _pinchDist / newDist;
+        var midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        var rect = c.getBoundingClientRect();
+        var ds = c._drawState;
+        var centerT = ds ? ds.t0 + ((midX - rect.left - ds.x0) / ds.plotW) * (ds.t1 - ds.t0) : null;
+        zoomGraph(factor, centerT);
+        _pinchDist = newDist;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    c.addEventListener("touchend", function (e) {
+      if (e.touches.length < 2) _pinchDist = null;
+    }, { passive: true });
   }
 
   function setupGraphResize() {
@@ -3508,7 +4134,7 @@
   safeInit("setupRestoreBanner", setupRestoreBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
-  safeInit("setupNotificationsLegacy", setupNotificationsLegacy);
+  safeInit("setupNotifications", setupNotifications);
   safeInit("setupHelpCmd", setupHelpCmd);
   safeInit("setupPathModal", setupPathModal);
   safeInit("setupModalTabTrap", setupModalTabTrap);
