@@ -510,7 +510,7 @@ class QueueMonitorEngine:
             self._interrupt_baseline_session = self._last_queue_run_session
             self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
             self._dismissed_new_queue_session = self._last_queue_run_session
-            self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
+            self._frozen_rates_at_interrupt = ('—', '—')
             self._set_status_line('Interrupted', danger=True)
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
@@ -545,7 +545,7 @@ class QueueMonitorEngine:
         self._interrupt_baseline_session = self._last_queue_run_session
         self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
         self._dismissed_new_queue_session = None
-        self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
+        self._frozen_rates_at_interrupt = ('—', '—')
         self._set_status_line('Interrupted', danger=True)
         msg = 'Queue interrupted; still watching the log. A new queue run can be loaded when detected.'
         if detail:

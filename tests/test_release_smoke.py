@@ -181,6 +181,9 @@ def test_startup_seeded_interrupted_run_keeps_elapsed() -> None:
     assert engine._interrupted_mode is True
     assert engine.status_var.get() == "Interrupted"
     assert engine.elapsed_var.get() == "1:02"
+    assert engine.queue_rate_var.get() == "—"
+    assert engine.global_rate_var.get() == "—"
+    assert engine.predicted_remaining_var.get() == "—"
 
 
 def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
@@ -208,3 +211,6 @@ def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
     assert engine._interrupted_mode is True
     assert engine.status_var.get() == "Interrupted"
     assert engine.elapsed_var.get() == "0:32"
+    assert engine.queue_rate_var.get() == "—"
+    assert engine.global_rate_var.get() == "—"
+    assert engine.predicted_remaining_var.get() == "—"

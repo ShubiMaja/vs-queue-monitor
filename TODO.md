@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: interrupted runs could still show calculated rate / remaining, especially after reload, because startup carried seeded rate values and the web UI re-derived metrics from graph history~~
+Fixed: interrupted state now blanks queue/global rate and remaining on the engine side, and the web UI no longer falls back to historical rate/ETA derivation while interrupted (v1.1.16)
+
 ~~Bug: startup-seeded disconnected tails after queue completion could miss the interrupted snapshot path and leave elapsed/rates wrong or unknown~~
 Fixed: startup now treats post-queue grace/reconnect disconnect tails the same way as live polling, so already-disconnected seeded runs enter Interrupted immediately and preserve seeded elapsed/rates instead of staying blank or stale (v1.1.15)
 

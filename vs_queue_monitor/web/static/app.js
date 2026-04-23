@@ -1498,6 +1498,11 @@
       remainingDisplay = formatRemainingFromPoints(fallbackPts, s.position);
     }
 
+    if (s.interrupted_mode) {
+      rateDisplay = "—";
+      remainingDisplay = "—";
+    }
+
     setKpiMetric(
       $("kpiPos"),
       formatPositionDisplay(s.position, s.status),
