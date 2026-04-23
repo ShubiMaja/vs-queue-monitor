@@ -2647,6 +2647,20 @@
     function submit(accept) {
       postNewQueue(accept)
         .then(function () {
+          if (accept) {
+            selectedSessionKey = "latest";
+            var sel = $("selSession");
+            if (sel) sel.value = "latest";
+            if (window._lastState) window._lastState.graph_live_view = true;
+            postConfig({ graph_live_view: true }).catch(function () {});
+            window._graphZoom = null;
+            if (window._lastState) {
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          }
           setTimeout(function () {
             focusElSoon($("btnStartStop"));
           }, 0);
