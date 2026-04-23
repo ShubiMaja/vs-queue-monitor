@@ -10,8 +10,8 @@
     max_draw_points: 5000,
     single_point_graph_span_sec: 60,
     graph_log_gamma: 1.15,
-    pad_left: 46,
-    pad_right: 42,
+    pad_left: 40,
+    pad_right: 30,
     pad_top: 22,
     pad_bottom: 32,
     ui_graph_bg: "#0d0f12",
@@ -744,15 +744,9 @@
       ctx.fillStyle = textColor;
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
       var markerText = String(lastV);
-      var markerTextW = ctx.measureText(markerText).width;
       ctx.textBaseline = "middle";
-      if (lx + 10 + markerTextW <= x1 - 2) {
-        ctx.textAlign = "left";
-        ctx.fillText(markerText, lx + 10, ly);
-      } else {
-        ctx.textAlign = "right";
-        ctx.fillText(markerText, lx - 8, ly);
-      }
+      ctx.textAlign = "left";
+      ctx.fillText(markerText, lx + 10, ly);
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {

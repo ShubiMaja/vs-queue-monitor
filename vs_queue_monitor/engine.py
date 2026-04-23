@@ -465,6 +465,7 @@ class QueueMonitorEngine:
         self._hooks.show_start_loading(False)
         self._apply_seed_result(seed_data)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
+        self._adopt_interrupted_tail_on_start(resolved)
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -482,6 +483,37 @@ class QueueMonitorEngine:
         if t is None or not completion_would_fire_for_tail(t):
             return
         self._queue_completion_notified_this_run = True
+
+    def _adopt_interrupted_tail_on_start(self, log_file: Path) -> None:
+        """If startup seeded a run that is already interrupted, keep it as the interrupted baseline."""
+        t = read_log_file_tail_text(log_file, TAIL_BYTES)
+        if not t:
+            return
+        kind, _tail_pos = classify_tail_connection_state(t)
+        pos, _queue_sess = parse_tail_last_queue_reading(t)
+        left = tail_has_post_queue_after_last_queue_line(t)
+        should_interrupt = (
+            kind == 'disconnected'
+            or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1))
+            or (kind in ('reconnecting', 'grace') and left and (pos is not None and pos <= 1))
+        )
+        if should_interrupt:
+            self._interrupted_mode = True
+            start_t = self._queue_elapsed_start_epoch()
+            if start_t is not None and self.current_point is not None:
+                if pos is not None and pos <= 1 and self._position_one_reached_at is not None:
+                    self._interrupted_elapsed_sec = max(0.0, self._position_one_reached_at - start_t)
+                else:
+                    self._interrupted_elapsed_sec = max(0.0, self.current_point[0] - start_t)
+            else:
+                self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
+            self._interrupt_baseline_session = self._last_queue_run_session
+            self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
+            self._dismissed_new_queue_session = self._last_queue_run_session
+            self._frozen_rates_at_interrupt = ('—', '—')
+            self._set_status_line('Interrupted', danger=True)
+            self.update_time_estimates()
+            self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -513,8 +545,9 @@ class QueueMonitorEngine:
         self._interrupt_baseline_session = self._last_queue_run_session
         self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
         self._dismissed_new_queue_session = None
-        self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
+        self._frozen_rates_at_interrupt = ('—', '—')
         self._set_status_line('Interrupted', danger=True)
+        self.update_time_estimates()
         msg = 'Queue interrupted; still watching the log. A new queue run can be loaded when detected.'
         if detail:
             msg += f' ({detail})'
@@ -534,12 +567,27 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
         # Use total boundary count only when there is also at least one new position line in the
         # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
         # mid-game reconnect lines that appear without an accompanying queue position line.
         effective_sess = queue_sess
+        entry_epoch = self._interrupt_entry_queue_line_epoch
+        # The small live tail can count queue-session boundaries differently from the larger
+        # seed scan used when we accepted the current run. Do not treat the same queue lines
+        # as a "new run" again unless the newest queue line is actually newer than the one
+        # that put us into interrupted mode.
+        if (
+            last_queue_line_epoch is not None
+            and entry_epoch is not None
+            and last_queue_line_epoch <= entry_epoch
+        ):
+            return
+        # If the newest detected run is already interrupted/disconnected by the time we see it,
+        # do not offer it as a fresh run to adopt.
+        if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (position is not None and position <= 1)):
+            return
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
         if effective_sess <= self._interrupt_baseline_session:
@@ -547,7 +595,6 @@ class QueueMonitorEngine:
             # and old boundary lines scrolled out of the tail window.  If the most recent
             # queue line is provably newer than the epoch we entered interrupted state, it is
             # a new run regardless of the apparent session count.
-            entry_epoch = self._interrupt_entry_queue_line_epoch
             if (last_queue_line_epoch is None or entry_epoch is None
                     or last_queue_line_epoch <= entry_epoch):
                 return
@@ -580,11 +627,7 @@ class QueueMonitorEngine:
 
     def _accept_new_queue_from_log(self) -> None:
         """Leave interrupted state and seed the graph from the current log (new queue run)."""
-        self._interrupted_mode = False
-        self._interrupted_elapsed_sec = None
-        self._frozen_rates_at_interrupt = None
         self._dismissed_new_queue_session = None
-        self._interrupt_baseline_session = -1
         path = self.current_log_file
         if path is None or not path.is_file():
             self.write_history('Cannot load new queue: log file missing.')
@@ -602,7 +645,32 @@ class QueueMonitorEngine:
         self._queue_completion_notified_this_run = False
         ok = self._reseed_graph_for_new_run(path)
         if ok:
-            self._set_status_line('Monitoring')
+            tail_text = read_log_file_tail_text(path, TAIL_BYTES)
+            adopted_kind = None
+            adopted_pos = None
+            if tail_text:
+                adopted_kind, _tail_pos = classify_tail_connection_state(tail_text)
+                adopted_pos, _tail_sess = parse_tail_last_queue_reading(tail_text)
+            stays_interrupted = (
+                adopted_kind == 'disconnected'
+                or (
+                    adopted_kind in ('reconnecting', 'grace')
+                    and not (adopted_pos is not None and adopted_pos <= 1)
+                )
+            )
+            if stays_interrupted:
+                self._interrupted_mode = True
+                self._interrupt_baseline_session = self._last_queue_run_session
+                self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
+                self._set_status_line('Interrupted', danger=True)
+                self.write_history('Adopted detected queue run; it is already interrupted, still watching the log.')
+            else:
+                self._interrupted_mode = False
+                self._interrupted_elapsed_sec = None
+                self._frozen_rates_at_interrupt = None
+                self._interrupt_baseline_session = -1
+                self._interrupt_entry_queue_line_epoch = None
+                self._set_status_line('Monitoring')
         else:
             self.write_history('Could not find queue data in the log for the new run.')
             self._set_status_line('Warning: no queue detected', danger=True)
@@ -685,6 +753,7 @@ class QueueMonitorEngine:
         self.last_position = None
         self._last_queue_run_session = sess
         line_t = parse_tail_last_queue_line_epoch(text)
+        self._last_queue_line_epoch = line_t
         if pos is not None and pos <= 1:
             self._position_one_reached_at = line_t or time.time()
         self.append_graph_point(pos, line_t)
@@ -712,8 +781,11 @@ class QueueMonitorEngine:
         self.current_point = self.graph_points[-1] if self.graph_points else None
         if self.current_point is not None:
             _t, pos = self.current_point
+            self._last_queue_line_epoch = _t
             self.last_position = pos
             self._set_position_display(pos)
+        else:
+            self._last_queue_line_epoch = None
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self._hooks.request_redraw_graph()
@@ -771,7 +843,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
@@ -1235,13 +1307,15 @@ class QueueMonitorEngine:
         return self.monitor_start_epoch
 
     def _snapshot_elapsed_seconds_at_interrupt(self) -> Optional[float]:
-        """Wall-clock queue elapsed at interrupt (same basis as the live elapsed timer)."""
+        """Freeze queue elapsed at the last real queue sample when entering Interrupted."""
         start_t = self._queue_elapsed_start_epoch()
         if start_t is None:
             return None
         pos = self._current_queue_position()
         if pos is not None and pos <= 1 and (self._position_one_reached_at is not None):
             return max(0.0, self._position_one_reached_at - start_t)
+        if self.current_point is not None:
+            return max(0.0, self.current_point[0] - start_t)
         return max(0.0, time.time() - start_t)
 
     def _sync_queue_progress_widget(self) -> None:

@@ -74,6 +74,10 @@ python monitor.py
 ## Development notes
 
 - Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
+- Release checkpoints use annotated git tags. Current stable release candidate tag: `stable-rc`.
+- Before calling a build stable, run:
+  - `python -m pytest tests/test_release_smoke.py tests/test_interrupted_elapsed.py -q`
+  - `python -m pytest tests/test_web_ui.py tests/test_notifications_ui.py -q`
 
 ## Pointing at the log
 

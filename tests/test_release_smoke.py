@@ -6,6 +6,7 @@ from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
 from vs_queue_monitor.web.hooks_web import WebMonitorHooks
+from vs_queue_monitor.core import compute_seed_graph_from_log
 from vs_queue_monitor.web.server import _queue_sessions_for_engine
 
 
@@ -153,3 +154,63 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
 
     sessions, _active_id = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
+
+
+def test_startup_seeded_interrupted_run_keeps_elapsed() -> None:
+    root = Path(".tmp-release-smoke-tests-startup-interrupted")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 4",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 3",
+            "9.4.2026 22:31:55 [Notification] Client is in connect queue at position: 2",
+            "9.4.2026 22:32:25 [Error] Connection closed unexpectedly",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine._apply_seed_result(compute_seed_graph_from_log(log_path))
+    engine._adopt_interrupted_tail_on_start(log_path)
+
+    assert engine._interrupted_mode is True
+    assert engine.status_var.get() == "Interrupted"
+    assert engine.elapsed_var.get() == "1:02"
+    assert engine.queue_rate_var.get() == "—"
+    assert engine.global_rate_var.get() == "—"
+    assert engine.predicted_remaining_var.get() == "—"
+
+
+def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
+    root = Path(".tmp-release-smoke-tests-startup-postqueue-disconnect")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 2",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 1",
+            "9.4.2026 22:31:26 [Notification] Connected to server, downloading data...",
+            "9.4.2026 22:31:40 [Error] Connection closed unexpectedly",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine._apply_seed_result(compute_seed_graph_from_log(log_path))
+    engine._adopt_interrupted_tail_on_start(log_path)
+
+    assert engine._interrupted_mode is True
+    assert engine.status_var.get() == "Interrupted"
+    assert engine.elapsed_var.get() == "0:32"
+    assert engine.queue_rate_var.get() == "—"
+    assert engine.global_rate_var.get() == "—"
+    assert engine.predicted_remaining_var.get() == "—"

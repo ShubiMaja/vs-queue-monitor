@@ -669,8 +669,10 @@
       var ds2 = canvas._drawState;
       if (ds2 && ds2.rawPoints && ds2.rawPoints.length >= 2) {
         var pts2 = ds2.rawPoints;
+        // Normalize timestamps to avoid catastrophic cancellation with large Unix epoch values.
+        var tBase = pts2[0][0];
         var n2 = pts2.length, sumT = 0, sumV = 0, sumTT = 0, sumTV = 0, i2;
-        for (i2 = 0; i2 < n2; i2++) { sumT += pts2[i2][0]; sumV += pts2[i2][1]; sumTT += pts2[i2][0] * pts2[i2][0]; sumTV += pts2[i2][0] * pts2[i2][1]; }
+        for (i2 = 0; i2 < n2; i2++) { var dt = pts2[i2][0] - tBase; sumT += dt; sumV += pts2[i2][1]; sumTT += dt * dt; sumTV += dt * pts2[i2][1]; }
         var denom2 = n2 * sumTT - sumT * sumT;
         if (Math.abs(denom2) > 1e-9) {
           var bSlope = (n2 * sumTV - sumT * sumV) / denom2;
@@ -678,7 +680,7 @@
           // xOf/yOf return logical-pixel coords; the canvas context is already
           // scaled by devicePixelRatio from the draw() call, so no dpr multiply.
           var txA = ds2.t0, txB = ds2.t1;
-          var tyA = aInter + bSlope * txA, tyB = aInter + bSlope * txB;
+          var tyA = aInter + bSlope * (txA - tBase), tyB = aInter + bSlope * (txB - tBase);
           var pxA = ds2.xOf(txA), pxB = ds2.xOf(txB);
           var pyA = ds2.yOf(tyA), pyB = ds2.yOf(tyB);
           ctx.save();
@@ -802,7 +804,15 @@
     var windowSize = parseInt(avgWindow, 10);
     if (!isFinite(windowSize) || isNaN(windowSize) || windowSize < 2) windowSize = 10;
     if (points.length < 2) return null;
-    var recent = points.slice(-(windowSize + 1));
+    // Deduplicate consecutive same-position heartbeat points so the window
+    // counts actual position changes, not poll ticks at a steady position.
+    var changes = [];
+    var lastPos = null;
+    for (var ci = 0; ci < points.length; ci++) {
+      var cp = Number(points[ci][1]);
+      if (cp !== lastPos) { changes.push(points[ci]); lastPos = cp; }
+    }
+    var recent = changes.slice(-(windowSize + 1));
     if (recent.length < 2) return null;
     var t0 = Number(recent[0][0]);
     var p0 = Number(recent[0][1]);
@@ -851,11 +861,17 @@
     if (!isFinite(avgWindow) || isNaN(avgWindow) || avgWindow < 1) avgWindow = 10;
     var displayPoints = (window._displayState && window._displayState.graph_points) || [];
     var displayCurrent = window._displayState && window._displayState.current_point;
+    var interruptedLatest =
+      selectedSessionKey === "latest" &&
+      !!(window._lastState && window._lastState.interrupted_mode);
     var rollingMpp = computeRollingWindowMinPerPos(
       displayPoints,
       avgWindow,
       {
-        useLiveNow: selectedSessionKey === "latest" && !!(window._lastState && window._lastState.running),
+        useLiveNow:
+          selectedSessionKey === "latest" &&
+          !!(window._lastState && window._lastState.running) &&
+          !interruptedLatest,
         currentPos: displayCurrent && displayCurrent.length ? displayCurrent[1] : null,
       }
     );
@@ -874,16 +890,17 @@
     var elInfoFull = $("infoGlo");
     if (elALbl) elALbl.textContent = avgWindow + "p Rate";
     var sessionFullRate =
-      stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
+      interruptedLatest || stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p";
     if (elS) elS.textContent = stats.startPos == null ? "—" : String(stats.startPos);
     if (elE) elE.textContent = stats.endPos == null ? "—" : String(stats.endPos);
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
-      elA.textContent =
-        selectedSessionKey === "latest" && liveQueueRateDisplay
-          ? liveQueueRateDisplay
-          : (rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p");
+      var tenPRate = interruptedLatest ? "—"
+        : rollingMpp != null ? rollingMpp.toFixed(2) + " m/p"
+        : stats.avgMinPerPos != null ? stats.avgMinPerPos.toFixed(2) + " m/p"
+        : (liveQueueRateDisplay || "—");
+      elA.textContent = tenPRate;
     }
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
@@ -1486,6 +1503,11 @@
       (typeof remainingDisplay === "string" && (!remainingDisplay.trim() || remainingDisplay.trim() === "—"))
     ) {
       remainingDisplay = formatRemainingFromPoints(fallbackPts, s.position);
+    }
+
+    if (s.interrupted_mode) {
+      rateDisplay = "—";
+      remainingDisplay = "—";
     }
 
     setKpiMetric(
@@ -2647,6 +2669,20 @@
     function submit(accept) {
       postNewQueue(accept)
         .then(function () {
+          if (accept) {
+            selectedSessionKey = "latest";
+            var sel = $("selSession");
+            if (sel) sel.value = "latest";
+            if (window._lastState) window._lastState.graph_live_view = true;
+            postConfig({ graph_live_view: true }).catch(function () {});
+            window._graphZoom = null;
+            if (window._lastState) {
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          }
           setTimeout(function () {
             focusElSoon($("btnStartStop"));
           }, 0);
@@ -3579,6 +3615,51 @@
     wireSoundFilePicker("btnPickWarnSound", "inpSetWarnSound", "Warning sound");
     wireSoundFilePicker("btnPickCompSound", "inpSetCompSound", "Completion sound");
     wireSoundFilePicker("btnPickFailSound", "inpSetFailSound", "Failure sound");
+
+    function wireSoundPreview(buttonId, kind) {
+      var btn = $(buttonId);
+      if (!btn) return;
+      btn.onclick = function () {
+        var url = "/api/sound/" + encodeURIComponent(kind) + "?v=" + Date.now();
+        var audio = new Audio(url);
+        audio.play().catch(function (e) { toast("Preview failed: " + String(e.message || e), "warn"); });
+      };
+    }
+    wireSoundPreview("btnPreviewWarnSound", "warning");
+    wireSoundPreview("btnPreviewCompSound", "completion");
+    wireSoundPreview("btnPreviewFailSound", "failure");
+
+    function wireSoundUpload(buttonId, fileInputId, inputId, kind, label) {
+      var btn = $(buttonId);
+      var fileInput = $(fileInputId);
+      var pathInput = $(inputId);
+      if (!btn || !fileInput) return;
+      btn.onclick = function () { fileInput.click(); };
+      fileInput.onchange = function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        fetch("/api/sound/" + encodeURIComponent(kind) + "/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "X-Upload-Filename": encodeURIComponent(file.name || (kind + ".wav")),
+          },
+          body: file,
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) { toast((label || kind) + " upload failed: " + (j.error || "unknown"), "warn"); return; }
+            if (pathInput) pathInput.value = j.path || "";
+            if (j.state) { window._lastState = j.state; applyState(j.state); }
+            toast((label || kind) + " sound updated");
+          })
+          .catch(function (e) { toast((label || kind) + " upload error: " + String(e.message || e), "warn"); })
+          .finally(function () { fileInput.value = ""; });
+      };
+    }
+    wireSoundUpload("btnUploadWarnSound", "fileWarnSound", "inpSetWarnSound", "warning", "Warning");
+    wireSoundUpload("btnUploadCompSound", "fileCompSound", "inpSetCompSound", "completion", "Completion");
+    wireSoundUpload("btnUploadFailSound", "fileFailSound", "inpSetFailSound", "failure", "Failure");
     var btnCopyPng = $("btnCopyPng");
     if (btnCopyPng) {
       btnCopyPng.onclick = function () {

@@ -939,6 +939,19 @@ select.inp:focus-visible {
 .graph-toolbar__right > .btn:hover .icon {
   opacity: 0.78;
 }
+.graph-toolbar__right > .btn--toolbar-export {
+  color: var(--text);
+}
+.graph-toolbar__right > .btn--toolbar-export .icon {
+  opacity: 0.9;
+}
+.graph-toolbar__right > .btn--toolbar-export:hover,
+.graph-toolbar__right > .btn--toolbar-export:active {
+  filter: brightness(1.08);
+}
+.graph-toolbar__right > .btn--toolbar-export:hover .icon {
+  opacity: 1;
+}
 .graph-toolbar__right > .btn.btn--toggle {
   color: var(--muted);
 }

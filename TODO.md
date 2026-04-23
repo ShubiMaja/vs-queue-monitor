@@ -8,6 +8,33 @@
 
 ## Fixed (closed)
 
+~~Bug: `10p Rate` and `Full Rate` in the Info stats panel could keep changing during Interrupted because the frontend kept recomputing them from the live latest-session graph~~
+Fixed: the Info stats panel now treats the active latest interrupted session as frozen, so `10p Rate` and `Full Rate` show `—` instead of continuing to recalculate while interrupted (v1.1.18)
+
+~~Bug: while actively monitoring an interrupted run, elapsed could overcount or stay wrong compared with the stopped view because interruption froze time from wall-clock state instead of the last real queue sample~~
+Fixed: `enter_interrupted_state()` now snapshots elapsed from the last queue sample and immediately refreshes the display, so interrupted monitoring shows the same frozen elapsed basis as the stopped view (v1.1.17)
+
+~~Bug: interrupted runs could still show calculated rate / remaining, especially after reload, because startup carried seeded rate values and the web UI re-derived metrics from graph history~~
+Fixed: interrupted state now blanks queue/global rate and remaining on the engine side, and the web UI no longer falls back to historical rate/ETA derivation while interrupted (v1.1.16)
+
+~~Bug: startup-seeded disconnected tails after queue completion could miss the interrupted snapshot path and leave elapsed/rates wrong or unknown~~
+Fixed: startup now treats post-queue grace/reconnect disconnect tails the same way as live polling, so already-disconnected seeded runs enter Interrupted immediately and preserve seeded elapsed/rates instead of staying blank or stale (v1.1.15)
+
+~~Bug: after reload or restart, the latest already-disconnected run could be seeded and then re-offered as a new run again~~
+Fixed: startup now adopts an already-interrupted latest tail as the interrupted baseline immediately, so the same seeded disconnected session is not re-offered as a fresh run after restart (v1.1.13)
+
+~~Bug: interrupted-mode new-run detection could keep offering runs that were already interrupted by the time they were seen~~
+Fixed: interrupted-mode detection now suppresses adoption prompts for newest runs that already classify as disconnected/reconnecting, so only genuinely live fresh runs are offered (v1.1.12)
+
+~~Bug: adopting a detected queue run could bounce straight back into Interrupted and feel like an infinite loop~~
+Fixed: when an adopted queue run is already disconnected/reconnecting, the engine now keeps that run in Interrupted state instead of forcing a brief Monitoring state and re-entering Interrupted on the next poll (v1.1.11)
+
+~~Bug: sound-file upload failed unless `python-multipart` was installed~~
+Fixed: the web sound upload endpoint now accepts raw file bytes with filename/type headers instead of multipart form parsing, so upload no longer depends on `python-multipart` (v1.1.10)
+
+~~Bug: accepting a detected new queue run could loop forever between "Queue interrupted" and "New queue run detected"~~
+Fixed: adopting a new queue run now also updates the engine's latest queue-line epoch baseline, so an already-disconnected adopted run is not immediately rediscovered as "new" on the next interrupted poll (v1.1.9)
+
 ~~Bug: increasing the graph top band did not add any real visual headroom above the plotted line~~
 Fixed: the graph now reserves a literal top headroom band inside the plot area while keeping the y-axis labels based on the true queue values, so the line no longer hugs the top without inventing fake fractional bounds or left-side drift (v1.0.348)
 
@@ -176,9 +203,10 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-- Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
-
 ## Implemented
+
+~~Tweak: run a final stable-release smoke pass before calling this stable~~
+Done: release verification now includes the focused engine/interrupted regression suite plus the lightweight browser smoke tests for dashboard load and browser notification permission flow, and they passed cleanly before the stability call (v1.1.19)
 
 ~~Tweak: graph top dark band should match the left gutter thickness more closely~~
 Done: increased the graph top padding again so the top dark band is visually comparable to the left-side gutter instead of staying noticeably thinner (v1.0.346)
