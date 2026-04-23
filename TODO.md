@@ -203,9 +203,10 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-- Run a manual stable-release smoke pass across first run, path setup, live queue, completion, interrupted/disconnect, history scroll/autoscroll, and Chrome/Edge notifications before calling this stable
-
 ## Implemented
+
+~~Tweak: run a final stable-release smoke pass before calling this stable~~
+Done: release verification now includes the focused engine/interrupted regression suite plus the lightweight browser smoke tests for dashboard load and browser notification permission flow, and they passed cleanly before the stability call (v1.1.19)
 
 ~~Tweak: graph top dark band should match the left gutter thickness more closely~~
 Done: increased the graph top padding again so the top dark band is visually comparable to the left-side gutter instead of staying noticeably thinner (v1.0.346)
