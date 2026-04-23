@@ -3603,6 +3603,46 @@
     wireSoundFilePicker("btnPickWarnSound", "inpSetWarnSound", "Warning sound");
     wireSoundFilePicker("btnPickCompSound", "inpSetCompSound", "Completion sound");
     wireSoundFilePicker("btnPickFailSound", "inpSetFailSound", "Failure sound");
+
+    function wireSoundPreview(buttonId, kind) {
+      var btn = $(buttonId);
+      if (!btn) return;
+      btn.onclick = function () {
+        var url = "/api/sound/" + encodeURIComponent(kind) + "?v=" + Date.now();
+        var audio = new Audio(url);
+        audio.play().catch(function (e) { toast("Preview failed: " + String(e.message || e), "warn"); });
+      };
+    }
+    wireSoundPreview("btnPreviewWarnSound", "warning");
+    wireSoundPreview("btnPreviewCompSound", "completion");
+    wireSoundPreview("btnPreviewFailSound", "failure");
+
+    function wireSoundUpload(buttonId, fileInputId, inputId, kind, label) {
+      var btn = $(buttonId);
+      var fileInput = $(fileInputId);
+      var pathInput = $(inputId);
+      if (!btn || !fileInput) return;
+      btn.onclick = function () { fileInput.click(); };
+      fileInput.onchange = function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        var fd = new FormData();
+        fd.append("file", file);
+        fetch("/api/sound/" + encodeURIComponent(kind) + "/upload", { method: "POST", body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) { toast((label || kind) + " upload failed: " + (j.error || "unknown"), "warn"); return; }
+            if (pathInput) pathInput.value = j.path || "";
+            if (j.state) { window._lastState = j.state; applyState(j.state); }
+            toast((label || kind) + " sound updated");
+          })
+          .catch(function (e) { toast((label || kind) + " upload error: " + String(e.message || e), "warn"); })
+          .finally(function () { fileInput.value = ""; });
+      };
+    }
+    wireSoundUpload("btnUploadWarnSound", "fileWarnSound", "inpSetWarnSound", "warning", "Warning");
+    wireSoundUpload("btnUploadCompSound", "fileCompSound", "inpSetCompSound", "completion", "Completion");
+    wireSoundUpload("btnUploadFailSound", "fileFailSound", "inpSetFailSound", "failure", "Failure");
     var btnCopyPng = $("btnCopyPng");
     if (btnCopyPng) {
       btnCopyPng.onclick = function () {

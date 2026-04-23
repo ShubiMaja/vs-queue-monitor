@@ -527,6 +527,37 @@ def _api_sound(request: Request) -> Response:
     return FileResponse(path, media_type=_audio_media_type(path), filename=path.name)
 
 
+async def _api_sound_upload(request: Request) -> JSONResponse:
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    kind = str(request.path_params.get("kind", "")).strip().lower()
+    var_name = _KIND_TO_ENGINE_VAR.get(kind)
+    if var_name is None:
+        return JSONResponse({"ok": False, "error": "Unknown sound kind"}, status_code=400)
+    try:
+        form = await request.form()
+        upload = form.get("file")
+        if upload is None or not hasattr(upload, "read"):
+            return JSONResponse({"ok": False, "error": "No file provided"}, status_code=400)
+        suffix = Path(upload.filename or "sound.wav").suffix.lower() or ".wav"
+        allowed = {".wav", ".mp3", ".ogg", ".oga", ".aiff", ".aif", ".m4a"}
+        if suffix not in allowed:
+            return JSONResponse({"ok": False, "error": f"Unsupported format: {suffix}"}, status_code=400)
+        sounds_dir = get_config_path().parent / "sounds"
+        sounds_dir.mkdir(parents=True, exist_ok=True)
+        dest = sounds_dir / f"{kind}{suffix}"
+        data = await upload.read()
+        dest.write_bytes(data)
+        with lock:
+            getattr(engine, var_name).set(str(dest))
+            engine.persist_config()
+        snap = build_snapshot(engine, request.app.state.hooks)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("sound upload failed")
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, "path": str(dest), "state": snap})
+
+
 async def _api_pick_path(request: Request) -> JSONResponse:
     """Open a native folder or file picker on the machine running Python (localhost UI)."""
     if not _gui_display_available():
@@ -843,6 +874,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/meta", _api_meta, methods=["GET"]),
         Route("/api/state", _api_state, methods=["GET"]),
         Route("/api/sound/{kind:str}", _api_sound, methods=["GET"]),
+        Route("/api/sound/{kind:str}/upload", _api_sound_upload, methods=["POST"]),
         Route("/api/pick_path", _api_pick_path, methods=["POST"]),
         Route("/api/config", _api_config, methods=["POST"]),
         Route("/api/monitoring/toggle", _api_toggle, methods=["POST"]),
