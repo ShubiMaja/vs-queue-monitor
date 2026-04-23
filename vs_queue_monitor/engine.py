@@ -540,6 +540,17 @@ class QueueMonitorEngine:
         # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
         # mid-game reconnect lines that appear without an accompanying queue position line.
         effective_sess = queue_sess
+        entry_epoch = self._interrupt_entry_queue_line_epoch
+        # The small live tail can count queue-session boundaries differently from the larger
+        # seed scan used when we accepted the current run. Do not treat the same queue lines
+        # as a "new run" again unless the newest queue line is actually newer than the one
+        # that put us into interrupted mode.
+        if (
+            last_queue_line_epoch is not None
+            and entry_epoch is not None
+            and last_queue_line_epoch <= entry_epoch
+        ):
+            return
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
         if effective_sess <= self._interrupt_baseline_session:
@@ -547,7 +558,6 @@ class QueueMonitorEngine:
             # and old boundary lines scrolled out of the tail window.  If the most recent
             # queue line is provably newer than the epoch we entered interrupted state, it is
             # a new run regardless of the apparent session count.
-            entry_epoch = self._interrupt_entry_queue_line_epoch
             if (last_queue_line_epoch is None or entry_epoch is None
                     or last_queue_line_epoch <= entry_epoch):
                 return
@@ -685,6 +695,7 @@ class QueueMonitorEngine:
         self.last_position = None
         self._last_queue_run_session = sess
         line_t = parse_tail_last_queue_line_epoch(text)
+        self._last_queue_line_epoch = line_t
         if pos is not None and pos <= 1:
             self._position_one_reached_at = line_t or time.time()
         self.append_graph_point(pos, line_t)
@@ -712,8 +723,11 @@ class QueueMonitorEngine:
         self.current_point = self.graph_points[-1] if self.graph_points else None
         if self.current_point is not None:
             _t, pos = self.current_point
+            self._last_queue_line_epoch = _t
             self.last_position = pos
             self._set_position_display(pos)
+        else:
+            self._last_queue_line_epoch = None
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self._hooks.request_redraw_graph()

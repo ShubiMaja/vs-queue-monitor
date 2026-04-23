@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: accepting a detected new queue run could loop forever between "Queue interrupted" and "New queue run detected"~~
+Fixed: adopting a new queue run now also updates the engine's latest queue-line epoch baseline, so an already-disconnected adopted run is not immediately rediscovered as "new" on the next interrupted poll (v1.1.9)
+
 ~~Bug: increasing the graph top band did not add any real visual headroom above the plotted line~~
 Fixed: the graph now reserves a literal top headroom band inside the plot area while keeping the y-axis labels based on the true queue values, so the line no longer hugs the top without inventing fake fractional bounds or left-side drift (v1.0.348)
 
