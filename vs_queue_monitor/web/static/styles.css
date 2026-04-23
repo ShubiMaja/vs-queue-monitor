@@ -939,22 +939,17 @@ select.inp:focus-visible {
 .graph-toolbar__right > .btn:hover .icon {
   opacity: 0.78;
 }
-.graph-toolbar__right > #btnCopyPng,
-.graph-toolbar__right > #btnDownloadPng {
+.graph-toolbar__right > .btn--toolbar-export {
   color: var(--text);
 }
-.graph-toolbar__right > #btnCopyPng .icon,
-.graph-toolbar__right > #btnDownloadPng .icon {
+.graph-toolbar__right > .btn--toolbar-export .icon {
   opacity: 0.9;
 }
-.graph-toolbar__right > #btnCopyPng:hover,
-.graph-toolbar__right > #btnDownloadPng:hover,
-.graph-toolbar__right > #btnCopyPng:active,
-.graph-toolbar__right > #btnDownloadPng:active {
+.graph-toolbar__right > .btn--toolbar-export:hover,
+.graph-toolbar__right > .btn--toolbar-export:active {
   filter: brightness(1.08);
 }
-.graph-toolbar__right > #btnCopyPng:hover .icon,
-.graph-toolbar__right > #btnDownloadPng:hover .icon {
+.graph-toolbar__right > .btn--toolbar-export:hover .icon {
   opacity: 1;
 }
 .graph-toolbar__right > .btn.btn--toggle {
