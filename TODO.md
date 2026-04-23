@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: while actively monitoring an interrupted run, elapsed could overcount or stay wrong compared with the stopped view because interruption froze time from wall-clock state instead of the last real queue sample~~
+Fixed: `enter_interrupted_state()` now snapshots elapsed from the last queue sample and immediately refreshes the display, so interrupted monitoring shows the same frozen elapsed basis as the stopped view (v1.1.17)
+
 ~~Bug: interrupted runs could still show calculated rate / remaining, especially after reload, because startup carried seeded rate values and the web UI re-derived metrics from graph history~~
 Fixed: interrupted state now blanks queue/global rate and remaining on the engine side, and the web UI no longer falls back to historical rate/ETA derivation while interrupted (v1.1.16)
 

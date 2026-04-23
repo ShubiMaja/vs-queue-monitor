@@ -547,6 +547,7 @@ class QueueMonitorEngine:
         self._dismissed_new_queue_session = None
         self._frozen_rates_at_interrupt = ('—', '—')
         self._set_status_line('Interrupted', danger=True)
+        self.update_time_estimates()
         msg = 'Queue interrupted; still watching the log. A new queue run can be loaded when detected.'
         if detail:
             msg += f' ({detail})'
@@ -1306,13 +1307,15 @@ class QueueMonitorEngine:
         return self.monitor_start_epoch
 
     def _snapshot_elapsed_seconds_at_interrupt(self) -> Optional[float]:
-        """Wall-clock queue elapsed at interrupt (same basis as the live elapsed timer)."""
+        """Freeze queue elapsed at the last real queue sample when entering Interrupted."""
         start_t = self._queue_elapsed_start_epoch()
         if start_t is None:
             return None
         pos = self._current_queue_position()
         if pos is not None and pos <= 1 and (self._position_one_reached_at is not None):
             return max(0.0, self._position_one_reached_at - start_t)
+        if self.current_point is not None:
+            return max(0.0, self.current_point[0] - start_t)
         return max(0.0, time.time() - start_t)
 
     def _sync_queue_progress_widget(self) -> None:
