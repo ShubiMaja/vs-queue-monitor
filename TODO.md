@@ -8,8 +8,8 @@
 
 ## Fixed (closed)
 
-~~Bug: startup-seeded interrupted runs could stay in Interrupted but still show unknown elapsed/rates~~
-Fixed: when startup adopts a latest run as already interrupted, it now refreshes the frozen elapsed/rate displays immediately so elapsed is shown from the seeded session instead of staying blank (v1.1.14)
+~~Bug: startup-seeded disconnected tails after queue completion could miss the interrupted snapshot path and leave elapsed/rates wrong or unknown~~
+Fixed: startup now treats post-queue grace/reconnect disconnect tails the same way as live polling, so already-disconnected seeded runs enter Interrupted immediately and preserve seeded elapsed/rates instead of staying blank or stale (v1.1.15)
 
 ~~Bug: after reload or restart, the latest already-disconnected run could be seeded and then re-offered as a new run again~~
 Fixed: startup now adopts an already-interrupted latest tail as the interrupted baseline immediately, so the same seeded disconnected session is not re-offered as a fresh run after restart (v1.1.13)

@@ -491,9 +491,22 @@ class QueueMonitorEngine:
             return
         kind, _tail_pos = classify_tail_connection_state(t)
         pos, _queue_sess = parse_tail_last_queue_reading(t)
-        if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1)):
+        left = tail_has_post_queue_after_last_queue_line(t)
+        should_interrupt = (
+            kind == 'disconnected'
+            or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1))
+            or (kind in ('reconnecting', 'grace') and left and (pos is not None and pos <= 1))
+        )
+        if should_interrupt:
             self._interrupted_mode = True
-            self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
+            start_t = self._queue_elapsed_start_epoch()
+            if start_t is not None and self.current_point is not None:
+                if pos is not None and pos <= 1 and self._position_one_reached_at is not None:
+                    self._interrupted_elapsed_sec = max(0.0, self._position_one_reached_at - start_t)
+                else:
+                    self._interrupted_elapsed_sec = max(0.0, self.current_point[0] - start_t)
+            else:
+                self._interrupted_elapsed_sec = self._snapshot_elapsed_seconds_at_interrupt()
             self._interrupt_baseline_session = self._last_queue_run_session
             self._interrupt_entry_queue_line_epoch = self._last_queue_line_epoch
             self._dismissed_new_queue_session = self._last_queue_run_session
