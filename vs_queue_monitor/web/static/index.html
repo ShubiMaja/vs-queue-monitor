@@ -8,6 +8,16 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <div id="updateBanner" class="update-banner hidden" role="region" aria-live="polite">
+      <div class="update-banner__inner">
+        <span id="updateBannerMsg" class="update-banner__msg">Update available</span>
+        <div class="update-banner__actions">
+          <button type="button" class="btn btn--primary btn--small" id="btnApplyUpdate">Update &amp; restart</button>
+          <button type="button" class="btn btn--ghost btn--small" id="btnDismissUpdate">Later</button>
+        </div>
+      </div>
+    </div>
+
     <div id="restoreBanner" class="restore-banner hidden" role="region">
       <div class="restore-banner__inner">
         <span id="restoreBannerDetail" class="restore-banner__msg"></span>
@@ -646,6 +656,14 @@
             </div>
           </div>
         </section>
+
+        <section class="settings-section" aria-labelledby="settingsGeneralHeading">
+          <h3 class="settings-h3" id="settingsGeneralHeading">General</h3>
+          <div class="form-grid form-grid--settings">
+            <label class="settings-option"><input type="checkbox" id="chkUpdateNotify" checked /> Show update notifications</label>
+          </div>
+        </section>
+
         <div class="modal__actions">
           <button type="button" class="btn btn--secondary" id="btnReset" title="Reset all settings to their default values">Reset all defaults</button>
           <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>

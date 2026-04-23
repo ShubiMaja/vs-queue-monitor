@@ -264,6 +264,31 @@ body {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.update-banner {
+  background: #1a2e1a;
+  border-bottom: 1px solid #4a9e4a;
+  padding: 10px 16px;
+}
+.update-banner.hidden {
+  display: none;
+}
+.update-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.update-banner__msg {
+  font-size: 0.9rem;
+  color: #a8d4a8;
+}
+.update-banner__actions {
+  display: flex;
+  gap: 8px;
+}
 .restore-banner {
   background: #2b3a52;
   border-bottom: 1px solid var(--accent);
@@ -951,10 +976,11 @@ select.inp:focus-visible {
   opacity: 0.78;
 }
 .graph-toolbar__right > .btn--toolbar-export {
+  background: var(--card);
   color: var(--text);
 }
 .graph-toolbar__right > .btn--toolbar-export .icon {
-  opacity: 0.9;
+  opacity: 1;
 }
 .graph-toolbar__right > .btn--toolbar-export:hover,
 .graph-toolbar__right > .btn--toolbar-export:active {

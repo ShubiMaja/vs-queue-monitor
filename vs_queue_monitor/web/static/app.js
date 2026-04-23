@@ -19,6 +19,7 @@
   var LS_NOTIFY_WARNING_POPUP = "vs_queue_monitor_warning_popup_v1";
   var LS_NOTIFY_COMPLETION_POPUP = "vs_queue_monitor_completion_popup_v1";
   var LS_NOTIFY_FAILURE_POPUP = "vs_queue_monitor_failure_popup_v1";
+  var LS_UPDATE_NOTIFY = "vs_queue_monitor_update_notify_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -239,6 +240,15 @@
     s.completion_popup = lsGetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, !!s.completion_popup);
     s.failure_popup = lsGetOptionalBool(LS_NOTIFY_FAILURE_POPUP, !!s.failure_popup);
     return s;
+  }
+  function lsGetUpdateNotify() {
+    try {
+      var v = localStorage.getItem(LS_UPDATE_NOTIFY);
+      return v === null || v === "1";
+    } catch (e) { return true; }
+  }
+  function lsSetUpdateNotify(val) {
+    try { localStorage.setItem(LS_UPDATE_NOTIFY, val ? "1" : "0"); } catch (e) {}
   }
   function applyClientViewerPrefs(s) {
     applyClientGraphPrefs(s);
@@ -1496,6 +1506,8 @@
     if (ics) ics.value = s.completion_sound_path || "";
     var ifs = $("inpSetFailSound");
     if (ifs) ifs.value = s.failure_sound_path || "";
+    var chkUpdateNotify = $("chkUpdateNotify");
+    if (chkUpdateNotify) chkUpdateNotify.checked = lsGetUpdateNotify();
   }
 
   function activateSettingsTab(tabName) {
@@ -1820,6 +1832,19 @@
       tryRestoreBanner(s);
     }
 
+    var updateBanner = $("updateBanner");
+    if (updateBanner) {
+      if (s.update_available && !window._updateDismissed && lsGetUpdateNotify()) {
+        var msg = $("updateBannerMsg");
+        if (msg) msg.textContent = s.update_release_name
+          ? "Update available: " + s.update_release_name
+          : "Update available";
+        updateBanner.classList.remove("hidden");
+      } else if (!s.update_available || !lsGetUpdateNotify()) {
+        updateBanner.classList.add("hidden");
+      }
+    }
+
     rebuildSessionDropdown(s);
     window._displayState = buildDisplayState(s);
     renderSessionStats();
@@ -1920,8 +1945,8 @@
       var wasOffline = _offlineMode;
       _wsEverConnected = true;
       _hideDisconnectOverlay();
-      if (wasOffline) {
-        window.location.reload();
+      if (wasOffline || window._pendingHardReload) {
+        window.location.reload(true);
         return;
       }
       try {
@@ -2743,6 +2768,42 @@
             toast(String(err.message || err), "warn");
           });
       };
+  }
+
+  function setupUpdateBanner() {
+    var btnApply = $("btnApplyUpdate");
+    var btnDismiss = $("btnDismissUpdate");
+    if (btnDismiss) {
+      btnDismiss.onclick = function () {
+        window._updateDismissed = true;
+        var b = $("updateBanner");
+        if (b) b.classList.add("hidden");
+      };
+    }
+    if (btnApply) {
+      btnApply.onclick = function () {
+        if (!window.confirm("Apply update and restart VS Queue Monitor?\n\nThe app will pull the latest changes and restart. This page will reload automatically when it's back.")) return;
+        btnApply.disabled = true;
+        btnApply.textContent = "Updating…";
+        fetch("/api/update/apply", { method: "POST" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) {
+              toast("Update failed: " + (j.error || "unknown"), "warn");
+              btnApply.disabled = false;
+              btnApply.textContent = "Update & restart";
+              return;
+            }
+            window._pendingHardReload = true;
+            toast("Update in progress — reloading when server is back…");
+          })
+          .catch(function (e) {
+            toast("Update error: " + String(e.message || e), "warn");
+            btnApply.disabled = false;
+            btnApply.textContent = "Update & restart";
+          });
+      };
+    }
   }
 
   function setupNewQueueModal() {
@@ -3884,6 +3945,13 @@
         lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, nextWarningPopup);
         lsSetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, nextCompletionPopup);
         lsSetOptionalBool(LS_NOTIFY_FAILURE_POPUP, nextFailurePopup);
+        var nextUpdateNotify = !!($("chkUpdateNotify") && $("chkUpdateNotify").checked);
+        lsSetUpdateNotify(nextUpdateNotify);
+        if (!nextUpdateNotify) {
+          window._updateDismissed = true;
+          var ub = $("updateBanner");
+          if (ub) ub.classList.add("hidden");
+        }
         var patch = {
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
@@ -4230,6 +4298,7 @@
   safeInit("setupGraphResize", setupGraphResize);
   safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
   safeInit("setupRestoreBanner", setupRestoreBanner);
+  safeInit("setupUpdateBanner", setupUpdateBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
   safeInit("setupNotifications", setupNotifications);
