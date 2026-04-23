@@ -1229,6 +1229,7 @@ select.inp:focus-visible {
 @media (max-width: 900px) {
   .info-history {
     flex-direction: column;
+    gap: var(--space-4);
   }
   .info-history__main {
     flex: none;
