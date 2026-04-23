@@ -1195,6 +1195,7 @@
       return out;
     }
     out.graph_points = sess.points;
+    out.graph_live_view = false;
     var last = sess.points[sess.points.length - 1];
     out.current_point = [last[0], last[1]];
     out.graph_events = deriveGraphEvents(out, out.graph_points || [], true);
