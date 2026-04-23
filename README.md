@@ -152,7 +152,7 @@ The tunnel forwards your laptop's port 8765 to the server's loopback - nothing i
 
 > **Tip:** add `-N` to the SSH command (`ssh -N -L ...`) to open just the tunnel without a shell.
 
-## Mobile push notifications (optional, partial)
+## Mobile push notifications (not yet fully implemented!)
 
 Push notifications let your phone buzz when you reach the front of the queue. They require HTTPS (ngrok or an SSH tunnel works) and a one-time browser permission grant.
 
