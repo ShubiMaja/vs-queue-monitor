@@ -177,5 +177,3 @@ pip install pywebpush
 ## Disclaimer
 
 **Not affiliated with Vintage Story.** AI-assisted code - validate alerts and ETAs yourself. No warranty.
-
-For product and UX decisions: [`docs/DESIGN.md`](docs/DESIGN.md).
