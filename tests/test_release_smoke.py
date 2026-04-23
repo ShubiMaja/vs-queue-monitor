@@ -124,7 +124,7 @@ def test_active_session_zero_not_listed_as_failed_history() -> None:
     engine, _hooks = _engine_for_log_dir(log_dir)
     engine._last_queue_run_session = 0
 
-    sessions = _queue_sessions_for_engine(engine)
+    sessions, _active_id = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
 
 
@@ -151,5 +151,5 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
     engine.current_point = (1775763085.0, 10)
     engine.graph_points = [(1775763055.0, 12), (1775763085.0, 10)]
 
-    sessions = _queue_sessions_for_engine(engine)
+    sessions, _active_id = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions

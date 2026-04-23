@@ -745,9 +745,14 @@
       ctx.font = "12px system-ui,Segoe UI,sans-serif";
       var markerText = String(lastV);
       var markerTextW = ctx.measureText(markerText).width;
-      ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(markerText, Math.min(lx + 10, x1 - markerTextW - 2), ly);
+      if (lx + 10 + markerTextW <= x1 - 2) {
+        ctx.textAlign = "left";
+        ctx.fillText(markerText, lx + 10, ly);
+      } else {
+        ctx.textAlign = "right";
+        ctx.fillText(markerText, lx - 8, ly);
+      }
     }
 
     if (hoverPoint && hoverPoint.length >= 2) {
