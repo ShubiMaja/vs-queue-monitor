@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: sound-file upload failed unless `python-multipart` was installed~~
+Fixed: the web sound upload endpoint now accepts raw file bytes with filename/type headers instead of multipart form parsing, so upload no longer depends on `python-multipart` (v1.1.10)
+
 ~~Bug: accepting a detected new queue run could loop forever between "Queue interrupted" and "New queue run detected"~~
 Fixed: adopting a new queue run now also updates the engine's latest queue-line epoch baseline, so an already-disconnected adopted run is not immediately rediscovered as "new" on the next interrupted poll (v1.1.9)
 

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import webbrowser
 from pathlib import Path
 from typing import Any, Optional
@@ -535,18 +536,17 @@ async def _api_sound_upload(request: Request) -> JSONResponse:
     if var_name is None:
         return JSONResponse({"ok": False, "error": "Unknown sound kind"}, status_code=400)
     try:
-        form = await request.form()
-        upload = form.get("file")
-        if upload is None or not hasattr(upload, "read"):
+        filename = urllib.parse.unquote(str(request.headers.get("x-upload-filename", "")).strip())
+        data = await request.body()
+        if not data:
             return JSONResponse({"ok": False, "error": "No file provided"}, status_code=400)
-        suffix = Path(upload.filename or "sound.wav").suffix.lower() or ".wav"
+        suffix = Path(filename or "sound.wav").suffix.lower() or ".wav"
         allowed = {".wav", ".mp3", ".ogg", ".oga", ".aiff", ".aif", ".m4a"}
         if suffix not in allowed:
             return JSONResponse({"ok": False, "error": f"Unsupported format: {suffix}"}, status_code=400)
         sounds_dir = get_config_path().parent / "sounds"
         sounds_dir.mkdir(parents=True, exist_ok=True)
         dest = sounds_dir / f"{kind}{suffix}"
-        data = await upload.read()
         dest.write_bytes(data)
         with lock:
             getattr(engine, var_name).set(str(dest))

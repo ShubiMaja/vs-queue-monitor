@@ -3626,9 +3626,14 @@
       fileInput.onchange = function () {
         var file = fileInput.files && fileInput.files[0];
         if (!file) return;
-        var fd = new FormData();
-        fd.append("file", file);
-        fetch("/api/sound/" + encodeURIComponent(kind) + "/upload", { method: "POST", body: fd })
+        fetch("/api/sound/" + encodeURIComponent(kind) + "/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+            "X-Upload-Filename": encodeURIComponent(file.name || (kind + ".wav")),
+          },
+          body: file,
+        })
           .then(function (r) { return r.json(); })
           .then(function (j) {
             if (!j.ok) { toast((label || kind) + " upload failed: " + (j.error || "unknown"), "warn"); return; }
