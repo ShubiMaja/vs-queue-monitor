@@ -882,10 +882,9 @@
     if (elC) elC.textContent = stats.cleared == null ? "—" : String(stats.cleared);
     if (elSp) elSp.textContent = formatDurationHms(stats.seconds);
     if (elA) {
-      elA.textContent =
-        selectedSessionKey === "latest" && liveQueueRateDisplay
-          ? liveQueueRateDisplay
-          : (rollingMpp == null ? "—" : rollingMpp.toFixed(2) + " m/p");
+      elA.textContent = rollingMpp != null
+        ? rollingMpp.toFixed(2) + " m/p"
+        : (liveQueueRateDisplay || "—");
     }
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
