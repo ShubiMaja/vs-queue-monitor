@@ -534,7 +534,7 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None) -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
         # Use total boundary count only when there is also at least one new position line in the
         # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
@@ -550,6 +550,10 @@ class QueueMonitorEngine:
             and entry_epoch is not None
             and last_queue_line_epoch <= entry_epoch
         ):
+            return
+        # If the newest detected run is already interrupted/disconnected by the time we see it,
+        # do not offer it as a fresh run to adopt.
+        if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (position is not None and position <= 1)):
             return
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
@@ -806,7 +810,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False

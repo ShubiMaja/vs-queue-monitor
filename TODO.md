@@ -8,6 +8,9 @@
 
 ## Fixed (closed)
 
+~~Bug: interrupted-mode new-run detection could keep offering runs that were already interrupted by the time they were seen~~
+Fixed: interrupted-mode detection now suppresses adoption prompts for newest runs that already classify as disconnected/reconnecting, so only genuinely live fresh runs are offered (v1.1.12)
+
 ~~Bug: adopting a detected queue run could bounce straight back into Interrupted and feel like an infinite loop~~
 Fixed: when an adopted queue run is already disconnected/reconnecting, the engine now keeps that run in Interrupted state instead of forcing a brief Monitoring state and re-entering Interrupted on the next poll (v1.1.11)
 
