@@ -228,9 +228,10 @@ Tweak: No queue detected warning should be :warning symbo: No Queue!
 
 Questions: should we allow multiple queue monitor location? What would the impact be?
 
-Tweak: Mobile app should take full advantage of browser width as much as possible without uneccesasry padding
-
 ## Implemented
+
+~~Tweak: Mobile app should take full advantage of browser width as much as possible without unnecessary padding~~
+Done: removed double-dip from `.main` (max-width formula was subtracting viewport margin on top of padding), added `@media (max-width:480px)` to reduce side padding from 16px to 8px on `.main`, `.restore-banner`, and `.app-footer`; also flipped the info/history resize handle from vertical to horizontal on narrow screens (v1.1.32)
 
 ~~Tweak: run a final stable-release smoke pass before calling this stable~~
 Done: release verification now includes the focused engine/interrupted regression suite plus the lightweight browser smoke tests for dashboard load and browser notification permission flow, and they passed cleanly before the stability call (v1.1.19)
@@ -338,7 +339,8 @@ Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed 
 
 Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.
 
-Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app
+~~Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app~~
+Done: background thread fetches `origin/main` every hour and sets `update_available` on app state; a green banner appears at the top when a newer commit exists on main; "Update & restart" runs `git pull` then `os.execv` to replace the server process; the browser detects the disconnect and hard-reloads on reconnect (v1.1.33)
 
 Feature: Snapshot every session recorded once the session ends and store it as appdata so we can perform analytics later
 

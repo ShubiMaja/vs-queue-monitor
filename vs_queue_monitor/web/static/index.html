@@ -8,6 +8,16 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <div id="updateBanner" class="update-banner hidden" role="region" aria-live="polite">
+      <div class="update-banner__inner">
+        <span id="updateBannerMsg" class="update-banner__msg">Update available</span>
+        <div class="update-banner__actions">
+          <button type="button" class="btn btn--primary btn--small" id="btnApplyUpdate">Update &amp; restart</button>
+          <button type="button" class="btn btn--ghost btn--small" id="btnDismissUpdate">Later</button>
+        </div>
+      </div>
+    </div>
+
     <div id="restoreBanner" class="restore-banner hidden" role="region">
       <div class="restore-banner__inner">
         <span id="restoreBannerDetail" class="restore-banner__msg"></span>

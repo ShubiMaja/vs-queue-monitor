@@ -40,6 +40,42 @@ from .theme import chrome_theme_css_vars, graph_theme_dict
 
 _STATIC = Path(__file__).resolve().parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_IS_GIT_REPO = (_REPO_ROOT / ".git").is_dir()
+
+
+def _git_check_update() -> dict[str, Any]:
+    """Fetch origin/main and compare with HEAD. Safe to call from a background thread."""
+    if not _IS_GIT_REPO:
+        return {"available": False, "error": "not_git_repo"}
+    try:
+        subprocess.run(
+            ["git", "fetch", "origin", "main", "--quiet"],
+            cwd=_REPO_ROOT, capture_output=True, timeout=20,
+        )
+        local = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=_REPO_ROOT, text=True, timeout=5,
+        ).strip()
+        remote = subprocess.check_output(
+            ["git", "rev-parse", "origin/main"], cwd=_REPO_ROOT, text=True, timeout=5,
+        ).strip()
+        if local == remote:
+            return {"available": False, "local_sha": local[:7], "remote_sha": remote[:7], "error": None}
+        # get a short summary of what's new
+        log_out = subprocess.check_output(
+            ["git", "log", "--oneline", f"{local}..origin/main"],
+            cwd=_REPO_ROOT, text=True, timeout=5,
+        ).strip()
+        count = len([l for l in log_out.splitlines() if l.strip()])
+        return {
+            "available": True,
+            "local_sha": local[:7],
+            "remote_sha": remote[:7],
+            "commit_count": count,
+            "log_summary": log_out[:300],
+            "error": None,
+        }
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
 
 
 def _env_pref(primary: str, *legacy: str, default: str = "") -> str:
@@ -397,7 +433,7 @@ def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
     return out
 
 
-def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[str, Any]:
+def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Optional[dict] = None) -> dict[str, Any]:
     pts = [[float(t), int(p)] for t, p in engine.graph_points]
     cur = None
     if engine.current_point is not None:
@@ -454,6 +490,9 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "active_queue_session_id": active_session_id,
         "build_fingerprint": _build_fingerprint(),
     }
+    if extra:
+        result.update(extra)
+    return result
 
 
 def _api_meta(request: Request) -> JSONResponse:
@@ -476,8 +515,9 @@ def _api_state(request: Request) -> JSONResponse:
     hooks: WebMonitorHooks = request.app.state.hooks
     lock: threading.RLock = request.app.state.lock
     try:
+        update_extra = {"update_available": getattr(request.app.state, "update_available", False)}
         with lock:
-            snap = build_snapshot(engine, hooks)
+            snap = build_snapshot(engine, hooks, update_extra)
         return JSONResponse(snap)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
@@ -769,6 +809,38 @@ async def _api_push_test(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, **result})
 
 
+async def _api_update_check(request: Request) -> JSONResponse:
+    if not _IS_GIT_REPO:
+        return JSONResponse({"available": False, "error": "not_git_repo"})
+    result = await asyncio.to_thread(_git_check_update)
+    request.app.state.update_available = bool(result.get("available"))
+    return JSONResponse(result)
+
+
+async def _api_update_apply(request: Request) -> JSONResponse:
+    if not _IS_GIT_REPO:
+        return JSONResponse({"ok": False, "error": "not_git_repo"}, status_code=400)
+
+    async def _pull_and_restart() -> None:
+        log = logging.getLogger(__name__)
+        try:
+            proc = await asyncio.to_thread(lambda: subprocess.run(
+                ["git", "pull", "origin", "main"],
+                cwd=_REPO_ROOT, capture_output=True, text=True, timeout=120,
+            ))
+            if proc.returncode != 0:
+                log.error("git pull failed: %s", proc.stderr.strip())
+                return
+        except Exception:
+            log.exception("git pull raised")
+            return
+        await asyncio.sleep(0.3)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    asyncio.create_task(_pull_and_restart())
+    return JSONResponse({"ok": True})
+
+
 async def _ws_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     engine: QueueMonitorEngine = websocket.app.state.engine
@@ -776,9 +848,11 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
     lock: threading.RLock = websocket.app.state.lock
     try:
         while True:
+            update_available = getattr(websocket.app.state, "update_available", False)
+
             def snap() -> dict[str, Any]:
                 with lock:
-                    return build_snapshot(engine, hooks)
+                    return build_snapshot(engine, hooks, {"update_available": update_available})
 
             payload = await asyncio.to_thread(snap)
             await websocket.send_text(json.dumps(payload))
@@ -858,6 +932,25 @@ class _NoCacheStaticFiles(StaticFiles):
         await super().__call__(scope, receive, _send_no_cache)
 
 
+def _start_update_checker(app: Any) -> None:
+    """Background daemon: checks for updates every hour, stores result on app.state."""
+    if not _IS_GIT_REPO:
+        return
+    app.state.update_available = False
+
+    def worker() -> None:
+        time.sleep(60)
+        while True:
+            try:
+                result = _git_check_update()
+                app.state.update_available = bool(result.get("available"))
+            except Exception:
+                pass
+            time.sleep(3600)
+
+    threading.Thread(target=worker, daemon=True, name="vsqm-update-checker").start()
+
+
 def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threading.RLock) -> Starlette:
     routes = [
         Route("/api/meta", _api_meta, methods=["GET"]),
@@ -873,6 +966,8 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/push/public_key", _api_push_public_key, methods=["GET"]),
         Route("/api/push/subscribe", _api_push_subscribe, methods=["POST"]),
         Route("/api/push/test", _api_push_test, methods=["POST"]),
+        Route("/api/update/check", _api_update_check, methods=["GET"]),
+        Route("/api/update/apply", _api_update_apply, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
@@ -880,6 +975,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     app.state.engine = engine
     app.state.hooks = hooks
     app.state.lock = lock
+    _start_update_checker(app)
     return app
 
 
