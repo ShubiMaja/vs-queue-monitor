@@ -25,9 +25,6 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
     SEED_LOG_TAIL_BYTES,
-    default_alert_sound_path_for_display,
-    default_completion_sound_path_for_display,
-    default_failure_sound_path_for_display,
     expand_path,
     get_config_path,
     parse_alert_thresholds,
@@ -487,26 +484,21 @@ def _api_state(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+_BUNDLED_SOUNDS_DIR = Path(__file__).parent / "static" / "sounds"
+_KIND_TO_ENGINE_VAR = {"warning": "alert_sound_path_var", "completion": "completion_sound_path_var", "failure": "failure_sound_path_var"}
+
+
 def _effective_sound_path(engine: QueueMonitorEngine, kind: str) -> Path | None:
-    if kind == "warning":
-        raw = (engine.alert_sound_path_var.get() or "").strip()
-        fallback = default_alert_sound_path_for_display
-    elif kind == "completion":
-        raw = (engine.completion_sound_path_var.get() or "").strip()
-        fallback = default_completion_sound_path_for_display
-    elif kind == "failure":
-        raw = (engine.failure_sound_path_var.get() or "").strip()
-        fallback = default_failure_sound_path_for_display
-    else:
+    var_name = _KIND_TO_ENGINE_VAR.get(kind)
+    if var_name is None:
         return None
+    raw = (getattr(engine, var_name).get() or "").strip()
     if raw:
         path = expand_path(raw)
-        return path if path.is_file() else None
-    fallback_raw = fallback().strip()
-    if not fallback_raw:
-        return None
-    path = Path(fallback_raw)
-    return path if path.is_file() else None
+        if path.is_file():
+            return path
+    bundled = _BUNDLED_SOUNDS_DIR / f"{kind}.wav"
+    return bundled if bundled.is_file() else None
 
 
 def _audio_media_type(path: Path) -> str:
