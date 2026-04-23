@@ -1822,6 +1822,10 @@
 
     var updateBanner = $("updateBanner");
     if (updateBanner && s.update_available && !window._updateDismissed) {
+      var msg = $("updateBannerMsg");
+      if (msg) msg.textContent = s.update_release_name
+        ? "Update available: " + s.update_release_name
+        : "Update available";
       updateBanner.classList.remove("hidden");
     }
 

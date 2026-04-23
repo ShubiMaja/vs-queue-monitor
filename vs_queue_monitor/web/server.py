@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import Any, Optional
@@ -43,35 +44,38 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _IS_GIT_REPO = (_REPO_ROOT / ".git").is_dir()
 
 
-def _git_check_update() -> dict[str, Any]:
-    """Fetch origin/main and compare with HEAD. Safe to call from a background thread."""
-    if not _IS_GIT_REPO:
-        return {"available": False, "error": "not_git_repo"}
+_RELEASES_API = "https://api.github.com/repos/ShubiMaja/vs-queue-monitor/releases/latest"
+
+
+def _parse_version(v: str) -> tuple[int, ...]:
+    """Parse a semver string like '1.2.3' or 'v1.2.3' into a comparable tuple."""
+    v = v.lstrip("vV").strip()
     try:
-        subprocess.run(
-            ["git", "fetch", "origin", "main", "--quiet"],
-            cwd=_REPO_ROOT, capture_output=True, timeout=20,
+        return tuple(int(x) for x in v.split("."))
+    except Exception:
+        return (0,)
+
+
+def _check_for_release_update() -> dict[str, Any]:
+    """Call the GitHub releases API and compare the latest release tag against VERSION."""
+    try:
+        req = urllib.request.Request(
+            _RELEASES_API,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": f"vs-queue-monitor/{VERSION}"},
         )
-        local = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=_REPO_ROOT, text=True, timeout=5,
-        ).strip()
-        remote = subprocess.check_output(
-            ["git", "rev-parse", "origin/main"], cwd=_REPO_ROOT, text=True, timeout=5,
-        ).strip()
-        if local == remote:
-            return {"available": False, "local_sha": local[:7], "remote_sha": remote[:7], "error": None}
-        # get a short summary of what's new
-        log_out = subprocess.check_output(
-            ["git", "log", "--oneline", f"{local}..origin/main"],
-            cwd=_REPO_ROOT, text=True, timeout=5,
-        ).strip()
-        count = len([l for l in log_out.splitlines() if l.strip()])
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+        tag = data.get("tag_name", "")
+        name = data.get("name", tag)
+        prerelease = bool(data.get("prerelease", False))
+        if prerelease:
+            return {"available": False, "error": None}
+        available = _parse_version(tag) > _parse_version(VERSION)
         return {
-            "available": True,
-            "local_sha": local[:7],
-            "remote_sha": remote[:7],
-            "commit_count": count,
-            "log_summary": log_out[:300],
+            "available": available,
+            "latest_tag": tag,
+            "release_name": name,
+            "current_version": VERSION,
             "error": None,
         }
     except Exception as exc:
@@ -515,7 +519,10 @@ def _api_state(request: Request) -> JSONResponse:
     hooks: WebMonitorHooks = request.app.state.hooks
     lock: threading.RLock = request.app.state.lock
     try:
-        update_extra = {"update_available": getattr(request.app.state, "update_available", False)}
+        update_extra = {
+            "update_available": getattr(request.app.state, "update_available", False),
+            "update_release_name": getattr(request.app.state, "update_release_name", ""),
+        }
         with lock:
             snap = build_snapshot(engine, hooks, update_extra)
         return JSONResponse(snap)
@@ -810,10 +817,9 @@ async def _api_push_test(request: Request) -> JSONResponse:
 
 
 async def _api_update_check(request: Request) -> JSONResponse:
-    if not _IS_GIT_REPO:
-        return JSONResponse({"available": False, "error": "not_git_repo"})
-    result = await asyncio.to_thread(_git_check_update)
+    result = await asyncio.to_thread(_check_for_release_update)
     request.app.state.update_available = bool(result.get("available"))
+    request.app.state.update_release_name = result.get("release_name", "")
     return JSONResponse(result)
 
 
@@ -849,10 +855,14 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             update_available = getattr(websocket.app.state, "update_available", False)
+            update_release_name = getattr(websocket.app.state, "update_release_name", "")
 
             def snap() -> dict[str, Any]:
                 with lock:
-                    return build_snapshot(engine, hooks, {"update_available": update_available})
+                    return build_snapshot(engine, hooks, {
+                        "update_available": update_available,
+                        "update_release_name": update_release_name,
+                    })
 
             payload = await asyncio.to_thread(snap)
             await websocket.send_text(json.dumps(payload))
@@ -942,8 +952,9 @@ def _start_update_checker(app: Any) -> None:
         time.sleep(60)
         while True:
             try:
-                result = _git_check_update()
+                result = _check_for_release_update()
                 app.state.update_available = bool(result.get("available"))
+                app.state.update_release_name = result.get("release_name", "")
             except Exception:
                 pass
             time.sleep(3600)
