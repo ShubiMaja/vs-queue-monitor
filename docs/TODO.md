@@ -17,17 +17,8 @@ Fixed: shared session-line iteration now drives queue-session parsing helpers so
 ~~Tweak: the web snapshot path did extra copying for history and rolling-window graph calculations~~
 Fixed: web history retrieval now slices the deque directly for the requested tail, and rolling-window rate helpers reuse a single deque snapshot/trail extraction path instead of repeatedly copying graph points (v1.1.27)
 
-~~Bug: the Server field could still stay empty because the active queue session could advance past `Connecting to ...` due to extra non-queue boundary lines like `Initialized Server Connection`~~
-Fixed: server-target parsing now binds `Connecting to ...` to the next actual queue-position session, so the active session still gets the server even when extra boundary lines appear before queue positions (v1.1.26)
-
-~~Bug: the Server field could still stay empty on reload for older active sessions because `Connecting to ...` had already scrolled out of the short live tail, and the parser could attach targets to the wrong session~~
-Fixed: server-target refresh now falls back to the broader seed window when needed, and `Connecting to ...` is mapped back to the current boundary-counted session so active-session reloads can still show the server target (v1.1.25)
-
-~~Bug: the Server field could stay empty because the backend no longer exposed/persisted the parsed `Connecting to ...` target~~
-Fixed: restored the shared parser, engine state, and web snapshot field for the current server target; the value now persists once learned and is covered by smoke tests (v1.1.24)
-
-~~Bug: the server target feature was wired in state, but the current Info panel markup/binding did not actually render it~~
-Fixed: the Info panel now shows `Server` at the bottom, the web state binds `server_target` into that field, and the browser smoke test checks that the element exists (v1.1.23)
+~~Bug: the Server field stayed empty across several partial fixes because the issue was not one bug but a chain: missing UI binding, missing backend state, short-tail reload loss, and finally wrong session mapping when extra boundary lines like `Initialized Server Connection` appeared before queue positions~~
+Fixed: final working path is now end-to-end. The Info panel renders `Server`, the backend exposes sticky `server_target`, reload/startup falls back to the broader seed window when the short live tail is not enough, and `Connecting to ...` is bound to the next actual queue-position session instead of raw boundary count. Commentary: v1.1.23 restored the Info binding, v1.1.24 restored backend state exposure, v1.1.25 improved reload fallback but still missed the real-session case, and v1.1.26 fixed the actual active-session mapping bug seen in the real log / Playwright verification.
 
 ~~Bug: `10p Rate` and `Full Rate` in the Info stats panel could keep changing during Interrupted because the frontend kept recomputing them from the live latest-session graph~~
 Fixed: the Info stats panel now treats the active latest interrupted session as frozen, so `10p Rate` and `Full Rate` show `—` instead of continuing to recalculate while interrupted (v1.1.18)
