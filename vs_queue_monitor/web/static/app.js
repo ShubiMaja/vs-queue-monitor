@@ -3501,7 +3501,23 @@
     var btnStartStop = $("btnStartStop");
     if (btnStartStop) {
       btnStartStop.onclick = function () {
-        postToggle().catch(function (e) {
+        var wasRunning = !!(window._lastState && window._lastState.running);
+        postToggle().then(function () {
+          if (!wasRunning) {
+            selectedSessionKey = "latest";
+            var sel = $("selSession");
+            if (sel) sel.value = "latest";
+            if (window._lastState) window._lastState.graph_live_view = true;
+            postConfig({ graph_live_view: true }).catch(function () {});
+            window._graphZoom = null;
+            if (window._lastState) {
+              syncGraphToolbarButtons(window._lastState);
+              window._displayState = buildDisplayState(window._lastState);
+              redrawGraphOnly();
+              renderSessionStats();
+            }
+          }
+        }).catch(function (e) {
           toast(String(e), "warn");
         });
       };
