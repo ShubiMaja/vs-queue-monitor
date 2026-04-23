@@ -78,6 +78,7 @@ python monitor.py
 - Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
 - Release checkpoints use annotated git tags. Current stable release candidate tag: `stable-rc`.
 - Playwright web tests now sandbox config into a repo-local temp root and should not touch your real `%APPDATA%` / `XDG_CONFIG_HOME` settings.
+- Graph display preferences (`Live`, `REL/ABS`, `LIN/LOG`) are browser-local viewer settings, not shared monitor config.
 - Before calling a build stable, run:
   - `python -m pytest tests/test_release_smoke.py tests/test_interrupted_elapsed.py -q`
   - `python -m pytest tests/test_web_ui.py tests/test_notifications_ui.py -q`

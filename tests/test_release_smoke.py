@@ -188,6 +188,15 @@ def test_history_lines_limit_returns_tail_slice() -> None:
     assert hooks.history_lines(2) == ["line-3", "line-4"]
 
 
+def test_graph_view_prefs_are_not_persisted_server_side() -> None:
+    hooks = WebMonitorHooks(threading.RLock())
+    engine = QueueMonitorEngine(hooks, initial_path="", auto_start=False)
+    snap = engine.get_config_snapshot()
+    assert "graph_log_scale" not in snap
+    assert "graph_live_view" not in snap
+    assert "graph_time_mode" not in snap
+
+
 def test_server_target_refresh_falls_back_to_seed_window() -> None:
     root = Path(".tmp-release-smoke-tests-server-target")
     if root.exists():

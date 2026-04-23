@@ -119,7 +119,16 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 | File access | Text field (paste path). | Same resolution rules (`resolve_log_file`); same outcomes. |
 | Help | Modal in browser. | Same substance when explaining errors or paths. |
 | Notifications | Browser **Notification** API vs inline toasts; header switch toggles persisted **popup** flag; Settings holds **Send test**. | Same events (threshold, completion, interrupt) when enabled. |
-| Settings UI | Web modal + inline editors. | Same persisted fields and defaults. |
+| Settings UI | Web modal + inline editors. | Monitoring behavior belongs to shared persisted config; browser-only view preferences may stay local to that browser. |
+
+### Browser-local vs shared settings
+
+- Shared/server-side settings should be used for actual monitoring behavior and alerts.
+- Browser-local settings should be used for viewer preferences that only affect one browser/profile.
+- Graph display preferences currently belong to the browser side:
+  - live follow
+  - relative vs absolute time axis
+  - linear vs log scale
 
 ### Not justified (bugs or explicit debt)
 
@@ -308,7 +317,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Live view behavior**
   - **Decision**: Session data retained; view can follow “now” while monitoring when enabled.
-  - **Shipped**: `graph_live_view` in saved config (default on). Web client extends the X-axis to the current time while monitoring when enabled. Toggle on chart and in Settings → Graph.
+  - **Shipped**: `graph_live_view` is a browser-local viewer preference (default on). The web client extends the X-axis to the current time while monitoring when enabled. Toggle on chart; it is not shared monitor config.
 
 - **FR: Hover / point feedback**
   - **Decision**: Nearest-point feedback on mouse move; **HiDPI**: canvas uses device pixel ratio.

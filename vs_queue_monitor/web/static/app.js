@@ -13,6 +13,9 @@
   var LS_SESSION = "vs_queue_monitor_selected_session_v1";
   var LS_SESSION_LEGACY = "vsqm_selected_session_v1";
   var LS_HISTORY_AUTOSCROLL = "vs_queue_monitor_history_autoscroll_v1";
+  var LS_GRAPH_TIME_MODE = "vs_queue_monitor_graph_time_mode_v1";
+  var LS_GRAPH_SCALE = "vs_queue_monitor_graph_scale_v1";
+  var LS_GRAPH_LIVE = "vs_queue_monitor_graph_live_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -159,6 +162,59 @@
     try {
       localStorage.setItem(LS_HISTORY_AUTOSCROLL, val ? "1" : "0");
     } catch (e) {}
+  }
+  function lsGetGraphTimeMode() {
+    try {
+      var v = (localStorage.getItem(LS_GRAPH_TIME_MODE) || "").trim().toLowerCase();
+      return v === "absolute" ? "absolute" : "relative";
+    } catch (e) {
+      return "relative";
+    }
+  }
+  function lsSetGraphTimeMode(val) {
+    try {
+      localStorage.setItem(LS_GRAPH_TIME_MODE, val === "absolute" ? "absolute" : "relative");
+    } catch (e) {}
+  }
+  function lsGetGraphScale() {
+    try {
+      return localStorage.getItem(LS_GRAPH_SCALE) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+  function lsSetGraphScale(val) {
+    try {
+      localStorage.setItem(LS_GRAPH_SCALE, val ? "1" : "0");
+    } catch (e) {}
+  }
+  function lsGetGraphLive() {
+    try {
+      var v = localStorage.getItem(LS_GRAPH_LIVE);
+      if (v == null || v === "") return true;
+      return v !== "0";
+    } catch (e) {
+      return true;
+    }
+  }
+  function lsSetGraphLive(val) {
+    try {
+      localStorage.setItem(LS_GRAPH_LIVE, val ? "1" : "0");
+    } catch (e) {}
+  }
+  function clearLocalGraphPrefs() {
+    try {
+      localStorage.removeItem(LS_GRAPH_TIME_MODE);
+      localStorage.removeItem(LS_GRAPH_SCALE);
+      localStorage.removeItem(LS_GRAPH_LIVE);
+    } catch (e) {}
+  }
+  function applyClientGraphPrefs(s) {
+    if (!s) return s;
+    s.graph_time_mode = lsGetGraphTimeMode();
+    s.graph_log_scale = lsGetGraphScale();
+    s.graph_live_view = lsGetGraphLive();
+    return s;
   }
 
   function $(id) {
@@ -1169,6 +1225,7 @@
   }
 
   function buildDisplayState(s) {
+    applyClientGraphPrefs(s);
     var out = {};
     var k;
     for (k in s) {
@@ -1310,12 +1367,6 @@
     }
     sel.addEventListener("change", function () {
       selectedSessionKey = sel.value || "latest";
-      // Do NOT persist graph_live_view here — session changes are transient display
-      // decisions and should not overwrite the saved live-follow preference.
-      var nextLive = selectedSessionKey === "latest";
-      if (window._lastState) {
-        window._lastState.graph_live_view = nextLive;
-      }
       window._graphZoom = null;
       try {
         lsSetSession(selectedSessionKey);
@@ -1441,6 +1492,7 @@
 
   function syncGraphToolbarButtons(s) {
     if (!s) return;
+    applyClientGraphPrefs(s);
     var btnLive = $("btnGraphLive");
     if (btnLive) {
       var liveAvailable = selectedSessionKey === "latest";
@@ -1491,6 +1543,7 @@
   }
 
   function applyState(s) {
+    applyClientGraphPrefs(s);
     if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];
     var rateDisplay = s.queue_rate;
@@ -2674,8 +2727,8 @@
             selectedSessionKey = "latest";
             var sel = $("selSession");
             if (sel) sel.value = "latest";
+            lsSetGraphLive(true);
             if (window._lastState) window._lastState.graph_live_view = true;
-            postConfig({ graph_live_view: true }).catch(function () {});
             window._graphZoom = null;
             if (window._lastState) {
               syncGraphToolbarButtons(window._lastState);
@@ -3544,8 +3597,8 @@
             selectedSessionKey = "latest";
             var sel = $("selSession");
             if (sel) sel.value = "latest";
+            lsSetGraphLive(true);
             if (window._lastState) window._lastState.graph_live_view = true;
-            postConfig({ graph_live_view: true }).catch(function () {});
             window._graphZoom = null;
             if (window._lastState) {
               syncGraphToolbarButtons(window._lastState);
@@ -3703,84 +3756,57 @@
     var btnGraphTimeMode = $("btnGraphTimeMode");
     if (btnGraphTimeMode) {
       btnGraphTimeMode.onclick = function () {
-        var current = (window._lastState && window._lastState.graph_time_mode) || "relative";
+        var current = lsGetGraphTimeMode();
         var next = current === "absolute" ? "relative" : "absolute";
-        postConfig({ graph_time_mode: next })
-          .then(function (state) {
-            if (state && typeof state === "object") {
-              window._lastState = state;
-            } else if (window._lastState) {
-              window._lastState.graph_time_mode = next;
-            }
-            if (window._lastState) {
-              syncSettingsFormFromState(window._lastState);
-              syncGraphToolbarButtons(window._lastState);
-              window._displayState = buildDisplayState(window._lastState);
-              redrawGraphOnly();
-              renderSessionStats();
-            }
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
+        lsSetGraphTimeMode(next);
+        if (window._lastState) {
+          window._lastState.graph_time_mode = next;
+          syncSettingsFormFromState(window._lastState);
+          syncGraphToolbarButtons(window._lastState);
+          window._displayState = buildDisplayState(window._lastState);
+          redrawGraphOnly();
+          renderSessionStats();
+        }
       };
     }
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
         if (selectedSessionKey !== "latest") return;
-        var next = !((window._lastState && window._lastState.graph_live_view) !== false);
+        var next = !lsGetGraphLive();
         var canvas = $("graphCanvas");
         var ds = canvas && canvas._drawState;
         var frozenRange = ds ? [ds.t0, ds.t1] : null;
-        postConfig({ graph_live_view: next })
-          .then(function (state) {
-            if (state && typeof state === "object") {
-              window._lastState = state;
-            } else if (window._lastState) {
-              window._lastState.graph_live_view = next;
-            }
-            if (window._lastState) {
-              if (next) {
-                window._graphZoom = null;
-                selectLatestSession();
-              } else if (frozenRange && frozenRange[1] > frozenRange[0]) {
-                window._graphZoom = frozenRange;
-              }
-              syncSettingsFormFromState(window._lastState);
-              syncGraphToolbarButtons(window._lastState);
-              window._displayState = buildDisplayState(window._lastState);
-              redrawGraphOnly();
-              renderSessionStats();
-            }
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
+        lsSetGraphLive(next);
+        if (window._lastState) {
+          window._lastState.graph_live_view = next;
+          if (next) {
+            window._graphZoom = null;
+            selectLatestSession();
+          } else if (frozenRange && frozenRange[1] > frozenRange[0]) {
+            window._graphZoom = frozenRange;
+          }
+          syncSettingsFormFromState(window._lastState);
+          syncGraphToolbarButtons(window._lastState);
+          window._displayState = buildDisplayState(window._lastState);
+          redrawGraphOnly();
+          renderSessionStats();
+        }
       };
     }
     var btnGraphScale = $("btnGraphScale");
     if (btnGraphScale) {
       btnGraphScale.onclick = function () {
-        var next = !(window._lastState && window._lastState.graph_log_scale);
-        postConfig({ graph_log_scale: next })
-          .then(function (state) {
-            if (state && typeof state === "object") {
-              window._lastState = state;
-            } else if (window._lastState) {
-              window._lastState.graph_log_scale = next;
-            }
-            if (window._lastState) {
-              syncSettingsFormFromState(window._lastState);
-              syncGraphToolbarButtons(window._lastState);
-              window._displayState = buildDisplayState(window._lastState);
-              redrawGraphOnly();
-              renderSessionStats();
-            }
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
+        var next = !lsGetGraphScale();
+        lsSetGraphScale(next);
+        if (window._lastState) {
+          window._lastState.graph_log_scale = next;
+          syncSettingsFormFromState(window._lastState);
+          syncGraphToolbarButtons(window._lastState);
+          window._displayState = buildDisplayState(window._lastState);
+          redrawGraphOnly();
+          renderSessionStats();
+        }
       };
     }
 
@@ -3937,6 +3963,7 @@
             return fetch("/api/state").then(function (r) { return r.json(); });
           })
           .then(function (s) {
+            clearLocalGraphPrefs();
             if (s && typeof s === "object") {
               window._lastState = s;
               applyState(s);

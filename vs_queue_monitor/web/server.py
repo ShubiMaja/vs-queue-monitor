@@ -430,9 +430,6 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "source_path": engine.source_path_var.get(),
         "graph_points": pts,
         "current_point": cur,
-        "graph_log_scale": bool(engine.graph_log_scale_var.get()),
-        "graph_live_view": bool(engine.graph_live_view_var.get()),
-        "graph_time_mode": str(engine.graph_time_mode_var.get()),
         "poll_sec": engine.poll_sec_var.get(),
         "avg_window": engine.avg_window_var.get(),
         "alert_thresholds": engine.alert_thresholds_var.get(),
@@ -619,15 +616,6 @@ async def _api_config(request: Request) -> JSONResponse:
             if "alert_thresholds" in body:
                 parse_alert_thresholds(str(body["alert_thresholds"]))
                 engine.alert_thresholds_var.set(str(body["alert_thresholds"]))
-            if "graph_log_scale" in body:
-                engine.graph_log_scale_var.set(bool(body["graph_log_scale"]))
-            if "graph_live_view" in body:
-                engine.graph_live_view_var.set(bool(body["graph_live_view"]))
-            if "graph_time_mode" in body:
-                mode = str(body["graph_time_mode"]).strip().lower()
-                if mode not in ("relative", "absolute"):
-                    raise ValueError("graph_time_mode must be 'relative' or 'absolute'")
-                engine.graph_time_mode_var.set(mode)
             if "show_every_change" in body:
                 engine.show_every_change_var.set(bool(body["show_every_change"]))
             if "popup_enabled" in body:
