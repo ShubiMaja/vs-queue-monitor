@@ -147,9 +147,11 @@ The tunnel forwards your laptop's port 8765 to the server's loopback - nothing i
 
 > **Tip:** add `-N` to the SSH command (`ssh -N -L ...`) to open just the tunnel without a shell.
 
-## Mobile push notifications (optional)
+## Mobile push notifications (optional, partial)
 
-Push notifications let your phone buzz when you reach the front of the queue — even if the browser tab is in the background. They require HTTPS (ngrok or an SSH tunnel works) and a one-time browser permission grant.
+Push notifications let your phone buzz when you reach the front of the queue. They require HTTPS (ngrok or an SSH tunnel works) and a one-time browser permission grant.
+
+> **Known limitation:** Browser-side notifications (the bell icon in the top bar) only fire while the tab is open and active. They do **not** wake up the browser or deliver alerts when the tab is in the background or the browser is closed. Server-side push via `pywebpush` is implemented but not yet reliable across all mobile browsers. Use the web UI on a desktop machine and rely on desktop notifications there for the most dependable alerts.
 
 **1. Install the push dependency** (if not already installed):
 

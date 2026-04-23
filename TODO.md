@@ -2,6 +2,10 @@
 
 ## Open
 
+## Known issues (not bugs, by design or platform limitation)
+
+- **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
+
 ## Fixed (closed)
 
 ~~Bug: increasing the graph top band did not add any real visual headroom above the plotted line~~
