@@ -1,5 +1,8 @@
 # BUGS
 
+
+
+
 ## Open
 
 ## Deferred (not to be solved yet)
@@ -7,6 +10,24 @@
 - **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
 
 ## Fixed (closed)
+
+~~Tweak: graph display preferences were persisted in shared server config even though they are browser-only viewer choices~~
+Fixed: graph `Live`, `REL/ABS`, and `LIN/LOG` now live in browser local storage instead of server config; the engine no longer persists them in `config.json`, and the browser applies them locally on top of shared monitor state (v1.1.31)
+
+~~Tweak: browser desktop notification toggles were shared even though banners should be per client~~
+Fixed: web `Warning popup`, `Completion popup`, `Failure popup`, and the header bell are now browser-local per-client settings; shared engine config still owns sound behavior and non-browser popup hooks where that has a real benefit (v1.1.32)
+
+~~Bug: Playwright web tests could persist `/api/config` changes into the real user config under `%APPDATA%`~~
+Fixed: test server fixtures now sandbox `APPDATA`/`XDG_CONFIG_HOME` into a repo-local temp config root, and browser coverage asserts the isolated config path is in use (v1.1.28)
+
+~~Tweak: session-scoped log parsing was duplicated across multiple helpers, making session drift bugs easier to introduce~~
+Fixed: shared session-line iteration now drives queue-session parsing helpers so boundary/session semantics stay aligned across queue readings, session lists, and server-target parsing (v1.1.27)
+
+~~Tweak: the web snapshot path did extra copying for history and rolling-window graph calculations~~
+Fixed: web history retrieval now slices the deque directly for the requested tail, and rolling-window rate helpers reuse a single deque snapshot/trail extraction path instead of repeatedly copying graph points (v1.1.27)
+
+~~Bug: the Server field stayed empty across several partial fixes because the issue was not one bug but a chain: missing UI binding, missing backend state, short-tail reload loss, and finally wrong session mapping when extra boundary lines like `Initialized Server Connection` appeared before queue positions~~
+Fixed: final working path is now end-to-end. The Info panel renders `Server`, the backend exposes sticky `server_target`, reload/startup falls back to the broader seed window when the short live tail is not enough, and `Connecting to ...` is bound to the next actual queue-position session instead of raw boundary count. Commentary: v1.1.23 restored the Info binding, v1.1.24 restored backend state exposure, v1.1.25 improved reload fallback but still missed the real-session case, and v1.1.26 fixed the actual active-session mapping bug seen in the real log / Playwright verification.
 
 ~~Bug: `10p Rate` and `Full Rate` in the Info stats panel could keep changing during Interrupted because the frontend kept recomputing them from the live latest-session graph~~
 Fixed: the Info stats panel now treats the active latest interrupted session as frozen, so `10p Rate` and `Full Rate` show `—` instead of continuing to recalculate while interrupted (v1.1.18)
@@ -202,6 +223,12 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
+
+Tweak: No queue detected warning should be :warning symbo: No Queue!
+
+Questions: should we allow multiple queue monitor location? What would the impact be?
+
+Tweak: Mobile app should take full advantage of browser width as much as possible without uneccesasry padding
 
 ## Implemented
 

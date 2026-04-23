@@ -2,18 +2,31 @@
 
 from __future__ import annotations
 
+import json
+
 from playwright.sync_api import Page, expect
 
 from conftest import NOTIFICATION_STUB_DEFAULT_GRANT
 
 
+def _disable_tour(page: Page, base_url: str) -> None:
+    r = page.context.request.post(
+        f"{base_url.rstrip('/')}/api/config",
+        data=json.dumps({"tutorial_done": True}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.ok, r.text()
+
+
 def test_no_notify_hint_element_beside_bell(page: Page, base_url: str) -> None:
+    _disable_tour(page, base_url)
     page.goto(base_url)
     expect(page.locator("#notifyHint")).to_have_count(0)
 
 
 def test_no_custom_notification_modal_markup(page: Page, base_url: str) -> None:
     """Permission is via Notification.requestPermission() only — no extra dialog in the page."""
+    _disable_tour(page, base_url)
     page.goto(base_url)
     expect(page.locator("#modalNotifyPerm")).to_have_count(0)
 
@@ -21,6 +34,7 @@ def test_no_custom_notification_modal_markup(page: Page, base_url: str) -> None:
 def test_bell_triggers_standard_permission_flow(page: Page, base_url: str) -> None:
     """Stub keeps permission at default; bell click runs requestPermission → granted in tests."""
     page.add_init_script(NOTIFICATION_STUB_DEFAULT_GRANT)
+    _disable_tour(page, base_url)
     page.goto(base_url)
     page.locator("#btnNotify").click()
     expect(page.locator("#btnNotify")).to_have_attribute("data-state", "live", timeout=5000)

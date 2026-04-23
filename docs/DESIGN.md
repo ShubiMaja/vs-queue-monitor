@@ -2,6 +2,12 @@
 
 This is the **design contract** for VS Queue Monitor: product intent, UX principles, information architecture, journeys, and feature-level decisions. It is intentionally **lossless**: it preserves the full set of decisions captured from prompts, but rewrites the document into a maintainable format.
 
+For documentation ownership:
+
+- `docs/README.md` is the documentation map
+- `WEB_UI_REGRESSIONS.md` holds web-client regression guardrails
+- `TODO.md` holds active/deferred/fixed bug history
+
 **Scope.** The shipping product is a **Python** application with a **local web UI** (Starlette on loopback + static client), sharing one engine (`vs_queue_monitor/engine.py`). Exact implementation details (storage keys, parsing edge cases, build steps) live in source and in [`README.md`](../README.md).
 
 ---
@@ -113,7 +119,16 @@ This section exists to avoid re-discovering the same failures. When a bug/regres
 | File access | Text field (paste path). | Same resolution rules (`resolve_log_file`); same outcomes. |
 | Help | Modal in browser. | Same substance when explaining errors or paths. |
 | Notifications | Browser **Notification** API vs inline toasts; header switch toggles persisted **popup** flag; Settings holds **Send test**. | Same events (threshold, completion, interrupt) when enabled. |
-| Settings UI | Web modal + inline editors. | Same persisted fields and defaults. |
+| Settings UI | Web modal + inline editors. | Monitoring behavior belongs to shared persisted config; browser-only view preferences may stay local to that browser. |
+
+### Browser-local vs shared settings
+
+- Shared/server-side settings should be used for actual monitoring behavior and alerts.
+- Browser-local settings should be used for viewer preferences that only affect one browser/profile.
+- Graph display preferences currently belong to the browser side:
+  - live follow
+  - relative vs absolute time axis
+  - linear vs log scale
 
 ### Not justified (bugs or explicit debt)
 
@@ -145,7 +160,16 @@ Before calling the product stable or cutting a release candidate:
 
 - Run the focused engine/interrupted regression suite.
 - Run the lightweight browser smoke tests for dashboard load and browser notification permission flow.
+- Ensure browser tests use an isolated config root and do not write to the real user settings.
 - Create an annotated git tag for the verified checkpoint.
+
+### 3.4 Browser verification discipline
+
+- Browser-visible bugs should be verified in a real browser path whenever practical, not only by reading code.
+- Synthetic fixtures are useful, but when a bug depends on a real log shape or real persisted state, verify it against the actual log/config path too.
+- A fix is not considered complete until both of these are true:
+  - the relevant backend/API state is correct
+  - the browser actually renders that state correctly
 
 ---
 
@@ -293,7 +317,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Live view behavior**
   - **Decision**: Session data retained; view can follow “now” while monitoring when enabled.
-  - **Shipped**: `graph_live_view` in saved config (default on). Web client extends the X-axis to the current time while monitoring when enabled. Toggle on chart and in Settings → Graph.
+  - **Shipped**: `graph_live_view` is a browser-local viewer preference (default on). The web client extends the X-axis to the current time while monitoring when enabled. Toggle on chart; it is not shared monitor config.
 
 - **FR: Hover / point feedback**
   - **Decision**: Nearest-point feedback on mouse move; **HiDPI**: canvas uses device pixel ratio.
@@ -347,7 +371,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: Desktop notifications**
   - **Decision**: Browser **Notification** API where permitted; inline toasts always; mirror threshold/completion events.
-  - **Decision (header switch)**: The top-bar control is a **real on/off** for the same persisted **`popup_enabled`** flag as **Settings → Warning popup** (toast + desktop notification when the browser allows). It is **not** only a permission prompt: when the browser has already **granted** permission and the switch is **on** (live), another click **turns alerts off** by patching config; when **off** but permission is still **granted**, a click can turn alerts **back on** without opening Settings. Browser permission cannot be revoked from JS; the switch reflects **app intent** plus **permission state** (e.g. blocked vs pending vs live).
+  - **Decision (header switch)**: In the web client, the top-bar control is a **browser-local on/off** for desktop warning banners. It is **not** shared monitor config. When the browser has already **granted** permission and the switch is **on** (live), another click **turns alerts off** only for that browser; when **off** but permission is still **granted**, a click can turn alerts **back on** without opening Settings. Browser permission cannot be revoked from JS; the switch reflects **browser-local intent** plus **permission state** (e.g. blocked vs pending vs live).
   - **Decision (test banner)**: **Send test notification** lives in **Settings** (near Warning popup) so the header control stays a clear power toggle, not a mixed “test + toggle” action.
   - **Decision (visual language)**: The switch uses the same **small corner radius** as other top-bar **buttons** (not a full pill), so the chrome reads as one family of controls.
 

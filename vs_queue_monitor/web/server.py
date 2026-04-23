@@ -425,13 +425,11 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "last_alert": engine.last_alert_var.get(),
         "last_alert_message": engine.last_alert_message_var.get(),
         "last_alert_seq": int(getattr(engine, "_last_alert_seq", 0)),
+        "server_target": engine.server_target_var.get(),
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
         "graph_points": pts,
         "current_point": cur,
-        "graph_log_scale": bool(engine.graph_log_scale_var.get()),
-        "graph_live_view": bool(engine.graph_live_view_var.get()),
-        "graph_time_mode": str(engine.graph_time_mode_var.get()),
         "poll_sec": engine.poll_sec_var.get(),
         "avg_window": engine.avg_window_var.get(),
         "alert_thresholds": engine.alert_thresholds_var.get(),
@@ -448,7 +446,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks) -> dict[s
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
-        "history_tail": hooks.history_lines()[-400:],
+        "history_tail": hooks.history_lines(400),
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
@@ -618,15 +616,6 @@ async def _api_config(request: Request) -> JSONResponse:
             if "alert_thresholds" in body:
                 parse_alert_thresholds(str(body["alert_thresholds"]))
                 engine.alert_thresholds_var.set(str(body["alert_thresholds"]))
-            if "graph_log_scale" in body:
-                engine.graph_log_scale_var.set(bool(body["graph_log_scale"]))
-            if "graph_live_view" in body:
-                engine.graph_live_view_var.set(bool(body["graph_live_view"]))
-            if "graph_time_mode" in body:
-                mode = str(body["graph_time_mode"]).strip().lower()
-                if mode not in ("relative", "absolute"):
-                    raise ValueError("graph_time_mode must be 'relative' or 'absolute'")
-                engine.graph_time_mode_var.set(mode)
             if "show_every_change" in body:
                 engine.show_every_change_var.set(bool(body["show_every_change"]))
             if "popup_enabled" in body:

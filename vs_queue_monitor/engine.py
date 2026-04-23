@@ -56,6 +56,7 @@ class QueueMonitorEngine:
         self.resolved_path_var = hooks.string_var("")
         self.status_var = hooks.string_var("Idle")
         self.position_var = hooks.string_var("—")
+        self.server_target_var = hooks.string_var("—")
         self.last_change_var = hooks.string_var("—")
         self.last_alert_var = hooks.string_var("—")
         self.last_alert_message_var = hooks.string_var("—")
@@ -78,9 +79,6 @@ class QueueMonitorEngine:
         self.global_rate_var = hooks.string_var("—")
         self.show_log_var = hooks.boolean_var(bool(self.config.get("show_log", True)))
         self.show_status_var = hooks.boolean_var(bool(self.config.get("show_status", True)))
-        self.graph_log_scale_var = hooks.boolean_var(bool(self.config.get("graph_log_scale", False)))
-        self.graph_live_view_var = hooks.boolean_var(bool(self.config.get("graph_live_view", True)))
-        self.graph_time_mode_var = hooks.string_var(str(self.config.get("graph_time_mode", "relative")))
         self.tutorial_done_var = hooks.boolean_var(bool(self.config.get("tutorial_done", False)))
         self.popup_enabled_var = hooks.boolean_var(bool(self.config.get("popup_enabled", True)))
         self.sound_enabled_var = hooks.boolean_var(bool(self.config.get("sound_enabled", True)))
@@ -160,14 +158,6 @@ class QueueMonitorEngine:
         self._pending_new_queue_session: Optional[int] = None
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
-        self.graph_log_scale_var.trace_add(
-            "write",
-            lambda *_: (self._refresh_kpi_rate_header(), self._hooks.request_redraw_graph()),
-        )
-        self.graph_time_mode_var.trace_add(
-            "write",
-            lambda *_: self._hooks.request_redraw_graph(),
-        )
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
         self._bind_config_persist_traces()
@@ -196,7 +186,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'graph_log_scale': bool(self.graph_log_scale_var.get()), 'graph_live_view': bool(self.graph_live_view_var.get()), 'graph_time_mode': self.graph_time_mode_var.get(), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -218,7 +208,7 @@ class QueueMonitorEngine:
 
     def _bind_config_persist_traces(self) -> None:
         """Save config.json shortly after any setting change (debounced)."""
-        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.graph_log_scale_var, self.graph_live_view_var, self.graph_time_mode_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
+        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
             var.trace_add('write', self._schedule_config_persist)
 
     def reset_defaults(self) -> None:
@@ -229,9 +219,6 @@ class QueueMonitorEngine:
         self.avg_window_var.set(str(DEFAULT_PREDICTION_WINDOW_POINTS))
         self.show_log_var.set(True)
         self.show_status_var.set(True)
-        self.graph_log_scale_var.set(False)
-        self.graph_live_view_var.set(True)
-        self.graph_time_mode_var.set('relative')
         self.popup_enabled_var.set(True)
         self.sound_enabled_var.set(True)
         self.alert_sound_path_var.set(default_alert_sound_path_for_display())
@@ -246,6 +233,7 @@ class QueueMonitorEngine:
         self.resolved_path_var.set('')
         self._set_status_line('Idle')
         self._set_position_display(None)
+        self.server_target_var.set('—')
         self.elapsed_var.set('—')
         self.predicted_remaining_var.set('—')
         self.queue_rate_var.set('—')
@@ -310,6 +298,22 @@ class QueueMonitorEngine:
             self.position_var.set('—')
         else:
             self.position_var.set(str(pos))
+
+    def _refresh_server_target_from_tail_text(self, tail_text: Optional[str], session_id: Optional[int] = None) -> None:
+        if not tail_text:
+            return
+        target = parse_tail_latest_connect_target(tail_text, session_id)
+        if target:
+            self.server_target_var.set(target)
+
+    def _refresh_server_target_from_log(self, log_file: Path, session_id: Optional[int] = None) -> None:
+        tail_text = read_log_file_tail_text(log_file, TAIL_BYTES)
+        target = parse_tail_latest_connect_target(tail_text or "", session_id)
+        if target is None and TAIL_BYTES < SEED_LOG_TAIL_BYTES:
+            seed_text = read_log_file_tail_text(log_file, SEED_LOG_TAIL_BYTES)
+            target = parse_tail_latest_connect_target(seed_text or "", session_id)
+        if target:
+            self.server_target_var.set(target)
 
     def _refresh_warnings_kpi(self) -> None:
         """Warnings rail is driven by the web snapshot; no desktop widgets to refresh."""
@@ -464,6 +468,7 @@ class QueueMonitorEngine:
         self.persist_config()
         self._hooks.show_start_loading(False)
         self._apply_seed_result(seed_data)
+        self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
         self.start_timer()
@@ -552,8 +557,11 @@ class QueueMonitorEngine:
         if detail:
             msg += f' ({detail})'
         self.write_history(msg)
-        if self.failure_popup_enabled_var.get():
+        want_failure_popup = bool(self.failure_popup_enabled_var.get())
+        want_web_failure_event = bool(getattr(self._hooks, "browser_client_notifications", False))
+        if want_failure_popup or want_web_failure_event:
             self._hooks.show_failure_popup(detail)
+        if want_failure_popup:
             self._emit_push_notification(
                 "failure",
                 {
@@ -740,6 +748,7 @@ class QueueMonitorEngine:
         data = compute_seed_graph_from_log(log_file)
         if data is not None:
             self._apply_seed_result(data)
+            self._refresh_server_target_from_log(log_file, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
             self._suppress_completion_notify_if_tail_already_completed(log_file)
             return True
         text = read_log_file_tail_text(log_file, TAIL_BYTES)
@@ -835,6 +844,7 @@ class QueueMonitorEngine:
                 else:
                     kind, _tail_pos = classify_tail_connection_state(text)
                     position, queue_sess = parse_tail_last_queue_reading(text)
+                    self._refresh_server_target_from_tail_text(text, queue_sess)
                     total_queue_boundaries = count_queue_run_boundaries(text)
                     last_queue_line_epoch = parse_tail_last_queue_line_epoch(text)
                     if last_queue_line_epoch is not None:
@@ -1120,17 +1130,23 @@ class QueueMonitorEngine:
         v_eff = speed * self._pred_speed_scale
         return remaining_positions / v_eff
 
-    def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
+    def _window_recent_points_and_trail(self) -> tuple[list[tuple[float, int]], list[int]]:
+        """Return the rolling-window slice and its position trail with one deque snapshot."""
         points = list(self.graph_points)
         if len(points) < 2:
-            return (None, 0, [p for _t, p in points])
+            return (points, [p for _t, p in points])
         try:
             window_points = int(float(self.avg_window_var.get()))
         except Exception:
             window_points = DEFAULT_PREDICTION_WINDOW_POINTS
         window_points = max(2, min(10000, window_points))
         recent = points[-(window_points + 1):]
-        trail = [p for _t, p in recent]
+        return (recent, [p for _t, p in recent])
+
+    def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
+        recent, trail = self._window_recent_points_and_trail()
+        if len(recent) < 2:
+            return (None, 0, trail)
         rates: list[float] = []
         for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
             dt = t1 - t0
@@ -1159,16 +1175,9 @@ class QueueMonitorEngine:
         At **position 0** (queue finished in the log), weights use the last sample time so the
         value does not drift after completion.
         """
-        points = list(self.graph_points)
-        if len(points) < 2:
-            return (None, 0, [p for _t, p in points])
-        try:
-            window_points = int(float(self.avg_window_var.get()))
-        except Exception:
-            window_points = DEFAULT_PREDICTION_WINDOW_POINTS
-        window_points = max(2, min(10000, window_points))
-        recent = points[-(window_points + 1):]
-        trail = [p for _t, p in recent]
+        recent, trail = self._window_recent_points_and_trail()
+        if len(recent) < 2:
+            return (None, 0, trail)
         now = time.time()
         if self._current_queue_position() == 0 and len(recent) >= 2:
             now = float(recent[-1][0])
@@ -1196,15 +1205,8 @@ class QueueMonitorEngine:
 
     def _window_recent_points(self) -> list[tuple[float, int]]:
         """Last N graph points per rolling window setting (same slice as speed helpers)."""
-        points = list(self.graph_points)
-        if len(points) < 2:
-            return []
-        try:
-            window_points = int(float(self.avg_window_var.get()))
-        except Exception:
-            window_points = DEFAULT_PREDICTION_WINDOW_POINTS
-        window_points = max(2, min(10000, window_points))
-        return points[-(window_points + 1):]
+        recent, _trail = self._window_recent_points_and_trail()
+        return recent if len(recent) >= 2 else []
 
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
         """Net positions per second over the rolling window.
@@ -1521,15 +1523,17 @@ class QueueMonitorEngine:
             return
         want_sound = bool(self.completion_sound_enabled_var.get())
         want_popup = bool(self.completion_popup_enabled_var.get())
-        if not want_sound and (not want_popup):
+        want_web_completion_event = bool(getattr(self._hooks, "browser_client_notifications", False))
+        if not want_sound and (not want_popup) and (not want_web_completion_event):
             return
         self._queue_completion_notified_this_run = True
         self._last_queue_completion_notify_epoch = now
         self.write_history('Queue completion: past queue wait — connecting (position 0).')
         if want_sound:
             self.play_completion_sound()
-        if want_popup:
+        if want_popup or want_web_completion_event:
             self._hooks.show_completion_popup()
+        if want_popup:
             self._emit_push_notification(
                 "completion",
                 {

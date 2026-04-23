@@ -4,8 +4,9 @@ This file is the shared instruction baseline for coding agents working in this r
 
 ## Source Of Truth
 
-`docs/DESIGN.md` is the source of truth for product intent, UX decisions, vocabulary, and interaction patterns.
+`docs/README.md` is the documentation map. `docs/DESIGN.md` is the source of truth for product intent, UX decisions, vocabulary, and interaction patterns.
 
+- Consult `docs/README.md` first when deciding where documentation changes belong.
 - Consult `docs/DESIGN.md` before changing user-visible behavior.
 - If a requested change conflicts with the design contract, update the design doc first, then implement.
 - If a change affects user-visible behavior, update:
@@ -34,6 +35,18 @@ When you finish a coherent change set:
 6. Do not run `git push` unless the user explicitly asks.
 
 Do not commit generated junk, caches, secrets, or unrelated files.
+
+### Browser Test Discipline
+
+- Playwright and browser-smoke tests must never reuse or mutate the real user config under `%APPDATA%` / `XDG_CONFIG_HOME`.
+- Keep browser-test config/state isolated in a test-specific sandbox path.
+- For browser-visible bugs, do not declare success from code inspection alone when a real browser check is possible.
+- Prefer this order for UI/browser bug verification:
+  1. reproduce in Playwright or the real browser
+  2. confirm the relevant API/state is correct
+  3. confirm the rendered UI matches that state
+  4. only then declare the fix complete
+- When a bug is only reproduced against a real user log, verify against that real log path instead of relying only on synthetic fixtures.
 
 ## Project-Specific Product Rules
 

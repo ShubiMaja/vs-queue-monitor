@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
+from itertools import islice
 from typing import Any, Callable, Optional
 
 from ..refs import BoolRef, StrRef
@@ -11,6 +12,8 @@ from ..refs import BoolRef, StrRef
 
 class WebMonitorHooks:
     """Threading timers + StrRef/BoolRef; all scheduled work runs under ``lock``."""
+
+    browser_client_notifications = True
 
     def __init__(self, lock: threading.RLock) -> None:
         self._lock = lock
@@ -92,18 +95,13 @@ class WebMonitorHooks:
         pass
 
     def show_threshold_popup(self, position: int, eta_display: str) -> None:
-        self.append_history(f"[alert] Position {position} — est. left: {eta_display}")
+        return None
 
     def show_completion_popup(self) -> None:
         self._completion_notify_seq += 1
-        self.append_history("[completion] Past queue wait — connecting (position 0).")
 
     def show_failure_popup(self, detail: str = "") -> None:
         self._failure_notify_seq += 1
-        msg = "[failure] Queue interrupted - still watching the log."
-        if detail:
-            msg += f" ({detail})"
-        self.append_history(msg)
 
     def destroy_active_popups(self) -> None:
         pass
@@ -114,5 +112,8 @@ class WebMonitorHooks:
     def window_geometry_for_save(self) -> str:
         return ""
 
-    def history_lines(self) -> list[str]:
-        return list(self._history)
+    def history_lines(self, limit: Optional[int] = None) -> list[str]:
+        if limit is None or limit >= len(self._history):
+            return list(self._history)
+        start = len(self._history) - limit
+        return list(islice(self._history, start, None))
