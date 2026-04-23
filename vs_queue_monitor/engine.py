@@ -499,6 +499,7 @@ class QueueMonitorEngine:
             self._dismissed_new_queue_session = self._last_queue_run_session
             self._frozen_rates_at_interrupt = (self.queue_rate_var.get(), self.global_rate_var.get())
             self._set_status_line('Interrupted', danger=True)
+            self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
 
     def _last_queue_position_is_at_front(self) -> bool:
