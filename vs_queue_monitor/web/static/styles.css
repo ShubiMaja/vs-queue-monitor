@@ -1316,6 +1316,24 @@ select.inp:focus-visible {
   align-items: center;
   justify-content: center;
 }
+.btn-start-stop {
+  min-width: 36px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.btn-start-stop__glyph {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.btn-start-stop__glyph .icon {
+  display: block;
+}
+.btn-start-stop[data-state="stopped"] .btn-start-stop__glyph--start,
+.btn-start-stop[data-state="running"] .btn-start-stop__glyph--stop {
+  display: inline-flex;
+}
 .btn--toggle[aria-pressed="true"] {
   background: rgba(87, 148, 242, 0.08);
   border-color: rgba(87, 148, 242, 0.18);

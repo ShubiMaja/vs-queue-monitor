@@ -165,7 +165,25 @@
         </button>
         <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help" title="Help (F1)">?</button>
         <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings" title="Settings (o)">⚙</button>
-        <button type="button" class="btn btn--primary" id="btnStartStop" aria-label="Start monitoring">Start</button>
+        <button
+          type="button"
+          class="btn btn--primary btn--icon-only btn-start-stop"
+          id="btnStartStop"
+          data-state="stopped"
+          aria-label="Start monitoring"
+          title="Start monitoring"
+        >
+          <span class="btn-start-stop__glyph btn-start-stop__glyph--start" aria-hidden="true">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="8 6 19 12 8 18 8 6" />
+            </svg>
+          </span>
+          <span class="btn-start-stop__glyph btn-start-stop__glyph--stop" aria-hidden="true">
+            <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="1.5" />
+            </svg>
+          </span>
+        </button>
       </div>
     </header>
 
@@ -520,7 +538,7 @@
         <h2 id="modalHelpHeading">Help</h2>
         <div class="help-scroll">
           <h3 class="help-h3">Getting started</h3>
-          <p class="muted">Set the <strong>Vintage Story data folder</strong> in the header (paste a path or use the folder icon), then click <strong>Start</strong>. The app watches <code>client-main.log</code> for queue position changes.</p>
+          <p class="muted">Set the <strong>Vintage Story data folder</strong> in the header (paste a path or use the folder icon), then use the <strong>play button</strong> in the top bar to start monitoring. The app watches <code>client-main.log</code> for queue position changes.</p>
           <p class="muted">While the app is running you can also open <strong><code>http://localhost:8765</code></strong> in any browser — the embedded window and a standalone browser tab share the same live state. Use <code>--web-port PORT</code> if you changed the default port.</p>
           <h3 class="help-h3">Typical log paths</h3>
           <ul class="help-list">

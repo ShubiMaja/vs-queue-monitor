@@ -1844,8 +1844,9 @@
 
     var btnSS = $("btnStartStop");
     if (btnSS) {
-      btnSS.textContent = s.running ? "Stop" : "Start";
       btnSS.className = s.running ? "btn btn--danger" : "btn btn--primary";
+      btnSS.classList.add("btn--icon-only", "btn-start-stop");
+      btnSS.setAttribute("data-state", s.running ? "running" : "stopped");
       btnSS.title = s.running ? "Stop monitoring" : "Start monitoring";
       btnSS.setAttribute("aria-label", s.running ? "Stop monitoring" : "Start monitoring");
     }
@@ -1963,7 +1964,7 @@
     if (kh) {
       var noPath = !(s.source_path || "").trim();
       if (!s.running && noPath) {
-        kh.textContent = "Set the Vintage Story logs folder above, then click Start.";
+        kh.textContent = "Set the Vintage Story logs folder above, then use the play button.";
         kh.classList.remove("hidden");
       } else if (s.running && typeof s.status === "string" && s.status.indexOf("Waiting") === 0) {
         kh.textContent = "Monitoring started — looking for client-main.log in the selected folder.";
@@ -2122,7 +2123,7 @@
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
-          "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
+          "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — use the <strong>play button</strong> in the header when the path is set.</p>",
         sel: "#graphCanvas",
       },
     ];
