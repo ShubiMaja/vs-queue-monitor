@@ -4559,6 +4559,9 @@
   safeInit("setupKeyboardShortcuts", setupKeyboardShortcuts);
   safeInit("setupTour", setupTour);
   safeInit("hydratePathFromStorageEarly", hydratePathFromStorageEarly);
+  ["kpiPos", "kpiStatus", "kpiRate", "kpiElapsed", "kpiRemaining"].forEach(function (id) {
+    setKpiMetric($(id), null, "", { loading: true });
+  });
   fetch("/api/state")
     .then(function (r) {
       return r.json();
