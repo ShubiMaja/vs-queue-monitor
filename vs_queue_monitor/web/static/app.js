@@ -4071,6 +4071,9 @@
           body: JSON.stringify({ include_prereleases: nextIncludePre }),
         }).catch(function () {});
         var patch = {
+          popup_enabled: nextWarningPopup,
+          completion_popup: nextCompletionPopup,
+          failure_popup: nextFailurePopup,
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
           failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),

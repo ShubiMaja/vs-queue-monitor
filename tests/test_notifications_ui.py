@@ -38,3 +38,47 @@ def test_bell_triggers_standard_permission_flow(page: Page, base_url: str) -> No
     page.goto(base_url)
     page.locator("#btnNotify").click()
     expect(page.locator("#btnNotify")).to_have_attribute("data-state", "live", timeout=5000)
+
+
+def test_completion_and_failure_test_notifications_follow_saved_settings(page: Page, base_url: str) -> None:
+    page.add_init_script(
+        """
+        (function () {
+          window.__notifications = [];
+          function FakeNotification(title, opts) {
+            window.__notifications.push({
+              title: title || "",
+              body: opts && opts.body ? opts.body : "",
+              tag: opts && opts.tag ? opts.tag : "",
+            });
+          }
+          FakeNotification.permission = "granted";
+          FakeNotification.requestPermission = function () {
+            return Promise.resolve("granted");
+          };
+          window.Notification = FakeNotification;
+        })();
+        """
+    )
+    _disable_tour(page, base_url)
+    page.goto(base_url)
+
+    page.locator("#btnSettings").click()
+    expect(page.locator("#modalSettings")).not_to_have_class(r".*\bhidden\b.*")
+    page.locator("#tabCompletion").click()
+    page.locator("#chkCompPop").check()
+    page.locator("#tabFailure").click()
+    page.locator("#chkFailPop").check()
+    page.locator("#btnSaveSettings").click()
+    expect(page.locator("#modalSettings")).to_have_class(r".*\bhidden\b.*")
+
+    page.locator("#btnSettings").click()
+    page.locator("#tabCompletion").click()
+    page.locator("#btnTestCompNotify").click()
+    page.locator("#tabFailure").click()
+    page.locator("#btnTestFailNotify").click()
+
+    notifications = page.evaluate("window.__notifications")
+    titles = [entry["title"] for entry in notifications]
+    assert "Queue completion" in titles
+    assert "Queue interrupted" in titles
