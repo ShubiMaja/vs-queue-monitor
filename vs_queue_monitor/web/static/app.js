@@ -1132,10 +1132,10 @@
       return posRaw;
     }
     if (status === "completed" && pos === "0") {
-      return pos + " 🎉";
+      return "Let's Go!";
     }
     if (status === "at front" && pos === "1") {
-      return pos + " 🏃 Get Ready";
+      return "Get Ready...";
     }
     return posRaw;
   }
