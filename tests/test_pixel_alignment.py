@@ -98,6 +98,8 @@ def test_topbar_action_buttons_share_row_alignment(page: Page, base_url: str, w:
             ["#btnNotify", "#btnTour", "#btnHelp", "#btnSettings", "#btnStartStop"],
             tol_px=1.25,
         )
+    elif w < 480:
+        assert_row_center_aligned(page, ["#btnHelp", "#btnSettings", "#btnStartStop"], tol_px=1.25)
     else:
         assert_row_center_aligned(page, ["#btnTour", "#btnHelp", "#btnSettings", "#btnStartStop"], tol_px=1.25)
 
@@ -110,7 +112,7 @@ def test_graph_toolbar_buttons_align(page: Page, base_url: str, w: int, h: int, 
     # Toolbar can wrap on narrow widths; alignment must hold within each row.
     assert_centers_aligned_within_each_row(
         page,
-        ["#btnCopyPng", "#btnCopyTsv"],
+        ["#btnDownloadPng", "#btnCopyPng"],
         row_merge_px=8.0,
         tol_px=1.25,
     )
