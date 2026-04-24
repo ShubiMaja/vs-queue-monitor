@@ -4163,91 +4163,96 @@
         else if (setWas) focusElSoon($("btnSettings"));
       });
     });
-    var btnSaveSettings = $("btnSaveSettings");
-    if (btnSaveSettings) {
-      btnSaveSettings.onclick = function () {
-        var prevPopupEnabled =
-          window._lastState == null || window._lastState.popup_enabled !== false;
-        var nextWarningPopup = !!($("chkPop") && $("chkPop").checked);
-        var nextCompletionPopup = !!($("chkCompPop") && $("chkCompPop").checked);
-        var nextFailurePopup = !!($("chkFailPop") && $("chkFailPop").checked);
-        lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, nextWarningPopup);
-        lsSetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, nextCompletionPopup);
-        lsSetOptionalBool(LS_NOTIFY_FAILURE_POPUP, nextFailurePopup);
-        var nextUpdateNotify = !!($("chkUpdateNotify") && $("chkUpdateNotify").checked);
-        lsSetUpdateNotify(nextUpdateNotify);
-        if (!nextUpdateNotify) {
+    // Auto-save settings on change — no Save button needed.
+    function applySettingsSave(state) {
+      if (state && typeof state === "object") window._lastState = state;
+      if (window._lastState) {
+        syncSettingsFormFromState(window._lastState);
+        syncGraphToolbarButtons(window._lastState);
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+        renderSessionStats();
+      }
+      if (notifySyncHint) notifySyncHint();
+    }
+    function settingDebounce(fn, ms) {
+      var t;
+      return function () { clearTimeout(t); t = setTimeout(fn, ms || 600); };
+    }
+    function wireSettingChk(id, patch) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("change", function () {
+        var p = typeof patch === "function" ? patch(el) : patch;
+        postConfig(p).then(applySettingsSave).catch(function (e) { toast(String(e.message || e), "warn"); });
+      });
+    }
+    function wireSettingInp(id, key) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("input", settingDebounce(function () {
+        var p = {};
+        p[key] = el.value.trim();
+        postConfig(p).then(applySettingsSave).catch(function (e) { toast(String(e.message || e), "warn"); });
+      }));
+    }
+    // Simple server-config checkboxes
+    wireSettingChk("chkSnd", function (el) { return { sound_enabled: el.checked }; });
+    wireSettingChk("chkCompSnd", function (el) { return { completion_sound: el.checked }; });
+    wireSettingChk("chkFailSnd", function (el) { return { failure_sound: el.checked }; });
+    // Popup checkboxes also mirror to localStorage, and warn-popup fires a demo notification
+    function wirePopupChk(id, key, lsKey) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("change", function () {
+        var prevEnabled = window._lastState == null || window._lastState.popup_enabled !== false;
+        lsSetOptionalBool(lsKey, el.checked);
+        var p = {};
+        p[key] = el.checked;
+        postConfig(p).then(function (state) {
+          applySettingsSave(state);
+          if (key === "popup_enabled" && !prevEnabled && el.checked &&
+              typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              desktopNotify("Threshold alerts active", {
+                body: "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+                tag: "vsqm-example-" + Date.now(),
+              });
+            } catch (e) {}
+          }
+        }).catch(function (e) { toast(String(e.message || e), "warn"); });
+      });
+    }
+    wirePopupChk("chkPop", "popup_enabled", LS_NOTIFY_WARNING_POPUP);
+    wirePopupChk("chkCompPop", "completion_popup", LS_NOTIFY_COMPLETION_POPUP);
+    wirePopupChk("chkFailPop", "failure_popup", LS_NOTIFY_FAILURE_POPUP);
+    // Update-notify: localStorage only (no server round-trip)
+    var chkUpdateNotify = $("chkUpdateNotify");
+    if (chkUpdateNotify) {
+      chkUpdateNotify.addEventListener("change", function () {
+        lsSetUpdateNotify(chkUpdateNotify.checked);
+        if (!chkUpdateNotify.checked) {
           var badge = $("btnUpdateAvail");
           if (badge) badge.classList.add("hidden");
         }
-        var nextIncludePre = !!($("chkIncludePrereleases") && $("chkIncludePrereleases").checked);
+      });
+    }
+    // Include-prereleases: separate update-config API
+    var chkPre = $("chkIncludePrereleases");
+    if (chkPre) {
+      chkPre.addEventListener("change", function () {
         fetch("/api/update/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ include_prereleases: nextIncludePre }),
+          body: JSON.stringify({ include_prereleases: chkPre.checked }),
         }).catch(function () {});
-        var patch = {
-          popup_enabled: nextWarningPopup,
-          completion_popup: nextCompletionPopup,
-          failure_popup: nextFailurePopup,
-          sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
-          completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
-          failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
-        };
-        var iws = $("inpSetWarnSound");
-        var ics = $("inpSetCompSound");
-        var ifs = $("inpSetFailSound");
-        if (iws) patch.alert_sound_path = iws.value.trim();
-        if (ics) patch.completion_sound_path = ics.value.trim();
-        if (ifs) patch.failure_sound_path = ifs.value.trim();
-        var ihp = $("inpHistoryPath");
-        if (ihp) patch.history_path = ihp.value.trim();
-        postConfig(patch)
-          .then(function (state) {
-            if (state && typeof state === "object") {
-              window._lastState = state;
-            } else if (window._lastState) {
-              window._lastState.popup_enabled = nextWarningPopup;
-              window._lastState.sound_enabled = !!patch.sound_enabled;
-              window._lastState.completion_popup = nextCompletionPopup;
-              window._lastState.completion_sound = !!patch.completion_sound;
-              window._lastState.failure_popup = nextFailurePopup;
-              window._lastState.failure_sound = !!patch.failure_sound;
-              if (Object.prototype.hasOwnProperty.call(patch, "failure_sound_path")) {
-                window._lastState.failure_sound_path = patch.failure_sound_path;
-              }
-            }
-            if (window._lastState) {
-              syncSettingsFormFromState(window._lastState);
-              syncGraphToolbarButtons(window._lastState);
-              window._displayState = buildDisplayState(window._lastState);
-              redrawGraphOnly();
-              renderSessionStats();
-            }
-            if (
-              !prevPopupEnabled &&
-              nextWarningPopup &&
-              typeof Notification !== "undefined" &&
-              Notification.permission === "granted"
-            ) {
-              try {
-                desktopNotify("Threshold alerts active", {
-                  body:
-                    "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
-                  tag: "vsqm-example-" + Date.now(),
-                });
-              } catch (e) {}
-            }
-            if (notifySyncHint) notifySyncHint();
-            hideEl($("modalSettings"));
-            focusElSoon($("btnSettings"));
-            toast("Settings saved");
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
-      };
+      });
     }
+    // Debounced text inputs
+    wireSettingInp("inpSetWarnSound", "alert_sound_path");
+    wireSettingInp("inpSetCompSound", "completion_sound_path");
+    wireSettingInp("inpSetFailSound", "failure_sound_path");
+    wireSettingInp("inpHistoryPath", "history_path");
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {
