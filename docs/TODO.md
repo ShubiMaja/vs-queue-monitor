@@ -11,6 +11,9 @@
 
 ## Fixed (closed)
 
+~~Bug: the session selector could still show a duplicate latest/history entry for the same run because the browser-side matcher treated small live-vs-reconstructed end-time drift as a different session, and the browser regression reused shared history between tests~~
+Fixed: the web client now collapses latest/history duplicates by stable start-epoch plus terminal-position match instead of fragile end-time equality, and the browser regression points `history_path` at a per-test sandbox so unrelated prior runs do not masquerade as session-numbering bugs. Lesson learned: for reconstructed queue sessions, start identity is stable but end timestamps can legitimately drift by a few seconds between the live graph and history snapshots (v1.1.92)
+
 ~~Feature: the graph session selector only showed sessions from the current log tail, so persisted `session_history.jsonl` records were invisible in the existing viewer~~
 Fixed: the existing graph session dropdown now merges live log-tail sessions with persisted `session_history.jsonl` records across restarts and log sources, dedupes them by stable start-epoch key, and keeps `server` / `source_path` / `outcome` metadata available for tooltips. Lesson learned: keep live and persisted session payloads in the same shape so one viewer can render both cleanly instead of spawning a second history UI (v1.1.86)
 

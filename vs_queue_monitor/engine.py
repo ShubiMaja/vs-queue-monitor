@@ -161,7 +161,7 @@ class QueueMonitorEngine:
         self._session_record_written: bool = False
         _hp = self.config.get("history_path", "")
         self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
-        self._history_sessions_cache: Optional[tuple[float, list[dict]]] = None
+        self._history_sessions_cache: Optional[tuple[str, float, list[dict]]] = None
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
@@ -626,13 +626,14 @@ class QueueMonitorEngine:
     def load_history_sessions(self) -> list[dict]:
         """Return parsed session_history.jsonl records, cached for 30 s."""
         now = time.time()
+        hist = self._effective_history_path()
+        hist_key = str(hist.resolve()) if hist.exists() else str(hist)
         if self._history_sessions_cache is not None:
-            cached_at, records = self._history_sessions_cache
-            if now - cached_at < 30.0:
+            cached_key, cached_at, records = self._history_sessions_cache
+            if cached_key == hist_key and now - cached_at < 30.0:
                 return records
         records = []
         try:
-            hist = self._effective_history_path()
             if hist.exists():
                 for line in hist.read_text(encoding="utf-8").splitlines():
                     line = line.strip()
@@ -644,7 +645,7 @@ class QueueMonitorEngine:
                         pass
         except Exception:
             pass
-        self._history_sessions_cache = (now, records)
+        self._history_sessions_cache = (hist_key, now, records)
         return records
 
     def _invalidate_history_cache(self) -> None:

@@ -1151,23 +1151,24 @@
     if (!sess || !state || state.interrupted_mode) {
       return false;
     }
-    var activeId = Number(state.active_queue_session_id);
-    var sessId = Number(sess.session_id);
-    if (state.running && Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
-      return true;
-    }
-    var pts = state.graph_points || [];
-    if (!pts.length) {
-      return false;
-    }
     var currentPos = null;
+    var pts = state.graph_points || [];
     if (state.current_point && state.current_point.length >= 2) {
       currentPos = Number(state.current_point[1]);
     }
-    if (!Number.isFinite(currentPos)) {
+    if (!Number.isFinite(currentPos) && pts.length) {
       currentPos = Number(pts[pts.length - 1][1]);
     }
     if (!Number.isFinite(currentPos)) {
+      return false;
+    }
+    var currentStillLive = !!state.running && currentPos > 0;
+    var activeId = Number(state.active_queue_session_id);
+    var sessId = Number(sess.session_id);
+    if (currentStillLive && Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
+      return true;
+    }
+    if (!pts.length) {
       return false;
     }
     var sessPoints = sess.points || [];
@@ -1179,7 +1180,7 @@
         break;
       }
     }
-    if (state.running && sessCompleted) {
+    if (currentStillLive && sessCompleted) {
       return false;
     }
     var sessEndPos = Number(sess.end_pos);
@@ -1189,11 +1190,6 @@
     var graphStart = Number(pts[0][0]);
     var sessStart = Number(sess.start_epoch);
     if (!(Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2)) {
-      return false;
-    }
-    var graphEnd = Number(pts[pts.length - 1][0]);
-    var sessEnd = Number(sess.end_epoch);
-    if (Number.isFinite(graphEnd) && Number.isFinite(sessEnd) && Math.abs(sessEnd - graphEnd) > 2) {
       return false;
     }
     return true;
@@ -1393,7 +1389,6 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sessions.length);
     opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
@@ -1416,6 +1411,7 @@
       o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sel.options.length - 1);
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
       // Always start on "latest" (active session) on page load.

@@ -304,6 +304,75 @@ def test_queue_sessions_dedup_duplicate_history_records() -> None:
     assert len(gamma_sessions[0]["points"]) == 3
 
 
+def test_history_session_cache_respects_history_path_changes() -> None:
+    root = Path(".tmp-release-smoke-tests-history-cache-switch")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    _write_log(
+        log_dir / "client-main.log",
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+
+    history_a = root / "history-a"
+    engine.history_path_var.set(str(history_a))
+    hist_a = engine._effective_history_path()
+    hist_a.parent.mkdir(parents=True, exist_ok=True)
+    hist_a.write_text(
+        json.dumps(
+            {
+                "session_id": 1,
+                "source_path": str(log_dir),
+                "log_file": str(log_dir / "client-main.log"),
+                "server": "alpha.example.net",
+                "start_epoch": 1775760000.0,
+                "end_epoch": 1775760060.0,
+                "outcome": "completed",
+                "start_position": 9,
+                "end_position": 0,
+                "points": [[1775760000.0, 9], [1775760060.0, 0]],
+                "vsqm_version": "1.1.91",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    first = engine.load_history_sessions()
+    assert [rec.get("server") for rec in first] == ["alpha.example.net"]
+
+    history_b = root / "history-b"
+    engine.history_path_var.set(str(history_b))
+    hist_b = engine._effective_history_path()
+    hist_b.parent.mkdir(parents=True, exist_ok=True)
+    hist_b.write_text(
+        json.dumps(
+            {
+                "session_id": 2,
+                "source_path": str(log_dir),
+                "log_file": str(log_dir / "client-main.log"),
+                "server": "beta.example.net",
+                "start_epoch": 1775761000.0,
+                "end_epoch": 1775761060.0,
+                "outcome": "completed",
+                "start_position": 6,
+                "end_position": 0,
+                "points": [[1775761000.0, 6], [1775761060.0, 0]],
+                "vsqm_version": "1.1.91",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    second = engine.load_history_sessions()
+    assert [rec.get("server") for rec in second] == ["beta.example.net"]
+
+
 def test_parse_tail_latest_connect_target_picks_current_session() -> None:
     text = "\n".join(
         [
