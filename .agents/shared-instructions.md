@@ -21,6 +21,11 @@ Prefer the established patterns in this repo: seamless flow, progressive disclos
 - Show less by default, but do not hide important information.
 - Put detail in Help, tooltips, settings, and tours instead of crowding the main UI.
 - Keep error states actionable and recoverable.
+
+## UI/UX Language
+
+- **Icon-first, text-last**: Prefer icon-only buttons for toolbar and inline controls. Do not add text labels to buttons unless the action cannot be conveyed by icon alone. Use `title` and `aria-label` for accessibility instead.
+- Minimalism is the house style — avoid decorative copy, verbose labels, or redundant affordances.
 - Do not fake certainty in ETA, rate, or queue-state messaging.
 
 ## Git And Verification
