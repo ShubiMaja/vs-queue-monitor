@@ -11,9 +11,12 @@ import subprocess
 import sys
 import threading
 import time
+import shutil
+import tempfile
 import urllib.parse
 import urllib.request
 import webbrowser
+import zipfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -75,6 +78,7 @@ def _check_for_release_update() -> dict[str, Any]:
             "available": available,
             "latest_tag": tag,
             "release_name": name,
+            "zipball_url": data.get("zipball_url", ""),
             "current_version": VERSION,
             "error": None,
         }
@@ -522,6 +526,10 @@ def _api_state(request: Request) -> JSONResponse:
         update_extra = {
             "update_available": getattr(request.app.state, "update_available", False),
             "update_release_name": getattr(request.app.state, "update_release_name", ""),
+            "update_status": getattr(request.app.state, "update_status", None),
+            "update_error": getattr(request.app.state, "update_error", ""),
+            "update_download_bytes": getattr(request.app.state, "update_download_bytes", 0),
+            "update_download_total": getattr(request.app.state, "update_download_total", 0),
         }
         with lock:
             snap = build_snapshot(engine, hooks, update_extra)
@@ -820,30 +828,105 @@ async def _api_update_check(request: Request) -> JSONResponse:
     result = await asyncio.to_thread(_check_for_release_update)
     request.app.state.update_available = bool(result.get("available"))
     request.app.state.update_release_name = result.get("release_name", "")
+    request.app.state.update_zipball_url = result.get("zipball_url", "")
     return JSONResponse(result)
 
 
 async def _api_update_apply(request: Request) -> JSONResponse:
-    if not _IS_GIT_REPO:
-        return JSONResponse({"ok": False, "error": "not_git_repo"}, status_code=400)
+    app = request.app
+    zipball_url = getattr(app.state, "update_zipball_url", "")
+    if not zipball_url:
+        result = await asyncio.to_thread(_check_for_release_update)
+        zipball_url = result.get("zipball_url", "")
+        if result.get("available"):
+            app.state.update_available = True
+            app.state.update_release_name = result.get("release_name", "")
+            app.state.update_zipball_url = zipball_url
+    if not zipball_url:
+        return JSONResponse({"ok": False, "error": "no_release_url"}, status_code=400)
 
-    async def _pull_and_restart() -> None:
+    async def _download_and_install() -> None:
         log = logging.getLogger(__name__)
         try:
-            proc = await asyncio.to_thread(lambda: subprocess.run(
-                ["git", "pull", "origin", "main"],
-                cwd=_REPO_ROOT, capture_output=True, text=True, timeout=120,
-            ))
-            if proc.returncode != 0:
-                log.error("git pull failed: %s", proc.stderr.strip())
-                return
-        except Exception:
-            log.exception("git pull raised")
-            return
-        await asyncio.sleep(0.3)
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+            app.state.update_status = "downloading"
+            app.state.update_error = ""
+            app.state.update_download_bytes = 0
+            app.state.update_download_total = 0
 
-    asyncio.create_task(_pull_and_restart())
+            def _download() -> Path:
+                req = urllib.request.Request(
+                    zipball_url,
+                    headers={"User-Agent": f"vs-queue-monitor/{VERSION}"},
+                )
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    total = int(resp.headers.get("Content-Length") or 0)
+                    app.state.update_download_total = total
+                    tmp = tempfile.NamedTemporaryFile(suffix=".zip", prefix="vsqm_update_", delete=False)
+                    try:
+                        downloaded = 0
+                        while True:
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+                            tmp.write(chunk)
+                            downloaded += len(chunk)
+                            app.state.update_download_bytes = downloaded
+                    finally:
+                        tmp.close()
+                return Path(tmp.name)
+
+            zip_path = await asyncio.to_thread(_download)
+
+            app.state.update_status = "installing"
+
+            def _install(zip_path: Path) -> None:
+                tmp_dir = Path(tempfile.mkdtemp(prefix="vsqm_extract_"))
+                try:
+                    with zipfile.ZipFile(zip_path) as zf:
+                        zf.extractall(tmp_dir)
+                    top_dirs = [d for d in tmp_dir.iterdir() if d.is_dir()]
+                    if not top_dirs:
+                        raise RuntimeError("Zip has no top-level directory")
+                    src_root = top_dirs[0]
+
+                    src_pkg = src_root / "vs_queue_monitor"
+                    dst_pkg = _REPO_ROOT / "vs_queue_monitor"
+                    if src_pkg.is_dir() and dst_pkg.is_dir():
+                        shutil.copytree(str(src_pkg), str(dst_pkg), dirs_exist_ok=True)
+
+                    for fname in ("monitor.py", "requirements.txt"):
+                        src = src_root / fname
+                        if src.is_file():
+                            shutil.copy2(str(src), str(_REPO_ROOT / fname))
+
+                    req_file = _REPO_ROOT / "requirements.txt"
+                    if req_file.is_file():
+                        subprocess.run(
+                            [sys.executable, "-m", "pip", "install", "-r", str(req_file)],
+                            cwd=str(_REPO_ROOT),
+                            timeout=180,
+                            check=False,
+                            capture_output=True,
+                        )
+                finally:
+                    shutil.rmtree(str(tmp_dir), ignore_errors=True)
+                    try:
+                        zip_path.unlink()
+                    except Exception:
+                        pass
+
+            await asyncio.to_thread(_install, zip_path)
+
+            app.state.update_status = "restarting"
+            await asyncio.sleep(0.5)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+        except Exception as exc:
+            log.exception("zip update failed")
+            app.state.update_status = "error"
+            app.state.update_error = str(exc)
+
+    asyncio.create_task(_download_and_install())
     return JSONResponse({"ok": True})
 
 
@@ -856,12 +939,20 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
         while True:
             update_available = getattr(websocket.app.state, "update_available", False)
             update_release_name = getattr(websocket.app.state, "update_release_name", "")
+            update_status = getattr(websocket.app.state, "update_status", None)
+            update_error = getattr(websocket.app.state, "update_error", "")
+            update_download_bytes = getattr(websocket.app.state, "update_download_bytes", 0)
+            update_download_total = getattr(websocket.app.state, "update_download_total", 0)
 
             def snap() -> dict[str, Any]:
                 with lock:
                     return build_snapshot(engine, hooks, {
                         "update_available": update_available,
                         "update_release_name": update_release_name,
+                        "update_status": update_status,
+                        "update_error": update_error,
+                        "update_download_bytes": update_download_bytes,
+                        "update_download_total": update_download_total,
                     })
 
             payload = await asyncio.to_thread(snap)
@@ -944,9 +1035,13 @@ class _NoCacheStaticFiles(StaticFiles):
 
 def _start_update_checker(app: Any) -> None:
     """Background daemon: checks for updates every hour, stores result on app.state."""
-    if not _IS_GIT_REPO:
-        return
     app.state.update_available = False
+    app.state.update_release_name = ""
+    app.state.update_zipball_url = ""
+    app.state.update_status = None
+    app.state.update_error = ""
+    app.state.update_download_bytes = 0
+    app.state.update_download_total = 0
 
     def worker() -> None:
         time.sleep(60)
@@ -955,6 +1050,7 @@ def _start_update_checker(app: Any) -> None:
                 result = _check_for_release_update()
                 app.state.update_available = bool(result.get("available"))
                 app.state.update_release_name = result.get("release_name", "")
+                app.state.update_zipball_url = result.get("zipball_url", "")
             except Exception:
                 pass
             time.sleep(3600)

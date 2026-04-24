@@ -19,13 +19,17 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 
 ## Quick start
 
+**Latest release:** [github.com/ShubiMaja/vs-queue-monitor/releases/latest](https://github.com/ShubiMaja/vs-queue-monitor/releases/latest)
+
+The app checks for updates automatically and lets you install them with one click from the banner that appears, or from **About → Check for updates**.
+
 ### Windows - paste into Command Prompt or Windows Run `Win+R`
 
 ```bat
 cmd /k "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
 ```
 
-This clones the repo, installs dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
+This installs the app, sets up dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
 
 **Python not installed yet?** The same command works - it opens the official Python download page if needed.
 
@@ -85,7 +89,7 @@ Use `--web-browser` to skip the embedded window and open your default browser in
 
 - Documentation hub: [docs/README.md](docs/README.md)
 - Web UI regression guardrails: [docs/WEB_UI_REGRESSIONS.md](docs/WEB_UI_REGRESSIONS.md)
-- Release checkpoints use annotated git tags. Current stable release candidate tag: `stable-rc`.
+- Releases are published on [GitHub Releases](https://github.com/ShubiMaja/vs-queue-monitor/releases). The in-app auto-updater downloads the latest release zipball and restarts.
 - Playwright web tests now sandbox config into a repo-local temp root and should not touch your real `%APPDATA%` / `XDG_CONFIG_HOME` settings.
 - Graph display preferences (`Live`, `REL/ABS`, `LIN/LOG`) are browser-local viewer settings, not shared monitor config.
 - Browser desktop notification toggles (`Warning popup`, `Completion popup`, `Failure popup`, and the header bell) are browser-local per-client settings.

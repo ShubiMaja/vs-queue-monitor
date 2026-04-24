@@ -1,0 +1,94 @@
+name: Generate release notes
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes from commits
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PYEOF'
+          import os, subprocess, re
+
+          tag  = os.environ["TAG"]
+          repo = os.environ["REPO"]
+
+          # Previous tag (skip the current one)
+          raw = subprocess.check_output(
+              ["git", "tag", "--sort=-creatordate"], text=True
+          ).strip().splitlines()
+          prev_tags = [t for t in raw if t and t != tag]
+          prev = prev_tags[0] if prev_tags else None
+
+          log_range = f"{prev}..{tag}" if prev else tag
+          raw_commits = subprocess.check_output(
+              ["git", "log", log_range, "--pretty=format:%s"], text=True
+          ).strip().splitlines()
+
+          SKIP  = re.compile(r"^(chore|test|style|ci|build|refactor)(\(.+\))?:")
+          MERGE = re.compile(r"^Merge ")
+
+          sections = {"New": [], "Fixed": [], "Docs": []}
+
+          for msg in raw_commits:
+              if not msg or MERGE.match(msg) or SKIP.match(msg):
+                  continue
+              if re.match(r"^feat(\(.+\))?:", msg):
+                  sections["New"].append(re.sub(r"^feat[^:]*:\s*", "", msg))
+              elif re.match(r"^fix(\(.+\))?:", msg):
+                  sections["Fixed"].append(re.sub(r"^fix[^:]*:\s*", "", msg))
+              elif re.match(r"^docs(\(.+\))?:", msg):
+                  sections["Docs"].append(re.sub(r"^docs[^:]*:\s*", "", msg))
+
+          labels = {
+              "New":   "## What's new",
+              "Fixed": "## Bug fixes",
+              "Docs":  "## Documentation",
+          }
+
+          lines = []
+          for key in ("New", "Fixed", "Docs"):
+              items = sections[key]
+              if items:
+                  lines.append(labels[key])
+                  lines.extend(f"- {i}" for i in items)
+                  lines.append("")
+
+          if prev:
+              lines.append(
+                  f"**Full changelog:** "
+                  f"[{prev}...{tag}](https://github.com/{repo}/compare/{prev}...{tag})"
+              )
+
+          notes = "\n".join(lines).strip()
+
+          if not notes:
+              print("No categorised commits found — leaving release body unchanged.")
+              raise SystemExit(0)
+
+          with open("_release_notes.md", "w") as f:
+              f.write(notes)
+
+          print("--- Generated notes ---")
+          print(notes)
+          PYEOF
+
+      - name: Update release body
+        if: hashFiles('_release_notes.md') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --notes-file _release_notes.md

@@ -14,6 +14,12 @@
         <div class="update-banner__actions">
           <button type="button" class="btn btn--primary btn--small" id="btnApplyUpdate">Update &amp; restart</button>
           <button type="button" class="btn btn--ghost btn--small" id="btnDismissUpdate">Later</button>
+          <button type="button" class="btn btn--ghost btn--small update-banner__mute" id="btnMuteUpdate" title="Turn off update notifications">Turn off</button>
+        </div>
+      </div>
+      <div class="update-banner__progress hidden" id="updateProgressWrap" aria-hidden="true">
+        <div class="update-progress-track">
+          <div class="update-progress-fill" id="updateProgressFill"></div>
         </div>
       </div>
     </div>
@@ -476,6 +482,10 @@
         <h2 id="modalAboutHeading" class="about-name">VS Queue Monitor</h2>
         <p class="about-tagline muted">Vintage Story client log queue monitor</p>
         <p class="about-version muted"><span id="aboutVersion"></span></p>
+        <div class="about-update-row" id="aboutUpdateRow">
+          <span id="aboutUpdateStatus" class="about-update-status muted"></span>
+          <button type="button" class="btn btn--secondary btn--small" id="btnAboutCheckUpdate">Check for updates</button>
+        </div>
         <div class="about-links">
           <a id="aboutGithubLink" href="#" class="btn btn--secondary btn--small about-link" target="_blank" rel="noopener noreferrer">
             <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
