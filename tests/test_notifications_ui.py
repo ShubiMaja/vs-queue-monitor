@@ -71,8 +71,10 @@ def test_completion_and_failure_test_notifications_follow_saved_settings(page: P
     page.locator("#chkCompPop").check()
     page.locator("#tabFailure").click()
     page.locator("#chkFailPop").check()
-    page.locator("#btnSaveSettings").click()
+    # Settings auto-save on change; close modal with × button.
+    page.locator("#modalSettings .modal-close").click()
     expect(page.locator("#modalSettings")).to_have_attribute("aria-hidden", "true")
+    page.wait_for_timeout(400)  # let debounced saves settle
 
     page.locator("#btnSettings").click()
     page.locator("#tabWarning").click()
