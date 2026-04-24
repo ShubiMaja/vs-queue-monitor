@@ -1035,6 +1035,9 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                         if not self._interrupted_mode:
                             if self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session:
+                                # Old session ended without clean detection (log blanked / VS restarted).
+                                if not self._session_record_written and self.graph_points:
+                                    self._write_session_record("unknown")
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
                                 self._connect_phase_started_epoch = None
