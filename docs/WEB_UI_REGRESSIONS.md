@@ -74,6 +74,18 @@ Related files:
 - `vs_queue_monitor/web/static/app.js`
 - `vs_queue_monitor/web/static/styles.css`
 
+## Help and tour copy parity
+
+Help text and guided tour copy must describe the controls that are actually on screen.
+
+Rules:
+- Update the Help modal and guided tour when button labels, icons, or placement change.
+- Do not let Help or the tour reference removed controls, old button names, or outdated settings locations.
+- When a compact icon-only control is introduced, keep its purpose discoverable through Help, the tour, `title`, and `aria-label`.
+
+Why:
+- Onboarding text is part of the product surface. Stale copy makes the UI feel broken even when the code works.
+
 ## Graph settings contract
 
 The graph now has two persisted modes:
