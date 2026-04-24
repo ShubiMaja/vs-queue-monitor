@@ -277,13 +277,21 @@ body {
   margin: 0 auto;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+}
+.update-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
 }
 .update-banner__msg {
   font-size: 0.9rem;
   color: #a8d4a8;
+  padding-top: 3px;
 }
 .update-banner__actions {
   display: flex;
@@ -307,7 +315,7 @@ body {
   opacity: 0.85;
 }
 .update-banner__progress {
-  padding: 5px 0 1px;
+  width: 100%;
 }
 .update-banner__progress.hidden {
   display: none;

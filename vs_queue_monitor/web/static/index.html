@@ -10,16 +10,18 @@
   <body>
     <div id="updateBanner" class="update-banner hidden" role="region" aria-live="polite">
       <div class="update-banner__inner">
-        <span id="updateBannerMsg" class="update-banner__msg">Update available</span>
+        <div class="update-banner__body">
+          <span id="updateBannerMsg" class="update-banner__msg">Update available</span>
+          <div class="update-banner__progress hidden" id="updateProgressWrap" aria-hidden="true">
+            <div class="update-progress-track">
+              <div class="update-progress-fill" id="updateProgressFill"></div>
+            </div>
+          </div>
+        </div>
         <div class="update-banner__actions">
           <button type="button" class="btn btn--primary btn--small" id="btnApplyUpdate">Update &amp; restart</button>
           <button type="button" class="btn btn--ghost btn--small" id="btnDismissUpdate">Later</button>
           <button type="button" class="update-banner__mute" id="btnMuteUpdate">Turn off notifications</button>
-        </div>
-      </div>
-      <div class="update-banner__progress hidden" id="updateProgressWrap" aria-hidden="true">
-        <div class="update-progress-track">
-          <div class="update-progress-fill" id="updateProgressFill"></div>
         </div>
       </div>
     </div>
