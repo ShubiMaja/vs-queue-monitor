@@ -366,6 +366,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 
 - **FR: First-run clarity**
   - **Decision**: Path field + short help text; optional guided tour in web client.
+  - **Decision (entry point)**: The guided tour launcher lives in the top-bar action cluster as an icon-first control with tooltip/accessible name, not a full text button.
 
 ### 8.8 Notifications
 

@@ -136,7 +136,7 @@ body {
     gap: 8px;
   }
 }
-/* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
+/* One row height for bell, tour icon, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
 .topbar .btn {
   min-height: 30px;
   box-sizing: border-box;
@@ -446,9 +446,6 @@ body {
 }
 @media (max-width: 479px) {
   .brand__tagline {
-    display: none;
-  }
-  #btnTour {
     display: none;
   }
 }
