@@ -1400,15 +1400,13 @@
         (sessions[i].label || "Session") +
         " — " +
         formatSessionStart(sessions[i].start_epoch);
-      o.title =
-        sessStatus.label +
-        "\n" +
-        "Start: " +
-        formatSessionStart(sessions[i].start_epoch) +
-        "\nEnd: " +
-        formatSessionStart(sessions[i].end_epoch) +
-        "\nPoints: " +
-        (sessions[i].points ? sessions[i].points.length : 0);
+      var tipLines = [sessStatus.label,
+        "Start: " + formatSessionStart(sessions[i].start_epoch),
+        "End: "   + formatSessionStart(sessions[i].end_epoch),
+        "Points: " + (sessions[i].points ? sessions[i].points.length : 0)];
+      if (sessions[i].server) tipLines.push("Server: " + sessions[i].server);
+      if (sessions[i].outcome) tipLines.push("Outcome: " + sessions[i].outcome);
+      o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
     if (!_sessionDropdownInited) {

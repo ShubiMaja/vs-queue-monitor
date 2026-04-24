@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import socket
 import subprocess
@@ -153,21 +154,66 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     Deriving the active ID directly from the SEED tail keeps all session IDs in the same
     coordinate space, preventing historical sessions from being incorrectly filtered and
     phantom sessions from leaking into the dropdown.
+
+    Also merges sessions from session_history.jsonl so cross-file history appears in the dropdown.
     """
     path = engine.current_log_file
-    if path is None or not path.is_file():
-        return [], -1
+    seed_active_id = -1
+    live_sessions: list[dict[str, Any]] = []
+    if path is not None and path.is_file():
+        try:
+            tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
+            live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
+            if tail_text and engine.running:
+                _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+            if seed_active_id >= 0:
+                live_sessions = [s for s in live_sessions if int(s.get("session_id", -1)) != seed_active_id]
+        except Exception:
+            pass
+
+    # Merge JSONL history records, deduping against live sessions by start-epoch key.
     try:
-        tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
-        sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-        seed_active_id = -1
-        if tail_text and engine.running:
-            _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
-        if seed_active_id >= 0:
-            sessions = [s for s in sessions if int(s.get("session_id", -1)) != seed_active_id]
-        return sessions, seed_active_id
+        hist_records = engine.load_history_sessions()
+        live_keys: set[str] = {str(s.get("key", "")) for s in live_sessions}
+        key_counts: dict[str, int] = {}
+        for s in live_sessions:
+            base = str(s.get("key", "")).split("#")[0]
+            key_counts[base] = key_counts.get(base, 0) + 1
+
+        hist_sessions: list[dict[str, Any]] = []
+        for rec in hist_records:
+            se = rec.get("start_epoch")
+            if se is None:
+                continue
+            base = f"t:{int(math.floor(float(se)))}"
+            if base in live_keys or any(k.startswith(base) for k in live_keys):
+                continue  # already represented by the live session
+            seen = key_counts.get(base, 0)
+            key_counts[base] = seen + 1
+            key = base if seen == 0 else f"{base}#{seen + 1}"
+            pts = rec.get("points") or []
+            hist_sessions.append({
+                "key": key,
+                "session_id": rec.get("session_id"),
+                "label": "",
+                "start_epoch": float(se),
+                "end_epoch": float(rec.get("end_epoch") or se),
+                "start_pos": rec.get("start_position"),
+                "end_pos": rec.get("end_position"),
+                "points": [[float(t), int(p)] for t, p in pts],
+                "server": rec.get("server"),
+                "source_path": rec.get("source_path"),
+                "log_file": rec.get("log_file"),
+                "outcome": rec.get("outcome"),
+            })
+
+        all_sessions = live_sessions + hist_sessions
+        all_sessions.sort(key=lambda s: float(s.get("start_epoch") or 0))
+        for i, s in enumerate(all_sessions):
+            s["label"] = f"Session {i + 1}"
+        return all_sessions, seed_active_id
     except Exception:
-        return [], -1
+        return live_sessions, seed_active_id
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:

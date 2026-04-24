@@ -161,6 +161,7 @@ class QueueMonitorEngine:
         self._session_record_written: bool = False
         _hp = self.config.get("history_path", "")
         self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
+        self._history_sessions_cache: Optional[tuple[float, list[dict]]] = None
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
@@ -618,8 +619,36 @@ class QueueMonitorEngine:
             with open(hist, "a", encoding="utf-8") as fh:
                 for r in to_write:
                     fh.write(json.dumps(r) + "\n")
+            self._invalidate_history_cache()
         except Exception:
             pass
+
+    def load_history_sessions(self) -> list[dict]:
+        """Return parsed session_history.jsonl records, cached for 30 s."""
+        now = time.time()
+        if self._history_sessions_cache is not None:
+            cached_at, records = self._history_sessions_cache
+            if now - cached_at < 30.0:
+                return records
+        records = []
+        try:
+            hist = self._effective_history_path()
+            if hist.exists():
+                for line in hist.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        self._history_sessions_cache = (now, records)
+        return records
+
+    def _invalidate_history_cache(self) -> None:
+        self._history_sessions_cache = None
 
     def _effective_history_path(self) -> Path:
         raw = (self.history_path_var.get() or "").strip()
@@ -698,6 +727,7 @@ class QueueMonitorEngine:
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
+            self._invalidate_history_cache()
         except Exception:
             pass
         try:
