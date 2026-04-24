@@ -1899,8 +1899,8 @@
       if (s.update_available && lsGetUpdateNotify()) {
         _uBadge.classList.remove("hidden");
         _uBadge.title = s.update_release_name
-          ? "Update available: " + s.update_release_name + " — click to view"
-          : "Update available — click to view";
+          ? "Update available: " + s.update_release_name + " — click to install"
+          : "Update available — click to install";
       } else {
         _uBadge.classList.add("hidden");
       }
