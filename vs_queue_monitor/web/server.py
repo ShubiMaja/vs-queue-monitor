@@ -146,6 +146,31 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
+def _session_merge_signature(rec: dict[str, Any]) -> tuple[Any, ...]:
+    """Stable identity for merging live and persisted session history records."""
+    start_epoch = rec.get("start_epoch")
+    end_epoch = rec.get("end_epoch")
+    return (
+        int(math.floor(float(start_epoch))) if start_epoch is not None else None,
+        int(math.floor(float(end_epoch))) if end_epoch is not None else None,
+        rec.get("start_pos", rec.get("start_position")),
+        rec.get("end_pos", rec.get("end_position")),
+        rec.get("server"),
+        rec.get("source_path"),
+        rec.get("log_file"),
+    )
+
+
+def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int]:
+    """Prefer records with more points and richer metadata when duplicates collide."""
+    pts = rec.get("points") or []
+    return (
+        len(pts),
+        1 if rec.get("server") else 0,
+        1 if rec.get("outcome") else 0,
+    )
+
+
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
     """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
 
@@ -175,25 +200,24 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     try:
         hist_records = engine.load_history_sessions()
         live_keys: set[str] = {str(s.get("key", "")) for s in live_sessions}
+        seen_signatures: set[tuple[Any, ...]] = {_session_merge_signature(s) for s in live_sessions}
         key_counts: dict[str, int] = {}
         for s in live_sessions:
             base = str(s.get("key", "")).split("#")[0]
             key_counts[base] = key_counts.get(base, 0) + 1
 
-        hist_sessions: list[dict[str, Any]] = []
+        hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in hist_records:
             se = rec.get("start_epoch")
             if se is None:
                 continue
             base = f"t:{int(math.floor(float(se)))}"
-            if base in live_keys or any(k.startswith(base) for k in live_keys):
+            sig = _session_merge_signature(rec)
+            if sig in seen_signatures or base in live_keys or any(k.startswith(base) for k in live_keys):
                 continue  # already represented by the live session
-            seen = key_counts.get(base, 0)
-            key_counts[base] = seen + 1
-            key = base if seen == 0 else f"{base}#{seen + 1}"
             pts = rec.get("points") or []
-            hist_sessions.append({
-                "key": key,
+            candidate = {
+                "key": base,
                 "session_id": rec.get("session_id"),
                 "label": "",
                 "start_epoch": float(se),
@@ -205,7 +229,18 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 "source_path": rec.get("source_path"),
                 "log_file": rec.get("log_file"),
                 "outcome": rec.get("outcome"),
-            })
+            }
+            prev = hist_by_sig.get(sig)
+            if prev is None or _session_merge_rank(candidate) > _session_merge_rank(prev):
+                hist_by_sig[sig] = candidate
+
+        hist_sessions: list[dict[str, Any]] = []
+        for sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
+            base = str(sess.get("key", "")).split("#")[0]
+            seen = key_counts.get(base, 0)
+            key_counts[base] = seen + 1
+            sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
+            hist_sessions.append(sess)
 
         all_sessions = live_sessions + hist_sessions
         all_sessions.sort(key=lambda s: float(s.get("start_epoch") or 0))

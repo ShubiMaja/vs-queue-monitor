@@ -247,6 +247,63 @@ def test_queue_sessions_merge_cross_file_history_and_dedup_live_start_epoch() ->
     assert gamma["outcome"] == "completed"
 
 
+def test_queue_sessions_dedup_duplicate_history_records() -> None:
+    root = Path(".tmp-release-smoke-tests-session-history-dedup")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 10",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    history_root = root / "history"
+    engine.history_path_var.set(str(history_root))
+
+    hist_path = engine._effective_history_path()
+    hist_path.parent.mkdir(parents=True, exist_ok=True)
+    dup_a = {
+        "session_id": 41,
+        "source_path": "D:/AltVintagestoryData",
+        "log_file": "D:/AltVintagestoryData/client-main.log",
+        "server": "gamma.example.net",
+        "start_epoch": 1775760000.0,
+        "end_epoch": 1775760060.0,
+        "outcome": "completed",
+        "start_position": 9,
+        "end_position": 0,
+        "points": [[1775760000.0, 9], [1775760060.0, 0]],
+        "vsqm_version": "1.1.86",
+    }
+    dup_b = {
+        "session_id": 41,
+        "source_path": "D:/AltVintagestoryData",
+        "log_file": "D:/AltVintagestoryData/client-main.log",
+        "server": "gamma.example.net",
+        "start_epoch": 1775760000.4,
+        "end_epoch": 1775760060.4,
+        "outcome": "completed",
+        "start_position": 9,
+        "end_position": 0,
+        "points": [[1775760000.4, 9], [1775760030.4, 5], [1775760060.4, 0]],
+        "vsqm_version": "1.1.86",
+    }
+    hist_path.write_text(json.dumps(dup_a) + "\n" + json.dumps(dup_b) + "\n", encoding="utf-8")
+
+    sessions, _active_id = _queue_sessions_for_engine(engine)
+
+    gamma_sessions = [s for s in sessions if s.get("server") == "gamma.example.net"]
+    assert len(gamma_sessions) == 1, gamma_sessions
+    assert len(gamma_sessions[0]["points"]) == 3
+
+
 def test_parse_tail_latest_connect_target_picks_current_session() -> None:
     text = "\n".join(
         [
