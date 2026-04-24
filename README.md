@@ -29,7 +29,7 @@ The app checks for updates automatically and lets you install them with one clic
 cmd /k "(cd /d "%USERPROFILE%\Downloads" 2>nul || cd /d "%USERPROFILE%") && curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap-windows.cmd -o vs-queue-monitor-bootstrap.cmd && call vs-queue-monitor-bootstrap.cmd"
 ```
 
-This installs the app, sets up dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with **`Win+R` -> `vs-queue-monitor`** or the Desktop shortcut.
+This installs the app, sets up dependencies, and opens the monitor. The window stays open and shows a final success or failure status instead of disappearing on errors. After install, relaunch any time with the Desktop shortcut, or run `vs-queue-monitor.cmd` from the install folder. If you add that folder to your `PATH`, `Win+R` with `vs-queue-monitor.cmd` works too.
 
 **Python not installed yet?** The same command works - it opens the official Python download page if needed.
 
@@ -48,7 +48,7 @@ You do not need to reinstall each time. After the first setup, just launch it li
 
 | OS      | Easy way to open it                                                                       |
 | --------- | ------------------------------------------------------------------------------------------- |
-| Windows | <kbd>Win</kbd> + <kbd>R</kbd>, type `vs-queue-monitor`, press <kbd>Enter</kbd>            |
+| Windows | Use the Desktop shortcut, or run `vs-queue-monitor.cmd` from the install folder |
 | macOS   | <kbd>Cmd</kbd> + <kbd>Space</kbd>, type `run-vs-queue-monitor`, press <kbd>Return</kbd>   |
 | Linux   | Open your app launcher or terminal, then run `~/vs-queue-monitor/run-vs-queue-monitor.sh` |
 
@@ -63,12 +63,10 @@ python monitor.py
 
 When the app is running it serves a local web UI on port **8765** (default). You can open it in any browser at any time — the embedded Chromium window and a standalone browser tab share the same live state:
 
-```
-http://localhost:8765
-```
+[http://localhost:8765](http://localhost:8765)
 
 Use `--web-browser` to skip the embedded window and open your default browser instead. Use `--web-port PORT` to change the port.
-If that browser view goes offline, the in-page banner tells you to restart the app or reload the page to reconnect.
+If that browser view goes offline, the in-page banner tells you to start the app to reconnect, or reload the page if the app is already running.
 
 ## Features
 
