@@ -77,6 +77,7 @@ class QueueMonitorEngine:
         )
         self.queue_rate_var = hooks.string_var("—")
         self.global_rate_var = hooks.string_var("—")
+        self.hist_global_rate_var = hooks.string_var("—")
         self.show_log_var = hooks.boolean_var(bool(self.config.get("show_log", True)))
         self.show_status_var = hooks.boolean_var(bool(self.config.get("show_status", True)))
         self.tutorial_done_var = hooks.boolean_var(bool(self.config.get("tutorial_done", False)))
@@ -1469,13 +1470,39 @@ class QueueMonitorEngine:
             return None
         return sum(mpps) / len(mpps)
 
+    def _hist_sessions_global_avg_mpp(self) -> Optional[float]:
+        """Mean m/p averaged across all historical sessions with usable point data (all outcomes)."""
+        session_avgs: list[float] = []
+        for rec in self.load_history_sessions():
+            pts = rec.get("points") or []
+            if len(pts) < 2:
+                continue
+            mpps: list[float] = []
+            for (t0, p0), (t1, p1) in zip(pts, pts[1:]):
+                dt = float(t1) - float(t0)
+                if dt <= 0:
+                    continue
+                improvement = int(p0) - int(p1)
+                if improvement <= 0:
+                    continue
+                mpp = dt / 60.0 / float(improvement)
+                if mpp > 0 and math.isfinite(mpp):
+                    mpps.append(mpp)
+            if mpps:
+                session_avgs.append(sum(mpps) / len(mpps))
+        if not session_avgs:
+            return None
+        return sum(session_avgs) / len(session_avgs)
+
     def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
         """KPI Rate value + Global Rate in Info. Header shows RATE (Rolling N). Returns capped mpp for ETA."""
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
         g_mpp = self._global_avg_minutes_per_position()
+        h_mpp = self._hist_sessions_global_avg_mpp()
         self.queue_rate_var.set(self._format_queue_rate(mpp))
         self.global_rate_var.set(self._format_queue_rate(g_mpp))
+        self.hist_global_rate_var.set(self._format_queue_rate(h_mpp))
         return mpp
 
     def _current_queue_position(self) -> Optional[int]:

@@ -1058,6 +1058,8 @@
     }
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
+    var elHistGlo = $("infoStatHistGlo");
+    if (elHistGlo) elHistGlo.textContent = (state.hist_global_rate || "—");
   }
 
   function copyStatsToClipboard() {
@@ -1069,7 +1071,8 @@
       "Pos Change: "+ t("infoStatCleared")+ "\n" +
       "Duration: "  + t("infoStatSpan")  + "\n" +
       "Rate: "      + t("infoStatAvg")   + "\n" +
-      "Global Rate: "+ t("infoGlo")      + "\n";
+      "Full Rate: " + t("infoStatGlo")   + "\n" +
+      "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
       function () { toast("Stats copied"); },
       function () { toast("Could not copy stats (clipboard permission)", "warn"); }

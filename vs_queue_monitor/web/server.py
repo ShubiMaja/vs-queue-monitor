@@ -575,6 +575,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "rate_header": rate_hdr,
         "queue_rate": engine.queue_rate_var.get(),
         "global_rate": engine.global_rate_var.get(),
+        "hist_global_rate": engine.hist_global_rate_var.get(),
         "elapsed": engine.elapsed_var.get(),
         "remaining": engine.predicted_remaining_var.get(),
         "progress": float(getattr(engine, "_queue_progress_value", 0.0)),
