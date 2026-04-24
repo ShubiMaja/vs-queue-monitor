@@ -46,3 +46,34 @@ def test_server_target_renders_for_seeded_log(page: Page, base_url: str, tmp_pat
 
     page.goto(base_url)
     expect(page.locator("#infoServer")).to_have_text("gamma.example.net", timeout=15000)
+
+
+def test_completed_latest_session_is_not_duplicated_in_dropdown(page: Page, base_url: str, tmp_path: Path) -> None:
+    log_dir = tmp_path / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    lines = [
+        "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
+        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 3",
+        "9.4.2026 22:31:15 [Notification] Client is in connect queue at position: 2",
+        "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 1",
+        "9.4.2026 22:31:26 [Notification] Connected to server, downloading data...",
+    ]
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    r = page.context.request.post(
+        f"{base_url.rstrip('/')}/api/config",
+        data=json.dumps({"source_path": str(log_dir)}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.ok, r.text()
+
+    r = page.context.request.post(f"{base_url.rstrip('/')}/api/monitoring/toggle")
+    assert r.ok, r.text()
+    r = page.context.request.post(f"{base_url.rstrip('/')}/api/monitoring/toggle")
+    assert r.ok, r.text()
+
+    page.goto(base_url)
+    opts = page.locator("#selSession option")
+    expect(opts).to_have_count(1)
+    expect(page.locator("#selSession")).to_have_value("latest")

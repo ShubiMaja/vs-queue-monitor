@@ -1148,12 +1148,12 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state || !state.running || state.interrupted_mode) {
+    if (!sess || !state || state.interrupted_mode) {
       return false;
     }
     var activeId = Number(state.active_queue_session_id);
     var sessId = Number(sess.session_id);
-    if (Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
+    if (state.running && Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
       return true;
     }
     var pts = state.graph_points || [];
@@ -1179,7 +1179,7 @@
         break;
       }
     }
-    if (sessCompleted) {
+    if (state.running && sessCompleted) {
       return false;
     }
     var sessEndPos = Number(sess.end_pos);
@@ -1188,7 +1188,15 @@
     }
     var graphStart = Number(pts[0][0]);
     var sessStart = Number(sess.start_epoch);
-    return Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2;
+    if (!(Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2)) {
+      return false;
+    }
+    var graphEnd = Number(pts[pts.length - 1][0]);
+    var sessEnd = Number(sess.end_epoch);
+    if (Number.isFinite(graphEnd) && Number.isFinite(sessEnd) && Math.abs(sessEnd - graphEnd) > 2) {
+      return false;
+    }
+    return true;
   }
 
   function formatLatestSessionOptionLabel(state, latestStatus) {
