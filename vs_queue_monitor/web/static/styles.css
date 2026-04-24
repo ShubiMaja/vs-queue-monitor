@@ -291,11 +291,20 @@ body {
   align-items: center;
 }
 .update-banner__mute {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #a8d4a8;
+  font-size: 0.75rem;
   opacity: 0.55;
-  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  margin-left: 4px;
+  white-space: nowrap;
 }
 .update-banner__mute:hover {
-  opacity: 0.9;
+  opacity: 0.85;
 }
 .update-banner__progress {
   padding: 5px 0 1px;
@@ -1022,12 +1031,25 @@ select.inp:focus-visible {
 .graph-toolbar__right > .btn:hover .icon {
   opacity: 0.78;
 }
+.graph-toolbar__sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  margin: 0 4px;
+  align-self: center;
+  flex-shrink: 0;
+}
 .graph-toolbar__right > .btn--toolbar-export {
   background: var(--card);
   color: var(--text);
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
 }
 .graph-toolbar__right > .btn--toolbar-export .icon {
   opacity: 1;
+  flex-shrink: 0;
 }
 .graph-toolbar__right > .btn--toolbar-export:hover,
 .graph-toolbar__right > .btn--toolbar-export:active {
