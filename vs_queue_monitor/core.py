@@ -589,6 +589,11 @@ def get_config_path() -> Path:
     return base / "vs-queue-monitor" / "config.json"
 
 
+def get_history_path() -> Path:
+    """JSONL file that accumulates completed/interrupted session records."""
+    return get_config_path().parent / "session_history.jsonl"
+
+
 def _legacy_config_path() -> Path:
     """Previous config location before the project was renamed to vs-queue-monitor."""
     if sys.platform.startswith("win"):

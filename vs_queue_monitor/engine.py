@@ -156,6 +156,9 @@ class QueueMonitorEngine:
         self._interrupted_elapsed_sec: Optional[float] = None
         self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
         self._pending_new_queue_session: Optional[int] = None
+        self._session_start_epoch: Optional[float] = None
+        self._session_start_position: Optional[int] = None
+        self._session_record_written: bool = False
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
@@ -553,6 +556,7 @@ class QueueMonitorEngine:
         self._frozen_rates_at_interrupt = ('—', '—')
         self._set_status_line('Interrupted', danger=True)
         self.update_time_estimates()
+        self._write_session_record("interrupted")
         msg = 'Queue interrupted; still watching the log. A new queue run can be loaded when detected.'
         if detail:
             msg += f' ({detail})'
@@ -574,6 +578,45 @@ class QueueMonitorEngine:
             )
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
+
+    def _write_session_record(self, outcome: str) -> None:
+        """Append one completed/interrupted session record to session_history.jsonl."""
+        if self._session_record_written:
+            return
+        self._session_record_written = True
+        try:
+            pts = list(self.graph_points)
+            # Deduplicate to change-resolution points only.
+            change_pts: list[tuple[float, int]] = []
+            last_pos: Optional[int] = None
+            for t, p in pts:
+                if p != last_pos:
+                    change_pts.append((t, p))
+                    last_pos = p
+            start_epoch = (
+                self._session_start_epoch
+                or (pts[0][0] if pts else time.time())
+            )
+            server = self.server_target_var.get()
+            record = {
+                "session_id": self._last_queue_run_session,
+                "source_path": str(self.config.get("source_path", "") or ""),
+                "log_file": str(self.current_log_file) if self.current_log_file else None,
+                "server": server if server and server != "—" else None,
+                "start_epoch": start_epoch,
+                "end_epoch": time.time(),
+                "outcome": outcome,
+                "start_position": self._session_start_position,
+                "end_position": self.last_position,
+                "points": change_pts,
+                "vsqm_version": VERSION,
+            }
+            path = get_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+        except Exception:
+            pass
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
@@ -968,12 +1011,16 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                                 self._mpp_floor_position = None
                                 self._mpp_floor_value = None
+                                self._session_start_epoch = time.time()
+                                self._session_start_position = position
+                                self._session_record_written = False
                                 self.write_history('New queue run (from log).')
                                 if self.current_log_file is not None:
                                     self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
                             if position == 0:
                                 self._set_status_line('Completed')
+                                self._write_session_record("completed")
                             elif position is not None and position <= 1:
                                 self._set_status_line('At front')
                             else:
