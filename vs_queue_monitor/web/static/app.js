@@ -578,6 +578,7 @@
   }
 
   var NOTIFY_SW_SCOPE = "/notify-sw/";
+  var _notifySwRegistrationPromise = null;
 
   function getNotificationServiceWorkerPath() {
     return "/notify-sw.js";
@@ -591,26 +592,41 @@
     if (typeof navigator === "undefined" || !navigator.serviceWorker) {
       return Promise.resolve(null);
     }
-    return navigator.serviceWorker
+    if (_notifySwRegistrationPromise) {
+      return _notifySwRegistrationPromise;
+    }
+    _notifySwRegistrationPromise = navigator.serviceWorker
       .register(getNotificationServiceWorkerPath(), {
         scope: getNotificationServiceWorkerScope(),
       })
+      .then(function (reg) {
+        return reg || null;
+      })
       .catch(function () {
+        _notifySwRegistrationPromise = null;
         return null;
       });
+    return _notifySwRegistrationPromise;
   }
 
   function getNotificationServiceWorkerRegistration() {
     if (typeof navigator === "undefined" || !navigator.serviceWorker) {
       return Promise.resolve(null);
     }
+    if (_notifySwRegistrationPromise) {
+      return _notifySwRegistrationPromise;
+    }
     return navigator.serviceWorker
       .getRegistration(getNotificationServiceWorkerScope())
       .then(function (reg) {
-        if (reg) return reg;
+        if (reg) {
+          _notifySwRegistrationPromise = Promise.resolve(reg);
+          return reg;
+        }
         return registerNotificationServiceWorker();
       })
       .catch(function () {
+        _notifySwRegistrationPromise = null;
         return null;
       });
   }

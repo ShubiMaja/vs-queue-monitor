@@ -11,6 +11,9 @@
 
 ## Fixed (closed)
 
+~~Tweak: browser notification sends did a fresh service-worker registration lookup on every alert, adding avoidable latency before real banners appeared~~
+Fixed: the web client now caches the notification service-worker registration promise, so repeated warning/completion/failure alerts reuse the same worker lookup path instead of re-querying registration each time (v1.1.55)
+
 ~~Tweak: the offline banner reconnect wording was too generic and did not distinguish between a stopped app and a stale browser page~~
 Fixed: the sticky offline banner now tells people to start the app to reconnect, and to reload the page only if the app is already running (v1.1.53)
 
