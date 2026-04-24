@@ -385,6 +385,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 - At a glance: position, status, rate, warnings, elapsed, **remaining** (rough estimate; KPI label **REMAINING**), progress.
 - Graph: time series for the current session; log/linear Y where available.
 - Info/History are secondary sections in the web layout.
+- On narrow/mobile widths, the `VS Queue Monitor` brand gets its own top-bar row above the action buttons instead of being compressed into the same line.
 
 ### 9.2 Queue semantics (“done”)
 

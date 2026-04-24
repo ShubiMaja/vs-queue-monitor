@@ -80,9 +80,10 @@ body {
   border-bottom: 1px solid var(--line);
   gap: 6px 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "brand actions"
+    "brand"
+    "actions"
     "path path";
   align-items: center;
 }
@@ -90,6 +91,7 @@ body {
   grid-area: brand;
   min-width: 0;
   max-width: 100%;
+  width: 100%;
 }
 .topbar > .topbar__path {
   grid-area: path;
@@ -100,12 +102,12 @@ body {
 
 .topbar > .topbar__actions {
   grid-area: actions;
-  justify-self: end;
+  justify-self: start;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-width: 0;
   max-width: 100%;
 }
