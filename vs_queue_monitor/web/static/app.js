@@ -2952,7 +2952,22 @@
     }
     var btnBadge = $("btnUpdateAvail");
     if (btnBadge) {
-      btnBadge.onclick = openAboutModal;
+      btnBadge.onclick = function () {
+        if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+        btnBadge.disabled = true;
+        fetch("/api/update/apply", { method: "POST" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            btnBadge.disabled = false;
+            if (!j.ok) { toast("Update failed: " + (j.error || "unknown"), "warn"); return; }
+            window._pendingHardReload = true;
+            toast("Update in progress — reloading when server is back…");
+          })
+          .catch(function (e) {
+            btnBadge.disabled = false;
+            toast("Update error: " + String(e.message || e), "warn");
+          });
+      };
     }
   }
 
