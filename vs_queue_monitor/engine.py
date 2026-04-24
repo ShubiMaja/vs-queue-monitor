@@ -988,6 +988,11 @@ class QueueMonitorEngine:
                                 # Wall-clock samples every poll so the chart shows heartbeat / flat
                                 # segments, not only log-line times, while the queue is still live.
                                 self.append_graph_point(position, None)
+                            else:
+                                # Lock in completed state without adding a heartbeat sample.
+                                # Without this, last_position stays at the pre-completion value and
+                                # "Queue changed: N → 0" fires again on every subsequent poll.
+                                self.last_position = 0
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._mpp_floor_position = position
