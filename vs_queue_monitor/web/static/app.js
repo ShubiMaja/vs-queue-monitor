@@ -2120,9 +2120,9 @@
         title: "Chart & alerts",
         html:
           "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
-          "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. <strong>PNG</strong> button top-right of chart to copy image.</p>" +
+          "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
-          "<p>Open <strong>⚙</strong> for sounds and history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
+          "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — <strong>Start</strong> when the path is set.</p>",
         sel: "#graphCanvas",
       },
     ];
