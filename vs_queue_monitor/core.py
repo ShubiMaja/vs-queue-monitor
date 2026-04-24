@@ -207,8 +207,8 @@ MACOS_SYSTEM_SOUNDS_DIR = Path("/System/Library/Sounds")
 _FALLBACK_WINDOWS_SYSTEM_ROOT = Path(r"C:\Windows")
 
 # UI palette: Grafana-inspired dark (canvas/panel tones, series-style accents, readable contrast).
-UI_BG_APP = "#000099"
-UI_BG_CARD = "#000099"
+UI_BG_APP = "#111217"
+UI_BG_CARD = "#181b1f"
 UI_TEXT_PRIMARY = "#d8d9da"
 UI_TEXT_MUTED = "#8e9ba3"
 UI_LINK = "#58a6ff"
