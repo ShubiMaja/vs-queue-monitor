@@ -1993,16 +1993,18 @@
 
   function _showOfflineBanner() {
     var b = document.getElementById("offlineBanner");
-    if (b) b.classList.remove("hidden");
+    if (b) {
+      b.classList.remove("hidden");
+      document.body.classList.add("offline-banner-visible");
+      document.documentElement.style.setProperty("--offline-banner-offset", b.offsetHeight + "px");
+    }
   }
 
   function _hideOfflineBanner() {
     var b = document.getElementById("offlineBanner");
     if (b) b.classList.add("hidden");
-  }
-
-  function _dismissOfflineBanner() {
-    _hideOfflineBanner();
+    document.body.classList.remove("offline-banner-visible");
+    document.documentElement.style.removeProperty("--offline-banner-offset");
   }
 
   function _enterOfflineMode() {
@@ -4415,8 +4417,6 @@
   safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
   safeInit("setupRestoreBanner", setupRestoreBanner);
   safeInit("setupUpdateBanner", setupUpdateBanner);
-  var _btnCloseOfflineBanner = $("btnCloseOfflineBanner");
-  if (_btnCloseOfflineBanner) _btnCloseOfflineBanner.addEventListener("click", _dismissOfflineBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
   safeInit("setupNotifications", setupNotifications);
