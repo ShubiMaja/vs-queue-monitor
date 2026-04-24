@@ -344,6 +344,9 @@ Done: background thread fetches `origin/main` every hour and sets `update_availa
 
 Feature: Snapshot every session recorded once the session ends and store it as appdata so we can perform analytics later
 
+feature: store history of selected file swso they can be selected again from a history button
+
+feature: add light and dark theme
 
 Feature: Queue Scheduling
 
