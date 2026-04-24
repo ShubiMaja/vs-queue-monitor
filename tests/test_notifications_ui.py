@@ -65,6 +65,8 @@ def test_completion_and_failure_test_notifications_follow_saved_settings(page: P
 
     page.locator("#btnSettings").click()
     expect(page.locator("#modalSettings")).not_to_have_class(r".*\bhidden\b.*")
+    page.locator("#tabWarning").click()
+    page.locator("#chkPop").check()
     page.locator("#tabCompletion").click()
     page.locator("#chkCompPop").check()
     page.locator("#tabFailure").click()
