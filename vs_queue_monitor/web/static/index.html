@@ -23,6 +23,7 @@
           <button type="button" class="btn btn--ghost btn--small" id="btnDismissUpdate">Later</button>
           <button type="button" class="update-banner__mute" id="btnMuteUpdate">Turn off notifications</button>
         </div>
+        <button type="button" class="banner-close" id="btnCloseUpdateBanner" aria-label="Dismiss update banner" title="Dismiss update banner">×</button>
       </div>
     </div>
 
@@ -33,6 +34,7 @@
           <button type="button" class="btn btn--primary btn--small" id="btnResumePath">Use saved path &amp; start</button>
           <button type="button" class="btn btn--ghost btn--small" id="btnDismissRestore">Not now</button>
         </div>
+        <button type="button" class="banner-close" id="btnCloseRestoreBanner" aria-label="Dismiss restore banner" title="Dismiss restore banner">×</button>
       </div>
     </div>
 
@@ -691,7 +693,9 @@
 
     <div id="notifPermTip" class="notif-perm-tip hidden" role="status" aria-live="polite"></div>
     <div id="offlineBanner" class="offline-banner hidden" role="status" aria-live="polite">
-      <span>Offline — last known data shown. Restart VS Queue Monitor to reconnect.</span>
+      <div class="offline-banner__inner">
+        <span>Offline — last known data shown. Start the app to reconnect. If the app is started already, try reloading this page.</span>
+      </div>
     </div>
     <div id="serverStoppedOverlay" class="server-stopped-overlay hidden" role="alert" aria-labelledby="serverStoppedTitle" aria-describedby="serverStoppedDesc">
       <div class="server-stopped-overlay__box">
@@ -709,4 +713,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-

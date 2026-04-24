@@ -397,6 +397,9 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 - Stop ends polling; state resolves clearly.
 - Seeding after start should produce meaningful history/graph for the current run.
 - Interrupted/stale/reconnecting states are visible and do not pretend the queue is advancing.
+- When the web client is offline after dismissing the reconnect overlay, the sticky banner tells people to start the app to reconnect, or reload the page if the app is already running.
+- Persistent top-of-page banners should include a visible dismiss `×` affordance at the right edge, even when they also offer action buttons.
+- Exception: the offline banner is not dismissible; it stays visible above the UI and reserves layout space so it does not cover page content.
 
 ### 9.4 Alerts
 

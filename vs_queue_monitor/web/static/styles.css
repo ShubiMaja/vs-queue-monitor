@@ -277,7 +277,7 @@ body {
   margin: 0 auto;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -373,6 +373,35 @@ body {
 .restore-banner__actions {
   display: flex;
   gap: 8px;
+}
+.banner-close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(232, 240, 255, 0.82);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 2px 4px;
+  margin-left: auto;
+  border-radius: 6px;
+  align-self: flex-start;
+}
+.banner-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.banner-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+.banner-close--warm {
+  color: rgba(255, 221, 153, 0.88);
+}
+.banner-close--warm:hover {
+  background: rgba(255, 213, 128, 0.12);
+  color: #fff1c2;
 }
 .brand {
   overflow-wrap: anywhere;
@@ -1817,6 +1846,13 @@ select.inp:focus-visible {
   color: #ffd580;
   font-size: 0.8rem;
   padding: 6px 12px;
+}
+body.offline-banner-visible {
+  padding-top: var(--offline-banner-offset, 0px);
+}
+.offline-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1993,12 +1993,18 @@
 
   function _showOfflineBanner() {
     var b = document.getElementById("offlineBanner");
-    if (b) b.classList.remove("hidden");
+    if (b) {
+      b.classList.remove("hidden");
+      document.body.classList.add("offline-banner-visible");
+      document.documentElement.style.setProperty("--offline-banner-offset", b.offsetHeight + "px");
+    }
   }
 
   function _hideOfflineBanner() {
     var b = document.getElementById("offlineBanner");
     if (b) b.classList.add("hidden");
+    document.body.classList.remove("offline-banner-visible");
+    document.documentElement.style.removeProperty("--offline-banner-offset");
   }
 
   function _enterOfflineMode() {
@@ -2825,13 +2831,17 @@
 
   function setupRestoreBanner() {
     var dismiss = $("btnDismissRestore");
+    var close = $("btnCloseRestoreBanner");
     var resume = $("btnResumePath");
+    function dismissRestoreBanner() {
+      var rb = $("restoreBanner");
+      if (rb) rb.classList.add("hidden");
+      focusElSoon($("pathSummary"));
+    }
     if (dismiss)
-      dismiss.onclick = function () {
-        var rb = $("restoreBanner");
-        if (rb) rb.classList.add("hidden");
-        focusElSoon($("pathSummary"));
-      };
+      dismiss.onclick = dismissRestoreBanner;
+    if (close)
+      close.onclick = dismissRestoreBanner;
     if (resume)
       resume.onclick = function () {
         var saved = "";
@@ -2863,19 +2873,20 @@
     var btnApply = $("btnApplyUpdate");
     var btnDismiss = $("btnDismissUpdate");
     var btnMute = $("btnMuteUpdate");
-    if (btnDismiss) {
-      btnDismiss.onclick = function () {
-        window._updateDismissed = true;
-        var b = $("updateBanner");
-        if (b) b.classList.add("hidden");
-      };
+    var btnClose = $("btnCloseUpdateBanner");
+    function dismissUpdateBanner() {
+      window._updateDismissed = true;
+      var b = $("updateBanner");
+      if (b) b.classList.add("hidden");
     }
+    if (btnDismiss) {
+      btnDismiss.onclick = dismissUpdateBanner;
+    }
+    if (btnClose) btnClose.onclick = dismissUpdateBanner;
     if (btnMute) {
       btnMute.onclick = function () {
         lsSetUpdateNotify(false);
-        window._updateDismissed = true;
-        var b = $("updateBanner");
-        if (b) b.classList.add("hidden");
+        dismissUpdateBanner();
         var chk = $("chkUpdateNotify");
         if (chk) chk.checked = false;
         toast("Update notifications turned off. Re-enable in Settings → General.");
@@ -3141,6 +3152,76 @@
         Notification.permission === "denied";
     }
 
+    function sendInlineTest(kind) {
+      var popupMap = {
+        warning: {
+          enabled:
+            window._lastState == null || window._lastState.popup_enabled !== false,
+          settingName: "Warning popup",
+          payload: {
+            title: "Threshold alert",
+            body: formatNotificationBody([
+              "Sample threshold warning.",
+              "Position: 9",
+              "Estimated remaining: 12m 30s",
+              "Status: Monitoring",
+            ]),
+            kind: "warning",
+          },
+        },
+        completion: {
+          enabled: !!(window._lastState && window._lastState.completion_popup),
+          settingName: "Completion popup",
+          payload: {
+            title: "Queue completion",
+            body: formatNotificationBody([
+              "Queue completion: past queue wait - connecting (position 0).",
+              "Status: Connecting",
+            ]),
+            kind: "completion",
+          },
+        },
+        failure: {
+          enabled: !!(window._lastState && window._lastState.failure_popup),
+          settingName: "Failure popup",
+          payload: {
+            title: "Queue interrupted",
+            body: formatNotificationBody([
+              "Queue interrupted - still watching the log.",
+              "Status: Interrupted",
+              "Last change: 2026-04-21 12:34:56",
+            ]),
+            kind: "failure",
+          },
+        },
+      };
+      var cfg = popupMap[kind];
+      if (!cfg) return;
+      if (_isBannerUnsupported()) {
+        toast("Desktop banners aren't available in this window — open in a browser to test them.", "warn");
+        return;
+      }
+      if (!cfg.enabled) {
+        toast("Turn on " + cfg.settingName + " first.", "warn");
+        return;
+      }
+      if (Notification.permission !== "granted") {
+        toast("Allow notifications from the header switch first.", "warn");
+        return;
+      }
+      fireDesktopNotification(
+        cfg.payload.title,
+        {
+          body: cfg.payload.body,
+          kind: cfg.payload.kind,
+          tag: "vsqm-test-" + kind + "-" + Date.now(),
+          renotify: true,
+        },
+        "Could not show a desktop notification (check your browser and OS notification settings).",
+      );
+      toast("Test sent — check the system tray if you see no banner.");
+    }
+
     function onNotifyClick() {
       var popOn =
         window._lastState == null || window._lastState.popup_enabled !== false;
@@ -3205,42 +3286,22 @@
     if (btn) {
       btn.addEventListener("click", onNotifyClick);
     }
-    var btnTest = $("btnTestWarnNotify");
-    if (btnTest) {
-      btnTest.addEventListener("click", function () {
-        if (_isBannerUnsupported()) {
-          toast("Desktop banners aren't available in this window — open in a browser to test them.", "warn");
-          return;
-        }
-        var pOn =
-          window._lastState == null || window._lastState.popup_enabled !== false;
-        if (!pOn) {
-          toast("Turn on Warning popup first (same setting as the header switch).", "warn");
-          return;
-        }
-        if (Notification.permission !== "granted") {
-          toast("Allow notifications from the header switch first.", "warn");
-          return;
-        }
-        fetch("/api/push/test", { method: "POST" })
-          .then(function (r) {
-            return r.json().then(function (j) {
-              if (!r.ok || !j.ok) {
-                throw new Error((j && j.error) || "Could not send backend web push test");
-              }
-              toast("Backend push test sent.");
-              return j;
-            });
-          })
-          .catch(function (err) {
-            fireDesktopNotification("Test notification", {
-              body:
-                "If you see this, desktop alerts are working.\n\nReal alerts repeat the in-app message and add queue context.",
-              tag: "vsqm-test-" + Date.now(),
-              renotify: true,
-            }, "Could not show a desktop notification (check your browser and OS notification settings).");
-            toast(String(err.message || err), "warn");
-          });
+    var btnTestWarn = $("btnTestWarnNotify");
+    if (btnTestWarn) {
+      btnTestWarn.addEventListener("click", function () {
+        sendInlineTest("warning");
+      });
+    }
+    var btnTestComp = $("btnTestCompNotify");
+    if (btnTestComp) {
+      btnTestComp.addEventListener("click", function () {
+        sendInlineTest("completion");
+      });
+    }
+    var btnTestFail = $("btnTestFailNotify");
+    if (btnTestFail) {
+      btnTestFail.addEventListener("click", function () {
+        sendInlineTest("failure");
       });
     }
     syncHint();
@@ -4060,6 +4121,9 @@
           body: JSON.stringify({ include_prereleases: nextIncludePre }),
         }).catch(function () {});
         var patch = {
+          popup_enabled: nextWarningPopup,
+          completion_popup: nextCompletionPopup,
+          failure_popup: nextFailurePopup,
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
           failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
@@ -4451,6 +4515,3 @@
     })
     .catch(function () {});
 })();
-
-
-
