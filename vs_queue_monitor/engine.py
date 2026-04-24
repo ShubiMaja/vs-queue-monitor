@@ -400,6 +400,9 @@ class QueueMonitorEngine:
         self._mpp_floor_position = None
         self._mpp_floor_value = None
         self.last_alert_epoch = 0.0
+        self._session_start_epoch = None
+        self._session_start_position = None
+        self._session_record_written = False
         self.poll_sec = self.parse_float(self.poll_sec_var.get(), 'Poll sec', 0.2)
         resolved = resolve_log_file(str(folder))
         self._starting = True
@@ -721,13 +724,13 @@ class QueueMonitorEngine:
         """Append one completed/interrupted session record to session_history.jsonl."""
         if self._session_record_written:
             return
-        self._session_record_written = True
         try:
             record = self._build_session_record(outcome)
             path = self._effective_history_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
+            self._session_record_written = True
             self._invalidate_history_cache()
         except Exception:
             pass
