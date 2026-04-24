@@ -1569,6 +1569,8 @@
     if (chkUpdateNotify) chkUpdateNotify.checked = lsGetUpdateNotify();
     var chkPre = $("chkIncludePrereleases");
     if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
+    var ihp = $("inpHistoryPath");
+    if (ihp) ihp.value = (s && s.history_path) || "";
   }
 
   function activateSettingsTab(tabName) {
@@ -3932,6 +3934,18 @@
     wireSoundFilePicker("btnPickWarnSound", "inpSetWarnSound", "Warning sound");
     wireSoundFilePicker("btnPickCompSound", "inpSetCompSound", "Completion sound");
     wireSoundFilePicker("btnPickFailSound", "inpSetFailSound", "Failure sound");
+    var btnPickHistoryPath = $("btnPickHistoryPath");
+    if (btnPickHistoryPath) {
+      btnPickHistoryPath.onclick = function () {
+        pickPath("folder")
+          .then(function (j) {
+            if (j.cancelled || !j.path) return;
+            var ihp = $("inpHistoryPath");
+            if (ihp) { ihp.value = j.path; toast("History folder set"); }
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+    }
 
     function wireSoundPreview(buttonId, kind) {
       var btn = $(buttonId);
@@ -4186,6 +4200,8 @@
         if (iws) patch.alert_sound_path = iws.value.trim();
         if (ics) patch.completion_sound_path = ics.value.trim();
         if (ifs) patch.failure_sound_path = ifs.value.trim();
+        var ihp = $("inpHistoryPath");
+        if (ihp) patch.history_path = ihp.value.trim();
         postConfig(patch)
           .then(function (state) {
             if (state && typeof state === "object") {

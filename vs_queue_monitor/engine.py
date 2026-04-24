@@ -159,6 +159,8 @@ class QueueMonitorEngine:
         self._session_start_epoch: Optional[float] = None
         self._session_start_position: Optional[int] = None
         self._session_record_written: bool = False
+        _hp = self.config.get("history_path", "")
+        self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
@@ -190,7 +192,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -212,7 +214,7 @@ class QueueMonitorEngine:
 
     def _bind_config_persist_traces(self) -> None:
         """Save config.json shortly after any setting change (debounced)."""
-        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
+        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var, self.history_path_var):
             var.trace_add('write', self._schedule_config_persist)
 
     def reset_defaults(self) -> None:
@@ -580,22 +582,34 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
+    def _effective_history_path(self) -> Path:
+        raw = (self.history_path_var.get() or "").strip()
+        if raw:
+            return Path(raw) / "session_history.jsonl"
+        return get_history_path()
+
+    def _effective_checkpoint_path(self) -> Path:
+        raw = (self.history_path_var.get() or "").strip()
+        if raw:
+            return Path(raw) / "current_session.json"
+        return get_checkpoint_path()
+
     def _recover_crashed_session(self) -> None:
         """On startup, recover any session left behind by a hard crash."""
         try:
-            cp = get_checkpoint_path()
+            cp = self._effective_checkpoint_path()
             if not cp.exists():
                 return
             data = json.loads(cp.read_text(encoding="utf-8"))
             data["outcome"] = "crashed"
-            hist = get_history_path()
+            hist = self._effective_history_path()
             hist.parent.mkdir(parents=True, exist_ok=True)
             with open(hist, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(data) + "\n")
             cp.unlink(missing_ok=True)
         except Exception:
             try:
-                get_checkpoint_path().unlink(missing_ok=True)
+                self._effective_checkpoint_path().unlink(missing_ok=True)
             except Exception:
                 pass
 
@@ -628,7 +642,7 @@ class QueueMonitorEngine:
         """Overwrite current_session.json with live session state (crash recovery)."""
         try:
             record = self._build_session_record("in_progress")
-            path = get_checkpoint_path()
+            path = self._effective_checkpoint_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(record), encoding="utf-8")
         except Exception:
@@ -641,14 +655,14 @@ class QueueMonitorEngine:
         self._session_record_written = True
         try:
             record = self._build_session_record(outcome)
-            path = get_history_path()
+            path = self._effective_history_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
         except Exception:
             pass
         try:
-            get_checkpoint_path().unlink(missing_ok=True)
+            self._effective_checkpoint_path().unlink(missing_ok=True)
         except Exception:
             pass
 

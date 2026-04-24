@@ -703,6 +703,14 @@
           <div class="form-grid form-grid--settings">
             <label class="settings-option"><input type="checkbox" id="chkUpdateNotify" checked /> Show update notifications</label>
             <label class="settings-option"><input type="checkbox" id="chkIncludePrereleases" /> Include pre-release versions</label>
+            <label class="settings-select-label settings-field">Session history folder
+              <div class="settings-path-row">
+                <input type="text" id="inpHistoryPath" class="inp settings-inp" placeholder="Empty = default (%AppData%\vs-queue-monitor)" autocomplete="off" spellcheck="false" />
+                <button type="button" class="btn btn--small btn--icon-only settings-path-btn" id="btnPickHistoryPath" title="Choose history folder" aria-label="Choose history folder">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </button>
+              </div>
+            </label>
           </div>
         </section>
 

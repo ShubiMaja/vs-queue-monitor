@@ -511,6 +511,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_sound": bool(engine.failure_sound_enabled_var.get()),
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
+        "history_path": engine.history_path_var.get(),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines(400),
         "pending_new_queue_session": engine._pending_new_queue_session,
@@ -716,6 +717,8 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.failure_sound_path_var.set(str(body["failure_sound_path"]))
             if "tutorial_done" in body:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
+            if "history_path" in body:
+                engine.history_path_var.set(str(body["history_path"]).strip())
             engine.persist_config()
             # Match native folder browse: re-resolve the log and seed the graph so ``current_log_file``
             # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).
