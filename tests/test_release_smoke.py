@@ -310,3 +310,38 @@ def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
     assert engine.queue_rate_var.get() == "—"
     assert engine.global_rate_var.get() == "—"
     assert engine.predicted_remaining_var.get() == "—"
+
+
+def test_completed_queue_restart_does_not_add_post_completion_heartbeat_points() -> None:
+    root = Path(".tmp-release-smoke-tests-completed-restart")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:05 [Notification] Client is in connect queue at position: 11",
+            "9.4.2026 22:31:15 [Notification] Client is in connect queue at position: 10",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 1",
+            "9.4.2026 22:31:26 [Notification] Connected to server, downloading data...",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    seed = compute_seed_graph_from_log(log_path)
+    assert seed is not None
+
+    engine._apply_seed_result(seed)
+    seeded_points = list(engine.graph_points)
+    seeded_rate = engine.queue_rate_var.get()
+
+    engine.poll_once()
+
+    assert engine.status_var.get() == "Completed"
+    assert engine.position_var.get() == "0"
+    assert list(engine.graph_points) == seeded_points
+    assert engine.queue_rate_var.get() == seeded_rate
