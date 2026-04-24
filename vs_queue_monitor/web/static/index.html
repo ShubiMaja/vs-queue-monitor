@@ -485,10 +485,7 @@
         <h2 id="modalAboutHeading" class="about-name">VS Queue Monitor</h2>
         <p class="about-tagline muted">Vintage Story client log queue monitor</p>
         <p class="about-version muted"><span id="aboutVersion"></span></p>
-        <div class="about-update-row" id="aboutUpdateRow">
-          <span id="aboutUpdateStatus" class="about-update-status muted"></span>
-          <button type="button" class="btn btn--secondary btn--small" id="btnAboutCheckUpdate">Check for updates</button>
-        </div>
+        <p id="aboutUpdateStatus" class="about-update-status muted"></p>
         <div class="about-links">
           <a id="aboutGithubLink" href="#" class="btn btn--secondary btn--small about-link" target="_blank" rel="noopener noreferrer">
             <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -674,6 +671,7 @@
           <h3 class="settings-h3" id="settingsGeneralHeading">General</h3>
           <div class="form-grid form-grid--settings">
             <label class="settings-option"><input type="checkbox" id="chkUpdateNotify" checked /> Show update notifications</label>
+            <label class="settings-option"><input type="checkbox" id="chkIncludePrereleases" /> Include pre-release versions</label>
           </div>
         </section>
 

@@ -59,7 +59,29 @@ def _parse_version(v: str) -> tuple[int, ...]:
         return (0,)
 
 
-def _check_for_release_update() -> dict[str, Any]:
+def _update_prefs_path() -> Path:
+    return get_config_path().parent / "update_prefs.json"
+
+
+def _load_update_prefs() -> dict[str, Any]:
+    try:
+        return json.loads(_update_prefs_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_update_prefs(prefs: dict[str, Any]) -> None:
+    try:
+        p = _update_prefs_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        existing = _load_update_prefs()
+        existing.update(prefs)
+        p.write_text(json.dumps(existing), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _check_for_release_update(include_prereleases: bool = False) -> dict[str, Any]:
     """Call the GitHub releases API and compare the latest release tag against VERSION."""
     try:
         req = urllib.request.Request(
@@ -71,7 +93,7 @@ def _check_for_release_update() -> dict[str, Any]:
         tag = data.get("tag_name", "")
         name = data.get("name", tag)
         prerelease = bool(data.get("prerelease", False))
-        if prerelease:
+        if prerelease and not include_prereleases:
             return {"available": False, "error": None}
         available = _parse_version(tag) > _parse_version(VERSION)
         return {
@@ -530,6 +552,7 @@ def _api_state(request: Request) -> JSONResponse:
             "update_error": getattr(request.app.state, "update_error", ""),
             "update_download_bytes": getattr(request.app.state, "update_download_bytes", 0),
             "update_download_total": getattr(request.app.state, "update_download_total", 0),
+            "include_prereleases": getattr(request.app.state, "include_prereleases", False),
         }
         with lock:
             snap = build_snapshot(engine, hooks, update_extra)
@@ -825,11 +848,27 @@ async def _api_push_test(request: Request) -> JSONResponse:
 
 
 async def _api_update_check(request: Request) -> JSONResponse:
-    result = await asyncio.to_thread(_check_for_release_update)
+    include_pre = getattr(request.app.state, "include_prereleases", False)
+    result = await asyncio.to_thread(_check_for_release_update, include_pre)
     request.app.state.update_available = bool(result.get("available"))
     request.app.state.update_release_name = result.get("release_name", "")
     request.app.state.update_zipball_url = result.get("zipball_url", "")
     return JSONResponse(result)
+
+
+async def _api_update_config(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    if "include_prereleases" in body:
+        val = bool(body["include_prereleases"])
+        request.app.state.include_prereleases = val
+        await asyncio.to_thread(_save_update_prefs, {"include_prereleases": val})
+    return JSONResponse({
+        "ok": True,
+        "include_prereleases": getattr(request.app.state, "include_prereleases", False),
+    })
 
 
 async def _api_update_apply(request: Request) -> JSONResponse:
@@ -943,6 +982,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
             update_error = getattr(websocket.app.state, "update_error", "")
             update_download_bytes = getattr(websocket.app.state, "update_download_bytes", 0)
             update_download_total = getattr(websocket.app.state, "update_download_total", 0)
+            include_prereleases = getattr(websocket.app.state, "include_prereleases", False)
 
             def snap() -> dict[str, Any]:
                 with lock:
@@ -953,6 +993,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
                         "update_error": update_error,
                         "update_download_bytes": update_download_bytes,
                         "update_download_total": update_download_total,
+                        "include_prereleases": include_prereleases,
                     })
 
             payload = await asyncio.to_thread(snap)
@@ -1042,11 +1083,12 @@ def _start_update_checker(app: Any) -> None:
     app.state.update_error = ""
     app.state.update_download_bytes = 0
     app.state.update_download_total = 0
+    app.state.include_prereleases = _load_update_prefs().get("include_prereleases", False)
 
     def worker() -> None:
         while True:
             try:
-                result = _check_for_release_update()
+                result = _check_for_release_update(app.state.include_prereleases)
                 app.state.update_available = bool(result.get("available"))
                 app.state.update_release_name = result.get("release_name", "")
                 app.state.update_zipball_url = result.get("zipball_url", "")
@@ -1074,6 +1116,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/push/test", _api_push_test, methods=["POST"]),
         Route("/api/update/check", _api_update_check, methods=["GET"]),
         Route("/api/update/apply", _api_update_apply, methods=["POST"]),
+        Route("/api/update/config", _api_update_config, methods=["POST"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

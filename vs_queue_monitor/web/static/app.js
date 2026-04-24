@@ -315,6 +315,49 @@
     hideEl($("modalSettings"));
     showEl($("modalAbout"));
     focusElSoon($("btnAboutOk"));
+    _aboutCheckForUpdates();
+  }
+
+  function _aboutCheckForUpdates() {
+    var statusEl = $("aboutUpdateStatus");
+    if (!statusEl) return;
+    statusEl.textContent = "Checking for updates…";
+    var prev = $("btnAboutInstallUpdate");
+    if (prev) prev.remove();
+    fetch("/api/update/check")
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!statusEl) return;
+        if (j.error) { statusEl.textContent = "Could not check for updates."; return; }
+        if (j.available) {
+          statusEl.textContent = "Update available: " + (j.release_name || j.latest_tag || "");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.id = "btnAboutInstallUpdate";
+          btn.className = "btn btn--primary btn--small";
+          btn.style.marginTop = "8px";
+          btn.textContent = "Install update";
+          btn.onclick = function () {
+            if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+            btn.disabled = true;
+            closeAboutModal();
+            fetch("/api/update/apply", { method: "POST" })
+              .then(function (r) { return r.json(); })
+              .then(function (j2) {
+                if (!j2.ok) toast("Update failed: " + (j2.error || "unknown"), "warn");
+                else window._pendingHardReload = true;
+              })
+              .catch(function (e) { toast("Update error: " + String(e.message || e), "warn"); });
+          };
+          statusEl.appendChild(document.createElement("br"));
+          statusEl.appendChild(btn);
+        } else {
+          statusEl.textContent = "VS Queue Monitor is up to date.";
+        }
+      })
+      .catch(function () {
+        if (statusEl) statusEl.textContent = "Could not check for updates.";
+      });
   }
 
   function closeAboutModal() {
@@ -1508,6 +1551,8 @@
     if (ifs) ifs.value = s.failure_sound_path || "";
     var chkUpdateNotify = $("chkUpdateNotify");
     if (chkUpdateNotify) chkUpdateNotify.checked = lsGetUpdateNotify();
+    var chkPre = $("chkIncludePrereleases");
+    if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
   }
 
   function activateSettingsTab(tabName) {
@@ -3512,54 +3557,6 @@
         el.addEventListener("click", function () { closeAboutModal(); });
       }
     });
-    var btnCheckUpdate = $("btnAboutCheckUpdate");
-    if (btnCheckUpdate) {
-      btnCheckUpdate.onclick = function () {
-        var statusEl = $("aboutUpdateStatus");
-        btnCheckUpdate.disabled = true;
-        btnCheckUpdate.textContent = "Checking…";
-        if (statusEl) statusEl.textContent = "";
-        var prev = $("btnAboutInstallUpdate");
-        if (prev) prev.remove();
-        fetch("/api/update/check")
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            btnCheckUpdate.disabled = false;
-            btnCheckUpdate.textContent = "Check for updates";
-            if (!statusEl) return;
-            if (j.error) { statusEl.textContent = "Check failed: " + j.error; return; }
-            if (j.available) {
-              statusEl.textContent = "Update available: " + (j.release_name || j.latest_tag || "");
-              var installBtn = document.createElement("button");
-              installBtn.type = "button";
-              installBtn.id = "btnAboutInstallUpdate";
-              installBtn.className = "btn btn--primary btn--small";
-              installBtn.style.marginLeft = "8px";
-              installBtn.textContent = "Install now";
-              installBtn.onclick = function () {
-                if (!window.confirm("Apply update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
-                installBtn.disabled = true;
-                closeAboutModal();
-                fetch("/api/update/apply", { method: "POST" })
-                  .then(function (r) { return r.json(); })
-                  .then(function (j2) {
-                    if (!j2.ok) toast("Update failed: " + (j2.error || "unknown"), "warn");
-                    else window._pendingHardReload = true;
-                  })
-                  .catch(function (e) { toast("Update error: " + String(e.message || e), "warn"); });
-              };
-              statusEl.appendChild(installBtn);
-            } else {
-              statusEl.textContent = "Up to date (" + (j.current_version || "") + ")";
-            }
-          })
-          .catch(function (e) {
-            btnCheckUpdate.disabled = false;
-            btnCheckUpdate.textContent = "Check for updates";
-            if (statusEl) statusEl.textContent = "Check failed: " + String(e.message || e);
-          });
-      };
-    }
   }
 
   function setupHistoryAutoscroll() {
@@ -4056,6 +4053,12 @@
           var ub = $("updateBanner");
           if (ub) ub.classList.add("hidden");
         }
+        var nextIncludePre = !!($("chkIncludePrereleases") && $("chkIncludePrereleases").checked);
+        fetch("/api/update/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ include_prereleases: nextIncludePre }),
+        }).catch(function () {});
         var patch = {
           sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
           completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
