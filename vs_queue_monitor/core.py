@@ -594,6 +594,11 @@ def get_history_path() -> Path:
     return get_config_path().parent / "session_history.jsonl"
 
 
+def get_checkpoint_path() -> Path:
+    """Live session checkpoint — exists only while a session is in progress."""
+    return get_config_path().parent / "current_session.json"
+
+
 def _legacy_config_path() -> Path:
     """Previous config location before the project was renamed to vs-queue-monitor."""
     if sys.platform.startswith("win"):

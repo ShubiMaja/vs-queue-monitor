@@ -164,6 +164,7 @@ class QueueMonitorEngine:
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
         self._bind_config_persist_traces()
+        self._recover_crashed_session()
         self.start_timer()
         self._hooks.append_history(
             "WARNING — Work in progress; AI-assisted code. Expect bugs and rough edges. "
@@ -579,42 +580,75 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
+    def _recover_crashed_session(self) -> None:
+        """On startup, recover any session left behind by a hard crash."""
+        try:
+            cp = get_checkpoint_path()
+            if not cp.exists():
+                return
+            data = json.loads(cp.read_text(encoding="utf-8"))
+            data["outcome"] = "crashed"
+            hist = get_history_path()
+            hist.parent.mkdir(parents=True, exist_ok=True)
+            with open(hist, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(data) + "\n")
+            cp.unlink(missing_ok=True)
+        except Exception:
+            try:
+                get_checkpoint_path().unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _build_session_record(self, outcome: str) -> dict:
+        """Build the session record dict (shared by checkpoint and final write)."""
+        pts = list(self.graph_points)
+        change_pts: list[tuple[float, int]] = []
+        last_pos: Optional[int] = None
+        for t, p in pts:
+            if p != last_pos:
+                change_pts.append((t, p))
+                last_pos = p
+        start_epoch = self._session_start_epoch or (pts[0][0] if pts else time.time())
+        server = self.server_target_var.get()
+        return {
+            "session_id": self._last_queue_run_session,
+            "source_path": str(self.config.get("source_path", "") or ""),
+            "log_file": str(self.current_log_file) if self.current_log_file else None,
+            "server": server if server and server != "—" else None,
+            "start_epoch": start_epoch,
+            "end_epoch": time.time(),
+            "outcome": outcome,
+            "start_position": self._session_start_position,
+            "end_position": self.last_position,
+            "points": change_pts,
+            "vsqm_version": VERSION,
+        }
+
+    def _checkpoint_session(self) -> None:
+        """Overwrite current_session.json with live session state (crash recovery)."""
+        try:
+            record = self._build_session_record("in_progress")
+            path = get_checkpoint_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(record), encoding="utf-8")
+        except Exception:
+            pass
+
     def _write_session_record(self, outcome: str) -> None:
         """Append one completed/interrupted session record to session_history.jsonl."""
         if self._session_record_written:
             return
         self._session_record_written = True
         try:
-            pts = list(self.graph_points)
-            # Deduplicate to change-resolution points only.
-            change_pts: list[tuple[float, int]] = []
-            last_pos: Optional[int] = None
-            for t, p in pts:
-                if p != last_pos:
-                    change_pts.append((t, p))
-                    last_pos = p
-            start_epoch = (
-                self._session_start_epoch
-                or (pts[0][0] if pts else time.time())
-            )
-            server = self.server_target_var.get()
-            record = {
-                "session_id": self._last_queue_run_session,
-                "source_path": str(self.config.get("source_path", "") or ""),
-                "log_file": str(self.current_log_file) if self.current_log_file else None,
-                "server": server if server and server != "—" else None,
-                "start_epoch": start_epoch,
-                "end_epoch": time.time(),
-                "outcome": outcome,
-                "start_position": self._session_start_position,
-                "end_position": self.last_position,
-                "points": change_pts,
-                "vsqm_version": VERSION,
-            }
+            record = self._build_session_record(outcome)
             path = get_history_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
+        except Exception:
+            pass
+        try:
+            get_checkpoint_path().unlink(missing_ok=True)
         except Exception:
             pass
 
@@ -1044,6 +1078,7 @@ class QueueMonitorEngine:
                                 self.last_position = 0
                             self.update_time_estimates()
                             if position != prev_pos:
+                                self._checkpoint_session()
                                 self._mpp_floor_position = position
                                 self._mpp_floor_value = self._minutes_per_position_from_window()
                                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
