@@ -784,11 +784,11 @@
   }
 
   /** Native folder/file dialog via Python (Tk) on the machine running the app. */
-  function pickPath(mode) {
+  function pickPath(mode, initialDir) {
     return fetch("/api/pick_path", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: mode }),
+      body: JSON.stringify({ mode: mode, initial_dir: initialDir || "" }),
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
@@ -3874,7 +3874,7 @@
     var bf = $("btnBrowseFolder");
     if (bf) {
       bf.onclick = function () {
-        pickPath("folder")
+        pickPath("folder", $("inpPath") && $("inpPath").value.trim())
           .then(function (j) {
             if (j.cancelled) return;
             if (!j.path) return;
@@ -3893,7 +3893,7 @@
     var bfile = $("btnBrowseFile");
     if (bfile) {
       bfile.onclick = function () {
-        pickPath("file")
+        pickPath("file", $("inpPath") && $("inpPath").value.trim())
           .then(function (j) {
             if (j.cancelled) return;
             if (!j.path) return;
@@ -3914,7 +3914,7 @@
       var input = $(inputId);
       if (!btnPick || !input) return;
       btnPick.onclick = function () {
-        pickPath("file")
+        pickPath("file", input.value.trim())
           .then(function (j) {
             if (j.cancelled || !j.path) return;
             input.value = j.path;
@@ -3931,7 +3931,7 @@
     var btnPickHistoryPath = $("btnPickHistoryPath");
     if (btnPickHistoryPath) {
       btnPickHistoryPath.onclick = function () {
-        pickPath("folder")
+        pickPath("folder", $("inpHistoryPath") && $("inpHistoryPath").value.trim())
           .then(function (j) {
             if (j.cancelled || !j.path) return;
             var ihp = $("inpHistoryPath");

@@ -419,10 +419,19 @@ def _preconfigure_chromium_notification_permission(port: int) -> None:
         pass  # best-effort
 
 
-def _pick_path_sync(mode: str) -> str | None:
+def _pick_path_sync(mode: str, initial_dir: str | None = None) -> str | None:
     """Native folder or file dialog (Tk). Run via ``asyncio.to_thread`` from the Starlette worker."""
     import tkinter as tk
     from tkinter import filedialog
+
+    # Resolve a sensible starting directory from whatever path the user already typed.
+    start_dir: str | None = None
+    if initial_dir:
+        p = Path(initial_dir.strip())
+        if p.is_dir():
+            start_dir = str(p)
+        elif p.parent.is_dir():
+            start_dir = str(p.parent)
 
     root = tk.Tk()
     root.withdraw()
@@ -436,9 +445,10 @@ def _pick_path_sync(mode: str) -> str | None:
                 parent=root,
                 title="Select Vintage Story client log",
                 filetypes=[("Log files", "*.log"), ("All files", "*.*")],
+                initialdir=start_dir,
             )
         else:
-            p = filedialog.askdirectory(parent=root, mustexist=True)
+            p = filedialog.askdirectory(parent=root, mustexist=True, initialdir=start_dir)
         return str(p).strip() if p else None
     finally:
         try:
@@ -665,8 +675,9 @@ async def _api_pick_path(request: Request) -> JSONResponse:
     mode = str(body.get("mode", "folder")).strip().lower()
     if mode not in ("folder", "file"):
         return JSONResponse({"ok": False, "error": "mode must be 'folder' or 'file'"}, status_code=400)
+    initial_dir = str(body.get("initial_dir", "") or "").strip() or None
     try:
-        path = await asyncio.to_thread(_pick_path_sync, mode)
+        path = await asyncio.to_thread(_pick_path_sync, mode, initial_dir)
     except Exception as exc:
         logging.getLogger(__name__).exception("pick_path dialog failed")
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
