@@ -1213,14 +1213,13 @@
     return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
   }
 
-  function formatLatestSessionOptionLabelClean(state, latestStatus) {
+  function formatLatestSessionOptionLabelClean(state, latestStatus, visiblePastCount) {
     var startEpoch = null;
     var points = (state && state.graph_points) || [];
     if (points.length) {
       startEpoch = points[0][0];
     }
-    var sessions = (state && state.queue_sessions) || [];
-    var displayIndex = sessions.length + 1;
+    var displayIndex = Math.max(1, Number(visiblePastCount) + 1);
     var latestName = "Session " + displayIndex;
     var startText = formatSessionStart(startEpoch);
     return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
@@ -1394,7 +1393,7 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sessions.length);
     opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;

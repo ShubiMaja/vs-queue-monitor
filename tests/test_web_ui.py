@@ -77,3 +77,4 @@ def test_completed_latest_session_is_not_duplicated_in_dropdown(page: Page, base
     opts = page.locator("#selSession option")
     expect(opts).to_have_count(1)
     expect(page.locator("#selSession")).to_have_value("latest")
+    expect(opts.nth(0)).to_contain_text("Session 1")
