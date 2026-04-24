@@ -1536,37 +1536,45 @@ select.inp:focus-visible {
 .modal__box--about {
   max-width: 340px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   text-align: center;
-  padding-bottom: var(--space-5);
+  padding: 20px 20px 16px;
 }
 .about-icon {
-  margin: 0 auto var(--space-3);
+  margin: 0;
   display: flex;
   justify-content: center;
 }
 .modal__box--about h2.about-name {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 1.1rem;
 }
 .about-tagline {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 0.8rem;
 }
 .about-version {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-size: 0.8rem;
 }
 .about-links {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: var(--space-4);
+  margin: 4px 0 0;
 }
 .about-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   text-decoration: none;
+}
+.modal__box--about .modal__actions {
+  width: 100%;
+  margin-top: 6px;
 }
 .modal__text {
   line-height: 1.45;
