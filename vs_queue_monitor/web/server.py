@@ -1034,7 +1034,7 @@ class _NoCacheStaticFiles(StaticFiles):
 
 
 def _start_update_checker(app: Any) -> None:
-    """Background daemon: checks for updates every hour, stores result on app.state."""
+    """Background daemon: checks for updates on startup then every 30 minutes."""
     app.state.update_available = False
     app.state.update_release_name = ""
     app.state.update_zipball_url = ""
@@ -1044,7 +1044,6 @@ def _start_update_checker(app: Any) -> None:
     app.state.update_download_total = 0
 
     def worker() -> None:
-        time.sleep(60)
         while True:
             try:
                 result = _check_for_release_update()
@@ -1053,7 +1052,7 @@ def _start_update_checker(app: Any) -> None:
                 app.state.update_zipball_url = result.get("zipball_url", "")
             except Exception:
                 pass
-            time.sleep(3600)
+            time.sleep(1800)
 
     threading.Thread(target=worker, daemon=True, name="vsqm-update-checker").start()
 
