@@ -11,6 +11,9 @@
 
 ## Fixed (closed)
 
+~~Bug: completion and failure `Send test` buttons in Settings did nothing, and warning test used a separate backend-push path~~
+Fixed: the live notification setup now wires warning/completion/failure test buttons together in one path, all three mirror their real alert type copy, and browser regression coverage verifies the trio after saving popup settings (v1.1.49)
+
 ~~Tweak: graph display preferences were persisted in shared server config even though they are browser-only viewer choices~~
 Fixed: graph `Live`, `REL/ABS`, and `LIN/LOG` now live in browser local storage instead of server config; the engine no longer persists them in `config.json`, and the browser applies them locally on top of shared monitor state (v1.1.31)
 

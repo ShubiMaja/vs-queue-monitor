@@ -70,9 +70,11 @@ def test_completion_and_failure_test_notifications_follow_saved_settings(page: P
     page.locator("#tabFailure").click()
     page.locator("#chkFailPop").check()
     page.locator("#btnSaveSettings").click()
-    expect(page.locator("#modalSettings")).to_have_class(r".*\bhidden\b.*")
+    expect(page.locator("#modalSettings")).to_have_attribute("aria-hidden", "true")
 
     page.locator("#btnSettings").click()
+    page.locator("#tabWarning").click()
+    page.locator("#btnTestWarnNotify").click()
     page.locator("#tabCompletion").click()
     page.locator("#btnTestCompNotify").click()
     page.locator("#tabFailure").click()
@@ -80,5 +82,6 @@ def test_completion_and_failure_test_notifications_follow_saved_settings(page: P
 
     notifications = page.evaluate("window.__notifications")
     titles = [entry["title"] for entry in notifications]
+    assert "Threshold alert" in titles
     assert "Queue completion" in titles
     assert "Queue interrupted" in titles
