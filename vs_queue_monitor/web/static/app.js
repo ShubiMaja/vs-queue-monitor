@@ -2001,6 +2001,10 @@
     if (b) b.classList.add("hidden");
   }
 
+  function _dismissOfflineBanner() {
+    _hideOfflineBanner();
+  }
+
   function _enterOfflineMode() {
     _offlineMode = true;
     _disconnectOverlayShown = false;
@@ -2825,13 +2829,17 @@
 
   function setupRestoreBanner() {
     var dismiss = $("btnDismissRestore");
+    var close = $("btnCloseRestoreBanner");
     var resume = $("btnResumePath");
+    function dismissRestoreBanner() {
+      var rb = $("restoreBanner");
+      if (rb) rb.classList.add("hidden");
+      focusElSoon($("pathSummary"));
+    }
     if (dismiss)
-      dismiss.onclick = function () {
-        var rb = $("restoreBanner");
-        if (rb) rb.classList.add("hidden");
-        focusElSoon($("pathSummary"));
-      };
+      dismiss.onclick = dismissRestoreBanner;
+    if (close)
+      close.onclick = dismissRestoreBanner;
     if (resume)
       resume.onclick = function () {
         var saved = "";
@@ -2863,19 +2871,20 @@
     var btnApply = $("btnApplyUpdate");
     var btnDismiss = $("btnDismissUpdate");
     var btnMute = $("btnMuteUpdate");
-    if (btnDismiss) {
-      btnDismiss.onclick = function () {
-        window._updateDismissed = true;
-        var b = $("updateBanner");
-        if (b) b.classList.add("hidden");
-      };
+    var btnClose = $("btnCloseUpdateBanner");
+    function dismissUpdateBanner() {
+      window._updateDismissed = true;
+      var b = $("updateBanner");
+      if (b) b.classList.add("hidden");
     }
+    if (btnDismiss) {
+      btnDismiss.onclick = dismissUpdateBanner;
+    }
+    if (btnClose) btnClose.onclick = dismissUpdateBanner;
     if (btnMute) {
       btnMute.onclick = function () {
         lsSetUpdateNotify(false);
-        window._updateDismissed = true;
-        var b = $("updateBanner");
-        if (b) b.classList.add("hidden");
+        dismissUpdateBanner();
         var chk = $("chkUpdateNotify");
         if (chk) chk.checked = false;
         toast("Update notifications turned off. Re-enable in Settings → General.");
@@ -4406,6 +4415,8 @@
   safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
   safeInit("setupRestoreBanner", setupRestoreBanner);
   safeInit("setupUpdateBanner", setupUpdateBanner);
+  var _btnCloseOfflineBanner = $("btnCloseOfflineBanner");
+  if (_btnCloseOfflineBanner) _btnCloseOfflineBanner.addEventListener("click", _dismissOfflineBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
   safeInit("setupNotifications", setupNotifications);
@@ -4451,6 +4462,3 @@
     })
     .catch(function () {});
 })();
-
-
-
