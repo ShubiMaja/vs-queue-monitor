@@ -512,6 +512,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "history_path": engine.history_path_var.get(),
+        "history_path_resolved": str(engine._effective_history_path().parent),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": hooks.history_lines(400),
         "pending_new_queue_session": engine._pending_new_queue_session,

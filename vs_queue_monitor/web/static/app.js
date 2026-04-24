@@ -1570,7 +1570,7 @@
     var chkPre = $("chkIncludePrereleases");
     if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
     var ihp = $("inpHistoryPath");
-    if (ihp) ihp.value = (s && s.history_path) || "";
+    if (ihp) ihp.value = (s && (s.history_path || s.history_path_resolved)) || "";
   }
 
   function activateSettingsTab(tabName) {
