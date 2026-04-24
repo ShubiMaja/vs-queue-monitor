@@ -242,9 +242,10 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-Tweak: No queue detected warning should be :warning symbo: No Queue!
+~~Tweak: No queue detected warning should be :warning symbo: No Queue!~~
+Done: the status copy now uses an icon-led warning label, `⚠ No Queue!`, instead of the longer `Warning: no queue detected` wording (v1.1.58)
 
-Questions: should we allow multiple queue monitor location? What would the impact be?
+Questions: should we allow multiple queue monitor location e.g. file not synced between instances (client-side))? What would the impact be?
 
 ## Implemented
 

@@ -681,7 +681,7 @@ class QueueMonitorEngine:
                 self._set_status_line('Monitoring')
         else:
             self.write_history('Could not find queue data in the log for the new run.')
-            self._set_status_line('Warning: no queue detected', danger=True)
+            self._set_status_line('⚠ No Queue!', danger=True)
             self.graph_points.clear()
             self.current_point = None
             self.last_position = None
@@ -999,7 +999,7 @@ class QueueMonitorEngine:
                                 self.raise_alert(position, reason)
                             self._maybe_notify_queue_completion(position, text)
                     else:
-                        self._set_status_line('Warning: no queue detected', danger=True)
+                        self._set_status_line('⚠ No Queue!', danger=True)
         except Exception as exc:
             self._set_status_line('Error')
             self.write_history(f'Error: {exc}')
