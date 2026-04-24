@@ -1561,7 +1561,26 @@ select.inp:focus-visible {
   align-items: center;
   gap: 8px;
   text-align: center;
-  padding: 20px 20px 16px;
+  padding: 28px 20px 16px;
+  position: relative;
+}
+.modal-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
 }
 .about-icon {
   margin: 0;
@@ -1580,19 +1599,19 @@ select.inp:focus-visible {
   margin: 0;
   font-size: 0.8rem;
 }
+.about-footer {
+  margin-top: 4px;
+  font-size: 0.8rem;
+}
 .about-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   text-decoration: none;
+  color: var(--text-muted);
 }
-.modal__box--about .modal__actions {
-  width: 100%;
-  margin-top: 10px;
-}
-.modal__actions--about {
-  justify-content: space-between;
-  align-items: center;
+.about-link:hover {
+  color: var(--text);
 }
 .update-badge {
   color: var(--accent);
