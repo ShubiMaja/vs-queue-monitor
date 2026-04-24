@@ -1580,12 +1580,6 @@ select.inp:focus-visible {
   margin: 0;
   font-size: 0.8rem;
 }
-.about-links {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 4px 0 0;
-}
 .about-link {
   display: inline-flex;
   align-items: center;
@@ -1594,7 +1588,21 @@ select.inp:focus-visible {
 }
 .modal__box--about .modal__actions {
   width: 100%;
-  margin-top: 6px;
+  margin-top: 10px;
+}
+.modal__actions--about {
+  justify-content: space-between;
+  align-items: center;
+}
+.update-badge {
+  color: var(--accent);
+  border-color: transparent;
+  padding: 5px;
+}
+.update-badge:hover,
+.update-badge:focus {
+  border-color: var(--accent);
+  background: transparent;
 }
 .modal__text {
   line-height: 1.45;

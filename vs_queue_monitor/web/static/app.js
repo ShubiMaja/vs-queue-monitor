@@ -1894,6 +1894,18 @@
       tryRestoreBanner(s);
     }
 
+    var _uBadge = $("btnUpdateAvail");
+    if (_uBadge) {
+      if (s.update_available && lsGetUpdateNotify()) {
+        _uBadge.classList.remove("hidden");
+        _uBadge.title = s.update_release_name
+          ? "Update available: " + s.update_release_name + " — click to view"
+          : "Update available — click to view";
+      } else {
+        _uBadge.classList.add("hidden");
+      }
+    }
+
     var updateBanner = $("updateBanner");
     if (updateBanner) {
       var _uStatus = s.update_status || null;
@@ -1904,48 +1916,30 @@
         "restarting":  "Restarting…",
         "error": "Update failed" + (s.update_error ? ": " + s.update_error : ""),
       };
-      var _uBannerMsg  = $("updateBannerMsg");
-      var _uBtnApply   = $("btnApplyUpdate");
-      var _uBtnDismiss = $("btnDismissUpdate");
-      var _uProgWrap   = $("updateProgressWrap");
-      var _uProgFill   = $("updateProgressFill");
+      var _uBannerMsg = $("updateBannerMsg");
+      var _uProgWrap  = $("updateProgressWrap");
+      var _uProgFill  = $("updateProgressFill");
 
       if (_uInProgress || _uStatus === "error") {
         if (_uBannerMsg) _uBannerMsg.textContent = _uLabels[_uStatus] || _uStatus;
         updateBanner.classList.remove("hidden");
-        if (_uInProgress) {
-          if (_uBtnApply)   { _uBtnApply.disabled = true; _uBtnApply.textContent = _uLabels[_uStatus]; }
-          if (_uBtnDismiss) _uBtnDismiss.disabled = true;
-          if (_uProgWrap && _uProgFill) {
-            if (_uStatus === "downloading") {
-              _uProgWrap.classList.remove("hidden");
-              var _dl = s.update_download_bytes || 0;
-              var _tot = s.update_download_total || 0;
-              if (_tot > 0) {
-                _uProgFill.removeAttribute("data-indeterminate");
-                _uProgFill.style.width = Math.min(100, Math.round(_dl * 100 / _tot)) + "%";
-              } else {
-                _uProgFill.setAttribute("data-indeterminate", "1");
-                _uProgFill.style.width = "";
-              }
+        if (_uProgWrap && _uProgFill) {
+          if (_uStatus === "downloading") {
+            _uProgWrap.classList.remove("hidden");
+            var _dl = s.update_download_bytes || 0;
+            var _tot = s.update_download_total || 0;
+            if (_tot > 0) {
+              _uProgFill.removeAttribute("data-indeterminate");
+              _uProgFill.style.width = Math.min(100, Math.round(_dl * 100 / _tot)) + "%";
             } else {
-              _uProgWrap.classList.add("hidden");
+              _uProgFill.setAttribute("data-indeterminate", "1");
+              _uProgFill.style.width = "";
             }
+          } else {
+            _uProgWrap.classList.add("hidden");
           }
-        } else {
-          if (_uBtnApply)   { _uBtnApply.disabled = false; _uBtnApply.textContent = "Retry"; }
-          if (_uBtnDismiss) _uBtnDismiss.disabled = false;
-          if (_uProgWrap)   _uProgWrap.classList.add("hidden");
         }
-      } else if (s.update_available && !window._updateDismissed && lsGetUpdateNotify()) {
-        if (_uBannerMsg) _uBannerMsg.textContent = s.update_release_name
-          ? "Update available: " + s.update_release_name
-          : "Update available";
-        updateBanner.classList.remove("hidden");
-        if (_uBtnApply)   { _uBtnApply.disabled = false; _uBtnApply.textContent = "Update & restart"; }
-        if (_uBtnDismiss) _uBtnDismiss.disabled = false;
-        if (_uProgWrap)   _uProgWrap.classList.add("hidden");
-      } else if (!s.update_available || !lsGetUpdateNotify()) {
+      } else {
         updateBanner.classList.add("hidden");
         if (_uProgWrap) _uProgWrap.classList.add("hidden");
       }
@@ -2949,51 +2943,16 @@
   }
 
   function setupUpdateBanner() {
-    var btnApply = $("btnApplyUpdate");
     var btnDismiss = $("btnDismissUpdate");
-    var btnMute = $("btnMuteUpdate");
-    var btnClose = $("btnCloseUpdateBanner");
-    function dismissUpdateBanner() {
-      window._updateDismissed = true;
-      var b = $("updateBanner");
-      if (b) b.classList.add("hidden");
-    }
     if (btnDismiss) {
-      btnDismiss.onclick = dismissUpdateBanner;
-    }
-    if (btnClose) btnClose.onclick = dismissUpdateBanner;
-    if (btnMute) {
-      btnMute.onclick = function () {
-        lsSetUpdateNotify(false);
-        dismissUpdateBanner();
-        var chk = $("chkUpdateNotify");
-        if (chk) chk.checked = false;
-        toast("Update notifications turned off. Re-enable in Settings → General.");
+      btnDismiss.onclick = function () {
+        var b = $("updateBanner");
+        if (b) b.classList.add("hidden");
       };
     }
-    if (btnApply) {
-      btnApply.onclick = function () {
-        if (!window.confirm("Apply update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
-        btnApply.disabled = true;
-        btnApply.textContent = "Updating…";
-        fetch("/api/update/apply", { method: "POST" })
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            if (!j.ok) {
-              toast("Update failed: " + (j.error || "unknown"), "warn");
-              btnApply.disabled = false;
-              btnApply.textContent = "Update & restart";
-              return;
-            }
-            window._pendingHardReload = true;
-            toast("Update in progress — reloading when server is back…");
-          })
-          .catch(function (e) {
-            toast("Update error: " + String(e.message || e), "warn");
-            btnApply.disabled = false;
-            btnApply.textContent = "Update & restart";
-          });
-      };
+    var btnBadge = $("btnUpdateAvail");
+    if (btnBadge) {
+      btnBadge.onclick = openAboutModal;
     }
   }
 
@@ -4189,9 +4148,8 @@
         var nextUpdateNotify = !!($("chkUpdateNotify") && $("chkUpdateNotify").checked);
         lsSetUpdateNotify(nextUpdateNotify);
         if (!nextUpdateNotify) {
-          window._updateDismissed = true;
-          var ub = $("updateBanner");
-          if (ub) ub.classList.add("hidden");
+          var badge = $("btnUpdateAvail");
+          if (badge) badge.classList.add("hidden");
         }
         var nextIncludePre = !!($("chkIncludePrereleases") && $("chkIncludePrereleases").checked);
         fetch("/api/update/config", {
