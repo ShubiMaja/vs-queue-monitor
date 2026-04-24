@@ -6,13 +6,13 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
+import shutil
+import tempfile
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -528,6 +528,8 @@ def _api_state(request: Request) -> JSONResponse:
             "update_release_name": getattr(request.app.state, "update_release_name", ""),
             "update_status": getattr(request.app.state, "update_status", None),
             "update_error": getattr(request.app.state, "update_error", ""),
+            "update_download_bytes": getattr(request.app.state, "update_download_bytes", 0),
+            "update_download_total": getattr(request.app.state, "update_download_total", 0),
         }
         with lock:
             snap = build_snapshot(engine, hooks, update_extra)
@@ -848,22 +850,29 @@ async def _api_update_apply(request: Request) -> JSONResponse:
         try:
             app.state.update_status = "downloading"
             app.state.update_error = ""
+            app.state.update_download_bytes = 0
+            app.state.update_download_total = 0
 
             def _download() -> Path:
                 req = urllib.request.Request(
                     zipball_url,
                     headers={"User-Agent": f"vs-queue-monitor/{VERSION}"},
                 )
-                tmp = tempfile.NamedTemporaryFile(suffix=".zip", prefix="vsqm_update_", delete=False)
-                try:
-                    with urllib.request.urlopen(req, timeout=120) as resp:
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    total = int(resp.headers.get("Content-Length") or 0)
+                    app.state.update_download_total = total
+                    tmp = tempfile.NamedTemporaryFile(suffix=".zip", prefix="vsqm_update_", delete=False)
+                    try:
+                        downloaded = 0
                         while True:
                             chunk = resp.read(65536)
                             if not chunk:
                                 break
                             tmp.write(chunk)
-                finally:
-                    tmp.close()
+                            downloaded += len(chunk)
+                            app.state.update_download_bytes = downloaded
+                    finally:
+                        tmp.close()
                 return Path(tmp.name)
 
             zip_path = await asyncio.to_thread(_download)
@@ -932,6 +941,8 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
             update_release_name = getattr(websocket.app.state, "update_release_name", "")
             update_status = getattr(websocket.app.state, "update_status", None)
             update_error = getattr(websocket.app.state, "update_error", "")
+            update_download_bytes = getattr(websocket.app.state, "update_download_bytes", 0)
+            update_download_total = getattr(websocket.app.state, "update_download_total", 0)
 
             def snap() -> dict[str, Any]:
                 with lock:
@@ -940,6 +951,8 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
                         "update_release_name": update_release_name,
                         "update_status": update_status,
                         "update_error": update_error,
+                        "update_download_bytes": update_download_bytes,
+                        "update_download_total": update_download_total,
                     })
 
             payload = await asyncio.to_thread(snap)
@@ -1027,6 +1040,8 @@ def _start_update_checker(app: Any) -> None:
     app.state.update_zipball_url = ""
     app.state.update_status = None
     app.state.update_error = ""
+    app.state.update_download_bytes = 0
+    app.state.update_download_total = 0
 
     def worker() -> None:
         time.sleep(60)
