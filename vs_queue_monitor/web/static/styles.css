@@ -1043,9 +1043,6 @@ select.inp:focus-visible {
 .graph-toolbar__right > .btn--toolbar-export {
   background: var(--card);
   color: var(--text);
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 0.75rem;
 }
 .graph-toolbar__right > .btn--toolbar-export .icon {
   opacity: 1;
