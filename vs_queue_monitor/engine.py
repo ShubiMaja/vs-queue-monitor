@@ -681,7 +681,7 @@ class QueueMonitorEngine:
                 self._set_status_line('Monitoring')
         else:
             self.write_history('Could not find queue data in the log for the new run.')
-            self._set_status_line('Warning: no queue detected', danger=True)
+            self._set_status_line('⚠ No Queue!', danger=True)
             self.graph_points.clear()
             self.current_point = None
             self.last_position = None
@@ -981,8 +981,13 @@ class QueueMonitorEngine:
                             self._set_position_display(position)
                             if position is not None and position <= 1 and (self._position_one_reached_at is None):
                                 self._position_one_reached_at = last_queue_line_epoch or now
-                            # Wall-clock samples every poll so the chart shows heartbeat / flat segments, not only log-line times.
-                            self.append_graph_point(position, None)
+                            # Keep completed queues anchored to the last real log-backed sample.
+                            # Appending heartbeat samples after position 0 can distort rolling rate
+                            # on stop/start of an already-finished run.
+                            if position != 0:
+                                # Wall-clock samples every poll so the chart shows heartbeat / flat
+                                # segments, not only log-line times, while the queue is still live.
+                                self.append_graph_point(position, None)
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._mpp_floor_position = position
@@ -999,7 +1004,7 @@ class QueueMonitorEngine:
                                 self.raise_alert(position, reason)
                             self._maybe_notify_queue_completion(position, text)
                     else:
-                        self._set_status_line('Warning: no queue detected', danger=True)
+                        self._set_status_line('⚠ No Queue!', danger=True)
         except Exception as exc:
             self._set_status_line('Error')
             self.write_history(f'Error: {exc}')

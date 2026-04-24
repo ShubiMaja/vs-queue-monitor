@@ -80,16 +80,18 @@ body {
   border-bottom: 1px solid var(--line);
   gap: 6px 10px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "brand actions"
-    "path path";
+    "brand"
+    "actions"
+    "path";
   align-items: center;
 }
 .topbar > .brand {
   grid-area: brand;
   min-width: 0;
   max-width: 100%;
+  width: 100%;
 }
 .topbar > .topbar__path {
   grid-area: path;
@@ -100,12 +102,12 @@ body {
 
 .topbar > .topbar__actions {
   grid-area: actions;
-  justify-self: end;
+  justify-self: start;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-width: 0;
   max-width: 100%;
 }
@@ -136,7 +138,7 @@ body {
     gap: 8px;
   }
 }
-/* One row height for bell, Tour, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
+/* One row height for bell, tour icon, Start, browse icons, and path status (path text is short; full path is in Info + tooltip). */
 .topbar .btn {
   min-height: 30px;
   box-sizing: border-box;
@@ -446,9 +448,6 @@ body {
 }
 @media (max-width: 479px) {
   .brand__tagline {
-    display: none;
-  }
-  #btnTour {
     display: none;
   }
 }
@@ -1319,6 +1318,24 @@ select.inp:focus-visible {
   align-items: center;
   justify-content: center;
 }
+.btn-start-stop {
+  min-width: 36px;
+  padding-left: 0;
+  padding-right: 0;
+}
+.btn-start-stop__glyph {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.btn-start-stop__glyph .icon {
+  display: block;
+}
+.btn-start-stop[data-state="stopped"] .btn-start-stop__glyph--start,
+.btn-start-stop[data-state="running"] .btn-start-stop__glyph--stop {
+  display: inline-flex;
+}
 .btn--toggle[aria-pressed="true"] {
   background: rgba(87, 148, 242, 0.08);
   border-color: rgba(87, 148, 242, 0.18);
@@ -1539,37 +1556,45 @@ select.inp:focus-visible {
 .modal__box--about {
   max-width: 340px;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   text-align: center;
-  padding-bottom: var(--space-5);
+  padding: 20px 20px 16px;
 }
 .about-icon {
-  margin: 0 auto var(--space-3);
+  margin: 0;
   display: flex;
   justify-content: center;
 }
 .modal__box--about h2.about-name {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 1.1rem;
 }
 .about-tagline {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 0.8rem;
 }
 .about-version {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-size: 0.8rem;
 }
 .about-links {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: var(--space-4);
+  margin: 4px 0 0;
 }
 .about-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   text-decoration: none;
+}
+.modal__box--about .modal__actions {
+  width: 100%;
+  margin-top: 6px;
 }
 .modal__text {
   line-height: 1.45;
