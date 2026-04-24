@@ -2706,6 +2706,40 @@
       return st.t0 + ((cssX - st.x0) / st.plotW) * (st.t1 - st.t0);
     }
 
+    function isGraphZoomed() {
+      var st = c._drawState;
+      if (!st || st.fullT0 == null || st.fullT1 == null) return false;
+      var fullSpan = st.fullT1 - st.fullT0;
+      var curSpan = st.t1 - st.t0;
+      return fullSpan > 0 && curSpan > 0 && curSpan < fullSpan * 0.999;
+    }
+
+    function panGraphByCssDelta(deltaCssX) {
+      var st = c._drawState;
+      if (!st || st.plotW <= 0 || st.fullT0 == null || st.fullT1 == null) return false;
+      var fullSpan = st.fullT1 - st.fullT0;
+      var curSpan = st.t1 - st.t0;
+      if (fullSpan <= 0 || curSpan <= 0 || curSpan >= fullSpan * 0.999) return false;
+      var dt = (deltaCssX / st.plotW) * curSpan;
+      if (!dt) return false;
+      var nextT0 = st.t0 - dt;
+      var nextT1 = st.t1 - dt;
+      if (nextT0 < st.fullT0) {
+        nextT1 += st.fullT0 - nextT0;
+        nextT0 = st.fullT0;
+      }
+      if (nextT1 > st.fullT1) {
+        nextT0 -= nextT1 - st.fullT1;
+        nextT1 = st.fullT1;
+      }
+      nextT0 = Math.max(st.fullT0, nextT0);
+      nextT1 = Math.min(st.fullT1, nextT1);
+      window._graphZoom = (nextT1 - nextT0 >= fullSpan * 0.999) ? null : [nextT0, nextT1];
+      updateZoomResetBtn();
+      redrawGraphOnly();
+      return true;
+    }
+
     var _dragStartX = null;
 
     c.addEventListener("mousedown", function (ev) {
@@ -2792,7 +2826,9 @@
       c.style.cursor = "";
     });
 
-    // Touch drag-to-zoom — inline attach/detach so no permanent global listener
+    // Touch interaction:
+    // - full-range view: one-finger drag selects a zoom range
+    // - zoomed view: one-finger drag pans horizontally
     c.addEventListener("touchstart", function (ev) {
       if (ev.touches.length !== 1) return;
       var touch = ev.touches[0];
@@ -2801,6 +2837,30 @@
       if (!st) return;
       var x = touch.clientX - rect.left;
       if (x < st.x0 || x > st.x0 + st.plotW) return;
+      if (isGraphZoomed()) {
+        var lastClientX = touch.clientX;
+        function onPanMove(ev) {
+          if (ev.touches.length !== 1) return;
+          var nextTouch = ev.touches[0];
+          var deltaCssX = nextTouch.clientX - lastClientX;
+          lastClientX = nextTouch.clientX;
+          if (panGraphByCssDelta(deltaCssX)) {
+            hideGraphTooltip();
+            window._graphHover = null;
+            ev.preventDefault();
+          }
+        }
+        function onPanEnd() {
+          document.removeEventListener("touchmove", onPanMove);
+          document.removeEventListener("touchend", onPanEnd);
+          document.removeEventListener("touchcancel", onPanEnd);
+        }
+        document.addEventListener("touchmove", onPanMove, { passive: false });
+        document.addEventListener("touchend", onPanEnd);
+        document.addEventListener("touchcancel", onPanEnd);
+        ev.preventDefault();
+        return;
+      }
       _dragStartX = x;
       _dragSel = null;
       function onMove(ev) {
@@ -2822,6 +2882,7 @@
       function onEnd() {
         document.removeEventListener("touchmove", onMove);
         document.removeEventListener("touchend", onEnd);
+        document.removeEventListener("touchcancel", onEnd);
         var hadSel = _dragSel;
         _dragStartX = null;
         if (hadSel && Math.abs(hadSel.x1 - hadSel.x0) >= 8) {
@@ -2841,6 +2902,7 @@
       }
       document.addEventListener("touchmove", onMove, { passive: false });
       document.addEventListener("touchend", onEnd);
+      document.addEventListener("touchcancel", onEnd);
       ev.preventDefault();
     }, { passive: false });
   }
