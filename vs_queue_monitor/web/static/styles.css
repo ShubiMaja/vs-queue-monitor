@@ -84,7 +84,7 @@ body {
   grid-template-areas:
     "brand"
     "actions"
-    "path path";
+    "path";
   align-items: center;
 }
 .topbar > .brand {
