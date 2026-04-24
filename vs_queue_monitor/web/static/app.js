@@ -1834,12 +1834,35 @@
 
     var updateBanner = $("updateBanner");
     if (updateBanner) {
-      if (s.update_available && !window._updateDismissed && lsGetUpdateNotify()) {
-        var msg = $("updateBannerMsg");
-        if (msg) msg.textContent = s.update_release_name
+      var _uStatus = s.update_status || null;
+      var _uInProgress = _uStatus === "downloading" || _uStatus === "installing" || _uStatus === "restarting";
+      var _uStatusLabels = {
+        "downloading": "Downloading update…",
+        "installing": "Installing update…",
+        "restarting": "Restarting…",
+        "error": "Update failed" + (s.update_error ? ": " + s.update_error : ""),
+      };
+      var _btnApply = $("btnApplyUpdate");
+      var _btnDismiss = $("btnDismissUpdate");
+      if (_uInProgress || _uStatus === "error") {
+        var _uMsg = $("updateBannerMsg");
+        if (_uMsg) _uMsg.textContent = _uStatusLabels[_uStatus] || _uStatus;
+        updateBanner.classList.remove("hidden");
+        if (_uInProgress) {
+          if (_btnApply) { _btnApply.disabled = true; _btnApply.textContent = _uStatusLabels[_uStatus]; }
+          if (_btnDismiss) _btnDismiss.disabled = true;
+        } else {
+          if (_btnApply) { _btnApply.disabled = false; _btnApply.textContent = "Retry"; }
+          if (_btnDismiss) _btnDismiss.disabled = false;
+        }
+      } else if (s.update_available && !window._updateDismissed && lsGetUpdateNotify()) {
+        var _uMsg = $("updateBannerMsg");
+        if (_uMsg) _uMsg.textContent = s.update_release_name
           ? "Update available: " + s.update_release_name
           : "Update available";
         updateBanner.classList.remove("hidden");
+        if (_btnApply) { _btnApply.disabled = false; _btnApply.textContent = "Update & restart"; }
+        if (_btnDismiss) _btnDismiss.disabled = false;
       } else if (!s.update_available || !lsGetUpdateNotify()) {
         updateBanner.classList.add("hidden");
       }
@@ -2782,7 +2805,7 @@
     }
     if (btnApply) {
       btnApply.onclick = function () {
-        if (!window.confirm("Apply update and restart VS Queue Monitor?\n\nThe app will pull the latest changes and restart. This page will reload automatically when it's back.")) return;
+        if (!window.confirm("Apply update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
         btnApply.disabled = true;
         btnApply.textContent = "Updating…";
         fetch("/api/update/apply", { method: "POST" })
