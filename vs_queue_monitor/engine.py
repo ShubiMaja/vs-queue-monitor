@@ -477,6 +477,7 @@ class QueueMonitorEngine:
         self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
+        threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -581,6 +582,44 @@ class QueueMonitorEngine:
             )
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
+
+    def _backfill_sessions_from_log(self, log_file: Path) -> None:
+        """Write history records for past sessions in the log not already in session_history.jsonl."""
+        try:
+            records = extract_all_session_records_from_log(
+                log_file,
+                source_path=str(self.config.get("source_path", "") or ""),
+                vsqm_version=VERSION,
+            )
+            if not records:
+                return
+            existing: set[tuple[str, int]] = set()
+            hist = self._effective_history_path()
+            try:
+                if hist.exists():
+                    for line in hist.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                            lf = str(rec.get("log_file", ""))
+                            sid = rec.get("session_id")
+                            if lf and sid is not None:
+                                existing.add((lf, int(sid)))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            to_write = [r for r in records if (str(log_file), r["session_id"]) not in existing]
+            if not to_write:
+                return
+            hist.parent.mkdir(parents=True, exist_ok=True)
+            with open(hist, "a", encoding="utf-8") as fh:
+                for r in to_write:
+                    fh.write(json.dumps(r) + "\n")
+        except Exception:
+            pass
 
     def _effective_history_path(self) -> Path:
         raw = (self.history_path_var.get() or "").strip()

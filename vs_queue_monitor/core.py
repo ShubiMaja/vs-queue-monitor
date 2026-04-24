@@ -1258,3 +1258,97 @@ def compute_seed_graph_from_log(
     )
 
 
+def extract_all_session_records_from_log(
+    log_file: Path,
+    source_path: str = "",
+    vsqm_version: str = "",
+) -> list[dict]:
+    """Extract one history record per completed historical queue session from the full log.
+
+    The most recent session (currently active or just finished) is excluded — the engine
+    handles that one via live monitoring.  Reads the whole file (capped at 100 MB).
+    """
+    try:
+        file_size = log_file.stat().st_size
+    except Exception:
+        return []
+    max_read = min(file_size, 100 * 1024 * 1024)
+    try:
+        with log_file.open("rb") as fh:
+            fh.seek(max(0, file_size - max_read))
+            raw = fh.read()
+    except Exception:
+        return []
+    text = decode_log_bytes(raw)
+    if not text.strip():
+        return []
+
+    events = walk_queue_position_events(text)
+    if not events:
+        return []
+
+    # Group position events by session_id
+    by_session: dict[int, list[tuple[float, int]]] = {}
+    for t, pos, sess in events:
+        by_session.setdefault(sess, []).append((t, pos))
+
+    # Collect per-session log lines (for post-queue detection) and server targets
+    lines_by_session: dict[int, list[str]] = {}
+    targets: dict[int, str] = {}
+    pending_target: Optional[str] = None
+    for sess, line, is_boundary in iter_session_log_lines(text):
+        lines_by_session.setdefault(sess, []).append(line)
+        m = CONNECTING_TO_TARGET_RE.search(line)
+        if m:
+            pending_target = m.group(1).strip().rstrip(".")
+        if not is_boundary and pending_target and queue_position_match(line):
+            targets.setdefault(sess, pending_target)
+
+    max_sess = max(by_session.keys())
+    records: list[dict] = []
+
+    for sess_id in sorted(by_session.keys()):
+        if sess_id == max_sess:
+            continue  # active session — handled by live monitoring
+
+        pts = sorted(by_session[sess_id])
+        if not pts:
+            continue
+
+        change_pts: list[tuple[float, int]] = []
+        last_p: Optional[int] = None
+        for t, p in pts:
+            if p != last_p:
+                change_pts.append((t, p))
+                last_p = p
+
+        start_epoch = pts[0][0]
+        end_epoch = pts[-1][0]
+        start_pos = pts[0][1]
+        end_pos = pts[-1][1]
+
+        sess_text = "\n".join(lines_by_session.get(sess_id, []))
+        completed = end_pos <= 1 and tail_has_post_queue_after_last_queue_line(sess_text)
+        if completed:
+            end_pos = 0
+            outcome = "completed"
+        else:
+            outcome = "unknown"
+
+        records.append({
+            "session_id": sess_id,
+            "source_path": source_path,
+            "log_file": str(log_file),
+            "server": targets.get(sess_id),
+            "start_epoch": start_epoch,
+            "end_epoch": end_epoch,
+            "outcome": outcome,
+            "start_position": start_pos,
+            "end_position": end_pos,
+            "points": change_pts,
+            "vsqm_version": vsqm_version,
+        })
+
+    return records
+
+

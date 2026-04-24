@@ -1061,24 +1061,18 @@
   }
 
   function copyStatsToClipboard() {
-    var stats = computeGraphSessionStats();
+    // Read directly from the DOM so copied values always match what is displayed.
+    function t(id) { var el = $(id); return el ? (el.textContent || "").trim() : "—"; }
     var text =
-      "Start Pos: " + (stats.startPos == null ? "—" : stats.startPos) + "\n" +
-      "Cur Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
-      "Pos Change: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
-      "Duration: " +
-      (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
-      "\n" +
-      "Rate: " +
-      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p") +
-      "\n";
+      "Start Pos: " + t("infoStatStart") + "\n" +
+      "Cur Pos: "   + t("infoStatEnd")   + "\n" +
+      "Pos Change: "+ t("infoStatCleared")+ "\n" +
+      "Duration: "  + t("infoStatSpan")  + "\n" +
+      "Rate: "      + t("infoStatAvg")   + "\n" +
+      "Global Rate: "+ t("infoGlo")      + "\n";
     navigator.clipboard.writeText(text).then(
-      function () {
-        toast("Stats copied");
-      },
-      function () {
-        toast("Could not copy stats (clipboard permission)", "warn");
-      },
+      function () { toast("Stats copied"); },
+      function () { toast("Could not copy stats (clipboard permission)", "warn"); }
     );
   }
 
