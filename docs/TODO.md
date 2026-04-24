@@ -11,6 +11,18 @@
 
 ## Fixed (closed)
 
+~~Tweak: the offline banner reconnect wording was too generic and did not distinguish between a stopped app and a stale browser page~~
+Fixed: the sticky offline banner now tells people to start the app to reconnect, and to reload the page only if the app is already running (v1.1.53)
+
+~~Tweak: top-of-page banner behavior had drifted out of sync, and the offline banner briefly behaved like a normal dismissible banner even though it needed to stay visible without covering content~~
+Fixed: update and restore banners now have a right-edge dismiss affordance, while the offline banner remains a special non-dismissible banner that reserves layout space instead of overlapping the page (v1.1.53)
+
+~~Tweak: browser regression tests drifted behind the current UI contract for topbar and graph export controls~~
+Fixed: the pixel-alignment suite now expects the current `Download PNG` + `Copy PNG` toolbar pair and accounts for the Tour button being intentionally hidden on very small screens (v1.1.53)
+
+~~Bug: notification regression coverage could still fail spuriously because the warning popup setting was browser-local and the test did not explicitly enable it~~
+Fixed: the browser notification regression now turns on warning, completion, and failure popup settings before asserting that all three Settings test buttons produce notifications (v1.1.53)
+
 ~~Bug: completion and failure `Send test` buttons in Settings did nothing, and warning test used a separate backend-push path~~
 Fixed: the live notification setup now wires warning/completion/failure test buttons together in one path, all three mirror their real alert type copy, and browser regression coverage verifies the trio after saving popup settings (v1.1.49)
 
