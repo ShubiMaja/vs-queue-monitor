@@ -732,6 +732,8 @@ class QueueMonitorEngine:
             self._hooks.request_redraw_graph()
 
     def stop_monitoring(self) -> None:
+        if self._last_queue_run_session >= 0 and self.graph_points:
+            self._write_session_record("abandoned")
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
         self._frozen_rates_at_interrupt = None
