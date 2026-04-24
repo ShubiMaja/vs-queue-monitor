@@ -68,6 +68,7 @@ http://localhost:8765
 ```
 
 Use `--web-browser` to skip the embedded window and open your default browser instead. Use `--web-port PORT` to change the port.
+If that browser view goes offline, the in-page banner tells you to restart the app or reload the page to reconnect.
 
 ## Features
 

@@ -397,6 +397,7 @@ This section converts ad-hoc prompts into durable feature requests, with **reque
 - Stop ends polling; state resolves clearly.
 - Seeding after start should produce meaningful history/graph for the current run.
 - Interrupted/stale/reconnecting states are visible and do not pretend the queue is advancing.
+- When the web client is offline after dismissing the reconnect overlay, the sticky banner tells people to restart the app or reload the page to reconnect.
 
 ### 9.4 Alerts
 
