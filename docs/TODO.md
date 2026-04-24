@@ -242,12 +242,14 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-~~Tweak: No queue detected warning should be :warning symbo: No Queue!~~
-Done: the status copy now uses an icon-led warning label, `⚠ No Queue!`, instead of the longer `Warning: no queue detected` wording (v1.1.58)
+## Deferred
 
-Questions: should we allow multiple queue monitor location e.g. file not synced between instances (client-side))? What would the impact be?
+- **Multiple log-path instances (client-side override):** The server owns one log path shared by all browser clients. Per-client path overrides would require per-connection state on the server and a way to reconcile alerts, sounds, and session history across instances — a significant scope increase for a single-user local tool. Deferred until there is a clear use case that justifies the complexity.
 
 ## Implemented
+
+~~Tweak: No queue detected warning should be :warning symbo: No Queue!~~
+Done: the status copy now uses an icon-led warning label, `⚠ No Queue!`, instead of the longer `Warning: no queue detected` wording (v1.1.58)
 
 ~~Tweak: Mobile app should take full advantage of browser width as much as possible without unnecessary padding~~
 Done: removed double-dip from `.main` (max-width formula was subtracting viewport margin on top of padding), added `@media (max-width:480px)` to reduce side padding from 16px to 8px on `.main`, `.restore-banner`, and `.app-footer`; also flipped the info/history resize handle from vertical to horizontal on narrow screens (v1.1.32)
