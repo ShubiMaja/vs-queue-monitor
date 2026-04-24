@@ -11,6 +11,9 @@
 
 ## Fixed (closed)
 
+~~Feature: the graph session selector only showed sessions from the current log tail, so persisted `session_history.jsonl` records were invisible in the existing viewer~~
+Fixed: the existing graph session dropdown now merges live log-tail sessions with persisted `session_history.jsonl` records across restarts and log sources, dedupes them by stable start-epoch key, and keeps `server` / `source_path` / `outcome` metadata available for tooltips. Lesson learned: keep live and persisted session payloads in the same shape so one viewer can render both cleanly instead of spawning a second history UI (v1.1.86)
+
 ~~Tweak: browser notification sends did a fresh service-worker registration lookup on every alert, adding avoidable latency before real banners appeared~~
 Fixed: the web client now caches the notification service-worker registration promise, so repeated warning/completion/failure alerts reuse the same worker lookup path instead of re-querying registration each time (v1.1.55)
 
