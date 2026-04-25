@@ -146,21 +146,6 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _session_merge_signature(rec: dict[str, Any]) -> tuple[Any, ...]:
-    """Stable identity for merging live and persisted session history records."""
-    start_epoch = rec.get("start_epoch")
-    end_epoch = rec.get("end_epoch")
-    return (
-        int(math.floor(float(start_epoch))) if start_epoch is not None else None,
-        int(math.floor(float(end_epoch))) if end_epoch is not None else None,
-        rec.get("start_pos", rec.get("start_position")),
-        rec.get("end_pos", rec.get("end_position")),
-        rec.get("server"),
-        rec.get("source_path"),
-        rec.get("log_file"),
-    )
-
-
 def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int]:
     """Prefer records with more points and richer metadata when duplicates collide."""
     pts = rec.get("points") or []
@@ -196,33 +181,70 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         except Exception:
             pass
 
-    # Merge JSONL history records, deduping against live sessions by start-epoch key.
+    # Merge JSONL history records into the session list.
+    #
+    # Two dedup passes are needed because the old signature-based approach had two bugs:
+    #   1. end_epoch was in the signature, so checkpoint / crash-recovery / explicit writes
+    #      for the same queue run each got a unique signature and all appeared in the dropdown.
+    #   2. Live sessions have no log_file/server/source_path metadata, so their signatures
+    #      never matched JSONL records and the seen_signatures guard was effectively dead.
+    #
+    # Fix:
+    #   Pass A — collapse JSONL records for the same run: (log_file, session_id) is a stable
+    #             primary key because the engine writes the same session_id for every
+    #             checkpoint and final write of a given queue run.
+    #   Pass B — exclude JSONL records already covered by live tail sessions: match on
+    #             (floor_epoch, start_pos) only — the two fields present in both sources.
+    #   Pass C — dedup any remaining JSONL records by (floor_epoch, start_pos, log_file),
+    #             without end_epoch, so further stale duplicates collapse.
     try:
         hist_records = engine.load_history_sessions()
-        live_keys: set[str] = {str(s.get("key", "")) for s in live_sessions}
-        seen_signatures: set[tuple[Any, ...]] = {_session_merge_signature(s) for s in live_sessions}
+
+        # Pass A: collapse same-run JSONL records by (log_file, session_id).
+        hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
+        hist_no_id: list[dict[str, Any]] = []
+        for rec in hist_records:
+            sid = rec.get("session_id")
+            lf = str(rec.get("log_file") or "")
+            if sid is not None:
+                pk = (lf, int(sid))
+                prev = hist_primary.get(pk)
+                if prev is None or _session_merge_rank(rec) > _session_merge_rank(prev):
+                    hist_primary[pk] = rec
+            else:
+                hist_no_id.append(rec)
+        deduped_hist = list(hist_primary.values()) + hist_no_id
+
+        # Pass B: build live match keys — (floor_epoch, start_pos).
+        live_match_keys: set[tuple[Any, Any]] = set()
         key_counts: dict[str, int] = {}
         for s in live_sessions:
+            se = s.get("start_epoch")
+            mk: tuple[Any, Any] = (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
+            live_match_keys.add(mk)
             base = str(s.get("key", "")).split("#")[0]
             key_counts[base] = key_counts.get(base, 0) + 1
 
+        # Pass C: build JSONL candidate dict, skipping live-covered sessions.
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
-        for rec in hist_records:
+        for rec in deduped_hist:
             se = rec.get("start_epoch")
             if se is None:
                 continue
-            base = f"t:{int(math.floor(float(se)))}"
-            sig = _session_merge_signature(rec)
-            if sig in seen_signatures or base in live_keys or any(k.startswith(base) for k in live_keys):
-                continue  # already represented by the live session
+            floor_se = int(math.floor(float(se)))
+            start_pos = rec.get("start_position")
+            if (floor_se, start_pos) in live_match_keys:
+                continue  # already represented by the live tail session
+            lf = str(rec.get("log_file") or "")
+            sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
-            candidate = {
-                "key": base,
+            candidate: dict[str, Any] = {
+                "key": f"t:{floor_se}",
                 "session_id": rec.get("session_id"),
                 "label": "",
                 "start_epoch": float(se),
                 "end_epoch": float(rec.get("end_epoch") or se),
-                "start_pos": rec.get("start_position"),
+                "start_pos": start_pos,
                 "end_pos": rec.get("end_position"),
                 "points": [[float(t), int(p)] for t, p in pts],
                 "server": rec.get("server"),
@@ -235,7 +257,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_by_sig[sig] = candidate
 
         hist_sessions: list[dict[str, Any]] = []
-        for sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
+        for _sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
             base = str(sess.get("key", "")).split("#")[0]
             seen = key_counts.get(base, 0)
             key_counts[base] = seen + 1
