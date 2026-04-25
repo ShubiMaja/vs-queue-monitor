@@ -1059,7 +1059,7 @@
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
     var elHistGlo = $("infoStatHistGlo");
-    if (elHistGlo) elHistGlo.textContent = (state.hist_global_rate || "—");
+    if (elHistGlo) elHistGlo.textContent = ((window._lastState && window._lastState.hist_global_rate) || "—");
   }
 
   function copyStatsToClipboard() {
@@ -2630,9 +2630,18 @@
       var dp = pt[1] - prev[1];
       if (dt > 1e-6) {
         var dpStr = (dp >= 0 ? "+" : "") + dp;
-        var extra = dp !== 0 ? "  (" + (dp / dt).toFixed(3) + "/s)" : "";
+        // Walk back to find when the previous position was first entered, so
+        // "position length" shows actual dwell time, not the 2-second poll gap.
+        var prevPos = prev[1];
+        var posEntryT = prev[0];
+        for (var pi = idx - 2; pi >= 0; pi--) {
+          if (series[pi][1] !== prevPos) break;
+          posEntryT = series[pi][0];
+        }
+        var posLength = pt[0] - posEntryT;
+        var extra = dp !== 0 ? "  (" + (dp / posLength).toFixed(3) + "/s)" : "";
         lines.push(
-          "vs prev: " + dpStr + "  ·  position length: " + formatTooltipDuration(dt) + extra,
+          "vs prev: " + dpStr + "  ·  position length: " + formatTooltipDuration(posLength) + extra,
         );
       } else {
         lines.push("vs prev: " + (dp >= 0 ? "+" : "") + dp);

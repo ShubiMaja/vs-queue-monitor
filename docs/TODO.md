@@ -1,6 +1,8 @@
 # BUGS
 
+- it also takes a signficant amount of time for the graph to load on reloading, eventually it loads but while loading it just appears black looking like a bug. why not load the current session right away and then work on loading the other ones?
 
+- there are 2x session 9 (they are unique sessions though)
 
 
 ## Open

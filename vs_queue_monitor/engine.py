@@ -1316,7 +1316,11 @@ class QueueMonitorEngine:
         return remaining_positions / v_eff
 
     def _window_recent_points_and_trail(self) -> tuple[list[tuple[float, int]], list[int]]:
-        """Return the rolling-window slice and its position trail with one deque snapshot."""
+        """Return the last N position-change events and their position trail.
+
+        Filters heartbeat duplicates first so the window size (N) counts actual
+        position changes, matching the client-side rolling-window calculation.
+        """
         points = list(self.graph_points)
         if len(points) < 2:
             return (points, [p for _t, p in points])
@@ -1325,7 +1329,8 @@ class QueueMonitorEngine:
         except Exception:
             window_points = DEFAULT_PREDICTION_WINDOW_POINTS
         window_points = max(2, min(10000, window_points))
-        recent = points[-(window_points + 1):]
+        changes = self._position_change_events(points)
+        recent = changes[-(window_points + 1):]
         return (recent, [p for _t, p in recent])
 
     def _position_change_events(self, points: list[tuple[float, int]]) -> list[tuple[float, int]]:
@@ -1489,8 +1494,8 @@ class QueueMonitorEngine:
             return None
         return sum(mpps) / len(mpps)
 
-    def _hist_sessions_global_avg_mpp(self) -> Optional[float]:
-        """Mean m/p averaged across all historical sessions with usable point data (all outcomes)."""
+    def _hist_sessions_global_avg_mpp(self) -> tuple[Optional[float], int]:
+        """Mean m/p averaged across all historical sessions (all outcomes). Returns (mpp, session_count)."""
         session_avgs: list[float] = []
         for rec in self.load_history_sessions():
             pts = rec.get("points") or []
@@ -1510,18 +1515,24 @@ class QueueMonitorEngine:
             if mpps:
                 session_avgs.append(sum(mpps) / len(mpps))
         if not session_avgs:
-            return None
-        return sum(session_avgs) / len(session_avgs)
+            return (None, 0)
+        return (sum(session_avgs) / len(session_avgs), len(session_avgs))
+
+    @staticmethod
+    def _format_hist_global_rate(mpp: Optional[float], count: int) -> str:
+        if mpp is not None and mpp > 0 and count > 0:
+            return f'{mpp:.2f} m/p ({count})'
+        return '—'
 
     def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
         """KPI Rate value + Global Rate in Info. Header shows RATE (Rolling N). Returns capped mpp for ETA."""
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
         g_mpp = self._global_avg_minutes_per_position()
-        h_mpp = self._hist_sessions_global_avg_mpp()
+        h_mpp, h_count = self._hist_sessions_global_avg_mpp()
         self.queue_rate_var.set(self._format_queue_rate(mpp))
         self.global_rate_var.set(self._format_queue_rate(g_mpp))
-        self.hist_global_rate_var.set(self._format_queue_rate(h_mpp))
+        self.hist_global_rate_var.set(self._format_hist_global_rate(h_mpp, h_count))
         return mpp
 
     def _current_queue_position(self) -> Optional[int]:
@@ -1565,6 +1576,8 @@ class QueueMonitorEngine:
             if self._frozen_rates_at_interrupt is not None:
                 self.queue_rate_var.set(self._frozen_rates_at_interrupt[0])
                 self.global_rate_var.set(self._frozen_rates_at_interrupt[1])
+                h_mpp, h_count = self._hist_sessions_global_avg_mpp()
+                self.hist_global_rate_var.set(self._format_hist_global_rate(h_mpp, h_count))
             else:
                 self._refresh_queue_and_global_rate(pos)
             if pos is not None and len(points) >= 1:
