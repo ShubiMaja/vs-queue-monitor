@@ -1328,12 +1328,25 @@ class QueueMonitorEngine:
         recent = points[-(window_points + 1):]
         return (recent, [p for _t, p in recent])
 
+    def _position_change_events(self, points: list[tuple[float, int]]) -> list[tuple[float, int]]:
+        """Filter a point list to only the first reading at each new position level."""
+        changes: list[tuple[float, int]] = []
+        last_p: Optional[int] = None
+        for t, p in points:
+            if p != last_p:
+                changes.append((t, p))
+                last_p = p
+        return changes
+
     def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
         recent, trail = self._window_recent_points_and_trail()
         if len(recent) < 2:
             return (None, 0, trail)
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return (None, 0, trail)
         rates: list[float] = []
-        for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
+        for (t0, p0), (t1, p1) in zip(changes, changes[1:]):
             dt = t1 - t0
             if dt <= 0:
                 continue
@@ -1355,7 +1368,7 @@ class QueueMonitorEngine:
         return (speed, len(rates), trail)
 
     def compute_weighted_speed(self) -> tuple[Optional[float], int, list[int]]:
-        """Recency-weighted mean of segment rates; shifts as wall time passes while still in queue.
+        """Recency-weighted mean of per-change-event segment rates.
 
         At **position 0** (queue finished in the log), weights use the last sample time so the
         value does not drift after completion.
@@ -1363,13 +1376,16 @@ class QueueMonitorEngine:
         recent, trail = self._window_recent_points_and_trail()
         if len(recent) < 2:
             return (None, 0, trail)
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return (None, 0, trail)
         now = time.time()
-        if self._current_queue_position() == 0 and len(recent) >= 2:
-            now = float(recent[-1][0])
+        if self._current_queue_position() == 0:
+            now = float(changes[-1][0])
         w_sum = 0.0
         r_sum = 0.0
         n_seg = 0
-        for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
+        for (t0, p0), (t1, p1) in zip(changes, changes[1:]):
             dt_seg = t1 - t0
             if dt_seg <= 0:
                 continue
@@ -1394,26 +1410,29 @@ class QueueMonitorEngine:
         return recent if len(recent) >= 2 else []
 
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
-        """Net positions per second over the rolling window.
+        """Net positions per second anchored to position-change events.
 
-        While monitoring **and still in queue** (position not 0), time uses wall clock from the
-        window's first point to *now*, so dwell at the current queue position (including
-        position 1 before connect) is not dropped from the average. **Position 0** (completed)
-        and stopped mode use only log timestamps between window endpoints so the rate stays fixed.
+        t0 is the first position-change timestamp in the window (not a heartbeat).
+        While monitoring and still in queue, dt extends to wall-clock now so the
+        current open position's dwell is counted. Position 0 and stopped mode use
+        only the span between actual change events.
         """
         recent = self._window_recent_points()
         if len(recent) < 2:
             return None
-        t0, p0 = (float(recent[0][0]), float(recent[0][1]))
-        t1, p1 = (float(recent[-1][0]), float(recent[-1][1]))
-        drop = p0 - p1
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return None
+        t0, p0 = float(changes[0][0]), float(changes[0][1])
+        t_last, p_last = float(changes[-1][0]), float(changes[-1][1])
+        drop = p0 - p_last
         if drop <= 0:
             return None
         pos = self._current_queue_position()
         if self.running and pos != 0:
             dt = time.time() - t0
         else:
-            dt = t1 - t0
+            dt = t_last - t0
         if dt <= 0:
             return None
         return drop / dt
