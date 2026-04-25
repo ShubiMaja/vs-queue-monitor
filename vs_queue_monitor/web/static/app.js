@@ -1994,7 +1994,12 @@
     if (!wrap) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
-    const w = Math.max(1, Math.floor(rect.width));
+    const w = Math.floor(rect.width);
+    if (w < 10) {
+      // Layout not ready yet — retry after the next paint to get real dimensions.
+      requestAnimationFrame(resizeCanvas);
+      return;
+    }
     const h = window._graphH || 340;
     c.width = w * dpr;
     c.height = h * dpr;
@@ -4577,6 +4582,16 @@
   ["kpiPos", "kpiStatus", "kpiRate", "kpiElapsed", "kpiRemaining"].forEach(function (id) {
     setKpiMetric($(id), null, "", { loading: true });
   });
+  // Observe the graph container so we redraw whenever its size settles after page load.
+  (function () {
+    if (typeof ResizeObserver === "undefined") return;
+    var canvas = $("graphCanvas");
+    var wrap = canvas && canvas.parentElement;
+    if (!wrap) return;
+    new ResizeObserver(function () {
+      if (window._displayState) resizeCanvas();
+    }).observe(wrap);
+  })();
   fetch("/api/state")
     .then(function (r) {
       return r.json();

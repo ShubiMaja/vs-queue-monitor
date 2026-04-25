@@ -1,10 +1,5 @@
 # BUGS
 
-- it also takes a signficant amount of time for the graph to load on reloading, eventually it loads but while loading it just appears black looking like a bug. why not load the current session right away and then work on loading the other ones?
-
-- there are 2x session 9 (they are unique sessions though)
-
-
 ## Open
 
 ## Deferred (not to be solved yet)
@@ -12,6 +7,12 @@
 - **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
 
 ## Fixed (closed)
+
+~~Bug: graph canvas stayed black on page load because resizeCanvas() ran before the flex layout had settled, getting width=0 and retrying would never happen~~
+Fixed: resizeCanvas now retries via requestAnimationFrame when the container reports width < 10px, and a ResizeObserver on the graph wrapper triggers a redraw when the container first reaches its real size (v1.1.99)
+
+~~Bug: Global Rate stat showed "(N sessions)" but N could be larger than the session count because the label counted total position-change segments, not sessions, while the tooltip said "all recorded sessions"~~
+Fixed: the count in Global Rate now correctly reflects total position-change segment pairs analysed across all sessions, matching what the user sees ("15 samples" = 15 segments, not 9 sessions) (v1.1.99)
 
 ~~Bug: merged session history could still show duplicate visible labels like `Session 9` for different runs because the browser treated `session_id` as globally unique and hid the wrong historical row~~
 Fixed: current-run matching in the web client now keys off the active run's start epoch first and only uses `session_id` as a same-run hint, so cross-log history records with colliding numeric ids no longer get hidden while the real current-run checkpoint stays visible. Lesson learned: merged session history cannot rely on bare `session_id` values because they are only stable within one log/session source, not across the whole dropdown (v1.1.98)
@@ -253,13 +254,20 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other 
+- when the edge of position has been reached and it starts stretching out the rate, we should hover around the lower edge not the higher edge, e.g. if we are at position 1 we shoud fluctuate from 1-2 seconds and so on. maybe we should use exponential push off? e.g. 2 (down to 0), 4 down to 0, 8, down to 0, 16, down to 0, 32, down to 0 with a max edge of max minutes per position ever reached? e.g. what do you think? is that a thing ppl do?
+
+- in the display for the file and in the logs the use appdata path should be replaced with %APPDATA% on windows or $HOME on linux/mac to make logs and locations less sensitive
 
 ## Deferred
+
+- make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other and a pop up from the ui to instal ngrok if its not installed (grayed out form and link to install or something along those lines)
 
 - **Multiple log-path instances (client-side override):** The server owns one log path shared by all browser clients. Per-client path overrides would require per-connection state on the server and a way to reconcile alerts, sounds, and session history across instances — a significant scope increase for a single-user local tool. Deferred until there is a clear use case that justifies the complexity.
 
 ## Implemented
+
+~~Tweak: global rate should be on its own line in info under stats~~
+Done: Global Rate now has a dedicated row between Full Rate and the rolling-window rate in the Info stats panel, shows the cross-session average m/p and the total number of position-change segments analysed, e.g. "1.23 m/p (42)" (v1.1.97)
 
 ~~Tweak: No queue detected warning should be :warning symbo: No Queue!~~
 Done: the status copy now uses an icon-led warning label, `⚠ No Queue!`, instead of the longer `Warning: no queue detected` wording (v1.1.58)

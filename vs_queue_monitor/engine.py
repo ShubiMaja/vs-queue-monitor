@@ -1495,8 +1495,9 @@ class QueueMonitorEngine:
         return sum(mpps) / len(mpps)
 
     def _hist_sessions_global_avg_mpp(self) -> tuple[Optional[float], int]:
-        """Mean m/p averaged across all historical sessions (all outcomes). Returns (mpp, session_count)."""
+        """Mean m/p averaged across all historical sessions (all outcomes). Returns (mpp, total_segments)."""
         session_avgs: list[float] = []
+        total_segments = 0
         for rec in self.load_history_sessions():
             pts = rec.get("points") or []
             if len(pts) < 2:
@@ -1514,9 +1515,10 @@ class QueueMonitorEngine:
                     mpps.append(mpp)
             if mpps:
                 session_avgs.append(sum(mpps) / len(mpps))
+                total_segments += len(mpps)
         if not session_avgs:
             return (None, 0)
-        return (sum(session_avgs) / len(session_avgs), len(session_avgs))
+        return (sum(session_avgs) / len(session_avgs), total_segments)
 
     @staticmethod
     def _format_hist_global_rate(mpp: Optional[float], count: int) -> str:
