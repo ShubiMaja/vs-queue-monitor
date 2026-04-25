@@ -1166,13 +1166,26 @@
       return false;
     }
     var currentStillLive = !!state.running && currentPos > 0;
-    var activeId = Number(state.active_queue_session_id);
-    var sessId = Number(sess.session_id);
-    if (currentStillLive && Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
-      return true;
-    }
     if (!pts.length) {
       return false;
+    }
+    var graphStart = Number(pts[0][0]);
+    var sessStart = Number(sess.start_epoch);
+    var sameStartEpoch =
+      Number.isFinite(graphStart) &&
+      Number.isFinite(sessStart) &&
+      Math.abs(sessStart - graphStart) <= 2;
+    var activeId = Number(state.active_queue_session_id);
+    var sessId = Number(sess.session_id);
+    if (
+      currentStillLive &&
+      sameStartEpoch &&
+      Number.isFinite(activeId) &&
+      activeId >= 0 &&
+      Number.isFinite(sessId) &&
+      sessId === activeId
+    ) {
+      return true;
     }
     var sessPoints = sess.points || [];
     var sessCompleted = false;
@@ -1186,13 +1199,14 @@
     if (currentStillLive && sessCompleted) {
       return false;
     }
-    var sessEndPos = Number(sess.end_pos);
-    if (!Number.isFinite(sessEndPos) || sessEndPos !== currentPos) {
+    if (!sameStartEpoch) {
       return false;
     }
-    var graphStart = Number(pts[0][0]);
-    var sessStart = Number(sess.start_epoch);
-    if (!(Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2)) {
+    if (currentStillLive) {
+      return true;
+    }
+    var sessEndPos = Number(sess.end_pos);
+    if (!Number.isFinite(sessEndPos) || sessEndPos !== currentPos) {
       return false;
     }
     return true;

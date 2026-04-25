@@ -13,6 +13,9 @@
 
 ## Fixed (closed)
 
+~~Bug: merged session history could still show duplicate visible labels like `Session 9` for different runs because the browser treated `session_id` as globally unique and hid the wrong historical row~~
+Fixed: current-run matching in the web client now keys off the active run's start epoch first and only uses `session_id` as a same-run hint, so cross-log history records with colliding numeric ids no longer get hidden while the real current-run checkpoint stays visible. Lesson learned: merged session history cannot rely on bare `session_id` values because they are only stable within one log/session source, not across the whole dropdown (v1.1.98)
+
 ~~Bug: the session selector could still show a duplicate latest/history entry for the same run because the browser-side matcher treated small live-vs-reconstructed end-time drift as a different session, and the browser regression reused shared history between tests~~
 Fixed: the web client now collapses latest/history duplicates by stable start-epoch plus terminal-position match instead of fragile end-time equality, and the browser regression points `history_path` at a per-test sandbox so unrelated prior runs do not masquerade as session-numbering bugs. Lesson learned: for reconstructed queue sessions, start identity is stable but end timestamps can legitimately drift by a few seconds between the live graph and history snapshots (v1.1.92)
 
@@ -249,6 +252,8 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 # TWEAKS
 
 ## Open
+
+make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other 
 
 ## Deferred
 
