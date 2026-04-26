@@ -418,17 +418,18 @@
     var tx = $("pathSummaryText");
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
+    var display = (window._lastState && window._lastState.source_path_display) || raw;
     if (tx) {
-      tx.textContent = raw ? raw : "Select log folder or file…";
+      tx.textContent = raw ? display : "Select log folder or file…";
       tx.classList.toggle("path-summary__text--has-path", !!raw);
     }
     if (btn) btn.classList.toggle("path-summary--empty", !raw);
     if (btn) {
-      btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
+      btn.title = raw ? display : "Click to paste path, or use the folder / file icons";
       btn.setAttribute(
         "aria-label",
         raw
-          ? "Log source path set. Full path: " + raw + ". Click to edit."
+          ? "Log source path set. Full path: " + display + ". Click to edit."
           : "Log source not set. Click to paste path.",
       );
     }

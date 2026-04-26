@@ -560,6 +560,40 @@ def _pick_path_sync(mode: str, initial_dir: str | None = None) -> str | None:
             pass
 
 
+def _mask_path_in_text(text: str) -> str:
+    """Replace home/APPDATA paths in text with short env-variable tokens."""
+    if not text:
+        return text
+    replacements: list[tuple[str, str]] = []
+    if sys.platform == "win32":
+        for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+            val = os.environ.get(env_var, "").rstrip("\\/")
+            if val:
+                replacements.append((val, token))
+    home = str(Path.home()).rstrip("/\\")
+    if home:
+        replacements.append((home, "$HOME"))
+    replacements.sort(key=lambda x: -len(x[0]))
+    result = text
+    for orig, repl in replacements:
+        if sys.platform == "win32":
+            orig_lower = orig.lower()
+            parts: list[str] = []
+            remaining = result
+            while True:
+                idx = remaining.lower().find(orig_lower)
+                if idx < 0:
+                    parts.append(remaining)
+                    break
+                parts.append(remaining[:idx])
+                parts.append(repl)
+                remaining = remaining[idx + len(orig):]
+            result = "".join(parts)
+        else:
+            result = result.replace(orig, repl)
+    return result
+
+
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
     try:
         thresholds = parse_alert_thresholds(engine.alert_thresholds_var.get())
@@ -608,6 +642,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "server_target": engine.server_target_var.get(),
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
+        "source_path_display": _mask_path_in_text(engine.source_path_var.get()),
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -626,9 +661,9 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "history_path": engine.history_path_var.get(),
-        "history_path_resolved": str(engine._effective_history_path().parent),
+        "history_path_resolved": _mask_path_in_text(str(engine._effective_history_path().parent)),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
-        "history_tail": hooks.history_lines(400),
+        "history_tail": [_mask_path_in_text(line) for line in hooks.history_lines(400)],
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
