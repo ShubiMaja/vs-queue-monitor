@@ -1352,6 +1352,63 @@ select.inp:focus-visible {
   min-width: 220px;
   max-width: min(280px, calc(100vw - 32px));
 }
+.popover--recent-paths {
+  min-width: 260px;
+  max-width: min(480px, calc(100vw - 16px));
+  padding: 4px 0;
+}
+.pop-recent-paths__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pop-recent-paths__item {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 0;
+}
+.pop-recent-paths__item:hover,
+.pop-recent-paths__item:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+.pop-recent-paths__item--active {
+  color: var(--accent);
+}
+.pop-recent-paths__sep {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+.pop-recent-paths__clear {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 0;
+}
+.pop-recent-paths__clear:hover,
+.pop-recent-paths__clear:focus-visible {
+  color: var(--text);
+  outline: none;
+}
 .popover__check {
   display: flex;
   align-items: center;
