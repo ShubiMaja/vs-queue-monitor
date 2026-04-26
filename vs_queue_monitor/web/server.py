@@ -297,8 +297,30 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
             all_sessions.append(sess)
 
+        # Assign 1-based labels, accounting for the loaded (live) session's slot.
+        # The loaded session is suppressed from all_sessions (it's shown via the
+        # synthetic "loaded" option in the JS).  The JS computes the loaded session's
+        # number by counting JSONL sessions that started before its epoch + 1.  Without
+        # a shift, the first JSONL session after the loaded session gets the same number
+        # as the synthetic loaded option → duplicate "Session N" in the dropdown.
+        # Fix: sessions at positions >= loaded_slot each shift up by 1.
+        loaded_slot: Optional[int] = None
+        if active_floor_epoch is not None:
+            # Check whether the loaded session is already present in all_sessions as a
+            # ghost (suppression failed or log-file mismatch).  If it is, no shift is
+            # needed — it already occupies its position in the list.
+            ghost_present = any(
+                normalize_log_path_for_dedup(str(_s.get("log_file", ""))) == current_norm_lf
+                and int(math.floor(float(_s.get("start_epoch", 0)))) == active_floor_epoch
+                for _s in all_sessions
+            )
+            if not ghost_present:
+                loaded_slot = sum(
+                    1 for _s in all_sessions
+                    if float(_s.get("start_epoch", 0)) < float(active_floor_epoch)
+                )
         for i, s in enumerate(all_sessions):
-            s["label"] = f"Session {i + 1}"
+            s["label"] = f"Session {i + 2}" if (loaded_slot is not None and i >= loaded_slot) else f"Session {i + 1}"
         return all_sessions, seed_active_id
     except Exception:
         return [], seed_active_id
