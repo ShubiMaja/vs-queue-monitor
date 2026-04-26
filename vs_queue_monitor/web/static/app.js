@@ -10,6 +10,7 @@
   var lastFailureSeq = null;
   var LS_PATH = "vs_queue_monitor_web_last_path";
   var LS_PATH_LEGACY = "vsqm_web_last_path";
+  var LS_RECENT_PATHS = "vs_queue_monitor_recent_paths_v1";
   var LS_SESSION = "vs_queue_monitor_selected_session_v1";
   var LS_SESSION_LEGACY = "vsqm_selected_session_v1";
   var LS_HISTORY_AUTOSCROLL = "vs_queue_monitor_history_autoscroll_v1";
@@ -137,6 +138,31 @@
       localStorage.setItem(LS_PATH, val);
       localStorage.removeItem(LS_PATH_LEGACY);
     } catch (e) {}
+  }
+  function lsGetRecentPaths() {
+    try {
+      var raw = localStorage.getItem(LS_RECENT_PATHS);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function lsAddRecentPath(raw, display) {
+    if (!raw) return;
+    try {
+      var list = lsGetRecentPaths();
+      list = list.filter(function (x) { return x.raw !== raw; });
+      list.unshift({ raw: raw, display: display || raw });
+      if (list.length > 8) list = list.slice(0, 8);
+      localStorage.setItem(LS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+    updateRecentPathsButton();
+  }
+  function lsClearRecentPaths() {
+    try { localStorage.removeItem(LS_RECENT_PATHS); } catch (e) {}
+    updateRecentPathsButton();
   }
   function lsGetSession() {
     try {
@@ -435,6 +461,72 @@
           : "Log source not set. Click to paste path.",
       );
     }
+  }
+
+  function updateRecentPathsButton() {
+    var btn = $("btnRecentPaths");
+    if (!btn) return;
+    var list = lsGetRecentPaths();
+    if (list.length > 0) {
+      btn.classList.remove("hidden");
+    } else {
+      btn.classList.add("hidden");
+      closeRecentPathsPopover();
+    }
+  }
+  function closeRecentPathsPopover() {
+    var pop = $("popRecentPaths");
+    var btn = $("btnRecentPaths");
+    if (pop) pop.classList.add("hidden");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+  function renderRecentPathsList() {
+    var pop = $("popRecentPaths");
+    if (!pop) return;
+    var list = lsGetRecentPaths();
+    var currentPath = ($("inpPath") && String($("inpPath").value || "").trim()) || "";
+    pop.innerHTML = "";
+    var ul = document.createElement("ul");
+    ul.className = "pop-recent-paths__list";
+    list.forEach(function (item) {
+      var li = document.createElement("li");
+      var itemBtn = document.createElement("button");
+      itemBtn.type = "button";
+      itemBtn.className = "pop-recent-paths__item" + (item.raw === currentPath ? " pop-recent-paths__item--active" : "");
+      itemBtn.title = item.display || item.raw;
+      itemBtn.textContent = item.display || item.raw;
+      itemBtn.onclick = function () {
+        var inpPath = $("inpPath");
+        if (inpPath) { inpPath.value = item.raw; syncPathDisplay(); }
+        closeRecentPathsPopover();
+        postConfig({ source_path: item.raw })
+          .then(function () { toast("Path restored from history"); })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+      li.appendChild(itemBtn);
+      ul.appendChild(li);
+    });
+    pop.appendChild(ul);
+    if (list.length > 0) {
+      var sep = document.createElement("div");
+      sep.className = "pop-recent-paths__sep";
+      sep.setAttribute("aria-hidden", "true");
+      pop.appendChild(sep);
+      var clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "pop-recent-paths__clear";
+      clearBtn.textContent = "Clear history";
+      clearBtn.onclick = function () { lsClearRecentPaths(); closeRecentPathsPopover(); };
+      pop.appendChild(clearBtn);
+    }
+  }
+  function openRecentPathsPopover() {
+    var pop = $("popRecentPaths");
+    var btn = $("btnRecentPaths");
+    if (!pop || !btn) return;
+    renderRecentPathsList();
+    positionKpiPopover(pop, btn);
+    btn.setAttribute("aria-expanded", "true");
   }
 
   /** Before the first WebSocket snapshot, show the last saved path so the header is not blank. */
@@ -1871,6 +1963,9 @@
       var pth = (inpPathEl && String(inpPathEl.value || "").trim()) || (s.source_path || "").trim();
       if (pth) lsSetPath(pth);
     } catch (e) {}
+    if (srvPath) {
+      lsAddRecentPath(srvPath, (s.source_path_display || srvPath));
+    }
 
     var modalSettings = $("modalSettings");
     if (!modalSettings || modalSettings.classList.contains("hidden")) {
@@ -3963,6 +4058,29 @@
           });
       };
     }
+    var brecent = $("btnRecentPaths");
+    if (brecent) {
+      brecent.onclick = function (e) {
+        e.stopPropagation();
+        var pop = $("popRecentPaths");
+        if (pop && !pop.classList.contains("hidden")) {
+          closeRecentPathsPopover();
+        } else {
+          openRecentPathsPopover();
+        }
+      };
+    }
+    document.addEventListener("click", function (e) {
+      var pop = $("popRecentPaths");
+      var btn = $("btnRecentPaths");
+      if (!pop || pop.classList.contains("hidden")) return;
+      if (pop.contains(e.target) || (btn && btn.contains(e.target))) return;
+      closeRecentPathsPopover();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeRecentPathsPopover();
+    });
+    updateRecentPathsButton();
     function wireSoundFilePicker(buttonId, inputId, label) {
       var btnPick = $(buttonId);
       var input = $(inputId);
