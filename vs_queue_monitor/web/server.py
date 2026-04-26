@@ -267,7 +267,10 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
             # Suppress only the active session's ghost: same log file AND same start second.
-            if current_norm_lf and lf == current_norm_lf and floor_se == active_floor_epoch:
+            # Only suppress while the engine is actively running — when stopped (e.g. during
+            # a folder switch), the just-written terminal record is already in JSONL and should
+            # appear as a normal historical session, not be hidden.
+            if engine.running and current_norm_lf and lf == current_norm_lf and floor_se == active_floor_epoch:
                 continue  # ghost record for the currently loaded session
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
