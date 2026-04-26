@@ -1140,6 +1140,13 @@ class QueueMonitorEngine:
             resolved = resolve_log_file(self.source_path_var.get())
             if resolved is not None:
                 if self.current_log_file != resolved:
+                    # Finalize the old session before switching log files.
+                    if self._last_queue_run_session >= 0 and self.graph_points and not self._session_record_written:
+                        self._write_session_record("unknown")
+                    # Reset session tracking so the new file's sessions can be recorded.
+                    self._session_record_written = False
+                    self._session_start_epoch = None
+                    self._session_start_position = None
                     self.current_log_file = resolved
                     self.resolved_path_var.set(str(resolved))
                     self._last_queue_run_session = -1
