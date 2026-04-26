@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 
 
 class QueueMonitorEngine:
+    # Serializes JSONL writes across all backfill threads so concurrent log-switches
+    # cannot race to append duplicates before any thread has finished writing.
+    _backfill_lock = threading.Lock()
 
     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
         self._hooks = hooks
@@ -601,32 +604,36 @@ class QueueMonitorEngine:
             )
             if not records:
                 return
-            existing: set[tuple[str, int]] = set()
             hist = self._effective_history_path()
             norm_log_file = self._normalize_log_path_for_dedup(str(log_file))
-            try:
-                if hist.exists():
-                    for line in hist.read_text(encoding="utf-8").splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            rec = json.loads(line)
-                            lf = self._normalize_log_path_for_dedup(str(rec.get("log_file", "")))
-                            sid = rec.get("session_id")
-                            if lf and sid is not None:
-                                existing.add((lf, int(sid)))
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            to_write = [r for r in records if (norm_log_file, r["session_id"]) not in existing]
-            if not to_write:
-                return
-            hist.parent.mkdir(parents=True, exist_ok=True)
-            with open(hist, "a", encoding="utf-8") as fh:
-                for r in to_write:
-                    fh.write(json.dumps(r) + "\n")
+            # Serialize the read-check-write block so concurrent backfill threads
+            # (triggered by rapid log-folder switches) cannot all read the same
+            # pre-write JSONL and then each append the same session records.
+            with QueueMonitorEngine._backfill_lock:
+                existing: set[tuple[str, int]] = set()
+                try:
+                    if hist.exists():
+                        for line in hist.read_text(encoding="utf-8").splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                rec = json.loads(line)
+                                lf = self._normalize_log_path_for_dedup(str(rec.get("log_file", "")))
+                                sid = rec.get("session_id")
+                                if lf and sid is not None:
+                                    existing.add((lf, int(sid)))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                to_write = [r for r in records if (norm_log_file, r["session_id"]) not in existing]
+                if not to_write:
+                    return
+                hist.parent.mkdir(parents=True, exist_ok=True)
+                with open(hist, "a", encoding="utf-8") as fh:
+                    for r in to_write:
+                        fh.write(json.dumps(r) + "\n")
             self._invalidate_history_cache()
         except Exception:
             pass

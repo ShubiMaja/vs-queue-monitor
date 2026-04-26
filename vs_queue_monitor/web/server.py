@@ -171,6 +171,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     path = engine.current_log_file
     seed_active_id = -1
     live_sessions: list[dict[str, Any]] = []
+    _active_tail_session: Optional[dict[str, Any]] = None  # the removed active entry
     if path is not None and path.is_file():
         try:
             tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
@@ -178,7 +179,13 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             if tail_text and engine.running:
                 _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
             if seed_active_id >= 0:
-                live_sessions = [s for s in live_sessions if int(s.get("session_id", -1)) != seed_active_id]
+                filtered: list[dict[str, Any]] = []
+                for s in live_sessions:
+                    if int(s.get("session_id", -1)) == seed_active_id:
+                        _active_tail_session = s
+                    else:
+                        filtered.append(s)
+                live_sessions = filtered
         except Exception:
             pass
 
@@ -219,6 +226,9 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
         # Pass B: build live match keys — (floor_epoch, start_pos).
+        # Also include the active session (removed from live_sessions so it does not appear
+        # twice in the dropdown) so that any matching JSONL record for the same run is
+        # suppressed — otherwise the JSONL record leaks in as a ghost past entry.
         live_match_keys: set[tuple[Any, Any]] = set()
         key_counts: dict[str, int] = {}
         for s in live_sessions:
@@ -227,6 +237,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             live_match_keys.add(mk)
             base = str(s.get("key", "")).split("#")[0]
             key_counts[base] = key_counts.get(base, 0) + 1
+        if _active_tail_session is not None:
+            se = _active_tail_session.get("start_epoch")
+            live_match_keys.add(
+                (int(math.floor(float(se))) if se is not None else None, _active_tail_session.get("start_pos"))
+            )
 
         # Pass C: build JSONL candidate dict, skipping live-covered sessions.
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
