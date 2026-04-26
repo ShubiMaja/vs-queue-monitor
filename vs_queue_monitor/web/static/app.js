@@ -420,7 +420,9 @@
     var raw = inp ? String(inp.value || "").trim() : "";
     var display = (window._lastState && window._lastState.source_path_display) || raw;
     if (tx) {
-      tx.textContent = raw ? display : "Select log folder or file…";
+      // ‎ (LRM) anchors the leading % in %APPDATA% as LTR so the RTL
+      // direction:rtl overflow trick doesn't move it to the visual right end.
+      tx.textContent = raw ? "‎" + display : "Select log folder or file…";
       tx.classList.toggle("path-summary__text--has-path", !!raw);
     }
     if (btn) btn.classList.toggle("path-summary--empty", !raw);
