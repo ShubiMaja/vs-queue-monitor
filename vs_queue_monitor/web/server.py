@@ -166,9 +166,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     coordinate space, preventing historical sessions from being incorrectly filtered and
     phantom sessions from leaking into the dropdown.
 
-    Also merges sessions from session_history.jsonl so cross-file history appears in the dropdown.
+    JSONL history is filtered to the currently monitored log file so sessions from other
+    folders do not contaminate the dropdown.
     """
     path = engine.current_log_file
+    current_norm_lf = normalize_log_path_for_dedup(str(path)) if path is not None else ""
     seed_active_id = -1
     live_sessions: list[dict[str, Any]] = []
     _active_tail_session: Optional[dict[str, Any]] = None  # the removed active entry
@@ -243,17 +245,20 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 (int(math.floor(float(se))) if se is not None else None, _active_tail_session.get("start_pos"))
             )
 
-        # Pass C: build JSONL candidate dict, skipping live-covered sessions.
+        # Pass C: build JSONL candidate dict, skipping live-covered sessions and records
+        # from other log files so sessions from other folders don't appear in this view.
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in deduped_hist:
             se = rec.get("start_epoch")
             if se is None:
                 continue
+            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
+            if current_norm_lf and lf != current_norm_lf:
+                continue  # belongs to a different monitored folder
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
             if (floor_se, start_pos) in live_match_keys:
                 continue  # already represented by the live tail session
-            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
