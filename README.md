@@ -2,7 +2,7 @@
 
 Monitor your **Vintage Story** connect queue - live position, estimated wait time, and configurable alerts when you're close to the front.
 
-<img width="1180" height="930" alt="image" src="https://github.com/user-attachments/assets/0e236629-3bc0-4942-af4d-a04757387faf" />
+<img width="1172" height="930" alt="image" src="https://github.com/user-attachments/assets/e2b041da-bedf-445f-984c-120ad9f78902" />
 
 ## Contents
 
