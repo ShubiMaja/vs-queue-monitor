@@ -1034,6 +1034,17 @@ def count_queue_run_boundaries(data: str) -> int:
     return sum(1 for line in data.splitlines() if is_queue_run_boundary_line(line))
 
 
+def parse_latest_session_boundary_epoch(data: str) -> Optional[float]:
+    """Timestamp of the last queue-run boundary line (= when the newest session started)."""
+    last_t: Optional[float] = None
+    for _session, line, is_boundary in iter_session_log_lines(data):
+        if is_boundary:
+            t = parse_log_timestamp_epoch(line)
+            if t is not None:
+                last_t = t
+    return last_t
+
+
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     """Last timestamp (epoch seconds) of any raw queue line in the buffer.
 
