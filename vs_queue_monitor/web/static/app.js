@@ -1068,13 +1068,14 @@
   function copyStatsToClipboard() {
     // Read directly from the DOM so copied values always match what is displayed.
     function t(id) { var el = $(id); return el ? (el.textContent || "").trim() : "—"; }
+    var avgLbl = ($("infoStatAvgLbl") && $("infoStatAvgLbl").textContent.trim()) || "10p Rate";
     var text =
-      "Start Pos: " + t("infoStatStart") + "\n" +
-      "Cur Pos: "   + t("infoStatEnd")   + "\n" +
-      "Pos Change: "+ t("infoStatCleared")+ "\n" +
-      "Duration: "  + t("infoStatSpan")  + "\n" +
-      "Rate: "      + t("infoStatAvg")   + "\n" +
-      "Full Rate: " + t("infoStatGlo")   + "\n" +
+      "Start Pos: "  + t("infoStatStart")   + "\n" +
+      "Cur Pos: "    + t("infoStatEnd")     + "\n" +
+      "Pos Change: " + t("infoStatCleared") + "\n" +
+      "Duration: "   + t("infoStatSpan")    + "\n" +
+      "Full Rate: "  + t("infoStatGlo")     + "\n" +
+      avgLbl + ": "  + t("infoStatAvg")     + "\n" +
       "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
       function () { toast("Stats copied"); },
@@ -1781,8 +1782,7 @@
           }
         }
       }
-      // LRM prefix anchors leading % as LTR inside direction:rtl overflow element.
-      el.textContent = logPath ? "‎" + logPath : "—";
+      el.textContent = logPath || "—";
       el.title = logPath || "Log file path for the displayed session";
     })();
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;

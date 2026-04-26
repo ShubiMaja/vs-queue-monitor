@@ -1416,8 +1416,6 @@ select.inp:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  unicode-bidi: embed;
 }
 
 .info-stats {
