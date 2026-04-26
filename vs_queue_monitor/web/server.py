@@ -192,28 +192,22 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         except Exception:
             pass
 
-    # Merge JSONL history records into the session list.
+    # Build the session list exclusively from JSONL so the dropdown is identical
+    # regardless of which log folder is currently selected.  Live-tail sessions are
+    # only used to identify the active (loaded) session; they are never added to the
+    # list directly.  If completed live sessions are missing from JSONL we kick off a
+    # background backfill so they appear on the next poll.
     #
-    # Two dedup passes are needed because the old signature-based approach had two bugs:
-    #   1. end_epoch was in the signature, so checkpoint / crash-recovery / explicit writes
-    #      for the same queue run each got a unique signature and all appeared in the dropdown.
-    #   2. Live sessions have no log_file/server/source_path metadata, so their signatures
-    #      never matched JSONL records and the seen_signatures guard was effectively dead.
-    #
-    # Fix:
-    #   Pass A — collapse JSONL records for the same run: (log_file, session_id) is a stable
-    #             primary key because the engine writes the same session_id for every
-    #             checkpoint and final write of a given queue run.
-    #   Pass B — exclude JSONL records already covered by live tail sessions: match on
-    #             (floor_epoch, start_pos) only — the two fields present in both sources.
-    #   Pass C — dedup any remaining JSONL records by (floor_epoch, start_pos, log_file),
-    #             without end_epoch, so further stale duplicates collapse.
+    # Passes:
+    #   A — collapse JSONL records for the same run by (norm_log_file, session_id).
+    #   B — build the set of all live-tail (floor_epoch, start_pos) keys so we can
+    #       suppress any matching JSONL ghost record for the loaded session.
+    #   C — dedup JSONL candidates by (floor_epoch, start_pos, norm_log_file) and
+    #       build the final sorted list.
     try:
         hist_records = engine.load_history_sessions()
 
-        # Pass A: collapse same-run JSONL records by (log_file, session_id).
-        # Normalize the path so token-masked (%APPDATA%\...) and raw (C:\Users\...)
-        # variants for the same file are treated as the same key.
+        # Pass A: collapse same-run JSONL records by (norm_log_file, session_id).
         hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
         hist_no_id: list[dict[str, Any]] = []
         for rec in hist_records:
@@ -228,26 +222,37 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass B: build live match keys — (floor_epoch, start_pos).
-        # Also include the active session (removed from live_sessions so it does not appear
-        # twice in the dropdown) so that any matching JSONL record for the same run is
-        # suppressed — otherwise the JSONL record leaks in as a ghost past entry.
+        # Pass B: build live match keys to suppress JSONL ghost for the loaded session.
+        # Also collect JSONL keys so we can detect unmatched live sessions.
         live_match_keys: set[tuple[Any, Any]] = set()
-        key_counts: dict[str, int] = {}
         for s in live_sessions:
             se = s.get("start_epoch")
-            mk: tuple[Any, Any] = (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
-            live_match_keys.add(mk)
-            base = str(s.get("key", "")).split("#")[0]
-            key_counts[base] = key_counts.get(base, 0) + 1
+            live_match_keys.add(
+                (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
+            )
         if _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
             live_match_keys.add(
                 (int(math.floor(float(se))) if se is not None else None, _active_tail_session.get("start_pos"))
             )
 
-        # Pass C: build JSONL candidate dict, skipping only live-covered sessions.
-        # All folders' sessions are merged into one global list (filterable by log_file later).
+        # Trigger a background backfill if completed live sessions are missing from JSONL.
+        jsonl_keys: set[tuple[Any, Any]] = set()
+        for rec in hist_records:
+            se = rec.get("start_epoch")
+            if se is not None:
+                jsonl_keys.add((int(math.floor(float(se))), rec.get("start_position")))
+        unmatched = [
+            s for s in live_sessions
+            if (int(math.floor(float(s.get("start_epoch") or 0))), s.get("start_pos")) not in jsonl_keys
+        ]
+        if unmatched and path is not None:
+            threading.Thread(
+                target=engine._backfill_sessions_from_log, args=(path,), daemon=True
+            ).start()
+
+        # Pass C: build JSONL candidates, suppressing the active session's ghost record.
+        key_counts: dict[str, int] = {}
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in deduped_hist:
             se = rec.get("start_epoch")
@@ -257,7 +262,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
             if (floor_se, start_pos) in live_match_keys:
-                continue  # already represented by the live tail session
+                continue  # ghost record for the currently active session
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
@@ -278,21 +283,19 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             if prev is None or _session_merge_rank(candidate) > _session_merge_rank(prev):
                 hist_by_sig[sig] = candidate
 
-        hist_sessions: list[dict[str, Any]] = []
+        all_sessions: list[dict[str, Any]] = []
         for _sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
             base = str(sess.get("key", "")).split("#")[0]
             seen = key_counts.get(base, 0)
             key_counts[base] = seen + 1
             sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
-            hist_sessions.append(sess)
+            all_sessions.append(sess)
 
-        all_sessions = live_sessions + hist_sessions
-        all_sessions.sort(key=lambda s: float(s.get("start_epoch") or 0))
         for i, s in enumerate(all_sessions):
             s["label"] = f"Session {i + 1}"
         return all_sessions, seed_active_id
     except Exception:
-        return live_sessions, seed_active_id
+        return [], seed_active_id
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
