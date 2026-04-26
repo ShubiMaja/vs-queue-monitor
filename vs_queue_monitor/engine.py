@@ -588,6 +588,24 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
+    @staticmethod
+    def _normalize_log_path_for_dedup(p: str) -> str:
+        """Normalize a log file path so raw and token-masked variants compare equal."""
+        if not p:
+            return p
+        for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+            val = os.environ.get(env_var, "")
+            if val:
+                p = p.replace(token, val)
+        try:
+            home = str(Path.home())
+            p = p.replace("$HOME", home)
+        except Exception:
+            pass
+        if sys.platform == "win32":
+            p = p.replace("/", "\\").lower()
+        return p
+
     def _backfill_sessions_from_log(self, log_file: Path) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
         try:
@@ -600,6 +618,7 @@ class QueueMonitorEngine:
                 return
             existing: set[tuple[str, int]] = set()
             hist = self._effective_history_path()
+            norm_log_file = self._normalize_log_path_for_dedup(str(log_file))
             try:
                 if hist.exists():
                     for line in hist.read_text(encoding="utf-8").splitlines():
@@ -608,7 +627,7 @@ class QueueMonitorEngine:
                             continue
                         try:
                             rec = json.loads(line)
-                            lf = str(rec.get("log_file", ""))
+                            lf = self._normalize_log_path_for_dedup(str(rec.get("log_file", "")))
                             sid = rec.get("session_id")
                             if lf and sid is not None:
                                 existing.add((lf, int(sid)))
@@ -616,7 +635,7 @@ class QueueMonitorEngine:
                             pass
             except Exception:
                 pass
-            to_write = [r for r in records if (str(log_file), r["session_id"]) not in existing]
+            to_write = [r for r in records if (norm_log_file, r["session_id"]) not in existing]
             if not to_write:
                 return
             hist.parent.mkdir(parents=True, exist_ok=True)
@@ -740,7 +759,7 @@ class QueueMonitorEngine:
         except Exception:
             pass
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '', left: bool = False) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
         # Use total boundary count only when there is also at least one new position line in the
         # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
@@ -760,6 +779,10 @@ class QueueMonitorEngine:
         # If the newest detected run is already interrupted/disconnected by the time we see it,
         # do not offer it as a fresh run to adopt.
         if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (position is not None and position <= 1)):
+            return
+        # If the queue already completed (post-queue lines present after the last queue line),
+        # don't offer to adopt — the run already ended.
+        if left and position is not None and position <= 1:
             return
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
@@ -1030,7 +1053,7 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind, left)
                     elif kind == 'disconnected':
                         self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
