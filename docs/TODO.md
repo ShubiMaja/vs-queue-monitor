@@ -262,6 +262,9 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Implemented
 
+~~Tweak: add Log row to Info panel showing the log file path for the currently displayed session~~
+Done: infoLogPath row added below Server in the Info panel; for the latest session it shows source_path_display; for historical sessions it shows the masked source_path/log_file from the session record; direction:rtl + LRM prefix for clean overflow truncation (v1.1.103)
+
 ~~Tweak: path masking — replace APPDATA/home paths with %APPDATA%/$HOME in the path header and history log~~
 Done: server-side _mask_path_in_text() replaces APPDATA/LOCALAPPDATA on Windows and the home dir cross-platform; source_path_display field added to snapshot; history_tail and history_path_resolved are also masked; LRM character prepended in syncPathDisplay() to fix bidi reordering of the leading % in RTL overflow mode (v1.1.100)
 

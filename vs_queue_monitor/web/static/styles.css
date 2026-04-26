@@ -1412,6 +1412,13 @@ select.inp:focus-visible {
 .info__val--wrap {
   word-break: break-all;
 }
+.info__val--path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  unicode-bidi: embed;
+}
 
 .info-stats {
   min-width: 0;

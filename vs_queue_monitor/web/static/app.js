@@ -1766,6 +1766,25 @@
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
     $("infoServer").textContent = s.server_target || "—";
+    (function () {
+      var el = $("infoLogPath");
+      if (!el) return;
+      var logPath = "";
+      if (selectedSessionKey === "latest") {
+        logPath = (s.source_path_display || s.source_path || "").trim();
+      } else {
+        var qs = s.queue_sessions || [];
+        for (var lpi = 0; lpi < qs.length; lpi++) {
+          if (qs[lpi].key === selectedSessionKey) {
+            logPath = (qs[lpi].source_path || qs[lpi].log_file || "").trim();
+            break;
+          }
+        }
+      }
+      // LRM prefix anchors leading % as LTR inside direction:rtl overflow element.
+      el.textContent = logPath ? "‎" + logPath : "—";
+      el.title = logPath || "Log file path for the displayed session";
+    })();
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
     const alertMsg = (s.last_alert_message || "").trim();
     if (

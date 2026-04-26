@@ -622,6 +622,10 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
     except Exception:
         rate_hdr = "RATE"
     queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
+    for _qs in queue_sessions:
+        for _qf in ("source_path", "log_file"):
+            if _qs.get(_qf):
+                _qs[_qf] = _mask_path_in_text(_qs[_qf])
     result = {
         "version": VERSION,
         "running": engine.running,
