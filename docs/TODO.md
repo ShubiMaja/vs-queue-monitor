@@ -381,14 +381,10 @@ Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed 
 
 # FEATURES
 
-Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.
+~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
+Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
 
-~~Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app~~
-Done: background thread fetches `origin/main` every hour and sets `update_available` on app state; a green banner appears at the top when a newer commit exists on main; "Update & restart" runs `git pull` then `os.execv` to replace the server process; the browser detects the disconnect and hard-reloads on reconnect (v1.1.33)
-
-Feature: Snapshot every session recorded once the session ends and store it as appdata so we can perform analytics later
-
-feature: store history of selected file swso they can be selected again from a history button
+feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
 feature: add light and dark theme
 
