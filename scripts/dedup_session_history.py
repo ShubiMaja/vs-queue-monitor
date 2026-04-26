@@ -3,6 +3,7 @@
 Collapses records that are the same session but stored under different path
 formats (token-masked vs raw, case variants on Windows).
 Keeps the highest-ranked record per (norm_log_file, session_id).
+Also normalizes log_file fields to portable %APPDATA% / $HOME tokens.
 """
 
 import json
@@ -14,7 +15,7 @@ from pathlib import Path
 # Allow running from project root or scripts/ dir
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from vs_queue_monitor.core import normalize_log_path_for_dedup, get_history_path
+from vs_queue_monitor.core import normalize_log_path_for_dedup, normalize_log_path_for_storage, get_history_path
 
 
 def session_merge_rank(rec: dict) -> tuple:
@@ -79,9 +80,23 @@ def dedup_jsonl(path: Path) -> None:
     shutil.copy2(path, backup)
     print(f"\nBackup written to: {backup}")
 
+    # Normalize log_file paths to portable tokens
+    normalized: list[dict] = []
+    norm_changes = 0
+    for rec in deduped:
+        raw_lf = str(rec.get("log_file") or "")
+        normed = normalize_log_path_for_storage(raw_lf)
+        if normed != raw_lf:
+            rec = dict(rec)
+            rec["log_file"] = normed
+            norm_changes += 1
+        normalized.append(rec)
+    if norm_changes:
+        print(f"Normalized {norm_changes} log_file path(s) to portable tokens")
+
     # Write cleaned file
     with open(path, "w", encoding="utf-8") as fh:
-        for rec in deduped:
+        for rec in normalized:
             fh.write(json.dumps(rec) + "\n")
     print(f"Cleaned file written to: {path}")
 
