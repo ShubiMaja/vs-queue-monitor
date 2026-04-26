@@ -183,7 +183,9 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         try:
             tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
             live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-            if tail_text and engine.running:
+            # Always derive seed_active_id from the tail so we can suppress the
+            # loaded session's JSONL ghost even when the engine is not running.
+            if tail_text:
                 _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
             if seed_active_id >= 0:
                 filtered: list[dict[str, Any]] = []
@@ -226,14 +228,10 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass B: build live match keys to suppress JSONL ghost for the loaded session.
-        # Also collect JSONL keys so we can detect unmatched live sessions.
+        # Pass B: build the suppression key for the loaded (active) session only.
+        # Past completed sessions are never suppressed — their JSONL records are the
+        # authoritative source and must appear unconditionally for all folder views.
         live_match_keys: set[tuple[Any, Any]] = set()
-        for s in live_sessions:
-            se = s.get("start_epoch")
-            live_match_keys.add(
-                (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
-            )
         if _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
             live_match_keys.add(
