@@ -122,7 +122,7 @@ def test_completed_latest_session_is_not_duplicated_in_dropdown(page: Page, base
     opts = page.locator("#selSession option")
     expect(opts).to_have_count(1, timeout=15000)
     expect(page.locator("#selSession")).to_have_value("latest")
-    expect(opts.nth(0)).to_contain_text("Session 1", timeout=15000)
+    expect(opts.nth(0)).to_contain_text("(active)", timeout=15000)
 
 
 def test_completed_running_session_is_not_duplicated_in_dropdown(page: Page, base_url: str, tmp_path: Path) -> None:
@@ -162,7 +162,7 @@ def test_completed_running_session_is_not_duplicated_in_dropdown(page: Page, bas
     opts = page.locator("#selSession option")
     expect(opts).to_have_count(1, timeout=15000)
     expect(page.locator("#selSession")).to_have_value("latest")
-    expect(opts.nth(0)).to_contain_text("Session 1", timeout=15000)
+    expect(opts.nth(0)).to_contain_text("(active)", timeout=15000)
 
 
 def test_history_session_id_collision_does_not_hide_unrelated_past_session(
@@ -248,6 +248,6 @@ def test_history_session_id_collision_does_not_hide_unrelated_past_session(
     page.wait_for_timeout(2500)
     opts = page.locator("#selSession option")
     expect(opts).to_have_count(3, timeout=15000)
-    expect(opts.nth(0)).to_contain_text("Session 3", timeout=15000)
+    expect(opts.nth(0)).to_contain_text("(active)", timeout=15000)
     expect(opts.nth(1)).to_contain_text("Session 2", timeout=15000)
     expect(opts.nth(2)).to_contain_text("Session 1", timeout=15000)
