@@ -1264,7 +1264,26 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state || state.interrupted_mode) {
+    if (!sess || !state) {
+      return false;
+    }
+    // Suppress the in-progress ghost of the active session by ID+epoch match.
+    // This fires even during interrupted_mode (where the graph-point check below
+    // is skipped) so the ghost is never shown alongside the synthetic loaded option.
+    var activeEpochForId = state.active_queue_session_epoch;
+    var activeIdEarly = Number(state.active_queue_session_id);
+    var sessIdEarly = Number(sess.session_id);
+    if (
+      Number.isFinite(activeIdEarly) && activeIdEarly >= 0 &&
+      Number.isFinite(sessIdEarly) && sessIdEarly === activeIdEarly &&
+      activeEpochForId != null
+    ) {
+      var sessStartEarly = Number(sess.start_epoch);
+      if (Number.isFinite(sessStartEarly) && Math.abs(sessStartEarly - Number(activeEpochForId)) <= 2) {
+        return true;
+      }
+    }
+    if (state.interrupted_mode) {
       return false;
     }
     var currentPos = null;
@@ -1500,9 +1519,17 @@
 
     // Determine the loaded session start time so it can be inserted at its
     // natural chronological position in the merged list and labelled correctly.
+    // Prefer the server-supplied active_queue_session_epoch (which reflects the
+    // true latest session even when it has no graph points, e.g. a failed connect
+    // attempt that never reached the queue).  Fall back to graph_points[0] so
+    // existing behaviour is preserved for normal running sessions.
     var loadedStartEpoch = null;
-    var loadedPts = s.graph_points || [];
-    if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+    if (s.active_queue_session_epoch != null) {
+      loadedStartEpoch = Number(s.active_queue_session_epoch);
+    } else {
+      var loadedPts = s.graph_points || [];
+      if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+    }
 
     // Session number = count of past sessions that started before the loaded session + 1.
     // In a merged cross-folder list the loaded session may not be the absolute newest.

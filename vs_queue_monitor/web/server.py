@@ -31,10 +31,12 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
     SEED_LOG_TAIL_BYTES,
+    count_queue_run_boundaries,
     expand_path,
     get_config_path,
     normalize_log_path_for_dedup,
     parse_alert_thresholds,
+    parse_latest_session_boundary_epoch,
     parse_tail_last_queue_reading,
     queue_sessions_for_log_tail,
     read_log_file_tail_text,
@@ -161,32 +163,33 @@ def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int, int]:
     )
 
 
-def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
-    """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
+def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int, Optional[float]]:
+    """Return (past_sessions, active_seed_session_id, active_session_epoch).
 
-    The engine's ``_last_queue_run_session`` is counted against the smaller TAIL_BYTES window
-    and disagrees with the session IDs in the SEED window used by ``queue_sessions_for_log_tail``.
-    Deriving the active ID directly from the SEED tail keeps all session IDs in the same
-    coordinate space, preventing historical sessions from being incorrectly filtered and
-    phantom sessions from leaking into the dropdown.
-
-    JSONL history from all log files is merged into a single global list.  The loaded
-    session (value="latest") marks the most recent session from the current log file;
-    every other folder's sessions appear alongside it in chronological order.
+    ``active_seed_session_id`` is the ACTUAL latest session that started in the log
+    (by boundary count), even if it never logged a queue position (e.g. VS failed to
+    connect before the queue was reached).  ``active_session_epoch`` is that session's
+    start time, used by the JS to label and position the synthetic "loaded" option
+    correctly in the session dropdown.
     """
     path = engine.current_log_file
     current_norm_lf = normalize_log_path_for_dedup(str(path)) if path is not None else ""
-    seed_active_id = -1
+    seed_active_id = -1   # session id from last queue-position line
+    true_seed_id = -1     # actual latest session (may have no queue positions)
+    total_boundaries = 0
+    tail_text: Optional[str] = None
     live_sessions: list[dict[str, Any]] = []
-    _active_tail_session: Optional[dict[str, Any]] = None  # the removed active entry
+    _active_tail_session: Optional[dict[str, Any]] = None
     if path is not None and path.is_file():
         try:
             tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
             live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-            # Always derive seed_active_id from the tail so we can suppress the
-            # loaded session's JSONL ghost even when the engine is not running.
             if tail_text:
                 _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+                # Boundary count = the ID of the truly latest session, even when it has
+                # no queue positions logged (VS failed to enter the queue).
+                total_boundaries = count_queue_run_boundaries(tail_text)
+            true_seed_id = max(seed_active_id, total_boundaries)
             if seed_active_id >= 0:
                 filtered: list[dict[str, Any]] = []
                 for s in live_sessions:
@@ -198,18 +201,6 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         except Exception:
             pass
 
-    # Build the session list exclusively from JSONL so the dropdown is identical
-    # regardless of which log folder is currently selected.  Live-tail sessions are
-    # only used to identify the active (loaded) session; they are never added to the
-    # list directly.  If completed live sessions are missing from JSONL we kick off a
-    # background backfill so they appear on the next poll.
-    #
-    # Passes:
-    #   A — collapse JSONL records for the same run by (norm_log_file, session_id).
-    #   B — build the set of all live-tail (floor_epoch, start_pos) keys so we can
-    #       suppress any matching JSONL ghost record for the loaded session.
-    #   C — dedup JSONL candidates by (floor_epoch, start_pos, norm_log_file) and
-    #       build the final sorted list.
     try:
         hist_records = engine.load_history_sessions()
 
@@ -228,13 +219,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass B: derive the suppression key for the loaded (active) session's ghost JSONL record.
-        # We match by (current_log_file, floor_epoch) only — start_pos is omitted because
-        # the live tail's start_pos and the JSONL's start_position can differ when the log
-        # grew since the record was written (session ID shift, or tail window changed).
-        # The floor_epoch comes from the same log line timestamp in both sources, so it
-        # is always stable.  Past completed sessions are never suppressed here; their JSONL
-        # records are the authoritative source and must appear for all folder views.
+        # Pass B: derive the suppression key for the active session's in-progress ghost.
         active_floor_epoch: Optional[int] = None
         if _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
@@ -256,7 +241,14 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 target=engine._backfill_sessions_from_log, args=(path,), daemon=True
             ).start()
 
-        # Pass C: build JSONL candidates, suppressing the active session's ghost record.
+        # Pass C: build JSONL candidates, suppressing the in-progress ghost when applicable.
+        # Ghost suppression only fires when:
+        #   • engine is actively running (stopped engine means the terminal record was just
+        #     written and should appear as a normal historical session)
+        #   • no newer boundary-only session exists (if true_seed_id > seed_active_id the
+        #     "active" session from the last queue reading has been superseded — its completed
+        #     JSONL record is historical and must remain visible)
+        no_newer_session = (true_seed_id <= seed_active_id)
         key_counts: dict[str, int] = {}
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in deduped_hist:
@@ -266,12 +258,10 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
-            # Suppress only the active session's ghost: same log file AND same start second.
-            # Only suppress while the engine is actively running — when stopped (e.g. during
-            # a folder switch), the just-written terminal record is already in JSONL and should
-            # appear as a normal historical session, not be hidden.
-            if engine.running and current_norm_lf and lf == current_norm_lf and floor_se == active_floor_epoch:
-                continue  # ghost record for the currently loaded session
+            if (engine.running and no_newer_session
+                    and current_norm_lf and lf == current_norm_lf
+                    and floor_se == active_floor_epoch):
+                continue  # in-progress ghost for the currently loaded session
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
@@ -300,33 +290,47 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
             all_sessions.append(sess)
 
-        # Assign 1-based labels, accounting for the loaded (live) session's slot.
-        # The loaded session is suppressed from all_sessions (it's shown via the
-        # synthetic "loaded" option in the JS).  The JS computes the loaded session's
-        # number by counting JSONL sessions that started before its epoch + 1.  Without
-        # a shift, the first JSONL session after the loaded session gets the same number
-        # as the synthetic loaded option → duplicate "Session N" in the dropdown.
-        # Fix: sessions at positions >= loaded_slot each shift up by 1.
-        loaded_slot: Optional[int] = None
-        if active_floor_epoch is not None:
-            # Check whether the loaded session is already present in all_sessions as a
-            # ghost (suppression failed or log-file mismatch).  If it is, no shift is
-            # needed — it already occupies its position in the list.
-            ghost_present = any(
-                normalize_log_path_for_dedup(str(_s.get("log_file", ""))) == current_norm_lf
-                and int(math.floor(float(_s.get("start_epoch", 0)))) == active_floor_epoch
-                for _s in all_sessions
+        # Determine active_session_epoch: the true latest session's start time.
+        # Used by the JS to place and label the synthetic "loaded" option correctly,
+        # even when the latest session has no queue positions (boundary-only failure).
+        active_session_epoch: Optional[float] = None
+        if true_seed_id == seed_active_id and _active_tail_session is not None:
+            se = _active_tail_session.get("start_epoch")
+            if se is not None:
+                active_session_epoch = float(se)
+        elif true_seed_id > seed_active_id:
+            # Newer boundary-only session: look for it in JSONL first, then the tail.
+            for rec in hist_records:
+                if (int(rec.get("session_id") or -1) == true_seed_id
+                        and normalize_log_path_for_dedup(str(rec.get("log_file") or "")) == current_norm_lf):
+                    se = rec.get("start_epoch")
+                    if se is not None:
+                        active_session_epoch = float(se)
+                    break
+            if active_session_epoch is None and tail_text:
+                active_session_epoch = parse_latest_session_boundary_epoch(tail_text)
+
+        # Assign 1-based labels accounting for the loaded session's slot.
+        # If the true loaded session (true_seed_id) is already present in all_sessions,
+        # no shift is needed — it occupies its own position.  If it was suppressed or never
+        # written, sessions that come after it in the timeline need a +1 shift so the JS
+        # computed loadedSessionNumber doesn't collide with a JSONL label.
+        true_active_in_list = active_session_epoch is not None and any(
+            normalize_log_path_for_dedup(str(_s.get("log_file", ""))) == current_norm_lf
+            and int(_s.get("session_id") or -1) == true_seed_id
+            for _s in all_sessions
+        )
+        label_slot: Optional[int] = None
+        if active_session_epoch is not None and not true_active_in_list:
+            label_slot = sum(
+                1 for _s in all_sessions
+                if float(_s.get("start_epoch", 0)) < float(active_session_epoch)
             )
-            if not ghost_present:
-                loaded_slot = sum(
-                    1 for _s in all_sessions
-                    if float(_s.get("start_epoch", 0)) < float(active_floor_epoch)
-                )
         for i, s in enumerate(all_sessions):
-            s["label"] = f"Session {i + 2}" if (loaded_slot is not None and i >= loaded_slot) else f"Session {i + 1}"
-        return all_sessions, seed_active_id
+            s["label"] = f"Session {i + 2}" if (label_slot is not None and i >= label_slot) else f"Session {i + 1}"
+        return all_sessions, true_seed_id, active_session_epoch
     except Exception:
-        return [], seed_active_id
+        return [], true_seed_id, None
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -677,7 +681,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         rate_hdr = f"RATE (Rolling {n})"
     except Exception:
         rate_hdr = "RATE"
-    queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
+    queue_sessions, active_session_id, active_session_epoch = _queue_sessions_for_engine(engine)
     for _qs in queue_sessions:
         for _qf in ("source_path", "log_file"):
             if _qs.get(_qf):
@@ -729,6 +733,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
         "queue_sessions": queue_sessions,
         "active_queue_session_id": active_session_id,
+        "active_queue_session_epoch": active_session_epoch,
         "build_fingerprint": _build_fingerprint(),
     }
     if extra:
