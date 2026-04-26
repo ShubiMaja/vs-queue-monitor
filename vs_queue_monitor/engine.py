@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import subprocess
-import sys
 import threading
 import time
 import traceback
@@ -168,6 +166,7 @@ class QueueMonitorEngine:
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
         self._bind_config_persist_traces()
+        self._migrate_session_history()
         self._recover_crashed_session()
         self.start_timer()
         self._hooks.append_history(
@@ -590,21 +589,7 @@ class QueueMonitorEngine:
 
     @staticmethod
     def _normalize_log_path_for_dedup(p: str) -> str:
-        """Normalize a log file path so raw and token-masked variants compare equal."""
-        if not p:
-            return p
-        for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
-            val = os.environ.get(env_var, "")
-            if val:
-                p = p.replace(token, val)
-        try:
-            home = str(Path.home())
-            p = p.replace("$HOME", home)
-        except Exception:
-            pass
-        if sys.platform == "win32":
-            p = p.replace("/", "\\").lower()
-        return p
+        return normalize_log_path_for_dedup(p)
 
     def _backfill_sessions_from_log(self, log_file: Path) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
@@ -685,6 +670,69 @@ class QueueMonitorEngine:
         if raw:
             return Path(raw) / "current_session.json"
         return get_checkpoint_path()
+
+    _MIGRATION_DEDUP_PATHS = "dedup_paths_v1"
+
+    def _migrate_session_history(self) -> None:
+        """Dedup session_history.jsonl once for users upgrading from versions before 1.1.108.
+
+        Earlier versions could accumulate duplicate records for the same session under
+        different path formats (token-masked vs raw, case variants on Windows).  A marker
+        in config.json records that the migration has run so it is skipped on every
+        subsequent startup.
+        """
+        try:
+            done = self.config.get("migrations_done") or []
+            if self._MIGRATION_DEDUP_PATHS in done:
+                return
+
+            hist = self._effective_history_path()
+            if hist.exists():
+                lines = hist.read_text(encoding="utf-8").splitlines()
+                records = []
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except Exception:
+                        pass
+
+                if records:
+                    outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
+
+                    def _rank(rec: dict) -> tuple:
+                        pts = rec.get("points") or []
+                        return (outcome_rank.get(rec.get("outcome", ""), -1), len(pts))
+
+                    primary: dict[tuple[str, int], dict] = {}
+                    no_id: list[dict] = []
+                    for rec in records:
+                        sid = rec.get("session_id")
+                        lf = self._normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
+                        if sid is not None:
+                            pk = (lf, int(sid))
+                            prev = primary.get(pk)
+                            if prev is None or _rank(rec) > _rank(prev):
+                                primary[pk] = rec
+                        else:
+                            no_id.append(rec)
+
+                    deduped = list(primary.values()) + no_id
+                    if len(deduped) < len(records):
+                        deduped.sort(key=lambda r: float(r.get("start_epoch") or 0))
+                        hist.write_text("\n".join(json.dumps(r) for r in deduped) + "\n", encoding="utf-8")
+                        self._invalidate_history_cache()
+
+            # Mark migration done and persist config.
+            if not isinstance(done, list):
+                done = []
+            done = list(done) + [self._MIGRATION_DEDUP_PATHS]
+            self.config["migrations_done"] = done
+            save_config(self.config)
+        except Exception:
+            pass
 
     def _recover_crashed_session(self) -> None:
         """On startup, recover any session left behind by a hard crash."""

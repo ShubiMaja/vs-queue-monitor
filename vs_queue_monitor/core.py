@@ -589,6 +589,24 @@ def get_config_path() -> Path:
     return base / "vs-queue-monitor" / "config.json"
 
 
+def normalize_log_path_for_dedup(p: str) -> str:
+    """Normalize a log file path so raw and token-masked variants compare equal."""
+    if not p:
+        return p
+    for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+        val = os.environ.get(env_var, "")
+        if val:
+            p = p.replace(token, val)
+    try:
+        home = str(Path.home())
+        p = p.replace("$HOME", home)
+    except Exception:
+        pass
+    if sys.platform == "win32":
+        p = p.replace("/", "\\").lower()
+    return p
+
+
 def get_history_path() -> Path:
     """JSONL file that accumulates completed/interrupted session records."""
     return get_config_path().parent / "session_history.jsonl"

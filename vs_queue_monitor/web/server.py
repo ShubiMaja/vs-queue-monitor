@@ -33,6 +33,7 @@ from ..core import (
     SEED_LOG_TAIL_BYTES,
     expand_path,
     get_config_path,
+    normalize_log_path_for_dedup,
     parse_alert_thresholds,
     parse_tail_last_queue_reading,
     queue_sessions_for_log_tail,
@@ -201,11 +202,13 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         hist_records = engine.load_history_sessions()
 
         # Pass A: collapse same-run JSONL records by (log_file, session_id).
+        # Normalize the path so token-masked (%APPDATA%\...) and raw (C:\Users\...)
+        # variants for the same file are treated as the same key.
         hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
         hist_no_id: list[dict[str, Any]] = []
         for rec in hist_records:
             sid = rec.get("session_id")
-            lf = str(rec.get("log_file") or "")
+            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             if sid is not None:
                 pk = (lf, int(sid))
                 prev = hist_primary.get(pk)
@@ -235,7 +238,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             start_pos = rec.get("start_position")
             if (floor_se, start_pos) in live_match_keys:
                 continue  # already represented by the live tail session
-            lf = str(rec.get("log_file") or "")
+            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
