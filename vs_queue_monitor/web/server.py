@@ -147,13 +147,17 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int]:
-    """Prefer records with more points and richer metadata when duplicates collide."""
+def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int, int]:
+    """Prefer terminal outcomes over in-progress, then more points, then richer metadata."""
+    outcome = rec.get("outcome") or ""
+    outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
+    terminal = outcome_rank.get(outcome, -1)  # in_progress / missing = -1
     pts = rec.get("points") or []
     return (
+        terminal,
         len(pts),
         1 if rec.get("server") else 0,
-        1 if rec.get("outcome") else 0,
+        1 if outcome else 0,
     )
 
 

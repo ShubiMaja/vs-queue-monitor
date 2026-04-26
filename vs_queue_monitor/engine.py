@@ -161,6 +161,7 @@ class QueueMonitorEngine:
         self._session_start_epoch: Optional[float] = None
         self._session_start_position: Optional[int] = None
         self._session_record_written: bool = False
+        self._last_progress_write: float = 0.0
         _hp = self.config.get("history_path", "")
         self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
         self._history_sessions_cache: Optional[tuple[str, float, list[dict]]] = None
@@ -814,10 +815,11 @@ class QueueMonitorEngine:
                 last_pos = p
         start_epoch = self._session_start_epoch or (pts[0][0] if pts else time.time())
         server = self.server_target_var.get()
+        raw_lf = str(self.current_log_file) if self.current_log_file else None
         return {
             "session_id": self._last_queue_run_session,
             "source_path": str(self.config.get("source_path", "") or ""),
-            "log_file": str(self.current_log_file) if self.current_log_file else None,
+            "log_file": normalize_log_path_for_storage(raw_lf) if raw_lf else None,
             "server": server if server and server != "—" else None,
             "start_epoch": start_epoch,
             "end_epoch": time.time(),
@@ -854,6 +856,33 @@ class QueueMonitorEngine:
             pass
         try:
             self._effective_checkpoint_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    _PROGRESS_WRITE_INTERVAL = 30.0  # seconds between in-progress JSONL writes
+
+    def _write_session_progress(self) -> None:
+        """Append an in-progress snapshot to JSONL so other folder views see live progress.
+
+        Throttled to at most once per _PROGRESS_WRITE_INTERVAL seconds.  The final
+        _write_session_record call supersedes these via server-side Pass A dedup
+        (completed/interrupted rank higher than in_progress).
+        """
+        if self._session_record_written:
+            return
+        if self._last_queue_run_session < 0 or not self.graph_points:
+            return
+        now = time.time()
+        if now - self._last_progress_write < self._PROGRESS_WRITE_INTERVAL:
+            return
+        try:
+            record = self._build_session_record("in_progress")
+            path = self._effective_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self._last_progress_write = now
+            self._invalidate_history_cache()
         except Exception:
             pass
 
@@ -1301,6 +1330,7 @@ class QueueMonitorEngine:
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._checkpoint_session()
+                                self._write_session_progress()
                                 self._mpp_floor_position = position
                                 self._mpp_floor_value = self._minutes_per_position_from_window()
                                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
