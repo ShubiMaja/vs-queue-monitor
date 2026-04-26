@@ -19,6 +19,11 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 
 ## Quick start
 
+**Prerequisites**
+1. Python
+2. `git` or [https://git-scm.com/install/windows 
+   GitBash)
+
 **Latest release:** [github.com/ShubiMaja/vs-queue-monitor/releases/latest](https://github.com/ShubiMaja/vs-queue-monitor/releases/latest)
 
 The app checks for updates automatically and lets you install them with one click from the banner that appears, or from **About → Check for updates**.
