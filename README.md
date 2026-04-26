@@ -20,8 +20,8 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 ## Quick start
 
 **Prerequisites**
-1. [https://www.python.org/downloads/](Python)
-2. `git` or [https://git-scm.com/install/windows](GitBash)
+1. [Python](https://www.python.org/downloads/)
+2. `git` or [GitBash](https://git-scm.com/install/windows)
 3. OPTIONAL (for remote access) [ngrok](https://dashboard.ngrok.com/get-started/setup/windows)
 
 **Latest release:** [github.com/ShubiMaja/vs-queue-monitor/releases/latest](https://github.com/ShubiMaja/vs-queue-monitor/releases/latest)
