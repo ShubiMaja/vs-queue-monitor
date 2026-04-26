@@ -962,6 +962,16 @@ class QueueMonitorEngine:
             self._set_position_display(pos)
         else:
             self._last_queue_line_epoch = None
+        # Seed last_change_var from the last position-change in the graph so
+        # "Last change" is not stuck at — after a restart on a completed run.
+        _lc_t: Optional[float] = None
+        _lc_prev: Optional[int] = None
+        for _pt, _pp in self.graph_points:
+            if _pp != _lc_prev:
+                _lc_t = _pt
+                _lc_prev = _pp
+        if _lc_t is not None:
+            self.last_change_var.set(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(_lc_t)))
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self._hooks.request_redraw_graph()

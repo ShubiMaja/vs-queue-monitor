@@ -71,8 +71,9 @@ def test_completion_and_failure_test_notifications_follow_saved_settings(page: P
     page.locator("#chkCompPop").check()
     page.locator("#tabFailure").click()
     page.locator("#chkFailPop").check()
-    # Settings auto-save on change; close modal with × button.
-    page.locator("#modalSettings .modal-close").click()
+    # Settings auto-save on change; close modal via Escape — the close button
+    # can end up outside the Playwright viewport after clicking through tabs.
+    page.keyboard.press("Escape")
     expect(page.locator("#modalSettings")).to_have_attribute("aria-hidden", "true")
     page.wait_for_timeout(400)  # let debounced saves settle
 
