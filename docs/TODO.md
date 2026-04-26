@@ -254,15 +254,25 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
+tweak: remove confusing notes from the readme about pip install and vapid if there's no need
+
+tweak: when user is updating, they should have a "What's new in vx.x.x" to explain why the update happened
+
+tweak: make the upgrade button glow (pulsate) slightly until the user hovers over it at least once.
+
 tweak: make the upgrade button match the style of all other buttons next to it
 
 tweak: make the start/stop button match the size of other buttons next to it
 
 tweak: put the upgrade button all the way tot he left (after the notification bell switch)
 
-tweak: make the upgrade button glow slightly until the user hovers over it at least once.
+tweak: give the logs path edit experience the same popover treatment as other fields
 
 tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.
+
+tweak: develop a method so when github release is autopopulated it has info about what changed
+
+tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history
 
 tweak: rename Full rate to Session Rate. 
   - consider chnage Rate fields ->  (is it better or worse?)
@@ -271,6 +281,8 @@ tweak: rename Full rate to Session Rate.
   Global m/p: n
 
 tweak: add max file size for JSONL which is configurable via settings (use a sane default)
+
+tweak: update all tests, lessons learned docs, todo, tour, etc
 
 ## Deferred
 
