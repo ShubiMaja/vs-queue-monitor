@@ -254,7 +254,13 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
+tweak: be 1000% sure that user needs to manually press a button before an update actually occurs avoiding interruptions 
+
+tweak: make quick start way more obvious and show it as early as possible in the page
+
 tweak: remove confusing notes from the readme about pip install and vapid if there's no need
+
+tweak: click on fields to edit them. e.g. click on the warnings values 15, 10, 5, and so on to edit it
 
 tweak: when user is updating, they should have a "What's new in vx.x.x" to explain why the update happened
 
@@ -266,7 +272,7 @@ tweak: make the start/stop button match the size of other buttons next to it
 
 tweak: put the upgrade button all the way tot he left (after the notification bell switch)
 
-tweak: give the logs path edit experience the same popover treatment as other fields
+tweak: give the logs path edit experience the same popover treatment as other fields. basically you should be ablle to click inside the field to edit it and a pop up with info and a save button appears when you do
 
 tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.
 

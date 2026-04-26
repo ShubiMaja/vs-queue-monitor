@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-One-file launcher: find or clone the repo, create .venv, install deps, optional run.
+One-file launcher: find or download the app, create .venv, install deps, optional run.
 
 Usage (after download):
   python bootstrap.py              # embedded web UI (local HTTP + webview or browser)
 
-On Windows, after pip install, creates a Desktop shortcut to ``vs-queue-monitor.cmd`` unless
+On Windows, after install, creates a Desktop shortcut to ``vs-queue-monitor.cmd`` unless
 ``VS_QUEUE_MONITOR_NO_DESKTOP_SHORTCUT`` is set. If stdin is a TTY (e.g. you ran
 ``python bootstrap.py`` from a terminal), asks ``Start VS Queue Monitor now? [Y/n]``.
 Piped installs (``curl ... | python -``) start the app without prompting. Set
 ``VS_QUEUE_MONITOR_SKIP_RUN=1`` to exit after install without starting.
 
-After a full clone, Windows users can double-click ``Run VS Queue Monitor.bat``
-or use Win+R with ``vs-queue-monitor.cmd`` (see README). If Python is not installed, those
-launchers warn you, open the official Python download page, and exit.
+No git required. The app files are downloaded as a zip from GitHub and extracted locally.
+Once installed, use the in-app ``About → Check for updates`` (or the auto-update banner)
+to keep the app current. Git is not needed to run or update the app.
 
 Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
-the README one-liner; it checks for ``py`` / ``python`` before piping this script.
+the README one-liner; it checks for ``py`` / ``python`` before running this script.
 
-Pipe (no saved file; clones to ~/vs-queue-monitor by default). Prefer the README
+Pipe (no saved file; installs to ~/vs-queue-monitor by default). Prefer the README
 one-liners: they use **Downloads** when that folder already exists (never created
 by us), otherwise your profile/home, before ``curl``. ``bootstrap-windows.cmd``
 does the same before fetching.
@@ -26,22 +26,31 @@ does the same before fetching.
   curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
 
 Override install location:
-  set VS_QUEUE_MONITOR_HOME=C:\\path\\to\\clone
+  set VS_QUEUE_MONITOR_HOME=C:\\path\\to\\install
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
+import zipfile
 from pathlib import Path
 
 # Display name for Windows desktop shortcut (keep in sync with vs_queue_monitor.APP_DISPLAY_NAME).
 _APP_SHORTCUT_STEM = "VS Queue Monitor"
 
-# Canonical upstream (forks: set VS_QUEUE_MONITOR_REPO to a git URL).
-REPO_URL = os.environ.get("VS_QUEUE_MONITOR_REPO", "https://github.com/ShubiMaja/vs-queue-monitor.git")
+# Branch to download when installing fresh (override with VS_QUEUE_MONITOR_BRANCH).
 REPO_BRANCH = os.environ.get("VS_QUEUE_MONITOR_BRANCH", "main")
+# Archive download URL. Override with VS_QUEUE_MONITOR_ARCHIVE_URL for forks or mirrors.
+_REPO_OWNER_REPO = "ShubiMaja/vs-queue-monitor"
+ARCHIVE_URL = os.environ.get(
+    "VS_QUEUE_MONITOR_ARCHIVE_URL",
+    f"https://github.com/{_REPO_OWNER_REPO}/archive/refs/heads/{REPO_BRANCH}.zip",
+)
 
 
 def _eprint(*args: object) -> None:
@@ -94,41 +103,54 @@ def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) ->
         raise SystemExit(r.returncode)
 
 
-def _ensure_git_repo(root: Path) -> None:
-    """Ensure ``root`` is a git checkout of the app (clone or pull)."""
-    git_dir = root / ".git"
-    if git_dir.is_dir():
-        _eprint("Updating existing clone...")
-        try:
-            _run(["git", "-C", str(root), "pull", "--ff-only"], cwd=root)
-        except SystemExit:
-            _eprint("(git pull failed; continuing with existing files)")
-        return
-
-    parent = root.parent
-    parent.mkdir(parents=True, exist_ok=True)
+def _ensure_app_files(root: Path) -> None:
+    """Download and extract the app zip into ``root`` (no git required)."""
+    if _is_project_root(root):
+        return  # already present — nothing to do
 
     if root.exists():
         try:
             if any(root.iterdir()):
-                _eprint(f"Directory exists and is not a git repo: {root}")
+                _eprint(f"Directory exists but is not a valid install: {root}")
                 raise SystemExit(1)
         except OSError:
             raise SystemExit(1)
 
-    _eprint(f"Cloning {REPO_URL} (branch {REPO_BRANCH})...")
-    try:
-        _run(
-            ["git", "clone", "--depth", "1", "-b", REPO_BRANCH, REPO_URL, str(root)],
-            cwd=parent,
-        )
-    except SystemExit:
-        _eprint("Retrying clone without branch pin...")
-        if root.exists():
-            import shutil
+    root.parent.mkdir(parents=True, exist_ok=True)
 
-            shutil.rmtree(root, ignore_errors=True)
-        _run(["git", "clone", "--depth", "1", REPO_URL, str(root)], cwd=parent)
+    _eprint(f"Downloading VS Queue Monitor ({ARCHIVE_URL})...")
+    tmp_zip = Path(tempfile.mktemp(suffix=".zip", prefix="vsqm_bootstrap_"))
+    try:
+        req = urllib.request.Request(
+            ARCHIVE_URL,
+            headers={"User-Agent": "vs-queue-monitor-bootstrap"},
+        )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            with open(tmp_zip, "wb") as fh:
+                shutil.copyfileobj(resp, fh)
+
+        _eprint("Extracting...")
+        tmp_dir = Path(tempfile.mkdtemp(prefix="vsqm_extract_"))
+        try:
+            with zipfile.ZipFile(tmp_zip) as zf:
+                zf.extractall(tmp_dir)
+            top_dirs = [d for d in tmp_dir.iterdir() if d.is_dir()]
+            if not top_dirs:
+                _eprint("Downloaded zip contains no top-level directory.")
+                raise SystemExit(1)
+            shutil.copytree(str(top_dirs[0]), str(root))
+        finally:
+            shutil.rmtree(str(tmp_dir), ignore_errors=True)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        _eprint(f"Download/extract failed: {exc}")
+        raise SystemExit(1)
+    finally:
+        try:
+            tmp_zip.unlink()
+        except OSError:
+            pass
 
 
 def _ensure_venv(root: Path) -> Path:
@@ -308,7 +330,7 @@ def main() -> None:
     if root is None:
         root = _default_home()
         _eprint(f"No monitor.py next to this script or in cwd; installing under: {root}")
-        _ensure_git_repo(root)
+        _ensure_app_files(root)
     if not _is_project_root(root):
         _eprint(f"Invalid project root after setup: {root}")
         raise SystemExit(1)
