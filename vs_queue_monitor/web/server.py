@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import socket
 import subprocess
@@ -145,6 +146,16 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
+def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int]:
+    """Prefer records with more points and richer metadata when duplicates collide."""
+    pts = rec.get("points") or []
+    return (
+        len(pts),
+        1 if rec.get("server") else 0,
+        1 if rec.get("outcome") else 0,
+    )
+
+
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
     """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
 
@@ -153,21 +164,113 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     Deriving the active ID directly from the SEED tail keeps all session IDs in the same
     coordinate space, preventing historical sessions from being incorrectly filtered and
     phantom sessions from leaking into the dropdown.
+
+    Also merges sessions from session_history.jsonl so cross-file history appears in the dropdown.
     """
     path = engine.current_log_file
-    if path is None or not path.is_file():
-        return [], -1
+    seed_active_id = -1
+    live_sessions: list[dict[str, Any]] = []
+    if path is not None and path.is_file():
+        try:
+            tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
+            live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
+            if tail_text and engine.running:
+                _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+            if seed_active_id >= 0:
+                live_sessions = [s for s in live_sessions if int(s.get("session_id", -1)) != seed_active_id]
+        except Exception:
+            pass
+
+    # Merge JSONL history records into the session list.
+    #
+    # Two dedup passes are needed because the old signature-based approach had two bugs:
+    #   1. end_epoch was in the signature, so checkpoint / crash-recovery / explicit writes
+    #      for the same queue run each got a unique signature and all appeared in the dropdown.
+    #   2. Live sessions have no log_file/server/source_path metadata, so their signatures
+    #      never matched JSONL records and the seen_signatures guard was effectively dead.
+    #
+    # Fix:
+    #   Pass A — collapse JSONL records for the same run: (log_file, session_id) is a stable
+    #             primary key because the engine writes the same session_id for every
+    #             checkpoint and final write of a given queue run.
+    #   Pass B — exclude JSONL records already covered by live tail sessions: match on
+    #             (floor_epoch, start_pos) only — the two fields present in both sources.
+    #   Pass C — dedup any remaining JSONL records by (floor_epoch, start_pos, log_file),
+    #             without end_epoch, so further stale duplicates collapse.
     try:
-        tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
-        sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-        seed_active_id = -1
-        if tail_text and engine.running:
-            _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
-        if seed_active_id >= 0:
-            sessions = [s for s in sessions if int(s.get("session_id", -1)) != seed_active_id]
-        return sessions, seed_active_id
+        hist_records = engine.load_history_sessions()
+
+        # Pass A: collapse same-run JSONL records by (log_file, session_id).
+        hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
+        hist_no_id: list[dict[str, Any]] = []
+        for rec in hist_records:
+            sid = rec.get("session_id")
+            lf = str(rec.get("log_file") or "")
+            if sid is not None:
+                pk = (lf, int(sid))
+                prev = hist_primary.get(pk)
+                if prev is None or _session_merge_rank(rec) > _session_merge_rank(prev):
+                    hist_primary[pk] = rec
+            else:
+                hist_no_id.append(rec)
+        deduped_hist = list(hist_primary.values()) + hist_no_id
+
+        # Pass B: build live match keys — (floor_epoch, start_pos).
+        live_match_keys: set[tuple[Any, Any]] = set()
+        key_counts: dict[str, int] = {}
+        for s in live_sessions:
+            se = s.get("start_epoch")
+            mk: tuple[Any, Any] = (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
+            live_match_keys.add(mk)
+            base = str(s.get("key", "")).split("#")[0]
+            key_counts[base] = key_counts.get(base, 0) + 1
+
+        # Pass C: build JSONL candidate dict, skipping live-covered sessions.
+        hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
+        for rec in deduped_hist:
+            se = rec.get("start_epoch")
+            if se is None:
+                continue
+            floor_se = int(math.floor(float(se)))
+            start_pos = rec.get("start_position")
+            if (floor_se, start_pos) in live_match_keys:
+                continue  # already represented by the live tail session
+            lf = str(rec.get("log_file") or "")
+            sig = (floor_se, start_pos, lf)
+            pts = rec.get("points") or []
+            candidate: dict[str, Any] = {
+                "key": f"t:{floor_se}",
+                "session_id": rec.get("session_id"),
+                "label": "",
+                "start_epoch": float(se),
+                "end_epoch": float(rec.get("end_epoch") or se),
+                "start_pos": start_pos,
+                "end_pos": rec.get("end_position"),
+                "points": [[float(t), int(p)] for t, p in pts],
+                "server": rec.get("server"),
+                "source_path": rec.get("source_path"),
+                "log_file": rec.get("log_file"),
+                "outcome": rec.get("outcome"),
+            }
+            prev = hist_by_sig.get(sig)
+            if prev is None or _session_merge_rank(candidate) > _session_merge_rank(prev):
+                hist_by_sig[sig] = candidate
+
+        hist_sessions: list[dict[str, Any]] = []
+        for _sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
+            base = str(sess.get("key", "")).split("#")[0]
+            seen = key_counts.get(base, 0)
+            key_counts[base] = seen + 1
+            sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
+            hist_sessions.append(sess)
+
+        all_sessions = live_sessions + hist_sessions
+        all_sessions.sort(key=lambda s: float(s.get("start_epoch") or 0))
+        for i, s in enumerate(all_sessions):
+            s["label"] = f"Session {i + 1}"
+        return all_sessions, seed_active_id
     except Exception:
-        return [], -1
+        return live_sessions, seed_active_id
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -419,10 +522,19 @@ def _preconfigure_chromium_notification_permission(port: int) -> None:
         pass  # best-effort
 
 
-def _pick_path_sync(mode: str) -> str | None:
+def _pick_path_sync(mode: str, initial_dir: str | None = None) -> str | None:
     """Native folder or file dialog (Tk). Run via ``asyncio.to_thread`` from the Starlette worker."""
     import tkinter as tk
     from tkinter import filedialog
+
+    # Resolve a sensible starting directory from whatever path the user already typed.
+    start_dir: str | None = None
+    if initial_dir:
+        p = Path(initial_dir.strip())
+        if p.is_dir():
+            start_dir = str(p)
+        elif p.parent.is_dir():
+            start_dir = str(p.parent)
 
     root = tk.Tk()
     root.withdraw()
@@ -436,15 +548,50 @@ def _pick_path_sync(mode: str) -> str | None:
                 parent=root,
                 title="Select Vintage Story client log",
                 filetypes=[("Log files", "*.log"), ("All files", "*.*")],
+                initialdir=start_dir,
             )
         else:
-            p = filedialog.askdirectory(parent=root, mustexist=True)
+            p = filedialog.askdirectory(parent=root, mustexist=True, initialdir=start_dir)
         return str(p).strip() if p else None
     finally:
         try:
             root.destroy()
         except Exception:
             pass
+
+
+def _mask_path_in_text(text: str) -> str:
+    """Replace home/APPDATA paths in text with short env-variable tokens."""
+    if not text:
+        return text
+    replacements: list[tuple[str, str]] = []
+    if sys.platform == "win32":
+        for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+            val = os.environ.get(env_var, "").rstrip("\\/")
+            if val:
+                replacements.append((val, token))
+    home = str(Path.home()).rstrip("/\\")
+    if home:
+        replacements.append((home, "$HOME"))
+    replacements.sort(key=lambda x: -len(x[0]))
+    result = text
+    for orig, repl in replacements:
+        if sys.platform == "win32":
+            orig_lower = orig.lower()
+            parts: list[str] = []
+            remaining = result
+            while True:
+                idx = remaining.lower().find(orig_lower)
+                if idx < 0:
+                    parts.append(remaining)
+                    break
+                parts.append(remaining[:idx])
+                parts.append(repl)
+                remaining = remaining[idx + len(orig):]
+            result = "".join(parts)
+        else:
+            result = result.replace(orig, repl)
+    return result
 
 
 def _warnings_rows(engine: QueueMonitorEngine) -> list[dict[str, Any]]:
@@ -475,6 +622,10 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
     except Exception:
         rate_hdr = "RATE"
     queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
+    for _qs in queue_sessions:
+        for _qf in ("source_path", "log_file"):
+            if _qs.get(_qf):
+                _qs[_qf] = _mask_path_in_text(_qs[_qf])
     result = {
         "version": VERSION,
         "running": engine.running,
@@ -484,6 +635,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "rate_header": rate_hdr,
         "queue_rate": engine.queue_rate_var.get(),
         "global_rate": engine.global_rate_var.get(),
+        "hist_global_rate": engine.hist_global_rate_var.get(),
         "elapsed": engine.elapsed_var.get(),
         "remaining": engine.predicted_remaining_var.get(),
         "progress": float(getattr(engine, "_queue_progress_value", 0.0)),
@@ -494,6 +646,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "server_target": engine.server_target_var.get(),
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
+        "source_path_display": _mask_path_in_text(engine.source_path_var.get()),
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -511,8 +664,10 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_sound": bool(engine.failure_sound_enabled_var.get()),
         "failure_sound_path": engine.failure_sound_path_var.get(),
         "tutorial_done": bool(engine.tutorial_done_var.get()),
+        "history_path": engine.history_path_var.get(),
+        "history_path_resolved": _mask_path_in_text(str(engine._effective_history_path().parent)),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
-        "history_tail": hooks.history_lines(400),
+        "history_tail": [_mask_path_in_text(line) for line in hooks.history_lines(400)],
         "pending_new_queue_session": engine._pending_new_queue_session,
         "completion_notify_seq": int(getattr(hooks, "_completion_notify_seq", 0)),
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
@@ -663,8 +818,9 @@ async def _api_pick_path(request: Request) -> JSONResponse:
     mode = str(body.get("mode", "folder")).strip().lower()
     if mode not in ("folder", "file"):
         return JSONResponse({"ok": False, "error": "mode must be 'folder' or 'file'"}, status_code=400)
+    initial_dir = str(body.get("initial_dir", "") or "").strip() or None
     try:
-        path = await asyncio.to_thread(_pick_path_sync, mode)
+        path = await asyncio.to_thread(_pick_path_sync, mode, initial_dir)
     except Exception as exc:
         logging.getLogger(__name__).exception("pick_path dialog failed")
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
@@ -716,6 +872,8 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.failure_sound_path_var.set(str(body["failure_sound_path"]))
             if "tutorial_done" in body:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
+            if "history_path" in body:
+                engine.history_path_var.set(str(body["history_path"]).strip())
             engine.persist_config()
             # Match native folder browse: re-resolve the log and seed the graph so ``current_log_file``
             # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).

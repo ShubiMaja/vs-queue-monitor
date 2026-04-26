@@ -418,17 +418,20 @@
     var tx = $("pathSummaryText");
     var btn = $("pathSummary");
     var raw = inp ? String(inp.value || "").trim() : "";
+    var display = (window._lastState && window._lastState.source_path_display) || raw;
     if (tx) {
-      tx.textContent = raw ? raw : "Select log folder or file…";
+      // ‎ (LRM) anchors the leading % in %APPDATA% as LTR so the RTL
+      // direction:rtl overflow trick doesn't move it to the visual right end.
+      tx.textContent = raw ? "‎" + display : "Select log folder or file…";
       tx.classList.toggle("path-summary__text--has-path", !!raw);
     }
     if (btn) btn.classList.toggle("path-summary--empty", !raw);
     if (btn) {
-      btn.title = raw ? raw : "Click to paste path, or use the folder / file icons";
+      btn.title = raw ? display : "Click to paste path, or use the folder / file icons";
       btn.setAttribute(
         "aria-label",
         raw
-          ? "Log source path set. Full path: " + raw + ". Click to edit."
+          ? "Log source path set. Full path: " + display + ". Click to edit."
           : "Log source not set. Click to paste path.",
       );
     }
@@ -784,11 +787,11 @@
   }
 
   /** Native folder/file dialog via Python (Tk) on the machine running the app. */
-  function pickPath(mode) {
+  function pickPath(mode, initialDir) {
     return fetch("/api/pick_path", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: mode }),
+      body: JSON.stringify({ mode: mode, initial_dir: initialDir || "" }),
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
@@ -1058,27 +1061,25 @@
     }
     if (elG) elG.textContent = sessionFullRate;
     if (elInfoFull) elInfoFull.textContent = sessionFullRate;
+    var elHistGlo = $("infoStatHistGlo");
+    if (elHistGlo) elHistGlo.textContent = ((window._lastState && window._lastState.hist_global_rate) || "—");
   }
 
   function copyStatsToClipboard() {
-    var stats = computeGraphSessionStats();
+    // Read directly from the DOM so copied values always match what is displayed.
+    function t(id) { var el = $(id); return el ? (el.textContent || "").trim() : "—"; }
+    var avgLbl = ($("infoStatAvgLbl") && $("infoStatAvgLbl").textContent.trim()) || "10p Rate";
     var text =
-      "Start Pos: " + (stats.startPos == null ? "—" : stats.startPos) + "\n" +
-      "Cur Pos: " + (stats.endPos == null ? "—" : stats.endPos) + "\n" +
-      "Pos Change: " + (stats.cleared == null ? "—" : stats.cleared) + "\n" +
-      "Duration: " +
-      (stats.minutes == null ? "—" : stats.minutes.toFixed(1) + " min") +
-      "\n" +
-      "Rate: " +
-      (stats.avgMinPerPos == null ? "—" : stats.avgMinPerPos.toFixed(2) + " m/p") +
-      "\n";
+      "Start Pos: "  + t("infoStatStart")   + "\n" +
+      "Cur Pos: "    + t("infoStatEnd")     + "\n" +
+      "Pos Change: " + t("infoStatCleared") + "\n" +
+      "Duration: "   + t("infoStatSpan")    + "\n" +
+      avgLbl + ": "  + t("infoStatAvg")     + "\n" +
+      "Full Rate: "  + t("infoStatGlo")     + "\n" +
+      "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
-      function () {
-        toast("Stats copied");
-      },
-      function () {
-        toast("Could not copy stats (clipboard permission)", "warn");
-      },
+      function () { toast("Stats copied"); },
+      function () { toast("Could not copy stats (clipboard permission)", "warn"); }
     );
   }
 
@@ -1154,27 +1155,41 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state || !state.running || state.interrupted_mode) {
-      return false;
-    }
-    var activeId = Number(state.active_queue_session_id);
-    var sessId = Number(sess.session_id);
-    if (Number.isFinite(activeId) && activeId >= 0 && Number.isFinite(sessId) && sessId === activeId) {
-      return true;
-    }
-    var pts = state.graph_points || [];
-    if (!pts.length) {
+    if (!sess || !state || state.interrupted_mode) {
       return false;
     }
     var currentPos = null;
+    var pts = state.graph_points || [];
     if (state.current_point && state.current_point.length >= 2) {
       currentPos = Number(state.current_point[1]);
     }
-    if (!Number.isFinite(currentPos)) {
+    if (!Number.isFinite(currentPos) && pts.length) {
       currentPos = Number(pts[pts.length - 1][1]);
     }
     if (!Number.isFinite(currentPos)) {
       return false;
+    }
+    var currentStillLive = !!state.running && currentPos > 0;
+    if (!pts.length) {
+      return false;
+    }
+    var graphStart = Number(pts[0][0]);
+    var sessStart = Number(sess.start_epoch);
+    var sameStartEpoch =
+      Number.isFinite(graphStart) &&
+      Number.isFinite(sessStart) &&
+      Math.abs(sessStart - graphStart) <= 2;
+    var activeId = Number(state.active_queue_session_id);
+    var sessId = Number(sess.session_id);
+    if (
+      currentStillLive &&
+      sameStartEpoch &&
+      Number.isFinite(activeId) &&
+      activeId >= 0 &&
+      Number.isFinite(sessId) &&
+      sessId === activeId
+    ) {
+      return true;
     }
     var sessPoints = sess.points || [];
     var sessCompleted = false;
@@ -1185,16 +1200,20 @@
         break;
       }
     }
-    if (sessCompleted) {
+    if (currentStillLive && sessCompleted) {
       return false;
+    }
+    if (!sameStartEpoch) {
+      return false;
+    }
+    if (currentStillLive) {
+      return true;
     }
     var sessEndPos = Number(sess.end_pos);
     if (!Number.isFinite(sessEndPos) || sessEndPos !== currentPos) {
       return false;
     }
-    var graphStart = Number(pts[0][0]);
-    var sessStart = Number(sess.start_epoch);
-    return Number.isFinite(graphStart) && Number.isFinite(sessStart) && Math.abs(sessStart - graphStart) <= 2;
+    return true;
   }
 
   function formatLatestSessionOptionLabel(state, latestStatus) {
@@ -1211,14 +1230,13 @@
     return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
   }
 
-  function formatLatestSessionOptionLabelClean(state, latestStatus) {
+  function formatLatestSessionOptionLabelClean(state, latestStatus, visiblePastCount) {
     var startEpoch = null;
     var points = (state && state.graph_points) || [];
     if (points.length) {
       startEpoch = points[0][0];
     }
-    var sessions = (state && state.queue_sessions) || [];
-    var displayIndex = sessions.length + 1;
+    var displayIndex = Math.max(1, Number(visiblePastCount) + 1);
     var latestName = "Session " + displayIndex;
     var startText = formatSessionStart(startEpoch);
     return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
@@ -1392,7 +1410,6 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
     opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
     sel.appendChild(opt0);
     var i;
@@ -1406,17 +1423,16 @@
         (sessions[i].label || "Session") +
         " — " +
         formatSessionStart(sessions[i].start_epoch);
-      o.title =
-        sessStatus.label +
-        "\n" +
-        "Start: " +
-        formatSessionStart(sessions[i].start_epoch) +
-        "\nEnd: " +
-        formatSessionStart(sessions[i].end_epoch) +
-        "\nPoints: " +
-        (sessions[i].points ? sessions[i].points.length : 0);
+      var tipLines = [sessStatus.label,
+        "Start: " + formatSessionStart(sessions[i].start_epoch),
+        "End: "   + formatSessionStart(sessions[i].end_epoch),
+        "Points: " + (sessions[i].points ? sessions[i].points.length : 0)];
+      if (sessions[i].server) tipLines.push("Server: " + sessions[i].server);
+      if (sessions[i].outcome) tipLines.push("Outcome: " + sessions[i].outcome);
+      o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sel.options.length - 1);
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
       // Always start on "latest" (active session) on page load.
@@ -1569,6 +1585,8 @@
     if (chkUpdateNotify) chkUpdateNotify.checked = lsGetUpdateNotify();
     var chkPre = $("chkIncludePrereleases");
     if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
+    var ihp = $("inpHistoryPath");
+    if (ihp) ihp.value = (s && (s.history_path || s.history_path_resolved)) || "";
   }
 
   function activateSettingsTab(tabName) {
@@ -1749,6 +1767,24 @@
     $("infoLastCh").textContent = s.last_change || "—";
     $("infoLastAl").textContent = s.last_alert || "—";
     $("infoServer").textContent = s.server_target || "—";
+    (function () {
+      var el = $("infoLogPath");
+      if (!el) return;
+      var logPath = "";
+      if (selectedSessionKey === "latest") {
+        logPath = (s.source_path_display || s.source_path || "").trim();
+      } else {
+        var qs = s.queue_sessions || [];
+        for (var lpi = 0; lpi < qs.length; lpi++) {
+          if (qs[lpi].key === selectedSessionKey) {
+            logPath = (qs[lpi].source_path || qs[lpi].log_file || "").trim();
+            break;
+          }
+        }
+      }
+      el.textContent = logPath || "—";
+      el.title = logPath || "Log file path for the displayed session";
+    })();
     const aseq = typeof s.last_alert_seq === "number" ? s.last_alert_seq : 0;
     const alertMsg = (s.last_alert_message || "").trim();
     if (
@@ -1980,7 +2016,12 @@
     if (!wrap) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = wrap.getBoundingClientRect();
-    const w = Math.max(1, Math.floor(rect.width));
+    const w = Math.floor(rect.width);
+    if (w < 10) {
+      // Layout not ready yet — retry after the next paint to get real dimensions.
+      requestAnimationFrame(resizeCanvas);
+      return;
+    }
     const h = window._graphH || 340;
     c.width = w * dpr;
     c.height = h * dpr;
@@ -2630,9 +2671,18 @@
       var dp = pt[1] - prev[1];
       if (dt > 1e-6) {
         var dpStr = (dp >= 0 ? "+" : "") + dp;
-        var extra = dp !== 0 ? "  (" + (dp / dt).toFixed(3) + "/s)" : "";
+        // Walk back to find when the previous position was first entered, so
+        // "position length" shows actual dwell time, not the 2-second poll gap.
+        var prevPos = prev[1];
+        var posEntryT = prev[0];
+        for (var pi = idx - 2; pi >= 0; pi--) {
+          if (series[pi][1] !== prevPos) break;
+          posEntryT = series[pi][0];
+        }
+        var posLength = pt[0] - posEntryT;
+        var extra = dp !== 0 ? "  (" + (dp / posLength).toFixed(3) + "/s)" : "";
         lines.push(
-          "vs prev: " + dpStr + "  ·  position length: " + formatTooltipDuration(dt) + extra,
+          "vs prev: " + dpStr + "  ·  position length: " + formatTooltipDuration(posLength) + extra,
         );
       } else {
         lines.push("vs prev: " + (dp >= 0 ? "+" : "") + dp);
@@ -3878,7 +3928,7 @@
     var bf = $("btnBrowseFolder");
     if (bf) {
       bf.onclick = function () {
-        pickPath("folder")
+        pickPath("folder", $("inpPath") && $("inpPath").value.trim())
           .then(function (j) {
             if (j.cancelled) return;
             if (!j.path) return;
@@ -3897,7 +3947,7 @@
     var bfile = $("btnBrowseFile");
     if (bfile) {
       bfile.onclick = function () {
-        pickPath("file")
+        pickPath("file", $("inpPath") && $("inpPath").value.trim())
           .then(function (j) {
             if (j.cancelled) return;
             if (!j.path) return;
@@ -3918,7 +3968,7 @@
       var input = $(inputId);
       if (!btnPick || !input) return;
       btnPick.onclick = function () {
-        pickPath("file")
+        pickPath("file", input.value.trim())
           .then(function (j) {
             if (j.cancelled || !j.path) return;
             input.value = j.path;
@@ -3932,6 +3982,18 @@
     wireSoundFilePicker("btnPickWarnSound", "inpSetWarnSound", "Warning sound");
     wireSoundFilePicker("btnPickCompSound", "inpSetCompSound", "Completion sound");
     wireSoundFilePicker("btnPickFailSound", "inpSetFailSound", "Failure sound");
+    var btnPickHistoryPath = $("btnPickHistoryPath");
+    if (btnPickHistoryPath) {
+      btnPickHistoryPath.onclick = function () {
+        pickPath("folder", $("inpHistoryPath") && $("inpHistoryPath").value.trim())
+          .then(function (j) {
+            if (j.cancelled || !j.path) return;
+            var ihp = $("inpHistoryPath");
+            if (ihp) { ihp.value = j.path; toast("History folder set"); }
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+    }
 
     function wireSoundPreview(buttonId, kind) {
       var btn = $(buttonId);
@@ -4149,89 +4211,96 @@
         else if (setWas) focusElSoon($("btnSettings"));
       });
     });
-    var btnSaveSettings = $("btnSaveSettings");
-    if (btnSaveSettings) {
-      btnSaveSettings.onclick = function () {
-        var prevPopupEnabled =
-          window._lastState == null || window._lastState.popup_enabled !== false;
-        var nextWarningPopup = !!($("chkPop") && $("chkPop").checked);
-        var nextCompletionPopup = !!($("chkCompPop") && $("chkCompPop").checked);
-        var nextFailurePopup = !!($("chkFailPop") && $("chkFailPop").checked);
-        lsSetOptionalBool(LS_NOTIFY_WARNING_POPUP, nextWarningPopup);
-        lsSetOptionalBool(LS_NOTIFY_COMPLETION_POPUP, nextCompletionPopup);
-        lsSetOptionalBool(LS_NOTIFY_FAILURE_POPUP, nextFailurePopup);
-        var nextUpdateNotify = !!($("chkUpdateNotify") && $("chkUpdateNotify").checked);
-        lsSetUpdateNotify(nextUpdateNotify);
-        if (!nextUpdateNotify) {
+    // Auto-save settings on change — no Save button needed.
+    function applySettingsSave(state) {
+      if (state && typeof state === "object") window._lastState = state;
+      if (window._lastState) {
+        syncSettingsFormFromState(window._lastState);
+        syncGraphToolbarButtons(window._lastState);
+        window._displayState = buildDisplayState(window._lastState);
+        redrawGraphOnly();
+        renderSessionStats();
+      }
+      if (notifySyncHint) notifySyncHint();
+    }
+    function settingDebounce(fn, ms) {
+      var t;
+      return function () { clearTimeout(t); t = setTimeout(fn, ms || 600); };
+    }
+    function wireSettingChk(id, patch) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("change", function () {
+        var p = typeof patch === "function" ? patch(el) : patch;
+        postConfig(p).then(applySettingsSave).catch(function (e) { toast(String(e.message || e), "warn"); });
+      });
+    }
+    function wireSettingInp(id, key) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("input", settingDebounce(function () {
+        var p = {};
+        p[key] = el.value.trim();
+        postConfig(p).then(applySettingsSave).catch(function (e) { toast(String(e.message || e), "warn"); });
+      }));
+    }
+    // Simple server-config checkboxes
+    wireSettingChk("chkSnd", function (el) { return { sound_enabled: el.checked }; });
+    wireSettingChk("chkCompSnd", function (el) { return { completion_sound: el.checked }; });
+    wireSettingChk("chkFailSnd", function (el) { return { failure_sound: el.checked }; });
+    // Popup checkboxes also mirror to localStorage, and warn-popup fires a demo notification
+    function wirePopupChk(id, key, lsKey) {
+      var el = $(id);
+      if (!el) return;
+      el.addEventListener("change", function () {
+        var prevEnabled = window._lastState == null || window._lastState.popup_enabled !== false;
+        lsSetOptionalBool(lsKey, el.checked);
+        var p = {};
+        p[key] = el.checked;
+        postConfig(p).then(function (state) {
+          applySettingsSave(state);
+          if (key === "popup_enabled" && !prevEnabled && el.checked &&
+              typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              desktopNotify("Threshold alerts active", {
+                body: "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
+                tag: "vsqm-example-" + Date.now(),
+              });
+            } catch (e) {}
+          }
+        }).catch(function (e) { toast(String(e.message || e), "warn"); });
+      });
+    }
+    wirePopupChk("chkPop", "popup_enabled", LS_NOTIFY_WARNING_POPUP);
+    wirePopupChk("chkCompPop", "completion_popup", LS_NOTIFY_COMPLETION_POPUP);
+    wirePopupChk("chkFailPop", "failure_popup", LS_NOTIFY_FAILURE_POPUP);
+    // Update-notify: localStorage only (no server round-trip)
+    var chkUpdateNotify = $("chkUpdateNotify");
+    if (chkUpdateNotify) {
+      chkUpdateNotify.addEventListener("change", function () {
+        lsSetUpdateNotify(chkUpdateNotify.checked);
+        if (!chkUpdateNotify.checked) {
           var badge = $("btnUpdateAvail");
           if (badge) badge.classList.add("hidden");
         }
-        var nextIncludePre = !!($("chkIncludePrereleases") && $("chkIncludePrereleases").checked);
+      });
+    }
+    // Include-prereleases: separate update-config API
+    var chkPre = $("chkIncludePrereleases");
+    if (chkPre) {
+      chkPre.addEventListener("change", function () {
         fetch("/api/update/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ include_prereleases: nextIncludePre }),
+          body: JSON.stringify({ include_prereleases: chkPre.checked }),
         }).catch(function () {});
-        var patch = {
-          popup_enabled: nextWarningPopup,
-          completion_popup: nextCompletionPopup,
-          failure_popup: nextFailurePopup,
-          sound_enabled: !!($("chkSnd") && $("chkSnd").checked),
-          completion_sound: !!($("chkCompSnd") && $("chkCompSnd").checked),
-          failure_sound: !!($("chkFailSnd") && $("chkFailSnd").checked),
-        };
-        var iws = $("inpSetWarnSound");
-        var ics = $("inpSetCompSound");
-        var ifs = $("inpSetFailSound");
-        if (iws) patch.alert_sound_path = iws.value.trim();
-        if (ics) patch.completion_sound_path = ics.value.trim();
-        if (ifs) patch.failure_sound_path = ifs.value.trim();
-        postConfig(patch)
-          .then(function (state) {
-            if (state && typeof state === "object") {
-              window._lastState = state;
-            } else if (window._lastState) {
-              window._lastState.popup_enabled = nextWarningPopup;
-              window._lastState.sound_enabled = !!patch.sound_enabled;
-              window._lastState.completion_popup = nextCompletionPopup;
-              window._lastState.completion_sound = !!patch.completion_sound;
-              window._lastState.failure_popup = nextFailurePopup;
-              window._lastState.failure_sound = !!patch.failure_sound;
-              if (Object.prototype.hasOwnProperty.call(patch, "failure_sound_path")) {
-                window._lastState.failure_sound_path = patch.failure_sound_path;
-              }
-            }
-            if (window._lastState) {
-              syncSettingsFormFromState(window._lastState);
-              syncGraphToolbarButtons(window._lastState);
-              window._displayState = buildDisplayState(window._lastState);
-              redrawGraphOnly();
-              renderSessionStats();
-            }
-            if (
-              !prevPopupEnabled &&
-              nextWarningPopup &&
-              typeof Notification !== "undefined" &&
-              Notification.permission === "granted"
-            ) {
-              try {
-                desktopNotify("Threshold alerts active", {
-                  body:
-                    "When a threshold is crossed, you'll see a banner like this with the alert text, your position, and status.",
-                  tag: "vsqm-example-" + Date.now(),
-                });
-              } catch (e) {}
-            }
-            if (notifySyncHint) notifySyncHint();
-            hideEl($("modalSettings"));
-            focusElSoon($("btnSettings"));
-            toast("Settings saved");
-          })
-          .catch(function (e) {
-            toast(String(e.message || e), "warn");
-          });
-      };
+      });
     }
+    // Debounced text inputs
+    wireSettingInp("inpSetWarnSound", "alert_sound_path");
+    wireSettingInp("inpSetCompSound", "completion_sound_path");
+    wireSettingInp("inpSetFailSound", "failure_sound_path");
+    wireSettingInp("inpHistoryPath", "history_path");
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {
@@ -4535,6 +4604,16 @@
   ["kpiPos", "kpiStatus", "kpiRate", "kpiElapsed", "kpiRemaining"].forEach(function (id) {
     setKpiMetric($(id), null, "", { loading: true });
   });
+  // Observe the graph container so we redraw whenever its size settles after page load.
+  (function () {
+    if (typeof ResizeObserver === "undefined") return;
+    var canvas = $("graphCanvas");
+    var wrap = canvas && canvas.parentElement;
+    if (!wrap) return;
+    new ResizeObserver(function () {
+      if (window._displayState) resizeCanvas();
+    }).observe(wrap);
+  })();
   fetch("/api/state")
     .then(function (r) {
       return r.json();

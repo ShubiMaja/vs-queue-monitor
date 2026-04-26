@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VS Queue Monitor (Web)</title>
     <link rel="icon" type="image/svg+xml" href="/notify-icon.svg" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=1.1.89" />
   </head>
   <body>
     <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
@@ -424,8 +424,9 @@
                   <div><span class="muted">Cur Pos</span> <span id="infoStatEnd">—</span></div>
                   <div><span class="muted">Pos Change</span> <span id="infoStatCleared">—</span></div>
                   <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
-                  <div><span class="muted">Full Rate</span> <span id="infoStatGlo" title="Average minutes per position change across the full displayed session (m/p = min/pos)">—</span></div>
                   <div><span class="muted" id="infoStatAvgLbl">10p Rate</span> <span id="infoStatAvg" title="Average minutes per position change for the rolling window (m/p = min/pos)">—</span></div>
+                  <div><span class="muted">Full Rate</span> <span id="infoStatGlo" title="Average minutes per position change across the full displayed session (m/p = min/pos)">—</span></div>
+                  <div><span class="muted">Global Rate</span> <span id="infoStatHistGlo" title="Average minutes per position change across all recorded sessions (m/p = min/pos)">—</span></div>
                 </div>
               </div>
             </div>
@@ -435,6 +436,8 @@
             <div id="infoLastAl" class="info__val">—</div>
             <div class="info__lbl">Server</div>
             <div id="infoServer" class="info__val">—</div>
+            <div class="info__lbl">Path</div>
+            <div id="infoLogPath" class="info__val info__val--path" title="Log file path for the displayed session">—</div>
           </div>
           </div>
         </div>
@@ -564,6 +567,7 @@
     <div id="modalSettings" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalSettingsHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--wide modal__box--settings">
+        <button type="button" class="modal-close" data-close="1" aria-label="Close" title="Close">×</button>
         <h2 id="modalSettingsHeading">Settings</h2>
         <p class="modal__text muted settings-intro">Keep the main dashboard fast and adjust only the extras here.</p>
 
@@ -703,13 +707,19 @@
           <div class="form-grid form-grid--settings">
             <label class="settings-option"><input type="checkbox" id="chkUpdateNotify" checked /> Show update notifications</label>
             <label class="settings-option"><input type="checkbox" id="chkIncludePrereleases" /> Include pre-release versions</label>
+            <label class="settings-select-label settings-field">Session history folder
+              <div class="settings-path-row">
+                <input type="text" id="inpHistoryPath" class="inp settings-inp" placeholder="Empty = default (%AppData%\vs-queue-monitor)" autocomplete="off" spellcheck="false" />
+                <button type="button" class="btn btn--small btn--icon-only settings-path-btn" id="btnPickHistoryPath" title="Choose history folder" aria-label="Choose history folder">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </button>
+              </div>
+            </label>
           </div>
         </section>
 
         <div class="modal__actions">
           <button type="button" class="btn btn--secondary" id="btnReset" title="Reset all settings to their default values">Reset all defaults</button>
-          <button type="button" class="btn btn--primary" id="btnSaveSettings">Save</button>
-          <button type="button" class="btn btn--ghost" data-close="1">Close</button>
         </div>
       </div>
     </div>
@@ -739,6 +749,6 @@
     </div>
     <script src="/vendor/dayjs.min.js"></script>
     <script src="/graph_canvas.js"></script>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=1.1.89"></script>
   </body>
 </html>

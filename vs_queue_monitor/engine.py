@@ -77,6 +77,7 @@ class QueueMonitorEngine:
         )
         self.queue_rate_var = hooks.string_var("—")
         self.global_rate_var = hooks.string_var("—")
+        self.hist_global_rate_var = hooks.string_var("—")
         self.show_log_var = hooks.boolean_var(bool(self.config.get("show_log", True)))
         self.show_status_var = hooks.boolean_var(bool(self.config.get("show_status", True)))
         self.tutorial_done_var = hooks.boolean_var(bool(self.config.get("tutorial_done", False)))
@@ -156,11 +157,18 @@ class QueueMonitorEngine:
         self._interrupted_elapsed_sec: Optional[float] = None
         self._frozen_rates_at_interrupt: Optional[tuple[str, str]] = None
         self._pending_new_queue_session: Optional[int] = None
+        self._session_start_epoch: Optional[float] = None
+        self._session_start_position: Optional[int] = None
+        self._session_record_written: bool = False
+        _hp = self.config.get("history_path", "")
+        self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
+        self._history_sessions_cache: Optional[tuple[str, float, list[dict]]] = None
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
         self._bind_config_persist_traces()
+        self._recover_crashed_session()
         self.start_timer()
         self._hooks.append_history(
             "WARNING — Work in progress; AI-assisted code. Expect bugs and rough edges. "
@@ -186,7 +194,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -208,7 +216,7 @@ class QueueMonitorEngine:
 
     def _bind_config_persist_traces(self) -> None:
         """Save config.json shortly after any setting change (debounced)."""
-        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var):
+        for var in (self.source_path_var, self.alert_thresholds_var, self.poll_sec_var, self.avg_window_var, self.show_log_var, self.show_status_var, self.popup_enabled_var, self.sound_enabled_var, self.alert_sound_path_var, self.completion_popup_enabled_var, self.completion_sound_enabled_var, self.completion_sound_path_var, self.failure_popup_enabled_var, self.failure_sound_enabled_var, self.failure_sound_path_var, self.show_every_change_var, self.tutorial_done_var, self.history_path_var):
             var.trace_add('write', self._schedule_config_persist)
 
     def reset_defaults(self) -> None:
@@ -393,6 +401,9 @@ class QueueMonitorEngine:
         self._mpp_floor_position = None
         self._mpp_floor_value = None
         self.last_alert_epoch = 0.0
+        self._session_start_epoch = None
+        self._session_start_position = None
+        self._session_record_written = False
         self.poll_sec = self.parse_float(self.poll_sec_var.get(), 'Poll sec', 0.2)
         resolved = resolve_log_file(str(folder))
         self._starting = True
@@ -471,6 +482,7 @@ class QueueMonitorEngine:
         self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
+        threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -553,6 +565,7 @@ class QueueMonitorEngine:
         self._frozen_rates_at_interrupt = ('—', '—')
         self._set_status_line('Interrupted', danger=True)
         self.update_time_estimates()
+        self._write_session_record("interrupted")
         msg = 'Queue interrupted; still watching the log. A new queue run can be loaded when detected.'
         if detail:
             msg += f' ({detail})'
@@ -574,6 +587,158 @@ class QueueMonitorEngine:
             )
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
+
+    def _backfill_sessions_from_log(self, log_file: Path) -> None:
+        """Write history records for past sessions in the log not already in session_history.jsonl."""
+        try:
+            records = extract_all_session_records_from_log(
+                log_file,
+                source_path=str(self.config.get("source_path", "") or ""),
+                vsqm_version=VERSION,
+            )
+            if not records:
+                return
+            existing: set[tuple[str, int]] = set()
+            hist = self._effective_history_path()
+            try:
+                if hist.exists():
+                    for line in hist.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                            lf = str(rec.get("log_file", ""))
+                            sid = rec.get("session_id")
+                            if lf and sid is not None:
+                                existing.add((lf, int(sid)))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            to_write = [r for r in records if (str(log_file), r["session_id"]) not in existing]
+            if not to_write:
+                return
+            hist.parent.mkdir(parents=True, exist_ok=True)
+            with open(hist, "a", encoding="utf-8") as fh:
+                for r in to_write:
+                    fh.write(json.dumps(r) + "\n")
+            self._invalidate_history_cache()
+        except Exception:
+            pass
+
+    def load_history_sessions(self) -> list[dict]:
+        """Return parsed session_history.jsonl records, cached for 30 s."""
+        now = time.time()
+        hist = self._effective_history_path()
+        hist_key = str(hist.resolve()) if hist.exists() else str(hist)
+        if self._history_sessions_cache is not None:
+            cached_key, cached_at, records = self._history_sessions_cache
+            if cached_key == hist_key and now - cached_at < 30.0:
+                return records
+        records = []
+        try:
+            if hist.exists():
+                for line in hist.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        self._history_sessions_cache = (hist_key, now, records)
+        return records
+
+    def _invalidate_history_cache(self) -> None:
+        self._history_sessions_cache = None
+
+    def _effective_history_path(self) -> Path:
+        raw = (self.history_path_var.get() or "").strip()
+        if raw:
+            return Path(raw) / "session_history.jsonl"
+        return get_history_path()
+
+    def _effective_checkpoint_path(self) -> Path:
+        raw = (self.history_path_var.get() or "").strip()
+        if raw:
+            return Path(raw) / "current_session.json"
+        return get_checkpoint_path()
+
+    def _recover_crashed_session(self) -> None:
+        """On startup, recover any session left behind by a hard crash."""
+        try:
+            cp = self._effective_checkpoint_path()
+            if not cp.exists():
+                return
+            data = json.loads(cp.read_text(encoding="utf-8"))
+            data["outcome"] = "crashed"
+            hist = self._effective_history_path()
+            hist.parent.mkdir(parents=True, exist_ok=True)
+            with open(hist, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(data) + "\n")
+            cp.unlink(missing_ok=True)
+        except Exception:
+            try:
+                self._effective_checkpoint_path().unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _build_session_record(self, outcome: str) -> dict:
+        """Build the session record dict (shared by checkpoint and final write)."""
+        pts = list(self.graph_points)
+        change_pts: list[tuple[float, int]] = []
+        last_pos: Optional[int] = None
+        for t, p in pts:
+            if p != last_pos:
+                change_pts.append((t, p))
+                last_pos = p
+        start_epoch = self._session_start_epoch or (pts[0][0] if pts else time.time())
+        server = self.server_target_var.get()
+        return {
+            "session_id": self._last_queue_run_session,
+            "source_path": str(self.config.get("source_path", "") or ""),
+            "log_file": str(self.current_log_file) if self.current_log_file else None,
+            "server": server if server and server != "—" else None,
+            "start_epoch": start_epoch,
+            "end_epoch": time.time(),
+            "outcome": outcome,
+            "start_position": self._session_start_position,
+            "end_position": self.last_position,
+            "points": change_pts,
+            "vsqm_version": VERSION,
+        }
+
+    def _checkpoint_session(self) -> None:
+        """Overwrite current_session.json with live session state (crash recovery)."""
+        try:
+            record = self._build_session_record("in_progress")
+            path = self._effective_checkpoint_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(record), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _write_session_record(self, outcome: str) -> None:
+        """Append one completed/interrupted session record to session_history.jsonl."""
+        if self._session_record_written:
+            return
+        try:
+            record = self._build_session_record(outcome)
+            path = self._effective_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self._session_record_written = True
+            self._invalidate_history_cache()
+        except Exception:
+            pass
+        try:
+            self._effective_checkpoint_path().unlink(missing_ok=True)
+        except Exception:
+            pass
 
     def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
@@ -689,6 +854,8 @@ class QueueMonitorEngine:
             self._hooks.request_redraw_graph()
 
     def stop_monitoring(self) -> None:
+        if self._last_queue_run_session >= 0 and self.graph_points:
+            self._write_session_record("abandoned")
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
         self._frozen_rates_at_interrupt = None
@@ -795,6 +962,16 @@ class QueueMonitorEngine:
             self._set_position_display(pos)
         else:
             self._last_queue_line_epoch = None
+        # Seed last_change_var from the last position-change in the graph so
+        # "Last change" is not stuck at — after a restart on a completed run.
+        _lc_t: Optional[float] = None
+        _lc_prev: Optional[int] = None
+        for _pt, _pp in self.graph_points:
+            if _pp != _lc_prev:
+                _lc_t = _pt
+                _lc_prev = _pp
+        if _lc_t is not None:
+            self.last_change_var.set(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(_lc_t)))
         self._pred_speed_scale = 1.0
         self._stale_slots_accounted = 0
         self._hooks.request_redraw_graph()
@@ -956,6 +1133,9 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                         if not self._interrupted_mode:
                             if self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session:
+                                # Old session ended without clean detection (log blanked / VS restarted).
+                                if not self._session_record_written and self.graph_points:
+                                    self._write_session_record("unknown")
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
                                 self._connect_phase_started_epoch = None
@@ -968,12 +1148,16 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                                 self._mpp_floor_position = None
                                 self._mpp_floor_value = None
+                                self._session_start_epoch = time.time()
+                                self._session_start_position = position
+                                self._session_record_written = False
                                 self.write_history('New queue run (from log).')
                                 if self.current_log_file is not None:
                                     self._reseed_graph_for_new_run(self.current_log_file)
                             self._last_queue_run_session = queue_sess
                             if position == 0:
                                 self._set_status_line('Completed')
+                                self._write_session_record("completed")
                             elif position is not None and position <= 1:
                                 self._set_status_line('At front')
                             else:
@@ -995,6 +1179,7 @@ class QueueMonitorEngine:
                                 self.last_position = 0
                             self.update_time_estimates()
                             if position != prev_pos:
+                                self._checkpoint_session()
                                 self._mpp_floor_position = position
                                 self._mpp_floor_value = self._minutes_per_position_from_window()
                                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -1141,7 +1326,11 @@ class QueueMonitorEngine:
         return remaining_positions / v_eff
 
     def _window_recent_points_and_trail(self) -> tuple[list[tuple[float, int]], list[int]]:
-        """Return the rolling-window slice and its position trail with one deque snapshot."""
+        """Return the last N position-change events and their position trail.
+
+        Filters heartbeat duplicates first so the window size (N) counts actual
+        position changes, matching the client-side rolling-window calculation.
+        """
         points = list(self.graph_points)
         if len(points) < 2:
             return (points, [p for _t, p in points])
@@ -1150,15 +1339,29 @@ class QueueMonitorEngine:
         except Exception:
             window_points = DEFAULT_PREDICTION_WINDOW_POINTS
         window_points = max(2, min(10000, window_points))
-        recent = points[-(window_points + 1):]
+        changes = self._position_change_events(points)
+        recent = changes[-(window_points + 1):]
         return (recent, [p for _t, p in recent])
+
+    def _position_change_events(self, points: list[tuple[float, int]]) -> list[tuple[float, int]]:
+        """Filter a point list to only the first reading at each new position level."""
+        changes: list[tuple[float, int]] = []
+        last_p: Optional[int] = None
+        for t, p in points:
+            if p != last_p:
+                changes.append((t, p))
+                last_p = p
+        return changes
 
     def compute_moving_average_speed(self) -> tuple[Optional[float], int, list[int]]:
         recent, trail = self._window_recent_points_and_trail()
         if len(recent) < 2:
             return (None, 0, trail)
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return (None, 0, trail)
         rates: list[float] = []
-        for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
+        for (t0, p0), (t1, p1) in zip(changes, changes[1:]):
             dt = t1 - t0
             if dt <= 0:
                 continue
@@ -1180,7 +1383,7 @@ class QueueMonitorEngine:
         return (speed, len(rates), trail)
 
     def compute_weighted_speed(self) -> tuple[Optional[float], int, list[int]]:
-        """Recency-weighted mean of segment rates; shifts as wall time passes while still in queue.
+        """Recency-weighted mean of per-change-event segment rates.
 
         At **position 0** (queue finished in the log), weights use the last sample time so the
         value does not drift after completion.
@@ -1188,13 +1391,16 @@ class QueueMonitorEngine:
         recent, trail = self._window_recent_points_and_trail()
         if len(recent) < 2:
             return (None, 0, trail)
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return (None, 0, trail)
         now = time.time()
-        if self._current_queue_position() == 0 and len(recent) >= 2:
-            now = float(recent[-1][0])
+        if self._current_queue_position() == 0:
+            now = float(changes[-1][0])
         w_sum = 0.0
         r_sum = 0.0
         n_seg = 0
-        for (t0, p0), (t1, p1) in zip(recent, recent[1:]):
+        for (t0, p0), (t1, p1) in zip(changes, changes[1:]):
             dt_seg = t1 - t0
             if dt_seg <= 0:
                 continue
@@ -1219,26 +1425,29 @@ class QueueMonitorEngine:
         return recent if len(recent) >= 2 else []
 
     def compute_empirical_pos_per_sec(self) -> Optional[float]:
-        """Net positions per second over the rolling window.
+        """Net positions per second anchored to position-change events.
 
-        While monitoring **and still in queue** (position not 0), time uses wall clock from the
-        window's first point to *now*, so dwell at the current queue position (including
-        position 1 before connect) is not dropped from the average. **Position 0** (completed)
-        and stopped mode use only log timestamps between window endpoints so the rate stays fixed.
+        t0 is the first position-change timestamp in the window (not a heartbeat).
+        While monitoring and still in queue, dt extends to wall-clock now so the
+        current open position's dwell is counted. Position 0 and stopped mode use
+        only the span between actual change events.
         """
         recent = self._window_recent_points()
         if len(recent) < 2:
             return None
-        t0, p0 = (float(recent[0][0]), float(recent[0][1]))
-        t1, p1 = (float(recent[-1][0]), float(recent[-1][1]))
-        drop = p0 - p1
+        changes = self._position_change_events(recent)
+        if len(changes) < 2:
+            return None
+        t0, p0 = float(changes[0][0]), float(changes[0][1])
+        t_last, p_last = float(changes[-1][0]), float(changes[-1][1])
+        drop = p0 - p_last
         if drop <= 0:
             return None
         pos = self._current_queue_position()
         if self.running and pos != 0:
             dt = time.time() - t0
         else:
-            dt = t1 - t0
+            dt = t_last - t0
         if dt <= 0:
             return None
         return drop / dt
@@ -1261,7 +1470,13 @@ class QueueMonitorEngine:
         return 1.0 / (v * 60.0)
 
     def _minutes_per_position_capped_for_dwell(self, mpp_raw: Optional[float], pos: Optional[int]) -> Optional[float]:
-        """Do not allow minutes/position to *rise* until expected time for this position already elapsed."""
+        """Hold rate at floor until expected dwell elapsed, then blend linearly toward mpp_raw.
+
+        Phase 1 (dwell < floor_time): return floor — optimistic, unchanged.
+        Phase 2 (dwell in [floor_time, 2*floor_time]): blend from floor → mpp_raw.
+        Phase 3 (dwell >= 2*floor_time): return mpp_raw — full observed rate.
+        This keeps the display near the lower edge as dwell stretches, not snapping high.
+        """
         if mpp_raw is None or pos is None or pos <= 1:
             return mpp_raw
         if self._mpp_floor_position != pos or self._mpp_floor_value is None or self._mpp_floor_value <= 0:
@@ -1271,9 +1486,11 @@ class QueueMonitorEngine:
         if self._last_queue_position_change_epoch is None:
             return self._mpp_floor_value
         dwell = max(0.0, time.time() - self._last_queue_position_change_epoch)
-        if dwell < self._mpp_floor_value * 60.0:
+        floor_secs = self._mpp_floor_value * 60.0
+        if dwell < floor_secs:
             return self._mpp_floor_value
-        return mpp_raw
+        t = min(1.0, (dwell - floor_secs) / max(floor_secs, 1.0))
+        return self._mpp_floor_value + t * (mpp_raw - self._mpp_floor_value)
 
     def _global_avg_minutes_per_position(self) -> Optional[float]:
         """Mean minutes/position over every forward (downward) step in the full graph — all segments, all slots."""
@@ -1295,13 +1512,47 @@ class QueueMonitorEngine:
             return None
         return sum(mpps) / len(mpps)
 
+    def _hist_sessions_global_avg_mpp(self) -> tuple[Optional[float], int]:
+        """Mean m/p averaged across all historical sessions (all outcomes). Returns (mpp, total_segments)."""
+        session_avgs: list[float] = []
+        total_segments = 0
+        for rec in self.load_history_sessions():
+            pts = rec.get("points") or []
+            if len(pts) < 2:
+                continue
+            mpps: list[float] = []
+            for (t0, p0), (t1, p1) in zip(pts, pts[1:]):
+                dt = float(t1) - float(t0)
+                if dt <= 0:
+                    continue
+                improvement = int(p0) - int(p1)
+                if improvement <= 0:
+                    continue
+                mpp = dt / 60.0 / float(improvement)
+                if mpp > 0 and math.isfinite(mpp):
+                    mpps.append(mpp)
+            if mpps:
+                session_avgs.append(sum(mpps) / len(mpps))
+                total_segments += len(mpps)
+        if not session_avgs:
+            return (None, 0)
+        return (sum(session_avgs) / len(session_avgs), total_segments)
+
+    @staticmethod
+    def _format_hist_global_rate(mpp: Optional[float], count: int) -> str:
+        if mpp is not None and mpp > 0 and count > 0:
+            return f'{mpp:.2f} m/p ({count})'
+        return '—'
+
     def _refresh_queue_and_global_rate(self, pos: Optional[int]) -> Optional[float]:
         """KPI Rate value + Global Rate in Info. Header shows RATE (Rolling N). Returns capped mpp for ETA."""
         mpp_raw = self._minutes_per_position_from_window()
         mpp = self._minutes_per_position_capped_for_dwell(mpp_raw, pos)
         g_mpp = self._global_avg_minutes_per_position()
+        h_mpp, h_count = self._hist_sessions_global_avg_mpp()
         self.queue_rate_var.set(self._format_queue_rate(mpp))
         self.global_rate_var.set(self._format_queue_rate(g_mpp))
+        self.hist_global_rate_var.set(self._format_hist_global_rate(h_mpp, h_count))
         return mpp
 
     def _current_queue_position(self) -> Optional[int]:
@@ -1345,6 +1596,8 @@ class QueueMonitorEngine:
             if self._frozen_rates_at_interrupt is not None:
                 self.queue_rate_var.set(self._frozen_rates_at_interrupt[0])
                 self.global_rate_var.set(self._frozen_rates_at_interrupt[1])
+                h_mpp, h_count = self._hist_sessions_global_avg_mpp()
+                self.hist_global_rate_var.set(self._format_hist_global_rate(h_mpp, h_count))
             else:
                 self._refresh_queue_and_global_rate(pos)
             if pos is not None and len(points) >= 1:

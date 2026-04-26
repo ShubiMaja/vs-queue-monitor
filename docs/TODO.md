@@ -1,8 +1,5 @@
 # BUGS
 
-
-
-
 ## Open
 
 ## Deferred (not to be solved yet)
@@ -10,6 +7,21 @@
 - **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
 
 ## Fixed (closed)
+
+~~Bug: graph canvas stayed black on page load because resizeCanvas() ran before the flex layout had settled, getting width=0 and retrying would never happen~~
+Fixed: resizeCanvas now retries via requestAnimationFrame when the container reports width < 10px, and a ResizeObserver on the graph wrapper triggers a redraw when the container first reaches its real size (v1.1.99)
+
+~~Bug: Global Rate stat showed "(N sessions)" but N could be larger than the session count because the label counted total position-change segments, not sessions, while the tooltip said "all recorded sessions"~~
+Fixed: the count in Global Rate now correctly reflects total position-change segment pairs analysed across all sessions, matching what the user sees ("15 samples" = 15 segments, not 9 sessions) (v1.1.99)
+
+~~Bug: merged session history could still show duplicate visible labels like `Session 9` for different runs because the browser treated `session_id` as globally unique and hid the wrong historical row~~
+Fixed: current-run matching in the web client now keys off the active run's start epoch first and only uses `session_id` as a same-run hint, so cross-log history records with colliding numeric ids no longer get hidden while the real current-run checkpoint stays visible. Lesson learned: merged session history cannot rely on bare `session_id` values because they are only stable within one log/session source, not across the whole dropdown (v1.1.98)
+
+~~Bug: the session selector could still show a duplicate latest/history entry for the same run because the browser-side matcher treated small live-vs-reconstructed end-time drift as a different session, and the browser regression reused shared history between tests~~
+Fixed: the web client now collapses latest/history duplicates by stable start-epoch plus terminal-position match instead of fragile end-time equality, and the browser regression points `history_path` at a per-test sandbox so unrelated prior runs do not masquerade as session-numbering bugs. Lesson learned: for reconstructed queue sessions, start identity is stable but end timestamps can legitimately drift by a few seconds between the live graph and history snapshots (v1.1.92)
+
+~~Feature: the graph session selector only showed sessions from the current log tail, so persisted `session_history.jsonl` records were invisible in the existing viewer~~
+Fixed: the existing graph session dropdown now merges live log-tail sessions with persisted `session_history.jsonl` records across restarts and log sources, dedupes them by stable start-epoch key, and keeps `server` / `source_path` / `outcome` metadata available for tooltips. Lesson learned: keep live and persisted session payloads in the same shape so one viewer can render both cleanly instead of spawning a second history UI (v1.1.86)
 
 ~~Tweak: browser notification sends did a fresh service-worker registration lookup on every alert, adding avoidable latency before real banners appeared~~
 Fixed: the web client now caches the notification service-worker registration promise, so repeated warning/completion/failure alerts reuse the same worker lookup path instead of re-querying registration each time (v1.1.55)
@@ -244,9 +256,23 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Deferred
 
+- make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other and a pop up from the ui to instal ngrok if its not installed (grayed out form and link to install or something along those lines)
+
 - **Multiple log-path instances (client-side override):** The server owns one log path shared by all browser clients. Per-client path overrides would require per-connection state on the server and a way to reconcile alerts, sounds, and session history across instances — a significant scope increase for a single-user local tool. Deferred until there is a clear use case that justifies the complexity.
 
 ## Implemented
+
+~~Tweak: add Log row to Info panel showing the log file path for the currently displayed session~~
+Done: infoLogPath row added below Server in the Info panel; for the latest session it shows source_path_display; for historical sessions it shows the masked source_path/log_file from the session record; direction:rtl + LRM prefix for clean overflow truncation (v1.1.103)
+
+~~Tweak: path masking — replace APPDATA/home paths with %APPDATA%/$HOME in the path header and history log~~
+Done: server-side _mask_path_in_text() replaces APPDATA/LOCALAPPDATA on Windows and the home dir cross-platform; source_path_display field added to snapshot; history_tail and history_path_resolved are also masked; LRM character prepended in syncPathDisplay() to fix bidi reordering of the leading % in RTL overflow mode (v1.1.100)
+
+~~Tweak: rate edge-case — when dwell stretches past expected time, rate should hover near the lower edge and rise gradually, not snap suddenly to the high observed value~~
+Done: _minutes_per_position_capped_for_dwell now blends linearly from floor toward mpp_raw over one additional floor-time window (Phase 1: hold at floor; Phase 2: linear blend; Phase 3: full observed rate), so the display stays near the optimistic estimate and drifts up smoothly (v1.1.101)
+
+~~Tweak: global rate should be on its own line in info under stats~~
+Done: Global Rate now has a dedicated row between Full Rate and the rolling-window rate in the Info stats panel, shows the cross-session average m/p and the total number of position-change segments analysed, e.g. "1.23 m/p (42)" (v1.1.97)
 
 ~~Tweak: No queue detected warning should be :warning symbo: No Queue!~~
 Done: the status copy now uses an icon-led warning label, `⚠ No Queue!`, instead of the longer `Warning: no queue detected` wording (v1.1.58)
@@ -358,14 +384,16 @@ Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed 
 
 # FEATURES
 
-Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.
+feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
-~~Feature: Auto update mechanism that detects a change to main branch and asks you to update by pulling the main branch and restarting the app~~
-Done: background thread fetches `origin/main` every hour and sets `update_available` on app state; a green banner appears at the top when a newer commit exists on main; "Update & restart" runs `git pull` then `os.execv` to replace the server process; the browser detects the disconnect and hard-reloads on reconnect (v1.1.33)
+feature: disable automatic updates
 
-Feature: Snapshot every session recorded once the session ends and store it as appdata so we can perform analytics later
+feature: choose Rate for display and remianing (Global, Full, Point)
 
-feature: store history of selected file swso they can be selected again from a history button
+~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
+Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
+
+feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
 feature: add light and dark theme
 

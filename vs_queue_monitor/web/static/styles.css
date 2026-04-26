@@ -1412,6 +1412,11 @@ select.inp:focus-visible {
 .info__val--wrap {
   word-break: break-all;
 }
+.info__val--path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .info-stats {
   min-width: 0;
@@ -1521,6 +1526,7 @@ select.inp:focus-visible {
 .modal__box--settings {
   width: 620px;
   max-width: min(620px, calc(100vw - 20px));
+  position: relative;
 }
 .modal__box--help {
   max-width: 560px;

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
 from vs_queue_monitor.web.hooks_web import WebMonitorHooks
-from vs_queue_monitor.core import compute_seed_graph_from_log, parse_tail_latest_connect_target
+from vs_queue_monitor.core import (
+    SEED_LOG_TAIL_BYTES,
+    compute_seed_graph_from_log,
+    parse_tail_latest_connect_target,
+    queue_sessions_for_log_tail,
+)
 from vs_queue_monitor.web.server import _queue_sessions_for_engine
 
 
@@ -41,6 +47,9 @@ def _engine_for_log_dir(log_dir: Path) -> tuple[QueueMonitorEngine, SmokeHooks]:
     engine.running = True
     engine.current_log_file = log_dir / "client-main.log"
     engine.source_path_var.set(str(log_dir))
+    history_root = log_dir.parent / ".tmp-session-history"
+    history_root.mkdir(parents=True, exist_ok=True)
+    engine.history_path_var.set(str(history_root))
     return engine, hooks
 
 
@@ -155,6 +164,213 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
 
     sessions, _active_id = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
+
+
+def test_queue_sessions_merge_cross_file_history_and_dedup_live_start_epoch() -> None:
+    root = Path(".tmp-release-smoke-tests-session-history-merge")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:20:53 [Notification] Connecting to alpha.example.net...",
+            "9.4.2026 22:20:55 [Notification] Client is in connect queue at position: 5",
+            "9.4.2026 22:21:15 [Notification] Client is in connect queue at position: 3",
+            "9.4.2026 22:21:25 [Notification] Client is in connect queue at position: 1",
+            "9.4.2026 22:21:26 [Notification] Connected to server, downloading data...",
+            "9.4.2026 22:30:53 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 10",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    history_root = root / "history"
+    engine.history_path_var.set(str(history_root))
+
+    live_sessions = queue_sessions_for_log_tail(log_path, SEED_LOG_TAIL_BYTES)
+    assert len(live_sessions) == 2
+    live_past = min(live_sessions, key=lambda s: float(s.get("start_epoch") or 0))
+
+    hist_path = engine._effective_history_path()
+    hist_path.parent.mkdir(parents=True, exist_ok=True)
+    hist_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "session_id": 1,
+                        "source_path": str(log_dir),
+                        "log_file": str(log_path),
+                        "server": "alpha.example.net",
+                        "start_epoch": live_past["start_epoch"],
+                        "end_epoch": live_past["end_epoch"],
+                        "outcome": "completed",
+                        "start_position": live_past["start_pos"],
+                        "end_position": live_past["end_pos"],
+                        "points": live_past["points"],
+                        "vsqm_version": "1.1.69",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "session_id": 77,
+                        "source_path": "D:/AltVintagestoryData",
+                        "log_file": "D:/AltVintagestoryData/client-main.log",
+                        "server": "gamma.example.net",
+                        "start_epoch": 1775760000.0,
+                        "end_epoch": 1775760060.0,
+                        "outcome": "completed",
+                        "start_position": 9,
+                        "end_position": 0,
+                        "points": [[1775760000.0, 9], [1775760030.0, 5], [1775760060.0, 0]],
+                        "vsqm_version": "1.1.69",
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    sessions, active_id = _queue_sessions_for_engine(engine)
+
+    assert active_id >= 0
+    assert len(sessions) == 2, sessions
+    assert sum(1 for s in sessions if int(float(s.get("start_epoch") or 0)) == int(float(live_past["start_epoch"]))) == 1
+    assert [s["label"] for s in sessions] == ["Session 1", "Session 2"]
+    gamma = next(s for s in sessions if s.get("server") == "gamma.example.net")
+    assert gamma["source_path"] == "D:/AltVintagestoryData"
+    assert gamma["outcome"] == "completed"
+
+
+def test_queue_sessions_dedup_duplicate_history_records() -> None:
+    root = Path(".tmp-release-smoke-tests-session-history-dedup")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log(
+        log_path,
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+            "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 10",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    history_root = root / "history"
+    engine.history_path_var.set(str(history_root))
+
+    hist_path = engine._effective_history_path()
+    hist_path.parent.mkdir(parents=True, exist_ok=True)
+    dup_a = {
+        "session_id": 41,
+        "source_path": "D:/AltVintagestoryData",
+        "log_file": "D:/AltVintagestoryData/client-main.log",
+        "server": "gamma.example.net",
+        "start_epoch": 1775760000.0,
+        "end_epoch": 1775760060.0,
+        "outcome": "completed",
+        "start_position": 9,
+        "end_position": 0,
+        "points": [[1775760000.0, 9], [1775760060.0, 0]],
+        "vsqm_version": "1.1.86",
+    }
+    dup_b = {
+        "session_id": 41,
+        "source_path": "D:/AltVintagestoryData",
+        "log_file": "D:/AltVintagestoryData/client-main.log",
+        "server": "gamma.example.net",
+        "start_epoch": 1775760000.4,
+        "end_epoch": 1775760060.4,
+        "outcome": "completed",
+        "start_position": 9,
+        "end_position": 0,
+        "points": [[1775760000.4, 9], [1775760030.4, 5], [1775760060.4, 0]],
+        "vsqm_version": "1.1.86",
+    }
+    hist_path.write_text(json.dumps(dup_a) + "\n" + json.dumps(dup_b) + "\n", encoding="utf-8")
+
+    sessions, _active_id = _queue_sessions_for_engine(engine)
+
+    gamma_sessions = [s for s in sessions if s.get("server") == "gamma.example.net"]
+    assert len(gamma_sessions) == 1, gamma_sessions
+    assert len(gamma_sessions[0]["points"]) == 3
+
+
+def test_history_session_cache_respects_history_path_changes() -> None:
+    root = Path(".tmp-release-smoke-tests-history-cache-switch")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    _write_log(
+        log_dir / "client-main.log",
+        [
+            "9.4.2026 22:30:53 [Notification] Connecting to beta.example.net...",
+            "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 12",
+        ],
+    )
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+
+    history_a = root / "history-a"
+    engine.history_path_var.set(str(history_a))
+    hist_a = engine._effective_history_path()
+    hist_a.parent.mkdir(parents=True, exist_ok=True)
+    hist_a.write_text(
+        json.dumps(
+            {
+                "session_id": 1,
+                "source_path": str(log_dir),
+                "log_file": str(log_dir / "client-main.log"),
+                "server": "alpha.example.net",
+                "start_epoch": 1775760000.0,
+                "end_epoch": 1775760060.0,
+                "outcome": "completed",
+                "start_position": 9,
+                "end_position": 0,
+                "points": [[1775760000.0, 9], [1775760060.0, 0]],
+                "vsqm_version": "1.1.91",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    first = engine.load_history_sessions()
+    assert [rec.get("server") for rec in first] == ["alpha.example.net"]
+
+    history_b = root / "history-b"
+    engine.history_path_var.set(str(history_b))
+    hist_b = engine._effective_history_path()
+    hist_b.parent.mkdir(parents=True, exist_ok=True)
+    hist_b.write_text(
+        json.dumps(
+            {
+                "session_id": 2,
+                "source_path": str(log_dir),
+                "log_file": str(log_dir / "client-main.log"),
+                "server": "beta.example.net",
+                "start_epoch": 1775761000.0,
+                "end_epoch": 1775761060.0,
+                "outcome": "completed",
+                "start_position": 6,
+                "end_position": 0,
+                "points": [[1775761000.0, 6], [1775761060.0, 0]],
+                "vsqm_version": "1.1.91",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    second = engine.load_history_sessions()
+    assert [rec.get("server") for rec in second] == ["beta.example.net"]
 
 
 def test_parse_tail_latest_connect_target_picks_current_session() -> None:

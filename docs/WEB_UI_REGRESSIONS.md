@@ -86,6 +86,22 @@ Rules:
 Why:
 - Onboarding text is part of the product surface. Stale copy makes the UI feel broken even when the code works.
 
+## Session selector data contract
+
+The graph session selector should consume one shared session shape regardless of where sessions came from.
+
+Rules:
+- Keep live log-tail sessions and persisted `session_history.jsonl` sessions in the same payload shape.
+- Deduplicate merged sessions before labeling/numbering them, using a stable start-epoch key rather than raw list position.
+- Do not treat `session_id` as globally unique once history from multiple logs or installs is merged; it is only meaningful within a single source log.
+- When hiding the current `latest` run from the historical list, key the match off stable run identity such as start epoch and terminal position; do not depend on reconstructed end timestamps matching exactly.
+- Preserve metadata such as `server`, `source_path`, and `outcome` when merging history into the existing dropdown.
+- Browser tests that exercise session history must point `history_path` at a per-test sandbox instead of reusing the session-shared Playwright config history.
+
+Why:
+- A second parallel session viewer is unnecessary if the existing dropdown can render both sources consistently.
+- Divergent payload shapes make historical-session bugs likely and turn simple UI copy/tooltips into special cases.
+
 ## Graph settings contract
 
 The graph now has two persisted modes:
