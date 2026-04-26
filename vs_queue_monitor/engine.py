@@ -1460,7 +1460,13 @@ class QueueMonitorEngine:
         return 1.0 / (v * 60.0)
 
     def _minutes_per_position_capped_for_dwell(self, mpp_raw: Optional[float], pos: Optional[int]) -> Optional[float]:
-        """Do not allow minutes/position to *rise* until expected time for this position already elapsed."""
+        """Hold rate at floor until expected dwell elapsed, then blend linearly toward mpp_raw.
+
+        Phase 1 (dwell < floor_time): return floor — optimistic, unchanged.
+        Phase 2 (dwell in [floor_time, 2*floor_time]): blend from floor → mpp_raw.
+        Phase 3 (dwell >= 2*floor_time): return mpp_raw — full observed rate.
+        This keeps the display near the lower edge as dwell stretches, not snapping high.
+        """
         if mpp_raw is None or pos is None or pos <= 1:
             return mpp_raw
         if self._mpp_floor_position != pos or self._mpp_floor_value is None or self._mpp_floor_value <= 0:
@@ -1470,9 +1476,11 @@ class QueueMonitorEngine:
         if self._last_queue_position_change_epoch is None:
             return self._mpp_floor_value
         dwell = max(0.0, time.time() - self._last_queue_position_change_epoch)
-        if dwell < self._mpp_floor_value * 60.0:
+        floor_secs = self._mpp_floor_value * 60.0
+        if dwell < floor_secs:
             return self._mpp_floor_value
-        return mpp_raw
+        t = min(1.0, (dwell - floor_secs) / max(floor_secs, 1.0))
+        return self._mpp_floor_value + t * (mpp_raw - self._mpp_floor_value)
 
     def _global_avg_minutes_per_position(self) -> Optional[float]:
         """Mean minutes/position over every forward (downward) step in the full graph — all segments, all slots."""

@@ -254,10 +254,6 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-- when the edge of position has been reached and it starts stretching out the rate, we should hover around the lower edge not the higher edge, e.g. if we are at position 1 we shoud fluctuate from 1-2 seconds and so on. maybe we should use exponential push off? e.g. 2 (down to 0), 4 down to 0, 8, down to 0, 16, down to 0, 32, down to 0 with a max edge of max minutes per position ever reached? e.g. what do you think? is that a thing ppl do?
-
-- in the display for the file and in the logs the use appdata path should be replaced with %APPDATA% on windows or $HOME on linux/mac to make logs and locations less sensitive
-
 ## Deferred
 
 - make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other and a pop up from the ui to instal ngrok if its not installed (grayed out form and link to install or something along those lines)
@@ -265,6 +261,12 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 - **Multiple log-path instances (client-side override):** The server owns one log path shared by all browser clients. Per-client path overrides would require per-connection state on the server and a way to reconcile alerts, sounds, and session history across instances — a significant scope increase for a single-user local tool. Deferred until there is a clear use case that justifies the complexity.
 
 ## Implemented
+
+~~Tweak: path masking — replace APPDATA/home paths with %APPDATA%/$HOME in the path header and history log~~
+Done: server-side _mask_path_in_text() replaces APPDATA/LOCALAPPDATA on Windows and the home dir cross-platform; source_path_display field added to snapshot; history_tail and history_path_resolved are also masked; LRM character prepended in syncPathDisplay() to fix bidi reordering of the leading % in RTL overflow mode (v1.1.100)
+
+~~Tweak: rate edge-case — when dwell stretches past expected time, rate should hover near the lower edge and rise gradually, not snap suddenly to the high observed value~~
+Done: _minutes_per_position_capped_for_dwell now blends linearly from floor toward mpp_raw over one additional floor-time window (Phase 1: hold at floor; Phase 2: linear blend; Phase 3: full observed rate), so the display stays near the optimistic estimate and drifts up smoothly (v1.1.101)
 
 ~~Tweak: global rate should be on its own line in info under stats~~
 Done: Global Rate now has a dedicated row between Full Rate and the rolling-window rate in the Info stats panel, shows the cross-session average m/p and the total number of position-change segments analysed, e.g. "1.23 m/p (42)" (v1.1.97)
