@@ -1074,8 +1074,8 @@
       "Cur Pos: "    + t("infoStatEnd")     + "\n" +
       "Pos Change: " + t("infoStatCleared") + "\n" +
       "Duration: "   + t("infoStatSpan")    + "\n" +
-      "Full Rate: "  + t("infoStatGlo")     + "\n" +
       avgLbl + ": "  + t("infoStatAvg")     + "\n" +
+      "Full Rate: "  + t("infoStatGlo")     + "\n" +
       "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
       function () { toast("Stats copied"); },
