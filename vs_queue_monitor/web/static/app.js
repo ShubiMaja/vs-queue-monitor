@@ -1218,6 +1218,23 @@
     return { icon: "✕", label: "Failed" };
   }
 
+  function loadedSessionStatusInfo(points, running, interruptedMode) {
+    if (points && points.length) {
+      for (var i = 0; i < points.length; i++) {
+        if (points[i][1] <= 0) {
+          return { icon: "✓", label: "Succeeded" };
+        }
+      }
+    }
+    if (!running) {
+      return { icon: points && points.length ? "✕" : "?", label: points && points.length ? "Failed" : "Unknown" };
+    }
+    if (interruptedMode) {
+      return { icon: "↻", label: "Interrupted" };
+    }
+    return { icon: "⚡", label: "Active" };
+  }
+
   function formatPositionDisplay(posRaw, statusRaw) {
     var pos = posRaw == null ? "" : String(posRaw).trim();
     var status = statusRaw == null ? "" : String(statusRaw).trim().toLowerCase();
@@ -1308,14 +1325,15 @@
     return true;
   }
 
-  function formatLatestSessionOptionLabelClean(state, latestStatus) {
+  function formatLatestSessionOptionLabelClean(state, latestStatus, sessionNumber) {
     var startEpoch = null;
     var points = (state && state.graph_points) || [];
     if (points.length) {
       startEpoch = points[0][0];
     }
     var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " Active - " + startText + " (active)";
+    var numStr = sessionNumber != null ? String(sessionNumber) : "";
+    return latestStatus.icon + " Session " + numStr + " — " + startText + " (loaded)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1479,17 +1497,40 @@
       return !sessionLooksLikeCurrentRun(sess, s);
     });
     sel.innerHTML = "";
+
+    // Build the "loaded" option — the most recent session from the active log tail.
+    // Session number = all past sessions + 1 (it's the newest).
+    var totalSessionCount = (s.queue_sessions || []).length + 1;
     var opt0 = document.createElement("option");
     opt0.value = "latest";
-    var latestStatus = sessionStatusInfo(
+    opt0.style.fontWeight = "bold";
+    var latestStatus = loadedSessionStatusInfo(
       s.graph_points || [],
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.title = latestStatus.label + " — active session for the folder currently being monitored.";
-    sel.appendChild(opt0);
+    opt0.title = [
+      latestStatus.label + " — loaded session for the folder currently being monitored.",
+      "Start: " + formatSessionStart(s.graph_points && s.graph_points.length ? s.graph_points[0][0] : null),
+    ].join("\n");
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, totalSessionCount);
+
+    // Determine the loaded session start time so it can be inserted at its
+    // natural chronological position rather than always pinned to the top.
+    var loadedStartEpoch = null;
+    var loadedPts = s.graph_points || [];
+    if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+
+    // Render sessions newest-first; insert opt0 just before the first past session
+    // whose start is earlier than the loaded session's start.
     var i;
+    var opt0Inserted = false;
     for (i = sessions.length - 1; i >= 0; i--) {
+      var sessStartEpoch = Number(sessions[i].start_epoch);
+      if (!opt0Inserted && (loadedStartEpoch === null || sessStartEpoch < loadedStartEpoch)) {
+        sel.appendChild(opt0);
+        opt0Inserted = true;
+      }
       var o = document.createElement("option");
       var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false);
       o.value = sessions[i].key;
@@ -1508,10 +1549,12 @@
       o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
+    if (!opt0Inserted) {
+      sel.appendChild(opt0);
+    }
+
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
-      // Always start on "latest" (active session) on page load.
     }
     var valid = selectedSessionKey === "latest";
     if (!valid) {
@@ -1535,7 +1578,7 @@
     } catch (e) {}
     sel.title =
       sessions.length > 0
-        ? "Plot a past queue run from the log tail; KPIs above stay live."
+        ? "Plot a past queue run; KPIs above stay live on the loaded session."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
     updateSessionBadge();
   }
@@ -1691,13 +1734,13 @@
     applyClientViewerPrefs(s);
     var btnLive = $("btnGraphLive");
     if (btnLive) {
-      var liveAvailable = selectedSessionKey === "latest";
-      var liveOn = liveAvailable && s.graph_live_view !== false;
+      var onLoadedSession = selectedSessionKey === "latest";
+      var liveOn = onLoadedSession && s.graph_live_view !== false;
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
-      btnLive.disabled = !liveAvailable;
-      btnLive.setAttribute("aria-disabled", liveAvailable ? "false" : "true");
-      btnLive.title = !liveAvailable
-        ? "Live follow is only available on the active session"
+      btnLive.disabled = false;
+      btnLive.setAttribute("aria-disabled", "false");
+      btnLive.title = !onLoadedSession
+        ? "Go to loaded session"
         : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
@@ -1709,7 +1752,7 @@
       btnWarn.disabled = !warnAvailable;
       btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
       btnWarn.title = !warnAvailable
-        ? "Warning dots are only available on the active session"
+        ? "Warning dots are only available on the loaded session"
         : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
@@ -2234,7 +2277,7 @@
       {
         title: "Chart & alerts",
         html:
-          "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
+          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the loaded session. The live button returns you to the loaded session from any past run.</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — use the <strong>play button</strong> in the header when the path is set.</p>",
@@ -4199,7 +4242,19 @@
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
-        if (selectedSessionKey !== "latest") return;
+        // When viewing a past session, the live button returns to the loaded session.
+        if (selectedSessionKey !== "latest") {
+          selectLatestSession();
+          if (window._lastState) {
+            window._graphZoom = null;
+            syncSettingsFormFromState(window._lastState);
+            syncGraphToolbarButtons(window._lastState);
+            window._displayState = buildDisplayState(window._lastState);
+            redrawGraphOnly();
+            renderSessionStats();
+          }
+          return;
+        }
         var next = !lsGetGraphLive();
         var canvas = $("graphCanvas");
         var ds = canvas && canvas._drawState;
