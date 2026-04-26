@@ -1498,9 +1498,23 @@
     });
     sel.innerHTML = "";
 
+    // Determine the loaded session start time so it can be inserted at its
+    // natural chronological position in the merged list and labelled correctly.
+    var loadedStartEpoch = null;
+    var loadedPts = s.graph_points || [];
+    if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+
+    // Session number = count of past sessions that started before the loaded session + 1.
+    // In a merged cross-folder list the loaded session may not be the absolute newest.
+    var loadedSessionNumber = 1;
+    var allSessions = s.queue_sessions || [];
+    for (var j = 0; j < allSessions.length; j++) {
+      if (loadedStartEpoch !== null && Number(allSessions[j].start_epoch) < loadedStartEpoch) {
+        loadedSessionNumber++;
+      }
+    }
+
     // Build the "loaded" option — the most recent session from the active log tail.
-    // Session number = all past sessions + 1 (it's the newest).
-    var totalSessionCount = (s.queue_sessions || []).length + 1;
     var opt0 = document.createElement("option");
     opt0.value = "latest";
     opt0.style.fontWeight = "bold";
@@ -1511,15 +1525,9 @@
     );
     opt0.title = [
       latestStatus.label + " — loaded session for the folder currently being monitored.",
-      "Start: " + formatSessionStart(s.graph_points && s.graph_points.length ? s.graph_points[0][0] : null),
+      "Start: " + formatSessionStart(loadedStartEpoch),
     ].join("\n");
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, totalSessionCount);
-
-    // Determine the loaded session start time so it can be inserted at its
-    // natural chronological position rather than always pinned to the top.
-    var loadedStartEpoch = null;
-    var loadedPts = s.graph_points || [];
-    if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, loadedSessionNumber);
 
     // Render sessions newest-first; insert opt0 just before the first past session
     // whose start is earlier than the loaded session's start.
