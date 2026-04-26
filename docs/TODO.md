@@ -254,6 +254,24 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
+tweak: make the upgrade button match the style of all other buttons next to it
+
+tweak: make the start/stop button match the size of other buttons next to it
+
+tweak: put the upgrade button all the way tot he left (after the notification bell switch)
+
+tweak: make the upgrade button glow slightly until the user hovers over it at least once.
+
+tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.
+
+tweak: rename Full rate to Session Rate. 
+  - consider chnage Rate fields ->  (is it better or worse?)
+  10 Point m/p: n
+  Session m/p: n
+  Global m/p: n
+
+tweak: add max file size for JSONL which is configurable via settings (use a sane default)
+
 ## Deferred
 
 - make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other and a pop up from the ui to instal ngrok if its not installed (grayed out form and link to install or something along those lines)
@@ -383,6 +401,13 @@ Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, g
 Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302/337)
 
 # FEATURES
+
+Feature: show the user when they are expected to join (ETA) in their local time
+- options: 
+  - 0. Remaining value because ETR_TIME (ETA_TIME)
+  - 1. Remaining becomes ETR / ETA
+  - 2. add a new section (bad because warnings will be reduced to retain same size as the other blocks)
+  - 3. Add "Est. Join Time: users-local-time" some prominent place like the bar with the session drop down or maybe someplace else
 
 feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
