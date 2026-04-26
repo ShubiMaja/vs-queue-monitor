@@ -20,9 +20,9 @@ Monitor your **Vintage Story** connect queue - live position, estimated wait tim
 ## Quick start
 
 **Prerequisites**
-1. Python
-2. `git` or [https://git-scm.com/install/windows 
-   GitBash)
+1. [https://www.python.org/downloads/](Python)
+2. `git` or [https://git-scm.com/install/windows](GitBash)
+3. OPTIONAL (for remote access) [ngrok](https://dashboard.ngrok.com/get-started/setup/windows)
 
 **Latest release:** [github.com/ShubiMaja/vs-queue-monitor/releases/latest](https://github.com/ShubiMaja/vs-queue-monitor/releases/latest)
 
@@ -179,17 +179,9 @@ Push notifications let your phone buzz when you reach the front of the queue. Th
 
 > **Known limitation:** Browser-side notifications (the bell icon in the top bar) only fire while the tab is open and active. They do **not** wake up the browser or deliver alerts when the tab is in the background or the browser is closed. Server-side push via `pywebpush` is implemented but not yet reliable across all mobile browsers. Use the web UI on a desktop machine and rely on desktop notifications there for the most dependable alerts.
 
-**1. Install the push dependency** (if not already installed):
+**- Open the app over HTTPS** (ngrok or SSH tunnel — see sections above).
 
-```bash
-pip install pywebpush
-```
-
-**2. Restart VS Queue Monitor.** VAPID keys are generated automatically on first startup when `pywebpush` is available. Keys are written to `.secrets/vapid_private.pem` and `.env` — no manual setup needed.
-
-**3. Open the app over HTTPS** (ngrok or SSH tunnel — see sections above).
-
-**4. Click the bell icon** in the top bar and grant notification permission. The browser registers your device automatically. Every subscribed device will receive push notifications going forward.
+**- Click the bell icon** in the top bar and grant notification permission. The browser registers your device automatically. Every subscribed device will receive push notifications going forward.
 
 > **Why HTTPS?** Browsers block push subscriptions on plain HTTP outside localhost. Use ngrok or an SSH tunnel for remote/mobile access.
 >
