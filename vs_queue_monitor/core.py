@@ -607,6 +607,34 @@ def normalize_log_path_for_dedup(p: str) -> str:
     return p
 
 
+def normalize_log_path_for_storage(p: str) -> str:
+    """Replace raw user-path prefixes with portable tokens for JSONL storage.
+
+    Inverse of ``normalize_log_path_for_dedup``: raw ``C:\\Users\\...`` becomes
+    ``%APPDATA%\\...`` (or ``$HOME/...`` on non-Windows) so stored records are
+    portable and don't accumulate multiple formats.
+    """
+    if not p:
+        return p
+    for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+        val = os.environ.get(env_var, "")
+        if val:
+            # Case-insensitive on Windows; paths may have mixed casing.
+            if sys.platform == "win32":
+                if p.lower().startswith(val.lower()):
+                    return token + p[len(val):]
+            else:
+                if p.startswith(val):
+                    return token + p[len(val):]
+    try:
+        home = str(Path.home())
+        if p.startswith(home):
+            return "$HOME" + p[len(home):]
+    except Exception:
+        pass
+    return p
+
+
 def get_history_path() -> Path:
     """JSONL file that accumulates completed/interrupted session records."""
     return get_config_path().parent / "session_history.jsonl"

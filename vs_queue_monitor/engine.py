@@ -606,11 +606,13 @@ class QueueMonitorEngine:
                 return
             hist = self._effective_history_path()
             norm_log_file = self._normalize_log_path_for_dedup(str(log_file))
+            stored_log_file = normalize_log_path_for_storage(str(log_file))
             # Serialize the read-check-write block so concurrent backfill threads
             # (triggered by rapid log-folder switches) cannot all read the same
             # pre-write JSONL and then each append the same session records.
             with QueueMonitorEngine._backfill_lock:
-                existing: set[tuple[str, int]] = set()
+                existing_sid: set[tuple[str, int]] = set()
+                existing_sig: set[tuple[str, int, Any]] = set()
                 try:
                     if hist.exists():
                         for line in hist.read_text(encoding="utf-8").splitlines():
@@ -621,19 +623,29 @@ class QueueMonitorEngine:
                                 rec = json.loads(line)
                                 lf = self._normalize_log_path_for_dedup(str(rec.get("log_file", "")))
                                 sid = rec.get("session_id")
+                                se = rec.get("start_epoch")
+                                sp = rec.get("start_position")
                                 if lf and sid is not None:
-                                    existing.add((lf, int(sid)))
+                                    existing_sid.add((lf, int(sid)))
+                                if lf and se is not None:
+                                    existing_sig.add((lf, int(se), sp))
                             except Exception:
                                 pass
                 except Exception:
                     pass
-                to_write = [r for r in records if (norm_log_file, r["session_id"]) not in existing]
+                to_write = [
+                    r for r in records
+                    if (norm_log_file, r["session_id"]) not in existing_sid
+                    and (norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")) not in existing_sig
+                ]
                 if not to_write:
                     return
                 hist.parent.mkdir(parents=True, exist_ok=True)
                 with open(hist, "a", encoding="utf-8") as fh:
                     for r in to_write:
-                        fh.write(json.dumps(r) + "\n")
+                        r_stored = dict(r)
+                        r_stored["log_file"] = stored_log_file
+                        fh.write(json.dumps(r_stored) + "\n")
             self._invalidate_history_cache()
         except Exception:
             pass
@@ -679,65 +691,96 @@ class QueueMonitorEngine:
         return get_checkpoint_path()
 
     _MIGRATION_DEDUP_PATHS = "dedup_paths_v1"
+    _MIGRATION_NORMALIZE_PATHS = "normalize_paths_v1"
 
     def _migrate_session_history(self) -> None:
-        """Dedup session_history.jsonl once for users upgrading from versions before 1.1.108.
-
-        Earlier versions could accumulate duplicate records for the same session under
-        different path formats (token-masked vs raw, case variants on Windows).  A marker
-        in config.json records that the migration has run so it is skipped on every
-        subsequent startup.
-        """
+        """Run one-time JSONL migrations gated by markers in config["migrations_done"]."""
         try:
-            done = self.config.get("migrations_done") or []
-            if self._MIGRATION_DEDUP_PATHS in done:
-                return
+            done: list = list(self.config.get("migrations_done") or [])
+            dirty = False
 
-            hist = self._effective_history_path()
-            if hist.exists():
-                lines = hist.read_text(encoding="utf-8").splitlines()
-                records = []
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        records.append(json.loads(line))
-                    except Exception:
-                        pass
+            # --- Migration 1: dedup records with path-format mismatches ---
+            if self._MIGRATION_DEDUP_PATHS not in done:
+                hist = self._effective_history_path()
+                if hist.exists():
+                    lines = hist.read_text(encoding="utf-8").splitlines()
+                    records = []
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except Exception:
+                            pass
 
-                if records:
-                    outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
+                    if records:
+                        outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
 
-                    def _rank(rec: dict) -> tuple:
-                        pts = rec.get("points") or []
-                        return (outcome_rank.get(rec.get("outcome", ""), -1), len(pts))
+                        def _rank(rec: dict) -> tuple:
+                            pts = rec.get("points") or []
+                            return (outcome_rank.get(rec.get("outcome", ""), -1), len(pts))
 
-                    primary: dict[tuple[str, int], dict] = {}
-                    no_id: list[dict] = []
-                    for rec in records:
-                        sid = rec.get("session_id")
-                        lf = self._normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
-                        if sid is not None:
-                            pk = (lf, int(sid))
-                            prev = primary.get(pk)
-                            if prev is None or _rank(rec) > _rank(prev):
-                                primary[pk] = rec
-                        else:
-                            no_id.append(rec)
+                        primary: dict[tuple[str, int], dict] = {}
+                        no_id: list[dict] = []
+                        for rec in records:
+                            sid = rec.get("session_id")
+                            lf = self._normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
+                            if sid is not None:
+                                pk = (lf, int(sid))
+                                prev = primary.get(pk)
+                                if prev is None or _rank(rec) > _rank(prev):
+                                    primary[pk] = rec
+                            else:
+                                no_id.append(rec)
 
-                    deduped = list(primary.values()) + no_id
-                    if len(deduped) < len(records):
-                        deduped.sort(key=lambda r: float(r.get("start_epoch") or 0))
-                        hist.write_text("\n".join(json.dumps(r) for r in deduped) + "\n", encoding="utf-8")
-                        self._invalidate_history_cache()
+                        deduped = list(primary.values()) + no_id
+                        if len(deduped) < len(records):
+                            deduped.sort(key=lambda r: float(r.get("start_epoch") or 0))
+                            hist.write_text("\n".join(json.dumps(r) for r in deduped) + "\n", encoding="utf-8")
+                            self._invalidate_history_cache()
 
-            # Mark migration done and persist config.
-            if not isinstance(done, list):
-                done = []
-            done = list(done) + [self._MIGRATION_DEDUP_PATHS]
-            self.config["migrations_done"] = done
-            save_config(self.config)
+                done.append(self._MIGRATION_DEDUP_PATHS)
+                dirty = True
+
+            # --- Migration 2: normalize log_file paths to portable tokens ---
+            if self._MIGRATION_NORMALIZE_PATHS not in done:
+                hist = self._effective_history_path()
+                if hist.exists():
+                    lines = hist.read_text(encoding="utf-8").splitlines()
+                    records = []
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except Exception:
+                            pass
+
+                    if records:
+                        changed = False
+                        normalized: list[dict] = []
+                        for rec in records:
+                            raw_lf = str(rec.get("log_file") or "")
+                            normed = normalize_log_path_for_storage(raw_lf)
+                            if normed != raw_lf:
+                                rec = dict(rec)
+                                rec["log_file"] = normed
+                                changed = True
+                            normalized.append(rec)
+                        if changed:
+                            hist.write_text(
+                                "\n".join(json.dumps(r) for r in normalized) + "\n", encoding="utf-8"
+                            )
+                            self._invalidate_history_cache()
+
+                done.append(self._MIGRATION_NORMALIZE_PATHS)
+                dirty = True
+
+            if dirty:
+                self.config["migrations_done"] = done
+                save_config(self.config)
         except Exception:
             pass
 
