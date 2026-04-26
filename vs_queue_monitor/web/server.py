@@ -228,25 +228,28 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass B: build the suppression key for the loaded (active) session only.
-        # Past completed sessions are never suppressed — their JSONL records are the
-        # authoritative source and must appear unconditionally for all folder views.
-        live_match_keys: set[tuple[Any, Any]] = set()
+        # Pass B: derive the suppression key for the loaded (active) session's ghost JSONL record.
+        # We match by (current_log_file, floor_epoch) only — start_pos is omitted because
+        # the live tail's start_pos and the JSONL's start_position can differ when the log
+        # grew since the record was written (session ID shift, or tail window changed).
+        # The floor_epoch comes from the same log line timestamp in both sources, so it
+        # is always stable.  Past completed sessions are never suppressed here; their JSONL
+        # records are the authoritative source and must appear for all folder views.
+        active_floor_epoch: Optional[int] = None
         if _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
-            live_match_keys.add(
-                (int(math.floor(float(se))) if se is not None else None, _active_tail_session.get("start_pos"))
-            )
+            if se is not None:
+                active_floor_epoch = int(math.floor(float(se)))
 
         # Trigger a background backfill if completed live sessions are missing from JSONL.
-        jsonl_keys: set[tuple[Any, Any]] = set()
+        jsonl_floor_epochs: set[int] = set()
         for rec in hist_records:
             se = rec.get("start_epoch")
             if se is not None:
-                jsonl_keys.add((int(math.floor(float(se))), rec.get("start_position")))
+                jsonl_floor_epochs.add(int(math.floor(float(se))))
         unmatched = [
             s for s in live_sessions
-            if (int(math.floor(float(s.get("start_epoch") or 0))), s.get("start_pos")) not in jsonl_keys
+            if int(math.floor(float(s.get("start_epoch") or 0))) not in jsonl_floor_epochs
         ]
         if unmatched and path is not None:
             threading.Thread(
@@ -263,8 +266,9 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
-            if (floor_se, start_pos) in live_match_keys:
-                continue  # ghost record for the currently active session
+            # Suppress only the active session's ghost: same log file AND same start second.
+            if current_norm_lf and lf == current_norm_lf and floor_se == active_floor_epoch:
+                continue  # ghost record for the currently loaded session
             sig = (floor_se, start_pos, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
