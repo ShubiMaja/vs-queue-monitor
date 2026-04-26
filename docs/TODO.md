@@ -384,6 +384,12 @@ Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed 
 
 # FEATURES
 
+feature: store recent files (*history button) of selected file swso they can be selected again from a history button
+
+feature: disable automatic updates
+
+feature: choose Rate for display and remianing (Global, Full, Point)
+
 ~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
 Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
 
