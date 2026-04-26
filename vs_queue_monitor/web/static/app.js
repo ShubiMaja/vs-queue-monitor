@@ -1308,30 +1308,14 @@
     return true;
   }
 
-  function formatLatestSessionOptionLabel(state, latestStatus) {
+  function formatLatestSessionOptionLabelClean(state, latestStatus) {
     var startEpoch = null;
     var points = (state && state.graph_points) || [];
     if (points.length) {
       startEpoch = points[0][0];
     }
-    var activeId = Number(state && state.active_queue_session_id);
-    var latestName = Number.isFinite(activeId) && activeId >= 0
-      ? ("Session " + activeId)
-      : "Session";
     var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
-  }
-
-  function formatLatestSessionOptionLabelClean(state, latestStatus, visiblePastCount) {
-    var startEpoch = null;
-    var points = (state && state.graph_points) || [];
-    if (points.length) {
-      startEpoch = points[0][0];
-    }
-    var displayIndex = Math.max(1, Number(visiblePastCount) + 1);
-    var latestName = "Session " + displayIndex;
-    var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
+    return latestStatus.icon + " Active - " + startText + " (active)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1502,7 +1486,7 @@
       !!s.running,
       !!s.interrupted_mode
     );
-    opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
+    opt0.title = latestStatus.label + " — active session for the folder currently being monitored.";
     sel.appendChild(opt0);
     var i;
     for (i = sessions.length - 1; i >= 0; i--) {
@@ -1524,7 +1508,7 @@
       o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sel.options.length - 1);
+    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus);
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
       // Always start on "latest" (active session) on page load.
@@ -1713,7 +1697,7 @@
       btnLive.disabled = !liveAvailable;
       btnLive.setAttribute("aria-disabled", liveAvailable ? "false" : "true");
       btnLive.title = !liveAvailable
-        ? "Live follow is only available on the latest session"
+        ? "Live follow is only available on the active session"
         : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
@@ -1725,7 +1709,7 @@
       btnWarn.disabled = !warnAvailable;
       btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
       btnWarn.title = !warnAvailable
-        ? "Warning dots are only available on the latest session"
+        ? "Warning dots are only available on the active session"
         : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
