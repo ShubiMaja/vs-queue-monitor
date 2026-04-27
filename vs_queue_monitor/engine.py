@@ -1004,7 +1004,11 @@ class QueueMonitorEngine:
             self._hooks.request_redraw_graph()
 
     def stop_monitoring(self) -> None:
-        if self._last_queue_run_session >= 0 and self.graph_points:
+        # Skip the abandoned write for interrupted sessions: enter_interrupted_state already
+        # wrote "interrupted" (live case, _session_record_written=True → no-op anyway), and
+        # for seeded-interrupted sessions _adopt_interrupted_tail_on_start deliberately skips
+        # the write so the backfill can record the correct terminal outcome.
+        if self._last_queue_run_session >= 0 and self.graph_points and not self._interrupted_mode:
             self._write_session_record("abandoned")
         # Backfill the log being stopped so completed sessions are captured in the
         # global JSONL before we switch to a different folder.  This ensures
