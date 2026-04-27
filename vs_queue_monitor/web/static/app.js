@@ -1376,8 +1376,7 @@
       if (points.length) startEpoch = points[0][0];
     }
     var startText = formatSessionStart(startEpoch);
-    var numStr = sessionNumber != null ? String(sessionNumber) : "";
-    return latestStatus.icon + " Session " + numStr + " — " + startText + " (loaded)";
+    return latestStatus.icon + " " + startText + " (loaded)";
   }
 
   function parseAlertThresholdValues(raw) {
