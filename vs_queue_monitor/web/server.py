@@ -31,12 +31,11 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
     SEED_LOG_TAIL_BYTES,
-    count_queue_run_boundaries,
     expand_path,
     get_config_path,
+    get_newer_session_attempt,
     normalize_log_path_for_dedup,
     parse_alert_thresholds,
-    parse_latest_session_boundary_epoch,
     parse_tail_last_queue_reading,
     queue_sessions_for_log_tail,
     read_log_file_tail_text,
@@ -176,7 +175,8 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     current_norm_lf = normalize_log_path_for_dedup(str(path)) if path is not None else ""
     seed_active_id = -1   # session id from last queue-position line
     true_seed_id = -1     # actual latest session (may have no queue positions)
-    total_boundaries = 0
+    _has_newer: bool = False   # reconnecting-type line seen after last queue position
+    _newer_epoch: Optional[float] = None
     tail_text: Optional[str] = None
     live_sessions: list[dict[str, Any]] = []
     _active_tail_session: Optional[dict[str, Any]] = None
@@ -186,10 +186,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
             if tail_text:
                 _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
-                # Boundary count = the ID of the truly latest session, even when it has
-                # no queue positions logged (VS failed to enter the queue).
-                total_boundaries = count_queue_run_boundaries(tail_text)
-            true_seed_id = max(seed_active_id, total_boundaries)
+                # Only a reconnecting-type line after the last queue position indicates a
+                # genuinely newer session.  Disconnect/teardown lines that follow a completed
+                # session are NOT a new attempt and must not falsely inflate true_seed_id.
+                _has_newer, _newer_epoch = get_newer_session_attempt(tail_text)
+            true_seed_id = seed_active_id + 1 if _has_newer else seed_active_id
             if seed_active_id >= 0:
                 filtered: list[dict[str, Any]] = []
                 for s in live_sessions:
@@ -245,10 +246,9 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         # Ghost suppression only fires when:
         #   • engine is actively running (stopped engine means the terminal record was just
         #     written and should appear as a normal historical session)
-        #   • no newer boundary-only session exists (if true_seed_id > seed_active_id the
-        #     "active" session from the last queue reading has been superseded — its completed
-        #     JSONL record is historical and must remain visible)
-        no_newer_session = (true_seed_id <= seed_active_id)
+        #   • no newer reconnecting-type session exists (_has_newer=True means the active
+        #     session's JSONL record is a completed historical entry that must stay visible)
+        no_newer_session = not _has_newer
         key_counts: dict[str, int] = {}
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in deduped_hist:
@@ -291,37 +291,25 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             all_sessions.append(sess)
 
         # Determine active_session_epoch: the true latest session's start time.
-        # Used by the JS to place and label the synthetic "loaded" option correctly,
-        # even when the latest session has no queue positions (boundary-only failure).
+        # Used by the JS to place and label the synthetic "loaded" option correctly.
+        # • Normal session (no newer attempt): use the active tail session's start_epoch.
+        # • Boundary-only newer session (_has_newer=True): use the reconnecting line's epoch.
+        #   Boundary-only sessions never have JSONL records, so no JSONL lookup is needed.
         active_session_epoch: Optional[float] = None
-        if true_seed_id == seed_active_id and _active_tail_session is not None:
+        if not _has_newer and _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
             if se is not None:
                 active_session_epoch = float(se)
-        elif true_seed_id > seed_active_id:
-            # Newer boundary-only session: look for it in JSONL first, then the tail.
-            for rec in hist_records:
-                if (int(rec.get("session_id") or -1) == true_seed_id
-                        and normalize_log_path_for_dedup(str(rec.get("log_file") or "")) == current_norm_lf):
-                    se = rec.get("start_epoch")
-                    if se is not None:
-                        active_session_epoch = float(se)
-                    break
-            if active_session_epoch is None and tail_text:
-                active_session_epoch = parse_latest_session_boundary_epoch(tail_text)
+        elif _has_newer:
+            active_session_epoch = _newer_epoch
 
         # Assign 1-based labels accounting for the loaded session's slot.
-        # If the true loaded session (true_seed_id) is already present in all_sessions,
-        # no shift is needed — it occupies its own position.  If it was suppressed or never
-        # written, sessions that come after it in the timeline need a +1 shift so the JS
-        # computed loadedSessionNumber doesn't collide with a JSONL label.
-        true_active_in_list = active_session_epoch is not None and any(
-            normalize_log_path_for_dedup(str(_s.get("log_file", ""))) == current_norm_lf
-            and int(_s.get("session_id") or -1) == true_seed_id
-            for _s in all_sessions
-        )
+        # The active session is never in all_sessions:
+        #   - when not _has_newer the ghost is suppressed (engine.running + same log/epoch)
+        #   - when _has_newer no JSONL record exists for the boundary-only attempt
+        # So always compute the label shift from active_session_epoch.
         label_slot: Optional[int] = None
-        if active_session_epoch is not None and not true_active_in_list:
+        if active_session_epoch is not None:
             label_slot = sum(
                 1 for _s in all_sessions
                 if float(_s.get("start_epoch", 0)) < float(active_session_epoch)
