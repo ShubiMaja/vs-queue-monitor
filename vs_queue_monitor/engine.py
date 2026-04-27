@@ -888,19 +888,20 @@ class QueueMonitorEngine:
 
     _PROGRESS_WRITE_INTERVAL = 30.0  # seconds between in-progress JSONL writes
 
-    def _write_session_progress(self) -> None:
+    def _write_session_progress(self, *, force: bool = False) -> None:
         """Append an in-progress snapshot to JSONL so other folder views see live progress.
 
-        Throttled to at most once per _PROGRESS_WRITE_INTERVAL seconds.  The final
-        _write_session_record call supersedes these via server-side Pass A dedup
-        (completed/interrupted rank higher than in_progress).
+        Throttled to at most once per _PROGRESS_WRITE_INTERVAL seconds.  Pass force=True
+        to bypass the throttle (e.g. on folder switch, to guarantee at least one record
+        exists even if the session just started).  The final _write_session_record call
+        supersedes these via server-side Pass A dedup (completed/interrupted rank higher).
         """
         if self._session_record_written:
             return
         if self._last_queue_run_session < 0 or not self.graph_points:
             return
         now = time.time()
-        if now - self._last_progress_write < self._PROGRESS_WRITE_INTERVAL:
+        if not force and now - self._last_progress_write < self._PROGRESS_WRITE_INTERVAL:
             return
         try:
             record = self._build_session_record("in_progress")
@@ -1036,16 +1037,16 @@ class QueueMonitorEngine:
         # for seeded-interrupted sessions _adopt_interrupted_tail_on_start deliberately skips
         # the write so the backfill can record the correct terminal outcome.
         #
-        # Also skip when switching folders: the game session may still be live, so writing
-        # "abandoned" would cause cross-folder views (e.g. VTData watching Unstable's session)
-        # to show the session as dead.  The last in_progress record in the JSONL stays as-is;
-        # cross-folder views render it as Unknown (?).  The backfill below captures any
-        # completed sessions from the full log scan.
-        if (not folder_switch
-                and self._last_queue_run_session >= 0
-                and self.graph_points
-                and not self._interrupted_mode):
-            self._write_session_record("abandoned")
+        # On a folder switch the game session may still be live; write a forced in_progress
+        # snapshot (bypassing the 30 s throttle) so cross-folder views can see the session
+        # as Unknown (?).  Writing abandoned would show it as dead; writing nothing at all
+        # would make it invisible if the throttle hasn't fired yet in this session.
+        # The backfill below still captures completed outcomes from the full log scan.
+        if self._last_queue_run_session >= 0 and self.graph_points and not self._interrupted_mode:
+            if folder_switch:
+                self._write_session_progress(force=True)
+            else:
+                self._write_session_record("abandoned")
         # Backfill the log being stopped so completed sessions are captured in the
         # global JSONL before we switch to a different folder.  This ensures
         # cross-folder history survives a folder switch even if the sessions were
