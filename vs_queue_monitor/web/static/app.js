@@ -160,6 +160,13 @@
     } catch (e) {}
     updateRecentPathsButton();
   }
+  function lsRemoveRecentPath(raw) {
+    try {
+      var list = lsGetRecentPaths().filter(function (x) { return x.raw !== raw; });
+      localStorage.setItem(LS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+    updateRecentPathsButton();
+  }
   function lsClearRecentPaths() {
     try { localStorage.removeItem(LS_RECENT_PATHS); } catch (e) {}
     updateRecentPathsButton();
@@ -490,6 +497,7 @@
     ul.className = "pop-recent-paths__list";
     list.forEach(function (item) {
       var li = document.createElement("li");
+      li.className = "pop-recent-paths__row";
       var itemBtn = document.createElement("button");
       itemBtn.type = "button";
       itemBtn.className = "pop-recent-paths__item" + (item.raw === currentPath ? " pop-recent-paths__item--active" : "");
@@ -503,7 +511,19 @@
           .then(function () { toast("Path restored from history"); })
           .catch(function (e) { toast(String(e.message || e), "warn"); });
       };
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pop-recent-paths__remove";
+      removeBtn.title = "Remove from history";
+      removeBtn.setAttribute("aria-label", "Remove from history");
+      removeBtn.textContent = "×";
+      removeBtn.onclick = function (e) {
+        e.stopPropagation();
+        lsRemoveRecentPath(item.raw);
+        renderRecentPathsList();
+      };
       li.appendChild(itemBtn);
+      li.appendChild(removeBtn);
       ul.appendChild(li);
     });
     pop.appendChild(ul);

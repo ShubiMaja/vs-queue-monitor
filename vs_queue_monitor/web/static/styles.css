@@ -1362,9 +1362,13 @@ select.inp:focus-visible {
   margin: 0;
   padding: 0;
 }
+.pop-recent-paths__row {
+  display: flex;
+  align-items: center;
+}
 .pop-recent-paths__item {
-  display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 7px 14px;
   text-align: left;
   background: none;
@@ -1385,6 +1389,29 @@ select.inp:focus-visible {
 }
 .pop-recent-paths__item--active {
   color: var(--accent);
+}
+.pop-recent-paths__remove {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 0;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+.pop-recent-paths__row:hover .pop-recent-paths__remove,
+.pop-recent-paths__row:focus-within .pop-recent-paths__remove {
+  opacity: 1;
+}
+.pop-recent-paths__remove:hover,
+.pop-recent-paths__remove:focus-visible {
+  color: var(--danger, #e05);
+  outline: none;
 }
 .pop-recent-paths__sep {
   height: 1px;
