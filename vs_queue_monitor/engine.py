@@ -602,7 +602,7 @@ class QueueMonitorEngine:
     def _normalize_log_path_for_dedup(p: str) -> str:
         return normalize_log_path_for_dedup(p)
 
-    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None) -> None:
+    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None, include_active: bool = False) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
         try:
             source_path = _source_path_override if _source_path_override is not None else str(self.config.get("source_path", "") or "")
@@ -610,6 +610,7 @@ class QueueMonitorEngine:
                 log_file,
                 source_path=source_path,
                 vsqm_version=VERSION,
+                include_active=include_active,
             )
             if not records:
                 return
@@ -703,7 +704,10 @@ class QueueMonitorEngine:
                     lf_path = Path(normalize_log_path_for_dedup(raw_lf))
                     if not lf_path.is_file():
                         continue
-                    self._backfill_sessions_from_log(lf_path, source_path)
+                    # include_active=True: also emit an in_progress record for the last
+                    # (potentially still-live) session so cross-folder views see it without
+                    # the user having to visit that folder.
+                    self._backfill_sessions_from_log(lf_path, source_path, include_active=True)
                 except Exception:
                     pass
         except Exception:
