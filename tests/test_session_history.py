@@ -158,6 +158,59 @@ class TestGetNewerSessionAttempt:
 # _queue_sessions_for_engine — ghost suppression
 # ---------------------------------------------------------------------------
 
+class TestGhostSuppressionRunningSession:
+    """Ghost suppression must work for a normally-running session whose queue lines
+    are outside the 2 MB tail window (lots of game log accumulated after queue exit).
+    Before the fix, the fallback was guarded by ``engine._interrupted_mode``, so a
+    running (non-interrupted) session with an empty tail silently skipped the
+    ``seed_active_id`` resolution and ghost suppression never fired."""
+
+    @patch("vs_queue_monitor.web.server.read_log_file_tail_text")
+    @patch("vs_queue_monitor.web.server.queue_sessions_for_log_tail")
+    @patch("vs_queue_monitor.web.server.parse_tail_last_queue_reading")
+    @patch("vs_queue_monitor.web.server.get_newer_session_attempt")
+    def test_ghost_suppressed_when_tail_has_no_queue_positions(
+        self, mock_newer, mock_parse, mock_live, mock_tail, tmp_path: Path
+    ):
+        log = tmp_path / "vtdata" / "client-main.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        lf_norm = normalize_log_path_for_dedup(str(log))
+
+        mock_tail.return_value = None   # no queue positions visible in tail
+        mock_live.return_value = []
+        mock_parse.return_value = (None, -1)
+        mock_newer.return_value = (False, None)
+
+        session_start = _ep(0)
+        eng = _make_engine(
+            log_file=log,
+            running=True,
+            interrupted=False,   # NOT interrupted — the formerly-failing case
+            last_session_id=5,
+            session_start_epoch=session_start,
+            graph_points=[(session_start, 10), (session_start + 30, 5)],
+            hist_records=[
+                _jsonl_record(
+                    log_file=lf_norm,
+                    session_id=5,
+                    start_epoch=session_start,
+                    outcome="in_progress",
+                ),
+            ],
+        )
+
+        sessions, seed_id, active_epoch = _queue_sessions_for_engine(eng)
+
+        session_starts = [s["start_epoch"] for s in sessions]
+        assert session_start not in session_starts, (
+            "Running session ghost must be suppressed even when queue lines "
+            "have scrolled past the 2 MB tail window"
+        )
+        assert seed_id == 5
+        assert active_epoch is not None
+
+
 class TestGhostSuppression:
     """Session 6 should NOT appear in all_sessions when it is the loaded session."""
 
