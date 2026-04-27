@@ -148,18 +148,19 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int, int]:
-    """Prefer terminal outcomes over in-progress, then more points, then richer metadata."""
+def _session_merge_rank(rec: dict[str, Any]) -> tuple:
+    """Good terminals beat everything; among failures/in-progress, prefer most recent by end_epoch."""
     outcome = rec.get("outcome") or ""
-    outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
-    terminal = outcome_rank.get(outcome, -1)  # in_progress / missing = -1
     pts = rec.get("points") or []
-    return (
-        terminal,
-        len(pts),
-        1 if rec.get("server") else 0,
-        1 if outcome else 0,
-    )
+    end_ep = float(rec.get("end_epoch") or 0)
+    server = 1 if rec.get("server") else 0
+    good_rank = {"completed": 3, "unknown": 2, "interrupted": 1}
+    if outcome in good_rank:
+        # Completed / unknown / interrupted always beat failures and in-progress.
+        return (1, good_rank[outcome], len(pts), end_ep, server)
+    # in_progress / abandoned / crashed: most recent write (end_epoch) is most authoritative.
+    # This lets an active in_progress record beat stale abandoned records for the same session.
+    return (0, end_ep, len(pts), server, 1 if outcome else 0)
 
 
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int, Optional[float]]:
