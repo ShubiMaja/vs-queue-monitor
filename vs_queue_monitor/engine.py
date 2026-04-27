@@ -1319,7 +1319,7 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                                 self._mpp_floor_position = None
                                 self._mpp_floor_value = None
-                                self._session_start_epoch = time.time()
+                                self._session_start_epoch = last_queue_line_epoch or time.time()
                                 self._session_start_position = position
                                 self._session_record_written = False
                                 self.write_history('New queue run (from log).')

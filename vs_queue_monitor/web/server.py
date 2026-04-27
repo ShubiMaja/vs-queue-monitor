@@ -279,9 +279,14 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
+            _rec_sid = rec.get("session_id")
             if (engine.running and no_newer_session
                     and current_norm_lf and lf == current_norm_lf
-                    and floor_se == active_floor_epoch):
+                    and _rec_sid is not None and seed_active_id >= 0
+                    and int(_rec_sid) == seed_active_id
+                    and (active_floor_epoch is None
+                         or (floor_se <= active_floor_epoch + 5
+                             and floor_se >= active_floor_epoch - 4 * 3600))):
                 continue  # in-progress ghost for the currently loaded session
             # Use (floor_se, lf) as the merge key — start_pos is omitted because
             # engine-written records store start_position=null while backfill records
