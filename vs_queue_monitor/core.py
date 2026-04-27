@@ -1377,13 +1377,15 @@ def extract_all_session_records_from_log(
     log_file: Path,
     source_path: str = "",
     vsqm_version: str = "",
+    include_active: bool = False,
 ) -> list[dict]:
     """Extract one history record per completed historical queue session from the full log.
 
-    The most recent session (currently active or just finished) is excluded — the engine
-    handles that one via live monitoring.  Reads the entire file from position 0 so that
-    old sessions near the start of a large log are never missed.  Runs on a background
-    thread so file size does not affect UI responsiveness.
+    The most recent session (currently active or just finished) is normally excluded —
+    the live engine handles that one.  Pass include_active=True to also emit an
+    "in_progress" record for the active (max_sess) session when it has not completed;
+    used by cross-folder backfill so other engines can see a foreign live session.
+    Reads the entire file from position 0.  Runs on a background thread.
     """
     try:
         with log_file.open("rb") as fh:
@@ -1419,19 +1421,23 @@ def extract_all_session_records_from_log(
     records: list[dict] = []
 
     for sess_id in sorted(by_session.keys()):
+        _is_active_max_sess = False
         if sess_id == max_sess:
-            # Skip truly active sessions (still running). Include completed ones —
-            # a completed max_sess is a finished historical record, not an active run.
+            # Normally skip the last session — still potentially active; the live engine
+            # handles it.  include_active=True emits an in_progress record so cross-folder
+            # views can see the session without visiting that folder.
             _ms_pts = sorted(by_session[sess_id])
             _ms_text = "\n".join(lines_by_session.get(sess_id, []))
             _ms_last_pos = _ms_pts[-1][1] if _ms_pts else None
-            _ms_done = (
-                _ms_last_pos is not None
-                and _ms_last_pos <= 1
-                and tail_has_post_queue_after_last_queue_line(_ms_text)
+            _ms_next_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+            _ms_done = _ms_last_pos is not None and _ms_last_pos <= 1 and (
+                tail_has_post_queue_after_last_queue_line(_ms_text)
+                or _next_session_post_queue_epoch(_ms_next_text) is not None
             )
             if not _ms_done:
-                continue  # active/in-progress — handled by live monitoring
+                if not include_active:
+                    continue  # active/in-progress — handled by live monitoring
+                _is_active_max_sess = True
 
         pts = sorted(by_session[sess_id])
         if not pts:
@@ -1468,6 +1474,8 @@ def extract_all_session_records_from_log(
             # event at the right timestamp (only when we witnessed it in the next session).
             if connect_epoch is not None and (not change_pts or change_pts[-1][1] != 0):
                 change_pts.append((connect_epoch, 0))
+        elif _is_active_max_sess:
+            outcome = "in_progress"
         else:
             outcome = "unknown"
 
