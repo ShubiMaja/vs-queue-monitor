@@ -625,6 +625,62 @@ class TestPassA2StaleRecordCollapse:
         )
 
 
+    @patch("vs_queue_monitor.web.server.read_log_file_tail_text")
+    @patch("vs_queue_monitor.web.server.queue_sessions_for_log_tail")
+    @patch("vs_queue_monitor.web.server.parse_tail_last_queue_reading")
+    @patch("vs_queue_monitor.web.server.get_newer_session_attempt")
+    def test_different_real_sessions_same_sid_kept_separate(
+        self, mock_newer, mock_parse, mock_live, mock_tail, tmp_path: Path
+    ):
+        """Unstable regression: VS reuses small session_id values across different real sessions.
+
+        Three real queue sessions (Apr23 completed, Apr26 completed, Apr27 in_progress) all
+        share session_id=2 in the same log file.  Old Pass A2 collapsed all three to one record
+        (the Apr23 'completed' won on rank), hiding the live Apr27 session entirely.
+
+        Fix: records >4 hours apart are different sessions and must not be collapsed.
+        Apr23 and Apr26 must survive as visible historical sessions.
+        Apr27 in_progress is the live session and must be ghost-suppressed.
+        """
+        log = tmp_path / "unstable" / "client-main.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        lf_norm = normalize_log_path_for_dedup(str(log))
+
+        mock_tail.return_value = None
+        mock_live.return_value = []
+        mock_parse.return_value = (None, -1)
+        mock_newer.return_value = (False, None)
+
+        apr23 = _ep(0)
+        apr26 = _ep(3 * 24 * 3600)     # 3 days later
+        apr27 = _ep(4 * 24 * 3600)     # 4 days later — the live session
+
+        eng = _make_engine(
+            log_file=log,
+            running=True,
+            interrupted=False,
+            last_session_id=2,          # engine resolved session_id=2 as the active session
+            session_start_epoch=apr27,
+            graph_points=[(apr27, 50), (apr27 + 60, 40)],
+            hist_records=[
+                _jsonl_record(log_file=lf_norm, session_id=2, start_epoch=apr23, outcome="completed"),
+                _jsonl_record(log_file=lf_norm, session_id=2, start_epoch=apr26, outcome="completed"),
+                _jsonl_record(log_file=lf_norm, session_id=2, start_epoch=apr27, outcome="in_progress"),
+            ],
+        )
+
+        sessions, _, _ = _queue_sessions_for_engine(eng)
+
+        session_starts = [s["start_epoch"] for s in sessions]
+        assert apr23 in session_starts, "Apr23 completed session must survive as a historical session"
+        assert apr26 in session_starts, "Apr26 completed session must survive as a historical session"
+        assert apr27 not in session_starts, (
+            "Apr27 in_progress (live session) must be ghost-suppressed"
+        )
+        assert len(sessions) == 2, f"Expected 2 historical sessions, got {len(sessions)}: {sessions}"
+
+
 # ---------------------------------------------------------------------------
 # Cross-folder visibility
 # ---------------------------------------------------------------------------
