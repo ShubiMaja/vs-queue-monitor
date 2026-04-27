@@ -1355,22 +1355,22 @@ def compute_seed_graph_from_log(
     )
 
 
-def _next_session_opens_with_post_queue_signals(text: str) -> bool:
-    """True when the first post-queue signal appears before any queue position line.
+def _next_session_post_queue_epoch(text: str) -> Optional[float]:
+    """Return the parsed timestamp of the first post-queue signal in text, before any queue line.
 
-    Used to detect completions where the world-join boundary line split the queue session
-    from its own post-queue progress lines (iter_session_log_lines increments the session
-    counter on that boundary, putting those lines into sess_id+1 instead of sess_id).
+    Returns None if no such signal exists (new queue run started first, or no signals at all).
+    Used to detect completions where the world-join boundary pushed post-queue lines into the
+    next session counter, and to obtain the actual connection timestamp for the position-0 point.
     """
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
         if queue_position_match(line):
-            return False  # new queue run — not a completion continuation
+            return None  # new queue run — not a completion continuation
         if any(r.search(line) for r in POST_QUEUE_PROGRESS_LINE_RES):
-            return True
-    return False
+            return parse_log_timestamp_epoch(line)
+    return None
 
 
 def extract_all_session_records_from_log(
@@ -1450,17 +1450,24 @@ def extract_all_session_records_from_log(
         end_pos = pts[-1][1]
 
         sess_text = "\n".join(lines_by_session.get(sess_id, []))
-        # Also check the next session's lines: "Connecting to world" is a boundary that bumps
-        # the session counter, so post-queue signals (downloading, loading mods, etc.) land in
-        # sess_id+1 instead of sess_id — tail_has_post_queue_after_last_queue_line misses them.
-        next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
-        completed = end_pos <= 1 and (
-            tail_has_post_queue_after_last_queue_line(sess_text)
-            or _next_session_opens_with_post_queue_signals(next_sess_text)
-        )
+        # Detect completion from the session's own text first.
+        completed = end_pos <= 1 and tail_has_post_queue_after_last_queue_line(sess_text)
+        connect_epoch: Optional[float] = None
+        if not completed and end_pos <= 1:
+            # "Connecting to world" is a boundary that bumps the session counter, so
+            # post-queue signals (downloading, loading mods, etc.) land in sess_id+1
+            # instead of sess_id.  Check the next session for them and capture the
+            # timestamp of the witnessing line so we can add an accurate position-0 point.
+            next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+            connect_epoch = _next_session_post_queue_epoch(next_sess_text)
+            completed = connect_epoch is not None
         if completed:
             end_pos = 0
             outcome = "completed"
+            # Add a synthetic position-0 point so the graph shows an actual connection
+            # event at the right timestamp (only when we witnessed it in the next session).
+            if connect_epoch is not None and (not change_pts or change_pts[-1][1] != 0):
+                change_pts.append((connect_epoch, 0))
         else:
             outcome = "unknown"
 
