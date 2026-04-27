@@ -1006,6 +1006,16 @@ class QueueMonitorEngine:
     def stop_monitoring(self) -> None:
         if self._last_queue_run_session >= 0 and self.graph_points:
             self._write_session_record("abandoned")
+        # Backfill the log being stopped so completed sessions are captured in the
+        # global JSONL before we switch to a different folder.  This ensures
+        # cross-folder history survives a folder switch even if the sessions were
+        # never individually written (e.g. the app was opened after they completed).
+        if self.current_log_file is not None and self.current_log_file.is_file():
+            _log_to_backfill = self.current_log_file
+            threading.Thread(
+                target=lambda: self._backfill_sessions_from_log(_log_to_backfill),
+                daemon=True,
+            ).start()
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
         self._frozen_rates_at_interrupt = None

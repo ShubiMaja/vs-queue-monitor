@@ -1045,6 +1045,30 @@ def parse_latest_session_boundary_epoch(data: str) -> Optional[float]:
     return last_t
 
 
+def get_newer_session_attempt(data: str) -> tuple[bool, Optional[float]]:
+    """True if a reconnecting-type line appears strictly after the last queue-position line.
+
+    Only RECONNECTING_LINE_RES patterns count (``Connecting to…``, ``Initialized server
+    connection``, etc.).  Disconnect/teardown lines (``Disconnected by server``, ``connection
+    closed``, etc.) that appear after a completed session do NOT trigger a false positive.
+    Returns (has_newer, epoch_of_first_reconnect_line_after_last_queue).
+    """
+    lines = data.splitlines()
+    last_queue_idx = -1
+    for i, line in enumerate(lines):
+        if queue_position_match(line.strip()):
+            last_queue_idx = i
+    search_lines = lines[last_queue_idx + 1:] if last_queue_idx >= 0 else lines
+    for line in search_lines:
+        s = line.strip()
+        if not s:
+            continue
+        for pat in RECONNECTING_LINE_RES:
+            if pat.search(s):
+                return True, parse_log_timestamp_epoch(line)
+    return False, None
+
+
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     """Last timestamp (epoch seconds) of any raw queue line in the buffer.
 

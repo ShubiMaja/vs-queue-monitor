@@ -1202,7 +1202,14 @@
     return new Date(epoch * 1000).toLocaleString();
   }
 
-  function sessionStatusInfo(points, running, interruptedMode) {
+  function sessionStatusInfo(points, running, interruptedMode, outcome) {
+    // Use the stored outcome as the authoritative source when available.
+    // Computing status only from points is unreliable: a completed session may have
+    // no explicit position-0 point if completion was inferred from post-queue log lines.
+    if (outcome === "completed") return { icon: "✓", label: "Succeeded" };
+    if (outcome === "interrupted") return { icon: "↻", label: "Interrupted" };
+    if (outcome === "abandoned" || outcome === "crashed") return { icon: "✕", label: "Failed" };
+    // Fallback: infer from points for in_progress or unknown records.
     if (!points || !points.length) {
       return { icon: "?", label: "Unknown" };
     }
@@ -1264,26 +1271,7 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state) {
-      return false;
-    }
-    // Suppress the in-progress ghost of the active session by ID+epoch match.
-    // This fires even during interrupted_mode (where the graph-point check below
-    // is skipped) so the ghost is never shown alongside the synthetic loaded option.
-    var activeEpochForId = state.active_queue_session_epoch;
-    var activeIdEarly = Number(state.active_queue_session_id);
-    var sessIdEarly = Number(sess.session_id);
-    if (
-      Number.isFinite(activeIdEarly) && activeIdEarly >= 0 &&
-      Number.isFinite(sessIdEarly) && sessIdEarly === activeIdEarly &&
-      activeEpochForId != null
-    ) {
-      var sessStartEarly = Number(sess.start_epoch);
-      if (Number.isFinite(sessStartEarly) && Math.abs(sessStartEarly - Number(activeEpochForId)) <= 2) {
-        return true;
-      }
-    }
-    if (state.interrupted_mode) {
+    if (!sess || !state || state.interrupted_mode) {
       return false;
     }
     var currentPos = null;
@@ -1346,9 +1334,11 @@
 
   function formatLatestSessionOptionLabelClean(state, latestStatus, sessionNumber) {
     var startEpoch = null;
-    var points = (state && state.graph_points) || [];
-    if (points.length) {
-      startEpoch = points[0][0];
+    if (state && state.active_queue_session_epoch != null) {
+      startEpoch = state.active_queue_session_epoch;
+    } else {
+      var points = (state && state.graph_points) || [];
+      if (points.length) startEpoch = points[0][0];
     }
     var startText = formatSessionStart(startEpoch);
     var numStr = sessionNumber != null ? String(sessionNumber) : "";
@@ -1567,7 +1557,7 @@
         opt0Inserted = true;
       }
       var o = document.createElement("option");
-      var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false);
+      var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false, sessions[i].outcome);
       o.value = sessions[i].key;
       o.textContent =
         sessStatus.icon +
