@@ -1467,8 +1467,9 @@
       ) {
         var sessionOutcome = state && state.session_outcome;
         var isOutcomeUnknown = !sessionOutcome || sessionOutcome === "in_progress" || sessionOutcome === "unknown";
+        var isCompleted = sessionOutcome === "completed";
         out.push({
-          kind: isOutcomeUnknown ? "unknown" : "disconnect",
+          kind: isOutcomeUnknown ? "unknown" : isCompleted ? "connect" : "disconnect",
           t: last[0],
           pos: last[1],
         });

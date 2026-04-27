@@ -491,6 +491,7 @@ class QueueMonitorEngine:
         if not self._interrupted_mode and self._last_queue_run_session >= 0 and self.graph_points:
             self._write_session_progress(force=True)
         threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
+        threading.Thread(target=self._backfill_other_known_log_files, daemon=True).start()
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -601,12 +602,13 @@ class QueueMonitorEngine:
     def _normalize_log_path_for_dedup(p: str) -> str:
         return normalize_log_path_for_dedup(p)
 
-    def _backfill_sessions_from_log(self, log_file: Path) -> None:
+    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
         try:
+            source_path = _source_path_override if _source_path_override is not None else str(self.config.get("source_path", "") or "")
             records = extract_all_session_records_from_log(
                 log_file,
-                source_path=str(self.config.get("source_path", "") or ""),
+                source_path=source_path,
                 vsqm_version=VERSION,
             )
             if not records:
@@ -660,6 +662,50 @@ class QueueMonitorEngine:
                         r_stored["log_file"] = stored_log_file
                         fh.write(json.dumps(r_stored) + "\n")
             self._invalidate_history_cache()
+        except Exception:
+            pass
+
+    def _backfill_other_known_log_files(self) -> None:
+        """Backfill sessions from log files referenced in JSONL history that we aren't monitoring now.
+
+        Runs on a background thread at startup so that cross-folder session records remain
+        up-to-date even when the user's current folder view differs from where the sessions
+        were recorded.  Uses the source_path already stored in JSONL for each foreign log
+        so that the attribution in the Path field stays correct.
+        """
+        try:
+            current_norm = normalize_log_path_for_dedup(str(self.current_log_file)) if self.current_log_file else ""
+            hist = self._effective_history_path()
+            if not hist.exists():
+                return
+            foreign: dict[str, tuple[str, str]] = {}  # norm_path → (stored_lf_token, source_path)
+            try:
+                for line in hist.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        raw_lf = str(rec.get("log_file") or "")
+                        if not raw_lf:
+                            continue
+                        norm = normalize_log_path_for_dedup(raw_lf)
+                        if norm == current_norm or norm in foreign:
+                            continue
+                        sp = str(rec.get("source_path") or "")
+                        foreign[norm] = (raw_lf, sp)
+                    except Exception:
+                        pass
+            except Exception:
+                return
+            for norm, (raw_lf, source_path) in foreign.items():
+                try:
+                    lf_path = Path(normalize_log_path_for_dedup(raw_lf))
+                    if not lf_path.is_file():
+                        continue
+                    self._backfill_sessions_from_log(lf_path, source_path)
+                except Exception:
+                    pass
         except Exception:
             pass
 
