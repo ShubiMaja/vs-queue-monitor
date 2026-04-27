@@ -534,6 +534,10 @@ class QueueMonitorEngine:
             self._set_status_line('Interrupted', danger=True)
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
+            # Write to JSONL so this seeded-interrupted session is immediately visible
+            # in the cross-folder session list — without this call the session is only
+            # visible in the live tail and never reaches the global JSONL until stop().
+            self._write_session_record("interrupted")
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -612,7 +616,7 @@ class QueueMonitorEngine:
             # (triggered by rapid log-folder switches) cannot all read the same
             # pre-write JSONL and then each append the same session records.
             with QueueMonitorEngine._backfill_lock:
-                existing_sid: set[tuple[str, int]] = set()
+                existing_sid: set[tuple[str, int, int]] = set()
                 existing_sig: set[tuple[str, int, Any]] = set()
                 try:
                     if hist.exists():
@@ -626,8 +630,8 @@ class QueueMonitorEngine:
                                 sid = rec.get("session_id")
                                 se = rec.get("start_epoch")
                                 sp = rec.get("start_position")
-                                if lf and sid is not None:
-                                    existing_sid.add((lf, int(sid)))
+                                if lf and sid is not None and se is not None:
+                                    existing_sid.add((lf, int(sid), int(se)))
                                 if lf and se is not None:
                                     existing_sig.add((lf, int(se), sp))
                             except Exception:
@@ -636,7 +640,7 @@ class QueueMonitorEngine:
                     pass
                 to_write = [
                     r for r in records
-                    if (norm_log_file, r["session_id"]) not in existing_sid
+                    if (norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)) not in existing_sid
                     and (norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")) not in existing_sig
                 ]
                 if not to_write:

@@ -205,14 +205,19 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
     try:
         hist_records = engine.load_history_sessions()
 
-        # Pass A: collapse same-run JSONL records by (norm_log_file, session_id).
-        hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
+        # Pass A: collapse same-run JSONL records by (norm_log_file, session_id, floor_start_epoch).
+        # Including start_epoch prevents different sessions that share a session_id (due to log
+        # rotation / VS reusing small IDs) from being merged into one.  In-progress + terminal
+        # records for the same actual run share the same session_id AND start_epoch so they still
+        # collapse correctly.
+        hist_primary: dict[tuple[str, int, int], dict[str, Any]] = {}
         hist_no_id: list[dict[str, Any]] = []
         for rec in hist_records:
             sid = rec.get("session_id")
             lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
-            if sid is not None:
-                pk = (lf, int(sid))
+            se = rec.get("start_epoch")
+            if sid is not None and se is not None:
+                pk = (lf, int(sid), int(math.floor(float(se))))
                 prev = hist_primary.get(pk)
                 if prev is None or _session_merge_rank(rec) > _session_merge_rank(prev):
                     hist_primary[pk] = rec
