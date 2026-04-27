@@ -318,6 +318,70 @@ class TestGhostSuppression:
         )
 
 
+    @patch("vs_queue_monitor.web.server.read_log_file_tail_text")
+    @patch("vs_queue_monitor.web.server.queue_sessions_for_log_tail")
+    @patch("vs_queue_monitor.web.server.parse_tail_last_queue_reading")
+    @patch("vs_queue_monitor.web.server.get_newer_session_attempt")
+    def test_ghost_suppressed_interrupted_no_queue_in_tail(
+        self, mock_newer, mock_parse, mock_live, mock_tail, tmp_path: Path
+    ):
+        """VTData regression: interrupted mode where the 2 MB tail has no queue positions.
+
+        _last_queue_run_session=-1 (tail gives nothing) so ghost suppression must
+        fall back to epoch-based matching against engine._session_start_epoch.
+        Before the fix, seed_active_id stayed -1 and Pass C's session-id guard blocked
+        suppression, leaving the ghost in all_sessions and shifting every subsequent label.
+        """
+        log = tmp_path / "vtdata" / "client-main.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        lf_norm = normalize_log_path_for_dedup(str(log))
+
+        # Tail is full of game log — no queue position lines visible.
+        mock_tail.return_value = None
+        mock_live.return_value = []
+        mock_parse.return_value = (None, -1)   # no queue lines → -1 sentinel
+        mock_newer.return_value = (False, None)
+
+        session_start = _ep(0)
+        # Engine is interrupted, _last_queue_run_session=-1 (the tail gave nothing).
+        eng = _make_engine(
+            log_file=log,
+            running=True,
+            interrupted=True,
+            last_session_id=-1,           # critical: -1 because tail was empty
+            session_start_epoch=session_start,  # engine still knows the true epoch
+            graph_points=[(session_start, 10), (session_start + 30, 5)],
+            hist_records=[
+                _jsonl_record(
+                    log_file=lf_norm,
+                    session_id=5,
+                    start_epoch=session_start,
+                    outcome="interrupted",
+                ),
+                _jsonl_record(
+                    log_file=lf_norm,
+                    session_id=6,
+                    start_epoch=_ep(50000),
+                    outcome="completed",
+                ),
+            ],
+        )
+
+        sessions, seed_id, active_epoch = _queue_sessions_for_engine(eng)
+
+        session_starts = [s["start_epoch"] for s in sessions]
+        labels = [s["label"] for s in sessions]
+        assert session_start not in session_starts, (
+            "Interrupted ghost must be suppressed by epoch match when session_id unavailable. "
+            f"Got labels: {labels}"
+        )
+        # Session 6 (the post-interrupt completed session) must survive with the right label.
+        assert _ep(50000) in session_starts, "Post-interrupt session must remain visible"
+        # With ghost suppressed, only one session remains → label must be "Session 2"
+        assert "Session 2" in labels, f"Label shift wrong after ghost suppression. Got: {labels}"
+
+
 # ---------------------------------------------------------------------------
 # Pass A2 — stale-record collapse
 # ---------------------------------------------------------------------------
