@@ -534,10 +534,6 @@ class QueueMonitorEngine:
             self._set_status_line('Interrupted', danger=True)
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
-            # Write to JSONL so this seeded-interrupted session is immediately visible
-            # in the cross-folder session list — without this call the session is only
-            # visible in the live tail and never reaches the global JSONL until stop().
-            self._write_session_record("interrupted")
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""

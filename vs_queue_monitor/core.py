@@ -1390,7 +1390,18 @@ def extract_all_session_records_from_log(
 
     for sess_id in sorted(by_session.keys()):
         if sess_id == max_sess:
-            continue  # active session — handled by live monitoring
+            # Skip truly active sessions (still running). Include completed ones —
+            # a completed max_sess is a finished historical record, not an active run.
+            _ms_pts = sorted(by_session[sess_id])
+            _ms_text = "\n".join(lines_by_session.get(sess_id, []))
+            _ms_last_pos = _ms_pts[-1][1] if _ms_pts else None
+            _ms_done = (
+                _ms_last_pos is not None
+                and _ms_last_pos <= 1
+                and tail_has_post_queue_after_last_queue_line(_ms_text)
+            )
+            if not _ms_done:
+                continue  # active/in-progress — handled by live monitoring
 
         pts = sorted(by_session[sess_id])
         if not pts:
