@@ -1291,8 +1291,17 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state || state.interrupted_mode) {
+    if (!sess || !state) {
       return false;
+    }
+    if (state.interrupted_mode) {
+      var loadedEpoch = state.active_queue_session_epoch != null
+        ? Number(state.active_queue_session_epoch) : null;
+      var sessStartEp = Number(sess.start_epoch);
+      return loadedEpoch !== null
+        && Number.isFinite(sessStartEp)
+        && Number.isFinite(loadedEpoch)
+        && Math.abs(sessStartEp - loadedEpoch) <= 2;
     }
     var currentPos = null;
     var pts = state.graph_points || [];
