@@ -334,7 +334,7 @@ class QueueMonitorEngine:
         if self._starting:
             return
         if self.running:
-            self.stop_monitoring()
+            self.stop_monitoring(folder_switch=True)
         self.start_monitoring()
 
     def _apply_browsed_log_path(self, raw: str) -> None:
@@ -1030,12 +1030,21 @@ class QueueMonitorEngine:
             self._set_position_display(None)
             self._hooks.request_redraw_graph()
 
-    def stop_monitoring(self) -> None:
+    def stop_monitoring(self, *, folder_switch: bool = False) -> None:
         # Skip the abandoned write for interrupted sessions: enter_interrupted_state already
         # wrote "interrupted" (live case, _session_record_written=True → no-op anyway), and
         # for seeded-interrupted sessions _adopt_interrupted_tail_on_start deliberately skips
         # the write so the backfill can record the correct terminal outcome.
-        if self._last_queue_run_session >= 0 and self.graph_points and not self._interrupted_mode:
+        #
+        # Also skip when switching folders: the game session may still be live, so writing
+        # "abandoned" would cause cross-folder views (e.g. VTData watching Unstable's session)
+        # to show the session as dead.  The last in_progress record in the JSONL stays as-is;
+        # cross-folder views render it as Unknown (?).  The backfill below captures any
+        # completed sessions from the full log scan.
+        if (not folder_switch
+                and self._last_queue_run_session >= 0
+                and self.graph_points
+                and not self._interrupted_mode):
             self._write_session_record("abandoned")
         # Backfill the log being stopped so completed sessions are captured in the
         # global JSONL before we switch to a different folder.  This ensures
