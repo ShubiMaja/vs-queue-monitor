@@ -250,29 +250,51 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 _hist_no_sid.append(_rec)
         deduped_hist = list(_hist_by_lf_sid.values()) + _hist_no_sid
 
-        # Pass B: derive the suppression key for the active session's in-progress ghost.
+        # Pass B: derive the suppression epoch and session-id for the active session's ghost.
+        #
+        # Two subtleties make this non-trivial:
+        #
+        # (A) parse_tail_last_queue_reading returns a TAIL-RELATIVE session-id counter
+        #     (iter_session_log_lines increments from 0 at the first "Connecting to" visible
+        #     in the 2 MB window).  JSONL records store ABSOLUTE session-ids (counted from
+        #     the beginning of the full log, including all non-queue reconnect boundaries).
+        #     They match only when the entire log fits in the tail.  Do NOT rely on the
+        #     tail-derived seed_active_id to identify a JSONL record.
+        #
+        # (B) In INTERRUPTED mode the engine has adopted an older session; the tail may show
+        #     more-recent COMPLETED sessions (which must appear as history, not be suppressed).
+        #     The loaded (seeded) session is identified solely by engine._session_start_epoch
+        #     and engine._last_queue_run_session — ignore whatever the tail's boundary counter
+        #     says.
+        #
+        # Strategy:
+        #   • Interrupted: always derive active_floor_epoch and seed_active_id from engine.
+        #   • Running (not interrupted): prefer tail when available, fall back to engine when
+        #     queue lines have scrolled past the SEED_LOG_TAIL_BYTES window.
         active_floor_epoch: Optional[int] = None
-        if _active_tail_session is not None:
-            se = _active_tail_session.get("start_epoch")
-            if se is not None:
-                active_floor_epoch = int(math.floor(float(se)))
-        # Fallback: when the 2MB tail has no queue positions (lots of game log has
-        # accumulated after the queue session), use the engine's seeded graph data
-        # so ghost suppression and the JS active_queue_session_epoch are still correct.
-        # This applies regardless of _interrupted_mode — a normally running session
-        # whose queue lines have scrolled past the 2MB tail window also needs this path.
         _eng_fallback_epoch: Optional[float] = None
-        if active_floor_epoch is None:
-            # Prefer _session_start_epoch (set from segment_points[0][0] — the true first
-            # queue position) over graph_points[0][0] which may be mid-session after
-            # MAX_GRAPH_POINTS truncation.
-            if engine._session_start_epoch is not None:
-                _eng_fallback_epoch = float(engine._session_start_epoch)
-            else:
-                _eng_pts = list(engine.graph_points)
-                if _eng_pts:
-                    _eng_fallback_epoch = float(_eng_pts[0][0])
+        if engine._session_start_epoch is not None:
+            _eng_fallback_epoch = float(engine._session_start_epoch)
+        elif engine.graph_points:
+            _eng_pts = list(engine.graph_points)
+            if _eng_pts:
+                _eng_fallback_epoch = float(_eng_pts[0][0])
+
+        if engine._interrupted_mode:
+            # Interrupted: seeded session IS the loaded session — engine data is authoritative.
             if _eng_fallback_epoch is not None:
+                active_floor_epoch = int(math.floor(_eng_fallback_epoch))
+            if engine._last_queue_run_session >= 0:
+                seed_active_id = engine._last_queue_run_session
+                true_seed_id = seed_active_id
+        else:
+            # Running: use tail-derived epoch when available.
+            if _active_tail_session is not None:
+                se = _active_tail_session.get("start_epoch")
+                if se is not None:
+                    active_floor_epoch = int(math.floor(float(se)))
+            # Fallback when queue lines have scrolled past the 2 MB tail window.
+            if active_floor_epoch is None and _eng_fallback_epoch is not None:
                 active_floor_epoch = int(math.floor(_eng_fallback_epoch))
                 if seed_active_id < 0 and engine._last_queue_run_session >= 0:
                     seed_active_id = engine._last_queue_run_session
@@ -351,19 +373,23 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
             all_sessions.append(sess)
 
-        # Determine active_session_epoch: the true latest session's start time.
+        # Determine active_session_epoch: the loaded session's start time.
         # Used by the JS to place and label the synthetic "loaded" option correctly.
+        # • Interrupted: always use the engine's seeded session epoch — the tail may show
+        #   more-recent completed sessions that must not override the opt0 label.
         # • Normal session (no newer attempt): use the active tail session's start_epoch.
         # • Boundary-only newer session (_has_newer=True): use the reconnecting line's epoch.
         #   Boundary-only sessions never have JSONL records, so no JSONL lookup is needed.
         active_session_epoch: Optional[float] = None
-        if not _has_newer and _active_tail_session is not None:
+        if engine._interrupted_mode and _eng_fallback_epoch is not None:
+            active_session_epoch = _eng_fallback_epoch
+        elif not _has_newer and _active_tail_session is not None:
             se = _active_tail_session.get("start_epoch")
             if se is not None:
                 active_session_epoch = float(se)
         elif _has_newer:
             active_session_epoch = _newer_epoch
-        # Engine-graph fallback: tail had no queue positions, but we resolved the epoch above.
+        # Fallback: tail had no queue positions.
         if active_session_epoch is None and _eng_fallback_epoch is not None:
             active_session_epoch = _eng_fallback_epoch
 

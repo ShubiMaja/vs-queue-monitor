@@ -973,14 +973,19 @@ def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
 
 
 def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
-    """Latest queue position in the buffer and its run session (0 = no boundary seen in tail).
+    """Latest queue position in the buffer and its run session.
+
+    Returns (position, session_id) where session_id is the boundary-counter value
+    from iter_session_log_lines at the last queue position line.  Returns (None, -1)
+    when the tail contains no queue position lines at all -- callers must distinguish
+    this from session_id=0 (queue position found before the first boundary in the tail).
 
     Uses the *last* queue phrase in **file order** (bottom of tail). ``walk_queue_position_events``
     sorts by parsed line timestamps, which can reorder events and yield the wrong ``ev[-1]``
-    (e.g. 108) when the log order is the ground truth for “current” position.
+    when the log order is the ground truth for the current position.
     """
     last_pos: Optional[int] = None
-    last_sess = 0
+    last_sess = -1
     for session, line, is_boundary in iter_session_log_lines(data):
         if is_boundary:
             continue
