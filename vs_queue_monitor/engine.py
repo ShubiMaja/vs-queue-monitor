@@ -534,6 +534,7 @@ class QueueMonitorEngine:
             self._set_status_line('Interrupted', danger=True)
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
+            self._write_seeded_session_discovery()
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -612,8 +613,11 @@ class QueueMonitorEngine:
             # (triggered by rapid log-folder switches) cannot all read the same
             # pre-write JSONL and then each append the same session records.
             with QueueMonitorEngine._backfill_lock:
-                existing_sid: set[tuple[str, int, int]] = set()
-                existing_sig: set[tuple[str, int, Any]] = set()
+                # Track the best outcome rank seen per key so backfill can upgrade
+                # discovery records (e.g. "interrupted") to terminal records ("completed").
+                _BFRANK = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0, "in_progress": -1}
+                existing_sid: dict[tuple[str, int, int], int] = {}  # key → best rank
+                existing_sig: dict[tuple[str, int, Any], int] = {}
                 try:
                     if hist.exists():
                         for line in hist.read_text(encoding="utf-8").splitlines():
@@ -626,18 +630,21 @@ class QueueMonitorEngine:
                                 sid = rec.get("session_id")
                                 se = rec.get("start_epoch")
                                 sp = rec.get("start_position")
+                                rnk = _BFRANK.get(rec.get("outcome") or "", -1)
                                 if lf and sid is not None and se is not None:
-                                    existing_sid.add((lf, int(sid), int(se)))
+                                    k = (lf, int(sid), int(se))
+                                    existing_sid[k] = max(existing_sid.get(k, -2), rnk)
                                 if lf and se is not None:
-                                    existing_sig.add((lf, int(se), sp))
+                                    k2 = (lf, int(se), sp)
+                                    existing_sig[k2] = max(existing_sig.get(k2, -2), rnk)
                             except Exception:
                                 pass
                 except Exception:
                     pass
                 to_write = [
                     r for r in records
-                    if (norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)) not in existing_sid
-                    and (norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")) not in existing_sig
+                    if _BFRANK.get(r.get("outcome") or "", -1) > existing_sid.get((norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)), -2)
+                    and _BFRANK.get(r.get("outcome") or "", -1) > existing_sig.get((norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")), -2)
                 ]
                 if not to_write:
                     return
@@ -856,6 +863,26 @@ class QueueMonitorEngine:
             pass
         try:
             self._effective_checkpoint_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    def _write_seeded_session_discovery(self) -> None:
+        """Append a cross-folder discovery record without setting _session_record_written.
+
+        Called when adopting a seeded-interrupted session at startup.  Ensures the session
+        is visible in other folder views regardless of the 100 MB backfill cap, while
+        leaving _session_record_written=False so future terminal writes (completed, etc.)
+        can still fire for the same monitoring lifetime.
+        """
+        if self._last_queue_run_session < 0 or not self.graph_points:
+            return
+        try:
+            record = self._build_session_record("interrupted")
+            path = self._effective_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self._invalidate_history_cache()
         except Exception:
             pass
 
@@ -1107,6 +1134,11 @@ class QueueMonitorEngine:
             return
         segment_points, segment_len, positions_len, tail_mb, seg_min, seg_max, queue_run_session_id, authoritative_pos, first_le_one_epoch, connect_phase_started_epoch = data
         self._last_queue_run_session = queue_run_session_id
+        # Store the true session start BEFORE the deque truncates segment_points to MAX_GRAPH_POINTS.
+        # Without this, _build_session_record falls back to graph_points[0][0] which is a
+        # mid-session timestamp, causing epoch mismatches in JSONL dedup.
+        if segment_points:
+            self._session_start_epoch = segment_points[0][0]
         self._connect_phase_started_epoch = connect_phase_started_epoch
         if authoritative_pos is not None and authoritative_pos <= 1 and (first_le_one_epoch is not None):
             self._position_one_reached_at = first_le_one_epoch

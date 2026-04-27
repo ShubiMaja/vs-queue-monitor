@@ -230,6 +230,26 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
+        # Pass A2: collapse records with the same (lf, session_id) regardless of start_epoch.
+        # Pre-fix versions wrote records with truncated graph-deque timestamps, producing
+        # multiple JSONL entries for the same session with different floor epochs that Pass A
+        # cannot collapse.  Grouping by (lf, session_id) and keeping highest merge_rank
+        # eliminates those phantom duplicates.  Within a single log file, session_id is
+        # unique per queue session (it is the session boundary count in that file).
+        _hist_by_lf_sid: dict[tuple[str, int], dict[str, Any]] = {}
+        _hist_no_sid: list[dict[str, Any]] = []
+        for _rec in deduped_hist:
+            _sid2 = _rec.get("session_id")
+            _lf2 = normalize_log_path_for_dedup(str(_rec.get("log_file") or ""))
+            if _sid2 is not None:
+                _k2 = (_lf2, int(_sid2))
+                _prev2 = _hist_by_lf_sid.get(_k2)
+                if _prev2 is None or _session_merge_rank(_rec) > _session_merge_rank(_prev2):
+                    _hist_by_lf_sid[_k2] = _rec
+            else:
+                _hist_no_sid.append(_rec)
+        deduped_hist = list(_hist_by_lf_sid.values()) + _hist_no_sid
+
         # Pass B: derive the suppression key for the active session's in-progress ghost.
         active_floor_epoch: Optional[int] = None
         if _active_tail_session is not None:
@@ -241,9 +261,16 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         # so ghost suppression and the JS active_queue_session_epoch are still correct.
         _eng_fallback_epoch: Optional[float] = None
         if active_floor_epoch is None and engine._interrupted_mode:
-            _eng_pts = list(engine.graph_points)
-            if _eng_pts:
-                _eng_fallback_epoch = float(_eng_pts[0][0])
+            # Prefer _session_start_epoch (set from segment_points[0][0] — the true first
+            # queue position) over graph_points[0][0] which may be mid-session after
+            # MAX_GRAPH_POINTS truncation.
+            if engine._session_start_epoch is not None:
+                _eng_fallback_epoch = float(engine._session_start_epoch)
+            else:
+                _eng_pts = list(engine.graph_points)
+                if _eng_pts:
+                    _eng_fallback_epoch = float(_eng_pts[0][0])
+            if _eng_fallback_epoch is not None:
                 active_floor_epoch = int(math.floor(_eng_fallback_epoch))
                 if seed_active_id < 0 and engine._last_queue_run_session >= 0:
                     seed_active_id = engine._last_queue_run_session
@@ -285,8 +312,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                     and _rec_sid is not None and seed_active_id >= 0
                     and int(_rec_sid) == seed_active_id
                     and (active_floor_epoch is None
-                         or (floor_se <= active_floor_epoch + 5
-                             and floor_se >= active_floor_epoch - 4 * 3600))):
+                         or floor_se >= active_floor_epoch - 4 * 3600)):
                 continue  # in-progress ghost for the currently loaded session
             # Use (floor_se, lf) as the merge key — start_pos is omitted because
             # engine-written records store start_position=null while backfill records
