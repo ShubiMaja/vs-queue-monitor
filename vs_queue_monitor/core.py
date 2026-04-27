@@ -1129,6 +1129,21 @@ def tail_has_post_queue_after_last_queue_line(data: str) -> bool:
     return False
 
 
+def tail_post_queue_epoch_after_last_queue_line(data: str) -> Optional[float]:
+    """Return the timestamp of the first post-queue signal after the last queue line, or None."""
+    lines = data.splitlines()
+    last_q = -1
+    for i, line in enumerate(lines):
+        if queue_position_match(line):
+            last_q = i
+    if last_q < 0:
+        return None
+    for line in lines[last_q + 1 :]:
+        if is_post_queue_progress_line(line):
+            return parse_log_timestamp_epoch(line)
+    return None
+
+
 def completion_would_fire_for_tail(tail_text: str) -> bool:
     """True when the tail matches ``_maybe_notify_queue_completion`` (mapped position 0 + post-queue).
 
@@ -1456,24 +1471,26 @@ def extract_all_session_records_from_log(
         end_pos = pts[-1][1]
 
         sess_text = "\n".join(lines_by_session.get(sess_id, []))
-        # Detect completion from the session's own text first.
-        completed = end_pos <= 1 and tail_has_post_queue_after_last_queue_line(sess_text)
         connect_epoch: Optional[float] = None
-        if not completed and end_pos <= 1:
-            # "Connecting to world" is a boundary that bumps the session counter, so
-            # post-queue signals (downloading, loading mods, etc.) land in sess_id+1
-            # instead of sess_id.  Check the next session for them and capture the
-            # timestamp of the witnessing line so we can add an accurate position-0 point.
-            next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
-            connect_epoch = _next_session_post_queue_epoch(next_sess_text)
-            completed = connect_epoch is not None
+        completed = False
+        if end_pos <= 1:
+            # Primary path: post-queue signals in the session's own text.
+            if tail_has_post_queue_after_last_queue_line(sess_text):
+                completed = True
+                connect_epoch = tail_post_queue_epoch_after_last_queue_line(sess_text)
+            else:
+                # "Connecting to world" is a QUEUE_RUN_BOUNDARY_RES that bumps the session
+                # counter, so post-queue signals land in sess_id+1 instead of sess_id.
+                next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+                connect_epoch = _next_session_post_queue_epoch(next_sess_text)
+                completed = connect_epoch is not None
         if completed:
             end_pos = 0
             outcome = "completed"
-            # Add a synthetic position-0 point so the graph shows an actual connection
-            # event at the right timestamp (only when we witnessed it in the next session).
-            if connect_epoch is not None and (not change_pts or change_pts[-1][1] != 0):
-                change_pts.append((connect_epoch, 0))
+            # Use the witnessed timestamp; fall back to end_epoch when parse returned None.
+            t0 = connect_epoch if connect_epoch is not None else end_epoch
+            if not change_pts or change_pts[-1][1] != 0:
+                change_pts.append((t0, 0))
         elif _is_active_max_sess:
             outcome = "in_progress"
         else:
