@@ -190,6 +190,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 # genuinely newer session.  Disconnect/teardown lines that follow a completed
                 # session are NOT a new attempt and must not falsely inflate true_seed_id.
                 _has_newer, _newer_epoch = get_newer_session_attempt(tail_text)
+                # If no queue positions are visible in the tail, _has_newer is unreliable:
+                # any connecting line from prior game play would falsely fire. Suppress it.
+                if seed_active_id < 0:
+                    _has_newer = False
+                    _newer_epoch = None
             true_seed_id = seed_active_id + 1 if _has_newer else seed_active_id
             if seed_active_id >= 0:
                 filtered: list[dict[str, Any]] = []
@@ -231,6 +236,17 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             se = _active_tail_session.get("start_epoch")
             if se is not None:
                 active_floor_epoch = int(math.floor(float(se)))
+        # Fallback: when the 2MB tail has no queue positions (lots of game log has
+        # accumulated after the queue session), use the engine's seeded graph data
+        # so ghost suppression and the JS active_queue_session_epoch are still correct.
+        _eng_fallback_epoch: Optional[float] = None
+        if active_floor_epoch is None and engine._interrupted_mode:
+            _eng_pts = list(engine.graph_points)
+            if _eng_pts:
+                _eng_fallback_epoch = float(_eng_pts[0][0])
+                active_floor_epoch = int(math.floor(_eng_fallback_epoch))
+                if seed_active_id < 0 and engine._last_queue_run_session >= 0:
+                    seed_active_id = engine._last_queue_run_session
 
         # Trigger a background backfill if completed live sessions are missing from JSONL.
         jsonl_floor_epochs: set[int] = set()
@@ -313,6 +329,9 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 active_session_epoch = float(se)
         elif _has_newer:
             active_session_epoch = _newer_epoch
+        # Engine-graph fallback: tail had no queue positions, but we resolved the epoch above.
+        if active_session_epoch is None and _eng_fallback_epoch is not None:
+            active_session_epoch = _eng_fallback_epoch
 
         # Assign 1-based labels accounting for the loaded session's slot.
         # The active session is never in all_sessions:
