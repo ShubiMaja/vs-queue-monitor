@@ -344,7 +344,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             )
             if (engine.running and no_newer_session
                     and current_norm_lf and lf == current_norm_lf
-                    and (_sid_match or (engine._interrupted_mode and seed_active_id < 0 and _epoch_match))):
+                    and (_sid_match or (engine._interrupted_mode and _epoch_match))):
                 continue  # in-progress ghost for the currently loaded session
             # Use (floor_se, lf) as the merge key — start_pos is omitted because
             # engine-written records store start_position=null while backfill records
