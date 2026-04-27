@@ -1242,9 +1242,9 @@
     if (running && !interruptedMode) {
       return { icon: "◌", label: "Ongoing" };
     }
-    // No explicit terminal outcome — could be an in-progress record from another folder;
-    // show ? rather than the misleading ✕ (Failed).
-    return outcome ? { icon: "✕", label: "Failed" } : { icon: "?", label: "Unknown" };
+    // No explicit terminal outcome — could be an in-progress record from another folder.
+    // All failure outcomes (abandoned, crashed) are caught above; anything else is Unknown.
+    return { icon: "?", label: "Unknown" };
   }
 
   function loadedSessionStatusInfo(points, running, interruptedMode) {
