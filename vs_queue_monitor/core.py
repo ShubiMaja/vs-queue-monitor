@@ -1355,6 +1355,24 @@ def compute_seed_graph_from_log(
     )
 
 
+def _next_session_opens_with_post_queue_signals(text: str) -> bool:
+    """True when the first post-queue signal appears before any queue position line.
+
+    Used to detect completions where the world-join boundary line split the queue session
+    from its own post-queue progress lines (iter_session_log_lines increments the session
+    counter on that boundary, putting those lines into sess_id+1 instead of sess_id).
+    """
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if queue_position_match(line):
+            return False  # new queue run — not a completion continuation
+        if any(r.search(line) for r in POST_QUEUE_PROGRESS_LINE_RES):
+            return True
+    return False
+
+
 def extract_all_session_records_from_log(
     log_file: Path,
     source_path: str = "",
@@ -1432,7 +1450,14 @@ def extract_all_session_records_from_log(
         end_pos = pts[-1][1]
 
         sess_text = "\n".join(lines_by_session.get(sess_id, []))
-        completed = end_pos <= 1 and tail_has_post_queue_after_last_queue_line(sess_text)
+        # Also check the next session's lines: "Connecting to world" is a boundary that bumps
+        # the session counter, so post-queue signals (downloading, loading mods, etc.) land in
+        # sess_id+1 instead of sess_id — tail_has_post_queue_after_last_queue_line misses them.
+        next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+        completed = end_pos <= 1 and (
+            tail_has_post_queue_after_last_queue_line(sess_text)
+            or _next_session_opens_with_post_queue_signals(next_sess_text)
+        )
         if completed:
             end_pos = 0
             outcome = "completed"
