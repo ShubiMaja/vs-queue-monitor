@@ -485,6 +485,11 @@ class QueueMonitorEngine:
         self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
+        # Write an immediate in_progress record for active seeded sessions so cross-folder
+        # views can see them before the 30 s throttle fires.  Interrupted sessions are
+        # already handled by _write_seeded_session_discovery inside _adopt_interrupted_tail_on_start.
+        if not self._interrupted_mode and self._last_queue_run_session >= 0 and self.graph_points:
+            self._write_session_progress(force=True)
         threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
         self.start_timer()
         if self.job_id is not None:
