@@ -1465,8 +1465,10 @@
         last &&
         (isPastSession || (state && state.interrupted_mode) || (state && !state.running))
       ) {
+        var sessionOutcome = state && state.session_outcome;
+        var isOutcomeUnknown = !sessionOutcome || sessionOutcome === "in_progress" || sessionOutcome === "unknown";
         out.push({
-          kind: "disconnect",
+          kind: isOutcomeUnknown ? "unknown" : "disconnect",
           t: last[0],
           pos: last[1],
         });
@@ -1526,6 +1528,7 @@
     out.graph_live_view = false;
     out.running = false;
     out.progress = 1.0;
+    out.session_outcome = sess.outcome || null;
     var last = sess.points[sess.points.length - 1];
     out.current_point = [last[0], last[1]];
     out.graph_events = deriveGraphEvents(out, out.graph_points || [], true);
