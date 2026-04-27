@@ -1347,16 +1347,12 @@ def extract_all_session_records_from_log(
     """Extract one history record per completed historical queue session from the full log.
 
     The most recent session (currently active or just finished) is excluded — the engine
-    handles that one via live monitoring.  Reads the whole file (capped at 100 MB).
+    handles that one via live monitoring.  Reads the entire file from position 0 so that
+    old sessions near the start of a large log are never missed.  Runs on a background
+    thread so file size does not affect UI responsiveness.
     """
     try:
-        file_size = log_file.stat().st_size
-    except Exception:
-        return []
-    max_read = min(file_size, 100 * 1024 * 1024)
-    try:
         with log_file.open("rb") as fh:
-            fh.seek(max(0, file_size - max_read))
             raw = fh.read()
     except Exception:
         return []
