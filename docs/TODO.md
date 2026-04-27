@@ -278,7 +278,8 @@ tweak: i had to hard reload to get the right behavior on the settings. make it s
 
 tweak: develop a method so when github release is autopopulated it has info about what changed
 
-tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history
+~~tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history~~
+Done: each row in the recent-paths popover now shows an × button on the right that appears on hover/focus; clicking it removes only that entry via lsRemoveRecentPath and re-renders the list in place (v1.1.124)
 
 tweak: rename Full rate to Session Rate. 
   - consider chnage Rate fields ->  (is it better or worse?)
