@@ -137,7 +137,7 @@
   }
 
   function drawGraphEventMarker(ctx, kind, x, y) {
-    var color = kind === "warning" ? "#c89b3c" : kind === "connect" ? "#2e8b57" : kind === "disconnect" ? "#b4545c" : null;
+    var color = kind === "warning" ? "#c89b3c" : kind === "connect" ? "#2e8b57" : kind === "disconnect" ? "#b4545c" : kind === "unknown" ? "#6b7280" : null;
     if (!color) return;
     ctx.save();
     ctx.beginPath();
