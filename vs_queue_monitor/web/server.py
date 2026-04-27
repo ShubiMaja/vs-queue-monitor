@@ -231,25 +231,41 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass A2: collapse records with the same (lf, session_id) regardless of start_epoch.
-        # Pre-fix versions wrote records with truncated graph-deque timestamps, producing
+        # Pass A2: collapse records with the same (lf, session_id) that are close in time.
+        # Pre-fix engines wrote records with truncated graph-deque timestamps, producing
         # multiple JSONL entries for the same session with different floor epochs that Pass A
-        # cannot collapse.  Grouping by (lf, session_id) and keeping highest merge_rank
-        # eliminates those phantom duplicates.  Within a single log file, session_id is
-        # unique per queue session (it is the session boundary count in that file).
+        # cannot collapse.  Grouping by (lf, session_id) + keeping highest merge_rank
+        # eliminates those phantom duplicates.
+        #
+        # Epoch guard: VS reuses small session_id values over time (the boundary counter is
+        # relative to the current log file and wraps/repeats).  Two records with the same
+        # (lf, session_id) but start_epochs >4 hours apart are genuinely different queue
+        # sessions — do NOT collapse them.  Distant records go to _hist_sid_extra and flow
+        # through to Pass C's (floor_se, lf) dedup where they survive as separate sessions.
+        _PASS_A2_MAX_EPOCH_GAP_S = 4 * 3600
         _hist_by_lf_sid: dict[tuple[str, int], dict[str, Any]] = {}
         _hist_no_sid: list[dict[str, Any]] = []
+        _hist_sid_extra: list[dict[str, Any]] = []
         for _rec in deduped_hist:
             _sid2 = _rec.get("session_id")
             _lf2 = normalize_log_path_for_dedup(str(_rec.get("log_file") or ""))
+            _se2 = float(_rec.get("start_epoch") or 0)
             if _sid2 is not None:
                 _k2 = (_lf2, int(_sid2))
                 _prev2 = _hist_by_lf_sid.get(_k2)
-                if _prev2 is None or _session_merge_rank(_rec) > _session_merge_rank(_prev2):
+                if _prev2 is None:
                     _hist_by_lf_sid[_k2] = _rec
+                else:
+                    _prev_se = float(_prev2.get("start_epoch") or 0)
+                    if abs(_se2 - _prev_se) <= _PASS_A2_MAX_EPOCH_GAP_S:
+                        if _session_merge_rank(_rec) > _session_merge_rank(_prev2):
+                            _hist_by_lf_sid[_k2] = _rec
+                    else:
+                        # Different session — same lf+sid but far apart in time; keep separately.
+                        _hist_sid_extra.append(_rec)
             else:
                 _hist_no_sid.append(_rec)
-        deduped_hist = list(_hist_by_lf_sid.values()) + _hist_no_sid
+        deduped_hist = list(_hist_by_lf_sid.values()) + _hist_no_sid + _hist_sid_extra
 
         # Pass B: derive the suppression epoch and session-id for the active session's ghost.
         #
