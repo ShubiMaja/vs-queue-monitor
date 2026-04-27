@@ -1297,6 +1297,10 @@
     if (state.interrupted_mode) {
       var loadedEpoch = state.active_queue_session_epoch != null
         ? Number(state.active_queue_session_epoch) : null;
+      if (loadedEpoch === null || !Number.isFinite(loadedEpoch)) {
+        var _ipts = state.graph_points || [];
+        if (_ipts.length) loadedEpoch = Number(_ipts[0][0]);
+      }
       var sessStartEp = Number(sess.start_epoch);
       return loadedEpoch !== null
         && Number.isFinite(sessStartEp)
