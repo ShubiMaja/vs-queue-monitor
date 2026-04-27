@@ -530,6 +530,101 @@ class TestPassA2StaleRecordCollapse:
         )
 
 
+    @patch("vs_queue_monitor.web.server.read_log_file_tail_text")
+    @patch("vs_queue_monitor.web.server.queue_sessions_for_log_tail")
+    @patch("vs_queue_monitor.web.server.parse_tail_last_queue_reading")
+    @patch("vs_queue_monitor.web.server.get_newer_session_attempt")
+    def test_in_progress_beats_stale_abandoned_by_recency(
+        self, mock_newer, mock_parse, mock_live, mock_tail, tmp_path: Path
+    ):
+        """Unstable regression: live in_progress record must beat stale abandoned records.
+
+        Same (lf, sid, floor_epoch) for all records.  The abandoned records were written
+        earlier (lower end_epoch); the in_progress was written later (higher end_epoch).
+        Old code ranked abandoned (1) above in_progress (-1) unconditionally, so the live
+        session appeared as 'abandoned' in cross-folder views.
+        """
+        log = tmp_path / "unstable" / "client-main.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        lf_norm = normalize_log_path_for_dedup(str(log))
+
+        mock_tail.return_value = None
+        mock_live.return_value = []
+        mock_parse.return_value = (None, -1)
+        mock_newer.return_value = (False, None)
+
+        start = _ep(0)
+        early = start + 30    # abandoned records written 30 s after session start
+        later = start + 120   # in_progress written 120 s after start (more recent)
+
+        eng = _make_engine(
+            log_file=log,
+            running=True,
+            interrupted=False,
+            last_session_id=-1,
+            hist_records=[
+                _jsonl_record(log_file=lf_norm, session_id=4, start_epoch=start,
+                              outcome="abandoned", end_epoch=early),
+                _jsonl_record(log_file=lf_norm, session_id=4, start_epoch=start,
+                              outcome="abandoned", end_epoch=early),
+                _jsonl_record(log_file=lf_norm, session_id=4, start_epoch=start,
+                              outcome="in_progress", end_epoch=later),
+            ],
+        )
+
+        sessions, _, _ = _queue_sessions_for_engine(eng)
+
+        matched = [s for s in sessions if abs(float(s.get("start_epoch", 0)) - start) < 2]
+        assert len(matched) == 1, f"Expected one record for this session, got {len(matched)}"
+        assert matched[0]["outcome"] == "in_progress", (
+            f"Most-recent in_progress must beat stale abandoned. Got: {matched[0]['outcome']}"
+        )
+
+    @patch("vs_queue_monitor.web.server.read_log_file_tail_text")
+    @patch("vs_queue_monitor.web.server.queue_sessions_for_log_tail")
+    @patch("vs_queue_monitor.web.server.parse_tail_last_queue_reading")
+    @patch("vs_queue_monitor.web.server.get_newer_session_attempt")
+    def test_abandoned_beats_in_progress_when_abandoned_is_more_recent(
+        self, mock_newer, mock_parse, mock_live, mock_tail, tmp_path: Path
+    ):
+        """When abandoned is written AFTER in_progress (truly failed session), abandoned wins."""
+        log = tmp_path / "unstable" / "client-main.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("")
+        lf_norm = normalize_log_path_for_dedup(str(log))
+
+        mock_tail.return_value = None
+        mock_live.return_value = []
+        mock_parse.return_value = (None, -1)
+        mock_newer.return_value = (False, None)
+
+        start = _ep(0)
+        progress_time = start + 60   # in_progress written during session
+        abandon_time = start + 120   # abandoned written later when session failed
+
+        eng = _make_engine(
+            log_file=log,
+            running=False,
+            interrupted=False,
+            last_session_id=-1,
+            hist_records=[
+                _jsonl_record(log_file=lf_norm, session_id=4, start_epoch=start,
+                              outcome="in_progress", end_epoch=progress_time),
+                _jsonl_record(log_file=lf_norm, session_id=4, start_epoch=start,
+                              outcome="abandoned", end_epoch=abandon_time),
+            ],
+        )
+
+        sessions, _, _ = _queue_sessions_for_engine(eng)
+
+        matched = [s for s in sessions if abs(float(s.get("start_epoch", 0)) - start) < 2]
+        assert len(matched) == 1
+        assert matched[0]["outcome"] == "abandoned", (
+            f"More-recent abandoned must win over earlier in_progress. Got: {matched[0]['outcome']}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Cross-folder visibility
 # ---------------------------------------------------------------------------
