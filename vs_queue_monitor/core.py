@@ -1051,6 +1051,12 @@ def get_newer_session_attempt(data: str) -> tuple[bool, Optional[float]]:
     Only RECONNECTING_LINE_RES patterns count (``Connecting to…``, ``Initialized server
     connection``, etc.).  Disconnect/teardown lines (``Disconnected by server``, ``connection
     closed``, etc.) that appear after a completed session do NOT trigger a false positive.
+
+    Post-queue world-join false positive: when VS leaves the queue it logs "Connecting to
+    <host>" to join the game world — the same pattern as a new session attempt.  If any
+    POST_QUEUE_PROGRESS_LINE_RES line appears in the after-queue section, the whole section
+    is a post-queue world-join sequence, not a new session.  Suppress in that case.
+
     Returns (has_newer, epoch_of_first_reconnect_line_after_last_queue).
     """
     lines = data.splitlines()
@@ -1059,6 +1065,11 @@ def get_newer_session_attempt(data: str) -> tuple[bool, Optional[float]]:
         if queue_position_match(line.strip()):
             last_queue_idx = i
     search_lines = lines[last_queue_idx + 1:] if last_queue_idx >= 0 else lines
+    # If the after-queue section contains post-queue progress lines (mod loading, world
+    # download, etc.) the session already left the queue — any "connecting to" here is
+    # the world join, not a new queue session attempt.
+    if any(is_post_queue_progress_line(l) for l in search_lines):
+        return False, None
     for line in search_lines:
         s = line.strip()
         if not s:
