@@ -851,11 +851,12 @@ class QueueMonitorEngine:
                 return
             data = json.loads(cp.read_text(encoding="utf-8"))
             # If the checkpoint was written by a different engine (different source_path),
-            # we never witnessed it crash — it may have ended normally while we were on
-            # another folder.  Use "unknown" so it doesn't show as ✕ Failed.
+            # we never witnessed it crash — keep it as "in_progress" so it shows ? and
+            # remains visible, rather than stamping it crashed (✕) or unknown (which can
+            # be collided away by adjacent backfill records and disappear entirely).
             my_sp = normalize_log_path_for_dedup(str(self.config.get("source_path", "") or ""))
             cp_sp = normalize_log_path_for_dedup(str(data.get("source_path", "") or ""))
-            data["outcome"] = "crashed" if (not cp_sp or cp_sp == my_sp) else "unknown"
+            data["outcome"] = "crashed" if (not cp_sp or cp_sp == my_sp) else "in_progress"
             hist = self._effective_history_path()
             hist.parent.mkdir(parents=True, exist_ok=True)
             with open(hist, "a", encoding="utf-8") as fh:
