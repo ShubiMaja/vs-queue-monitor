@@ -259,8 +259,10 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         # Fallback: when the 2MB tail has no queue positions (lots of game log has
         # accumulated after the queue session), use the engine's seeded graph data
         # so ghost suppression and the JS active_queue_session_epoch are still correct.
+        # This applies regardless of _interrupted_mode — a normally running session
+        # whose queue lines have scrolled past the 2MB tail window also needs this path.
         _eng_fallback_epoch: Optional[float] = None
-        if active_floor_epoch is None and engine._interrupted_mode:
+        if active_floor_epoch is None:
             # Prefer _session_start_epoch (set from segment_points[0][0] — the true first
             # queue position) over graph_points[0][0] which may be mid-session after
             # MAX_GRAPH_POINTS truncation.
@@ -274,6 +276,7 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 active_floor_epoch = int(math.floor(_eng_fallback_epoch))
                 if seed_active_id < 0 and engine._last_queue_run_session >= 0:
                     seed_active_id = engine._last_queue_run_session
+                    true_seed_id = seed_active_id
 
         # Trigger a background backfill if completed live sessions are missing from JSONL.
         jsonl_floor_epochs: set[int] = set()
