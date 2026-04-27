@@ -267,7 +267,13 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                     and current_norm_lf and lf == current_norm_lf
                     and floor_se == active_floor_epoch):
                 continue  # in-progress ghost for the currently loaded session
-            sig = (floor_se, start_pos, lf)
+            # Use (floor_se, lf) as the merge key — start_pos is omitted because
+            # engine-written records store start_position=null while backfill records
+            # store the real first-position value.  The two represent the same session
+            # but get different sigs when start_pos is included, causing phantom
+            # duplicates.  Same-epoch same-log collisions (genuine distinct sessions)
+            # are extremely rare and already handled by Pass A (session_id + epoch key).
+            sig = (floor_se, lf)
             pts = rec.get("points") or []
             candidate: dict[str, Any] = {
                 "key": f"t:{floor_se}",
