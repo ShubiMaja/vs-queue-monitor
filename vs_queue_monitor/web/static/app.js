@@ -1556,9 +1556,14 @@
     }
     var hasLatestSession = latestStartEpoch !== null;
 
-    // Latest session gets number N+1 (always highest); completed sessions are 1..N.
+    // Latest session number = its chronological rank among all sessions.
     var allSessions = s.queue_sessions || [];
-    var latestSessionNumber = allSessions.length + 1;
+    var latestSessionNumber = 1;
+    for (var j = 0; j < allSessions.length; j++) {
+      if (latestStartEpoch !== null && Number(allSessions[j].start_epoch) < latestStartEpoch) {
+        latestSessionNumber++;
+      }
+    }
 
     // Build the "latest" option only when the monitored file has a detectable session.
     if (hasLatestSession) {
@@ -1575,12 +1580,17 @@
         "Start: " + formatSessionStart(latestStartEpoch),
       ].join("\n");
       opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, latestSessionNumber);
-      // Latest session always goes first — it is the current session.
-      sel.appendChild(opt0);
     }
 
+    // Render sessions newest-first; insert the latest option at its chronological position.
     var i;
+    var opt0Inserted = !hasLatestSession;
     for (i = sessions.length - 1; i >= 0; i--) {
+      var sessStartEpoch = Number(sessions[i].start_epoch);
+      if (!opt0Inserted && sessStartEpoch < latestStartEpoch) {
+        sel.appendChild(opt0);
+        opt0Inserted = true;
+      }
       var o = document.createElement("option");
       var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false, sessions[i].outcome);
       o.value = sessions[i].key;
@@ -1598,6 +1608,9 @@
       if (sessions[i].outcome) tipLines.push("Outcome: " + sessions[i].outcome);
       o.title = tipLines.join("\n");
       sel.appendChild(o);
+    }
+    if (!opt0Inserted) {
+      sel.appendChild(opt0);
     }
 
     if (!_sessionDropdownInited) {
