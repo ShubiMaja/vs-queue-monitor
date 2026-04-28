@@ -173,7 +173,7 @@ SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 
 # Canonical outcome rank — higher = stronger/more authoritative evidence.
 # "completed" with an explicit point-0 endpoint gets rank 5 at call sites.
-DEFAULT_HISTORY_MAX_BYTES = 50 * 1024 * 1024  # 50 MB — trim oldest records when exceeded
+DEFAULT_HISTORY_MAX_BYTES = 100 * 1024 * 1024  # 100 MB — trim oldest records when exceeded
 
 OUTCOME_RANK: dict[str, int] = {
     "completed":   4,  # post-queue signal witnessed
