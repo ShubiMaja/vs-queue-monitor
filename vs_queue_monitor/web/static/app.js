@@ -1226,10 +1226,11 @@
     // Use the stored outcome as the authoritative source when available.
     // Computing status only from points is unreliable: a completed session may have
     // no explicit position-0 point if completion was inferred from post-queue log lines.
-    if (outcome === "completed") return { icon: "✓", label: "Succeeded" };
+    if (outcome === "completed")  return { icon: "✓", label: "Succeeded" };
     if (outcome === "interrupted") return { icon: "↻", label: "Interrupted" };
     if (outcome === "abandoned" || outcome === "crashed") return { icon: "✕", label: "Failed" };
-    // Fallback: infer from points for in_progress or unknown records.
+    if (outcome === "unknown")    return { icon: "?",  label: "Unknown" };
+    // Fallback: infer from points for in_progress or unrecognised outcomes.
     if (!points || !points.length) {
       return { icon: "?", label: "Unknown" };
     }

@@ -281,13 +281,11 @@ tweak: develop a method so when github release is autopopulated it has info abou
 ~~tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history~~
 Done: each row in the recent-paths popover now shows an × button on the right that appears on hover/focus; clicking it removes only that entry via lsRemoveRecentPath and re-renders the list in place (v1.1.124)
 
-tweak: rename Full rate to Session Rate. 
-  - consider chnage Rate fields ->  (is it better or worse?)
-  10 Point m/p: n
-  Session m/p: n
-  Global m/p: n
+~~tweak: rename Full rate to Session Rate.~~
+Done: "Full Rate" label renamed to "Session Rate" in info panel, graph overlay, and copy tooltip (v1.1.160)
 
-tweak: add max file size for JSONL which is configurable via settings (use a sane default)
+~~tweak: add max file size for JSONL which is configurable via settings (use a sane default)~~
+Done: DEFAULT_HISTORY_MAX_BYTES = 5 MB; trim_jsonl_to_size() drops oldest records after every backfill and terminal write; configurable via history_max_bytes in config (v1.1.161)
 
 tweak: update all tests, lessons learned docs, todo, tour, etc
 
@@ -464,14 +462,13 @@ Give yourself some leeway, I am not responsible if you accidently join the game 
 
 ---
 Feature: Join Scheduling
-
-additional feature
-
-I suppose it's a player made script that will have them get into the queue exactly when they need to be in it, like, it checks how big is the queue, then the time it takes to finish it (0.54 user a minute usually goes through the queue), and so you can set it up to boot you into the queue two hours earlier and then appear in the TOPS somewhat around the time they need
+1. have the user get into the queue exactly when they need to be in it.
+2. check how big is the queue, then the time it takes to finish it (check global rate) 
+3. set it up to boot you into the queue early enough to appear in the chosen server somewhat around the time you need
 
 Feature: Auto-Leave (leave if idle for x mins)
 
-Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server)
+Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server use things like exponential backoff)
 
 Feature: Auto-rejoin (if disconnected while in queue, try to Auto rejoin the queue)
 
