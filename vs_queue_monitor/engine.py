@@ -626,9 +626,11 @@ class QueueMonitorEngine:
                 # "completed with point-0" (rank 5) beats "completed without point-0" (rank 4)
                 # so that old records written before position-0 tracking was added get upgraded.
                 def _bfrank(rec: dict) -> int:
-                    base = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0, "in_progress": -1}
+                    # Mirrors _session_merge_rank signal strength; completed+point-0 is rank 5
+                    # so it can upgrade old completed records that are missing the endpoint.
+                    base = {"completed": 4, "abandoned": 3, "interrupted": 3, "crashed": 2, "unknown": 1, "in_progress": -1}
                     rnk = base.get(rec.get("outcome") or "", -1)
-                    if rnk == 4:  # completed
+                    if rnk == 4:  # completed without point-0 check
                         pts = rec.get("points") or []
                         if pts and int(pts[-1][1]) == 0:
                             rnk = 5  # completed + has point-0

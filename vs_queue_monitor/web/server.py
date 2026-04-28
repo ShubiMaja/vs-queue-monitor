@@ -149,17 +149,22 @@ _window_mode: str | None = None
 
 
 def _session_merge_rank(rec: dict[str, Any]) -> tuple:
-    """Good terminals beat everything; among failures/in-progress, prefer most recent by end_epoch."""
+    """Witnessed-signal terminals beat inferred/live records; prefer most points then most recent."""
     outcome = rec.get("outcome") or ""
     pts = rec.get("points") or []
     end_ep = float(rec.get("end_epoch") or 0)
     server = 1 if rec.get("server") else 0
-    good_rank = {"completed": 3, "unknown": 2, "interrupted": 1}
-    if outcome in good_rank:
-        # Completed / unknown / interrupted always beat failures and in-progress.
-        return (1, good_rank[outcome], len(pts), end_ep, server)
-    # in_progress / abandoned / crashed: most recent write (end_epoch) is most authoritative.
-    # This lets an active in_progress record beat stale abandoned records for the same session.
+    # Rank by strength of the underlying signal, highest first:
+    #   completed=4  — post-queue signal witnessed
+    #   abandoned=3  — session boundary witnessed
+    #   interrupted=3 — stale detection witnessed
+    #   crashed=2    — checkpoint recovery (monitor process death witnessed)
+    #   unknown=1    — no terminal signal
+    #   in_progress  — live/transient, recency wins
+    terminal_rank = {"completed": 4, "abandoned": 3, "interrupted": 3, "crashed": 2, "unknown": 1}
+    if outcome in terminal_rank:
+        return (1, terminal_rank[outcome], len(pts), end_ep, server)
+    # in_progress: most recent write is most authoritative.
     return (0, end_ep, len(pts), server, 1 if outcome else 0)
 
 
