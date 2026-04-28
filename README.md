@@ -80,7 +80,7 @@ If that browser view goes offline, the in-page banner tells you to start the app
 | **Completion alert**    | Popup + sound + desktop notification when the game connects (past the queue)                                 |
 | **Failure alert**       | Popup + sound + desktop notification when monitoring drops into the interrupted state                        |
 | **Graph**               | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV    |
-| **Session history**     | Per-run log of position changes, with the graph session selector able to include persisted past runs across restarts/log sources |
+| **Session history**     | Per-run log of position changes; graph session selector lets you review any past run, each labeled with its chronological index and outcome (Succeeded / Failed / Interrupted / Unknown). History capped at 100 MB by default (configurable in Settings → General) |
 | **System tray**         | Icon in notification area while running; right-click to open or quit                                         |
 | **Embedded window**     | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
