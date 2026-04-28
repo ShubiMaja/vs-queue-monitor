@@ -636,7 +636,7 @@
         "Duration: " + formatOverlayDuration(overlayStats.seconds)
       );
       overlayLines.push(
-        "Full Rate: " +
+        "Session Rate: " +
           (overlayStats.avgMinPerPos == null
             ? "-"
             : overlayStats.avgMinPerPos.toFixed(2) + " m/p")

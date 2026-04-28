@@ -626,14 +626,11 @@ class QueueMonitorEngine:
                 # "completed with point-0" (rank 5) beats "completed without point-0" (rank 4)
                 # so that old records written before position-0 tracking was added get upgraded.
                 def _bfrank(rec: dict) -> int:
-                    # Mirrors _session_merge_rank signal strength; completed+point-0 is rank 5
-                    # so it can upgrade old completed records that are missing the endpoint.
-                    base = {"completed": 4, "abandoned": 3, "interrupted": 3, "crashed": 2, "unknown": 1, "in_progress": -1}
-                    rnk = base.get(rec.get("outcome") or "", -1)
-                    if rnk == 4:  # completed without point-0 check
+                    rnk = OUTCOME_RANK.get(rec.get("outcome") or "", -1)
+                    if rnk == 4:  # completed: upgrade to 5 when point-0 is present
                         pts = rec.get("points") or []
                         if pts and int(pts[-1][1]) == 0:
-                            rnk = 5  # completed + has point-0
+                            rnk = 5
                     return rnk
                 existing_sid: dict[tuple[str, int, int], int] = {}  # key → best rank
                 existing_sig: dict[tuple[str, int, Any], int] = {}
@@ -789,11 +786,9 @@ class QueueMonitorEngine:
                             pass
 
                     if records:
-                        outcome_rank = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0}
-
                         def _rank(rec: dict) -> tuple:
                             pts = rec.get("points") or []
-                            return (outcome_rank.get(rec.get("outcome", ""), -1), len(pts))
+                            return (OUTCOME_RANK.get(rec.get("outcome", ""), -1), len(pts))
 
                         primary: dict[tuple[str, int], dict] = {}
                         no_id: list[dict] = []
