@@ -322,3 +322,60 @@ def test_history_max_bytes_invalid_values_not_saved(page: Page, base_url: str) -
     assert state_after["history_max_bytes"] == bytes_before, (
         f"Expected bytes unchanged ({bytes_before}), got {state_after['history_max_bytes']}"
     )
+
+
+def test_interrupted_session_with_completed_graph_shows_interrupted_not_succeeded(
+    page: Page, base_url: str, tmp_path: Path
+) -> None:
+    """When interrupted_mode=True, opt0 must show ↻ even if graph_points includes position-0.
+
+    Regression: loadedSessionStatusInfo checked position-0 first, so an interrupted session
+    that had already completed showed ✓ Succeeded simultaneously with the Interrupted status
+    KPI, producing three conflicting states in the UI.
+    """
+    log_dir = tmp_path / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    lines = [
+        "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
+        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 3",
+        "9.4.2026 22:31:15 [Notification] Client is in connect queue at position: 2",
+        "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 1",
+        "9.4.2026 22:31:26 [Notification] Connected to server, downloading data...",
+        # A hard disconnect after completion triggers interrupted mode on next startup.
+        "9.4.2026 22:35:00 [Notification] Exiting current game to disconnected screen",
+    ]
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    r = page.context.request.post(
+        f"{base_url.rstrip('/')}/api/config",
+        data=json.dumps({"source_path": str(log_dir)}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.ok, r.text()
+
+    # Wait for engine to settle in interrupted mode with graph points.
+    _wait_for_state(
+        page,
+        base_url,
+        lambda s: (
+            s.get("source_path") == str(log_dir)
+            and bool(s.get("interrupted_mode"))
+            and len(s.get("graph_points") or []) >= 1
+        ),
+        timeout_sec=20.0,
+    )
+
+    _goto_fresh(page, base_url)
+    page.wait_for_timeout(2000)
+
+    # opt0 must show interrupted icon (↻), not succeeded (✓).
+    sel = page.locator("#selSession")
+    opt0_text = sel.locator("option[value='latest']").text_content(timeout=10000)
+    assert opt0_text is not None, "opt0 (latest) option not found"
+    assert "✓" not in opt0_text, (
+        f"opt0 wrongly shows Succeeded icon for an interrupted session: {opt0_text!r}"
+    )
+    assert "↻" in opt0_text, (
+        f"opt0 should show Interrupted icon (↻) for interrupted session, got: {opt0_text!r}"
+    )

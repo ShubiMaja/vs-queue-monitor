@@ -151,15 +151,18 @@ _window_mode: str | None = None
 
 
 def _session_merge_rank(rec: dict[str, Any]) -> tuple:
-    """Witnessed-signal terminals beat inferred/live records; prefer most points then most recent."""
+    """completed always wins; all other outcomes compete by recency, then outcome rank."""
     outcome = rec.get("outcome") or ""
     pts = rec.get("points") or []
     end_ep = float(rec.get("end_epoch") or 0)
     server = 1 if rec.get("server") else 0
-    if outcome in OUTCOME_RANK and outcome != "in_progress":
-        return (1, OUTCOME_RANK[outcome], len(pts), end_ep, server)
-    # in_progress: most recent write is most authoritative.
-    return (0, end_ep, len(pts), server, 1 if outcome else 0)
+    if outcome == "completed":
+        # Highest tier: post-queue signal is authoritative regardless of recency.
+        return (2, OUTCOME_RANK.get(outcome, 0), len(pts), end_ep, server)
+    # All other outcomes (abandoned, interrupted, crashed, in_progress, …):
+    # the most recently written record (highest end_epoch) is most authoritative.
+    # Within the same end_epoch, prefer the stronger terminal outcome.
+    return (1, end_ep, OUTCOME_RANK.get(outcome, 0), len(pts), server)
 
 
 def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int, Optional[float]]:

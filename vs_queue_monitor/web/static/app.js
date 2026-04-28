@@ -1249,6 +1249,11 @@
   }
 
   function loadedSessionStatusInfo(points, running, interruptedMode) {
+    // Check interrupted before position-0: an interrupted session may have a completed graph
+    // (position-0) from the seeded old run, but the engine is still watching → show ↻.
+    if (running && interruptedMode) {
+      return { icon: "↻", label: "Interrupted" };
+    }
     if (points && points.length) {
       for (var i = 0; i < points.length; i++) {
         if (points[i][1] <= 0) {
@@ -1258,9 +1263,6 @@
     }
     if (!running) {
       return { icon: points && points.length ? "✕" : "?", label: points && points.length ? "Failed" : "Unknown" };
-    }
-    if (interruptedMode) {
-      return { icon: "↻", label: "Interrupted" };
     }
     return { icon: "⚡", label: "Active" };
   }
@@ -1557,11 +1559,12 @@
     }
     var hasLatestSession = latestStartEpoch !== null;
 
-    // Latest session number = its chronological rank among all sessions.
-    var allSessions = s.queue_sessions || [];
+    // Latest session number = its chronological rank among *visible* sessions only.
+    // Use the already-filtered `sessions` list so near-epoch entries from other installations
+    // (which sessionLooksLikeCurrentRun suppresses from the dropdown) don't inflate the count.
     var latestSessionNumber = 1;
-    for (var j = 0; j < allSessions.length; j++) {
-      if (latestStartEpoch !== null && Number(allSessions[j].start_epoch) < latestStartEpoch) {
+    for (var j = 0; j < sessions.length; j++) {
+      if (latestStartEpoch !== null && Number(sessions[j].start_epoch) < latestStartEpoch) {
         latestSessionNumber++;
       }
     }
