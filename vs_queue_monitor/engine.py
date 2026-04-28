@@ -670,6 +670,8 @@ class QueueMonitorEngine:
                         r_stored = dict(r)
                         r_stored["log_file"] = stored_log_file
                         fh.write(json.dumps(r_stored) + "\n")
+                max_bytes = int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES)
+                trim_jsonl_to_size(hist, max_bytes)
             self._invalidate_history_cache()
         except Exception:
             pass
@@ -924,6 +926,8 @@ class QueueMonitorEngine:
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
+            max_bytes = int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES)
+            trim_jsonl_to_size(path, max_bytes)
             self._session_record_written = True
             self._invalidate_history_cache()
         except Exception:

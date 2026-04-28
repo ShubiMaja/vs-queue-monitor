@@ -173,6 +173,8 @@ SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
 
 # Canonical outcome rank — higher = stronger/more authoritative evidence.
 # "completed" with an explicit point-0 endpoint gets rank 5 at call sites.
+DEFAULT_HISTORY_MAX_BYTES = 5 * 1024 * 1024  # 5 MB — trim oldest records when exceeded
+
 OUTCOME_RANK: dict[str, int] = {
     "completed":   4,  # post-queue signal witnessed
     "abandoned":   3,  # next session boundary witnessed in log
@@ -590,6 +592,24 @@ def play_default_failure_system_sound() -> bool:
             except Exception:
                 pass
     return False
+
+
+def trim_jsonl_to_size(path: Path, max_bytes: int) -> None:
+    """Trim a JSONL file to at most max_bytes by dropping the oldest records.
+
+    Reads the file, drops lines from the front until the remainder fits, then
+    rewrites in place.  No-ops when the file is already within the limit.
+    Sorted order (oldest-first) is preserved.
+    """
+    try:
+        if not path.exists() or path.stat().st_size <= max_bytes:
+            return
+        lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        while lines and sum(len(l) + 1 for l in lines) > max_bytes:
+            lines.pop(0)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
 
 
 def get_config_path() -> Path:
