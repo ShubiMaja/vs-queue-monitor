@@ -417,19 +417,11 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
         if active_session_epoch is None and _eng_fallback_epoch is not None:
             active_session_epoch = _eng_fallback_epoch
 
-        # Assign 1-based labels accounting for the loaded session's slot.
-        # The active session is never in all_sessions:
-        #   - when not _has_newer the ghost is suppressed (engine.running + same log/epoch)
-        #   - when _has_newer no JSONL record exists for the boundary-only attempt
-        # So always compute the label shift from active_session_epoch.
-        label_slot: Optional[int] = None
-        if active_session_epoch is not None:
-            label_slot = sum(
-                1 for _s in all_sessions
-                if float(_s.get("start_epoch", 0)) < float(active_session_epoch)
-            )
+        # Assign 1-based labels oldest→newest.  The loaded (active) session is never
+        # in all_sessions (ghost-suppressed or boundary-only), so it gets N+1 on the
+        # client side; completed sessions fill 1..N without a gap.
         for i, s in enumerate(all_sessions):
-            s["label"] = f"Session {i + 2}" if (label_slot is not None and i >= label_slot) else f"Session {i + 1}"
+            s["label"] = f"Session {i + 1}"
         return all_sessions, true_seed_id, active_session_epoch
     except Exception:
         return [], true_seed_id, None
