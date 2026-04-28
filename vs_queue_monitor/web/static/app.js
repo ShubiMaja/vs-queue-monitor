@@ -1376,7 +1376,8 @@
       if (points.length) startEpoch = points[0][0];
     }
     var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " " + startText + " (loaded)";
+    var numStr = sessionNumber != null ? String(sessionNumber) : "";
+    return latestStatus.icon + " Session " + numStr + " — " + startText + " (loaded)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1558,15 +1559,10 @@
       if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
     }
 
-    // Session number = count of past sessions that started before the loaded session + 1.
-    // In a merged cross-folder list the loaded session may not be the absolute newest.
-    var loadedSessionNumber = 1;
+    // Loaded session is always N+1 so it has the highest number regardless of when
+    // it started relative to cross-folder completed sessions.
     var allSessions = s.queue_sessions || [];
-    for (var j = 0; j < allSessions.length; j++) {
-      if (loadedStartEpoch !== null && Number(allSessions[j].start_epoch) < loadedStartEpoch) {
-        loadedSessionNumber++;
-      }
-    }
+    var loadedSessionNumber = allSessions.length + 1;
 
     // Build the "loaded" option — the most recent session from the active log tail.
     var opt0 = document.createElement("option");
