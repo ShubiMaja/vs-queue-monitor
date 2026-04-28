@@ -371,19 +371,28 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
             # are extremely rare and already handled by Pass A (session_id + epoch key).
             sig = (floor_se, lf)
             pts = rec.get("points") or []
+            end_ep = float(rec.get("end_epoch") or se)
+            outcome = rec.get("outcome")
+            # Ensure completed sessions always end with an explicit position-0 point,
+            # even for records written before position-0 tracking was added.
+            if outcome == "completed" and pts and int(pts[-1][1]) != 0:
+                t_last = float(pts[-1][0])
+                pts = list(pts) + [(max(end_ep, t_last + 1e-6), 0)]
+            elif outcome == "completed" and not pts:
+                pts = [(end_ep, 0)]
             candidate: dict[str, Any] = {
                 "key": f"t:{floor_se}",
                 "session_id": rec.get("session_id"),
                 "label": "",
                 "start_epoch": float(se),
-                "end_epoch": float(rec.get("end_epoch") or se),
+                "end_epoch": end_ep,
                 "start_pos": start_pos,
                 "end_pos": rec.get("end_position"),
                 "points": [[float(t), int(p)] for t, p in pts],
                 "server": rec.get("server"),
                 "source_path": rec.get("source_path"),
                 "log_file": rec.get("log_file"),
-                "outcome": rec.get("outcome"),
+                "outcome": outcome,
             }
             prev = hist_by_sig.get(sig)
             if prev is None or _session_merge_rank(candidate) > _session_merge_rank(prev):
