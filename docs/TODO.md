@@ -285,7 +285,7 @@ Done: each row in the recent-paths popover now shows an × button on the right t
 Done: "Full Rate" label renamed to "Session Rate" in info panel, graph overlay, and copy tooltip (v1.1.160)
 
 ~~tweak: add max file size for JSONL which is configurable via settings (use a sane default)~~
-Done: DEFAULT_HISTORY_MAX_BYTES = 5 MB; trim_jsonl_to_size() drops oldest records after every backfill and terminal write; configurable via history_max_bytes in config (v1.1.161)
+Done: DEFAULT_HISTORY_MAX_BYTES = 50 MB; trim_jsonl_to_size() drops oldest records after every backfill and terminal write; configurable via history_max_bytes in config (v1.1.161)
 
 tweak: update all tests, lessons learned docs, todo, tour, etc
 
