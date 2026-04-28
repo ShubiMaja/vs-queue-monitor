@@ -251,3 +251,74 @@ def test_history_session_id_collision_does_not_hide_unrelated_past_session(
     expect(opts.nth(0)).to_contain_text("(latest)", timeout=15000)
     expect(opts.nth(1)).to_contain_text("Session 2", timeout=15000)
     expect(opts.nth(2)).to_contain_text("Session 1", timeout=15000)
+
+
+def _dismiss_tour(page: Page, base_url: str) -> None:
+    """Dismiss the guided tour via the API (tutorial_done=true) and hide the overlay."""
+    page.context.request.post(
+        f"{base_url.rstrip('/')}/api/config",
+        data=json.dumps({"tutorial_done": True}),
+        headers={"Content-Type": "application/json"},
+    )
+    overlay = page.locator("#tourOverlay")
+    if overlay.is_visible():
+        skip = page.locator("#tourSkip")
+        if skip.is_visible():
+            skip.click()
+
+
+def _open_settings(page: Page, base_url: str) -> None:
+    """Dismiss any tour overlay, open the Settings modal, and wait for it to be visible."""
+    _dismiss_tour(page, base_url)
+    page.click("#btnSettings")
+    expect(page.locator("#modalSettings")).to_be_visible(timeout=5000)
+
+
+def test_history_max_bytes_default_shown_in_settings(page: Page, base_url: str) -> None:
+    """inpHistoryMaxMB shows 100 (the default 100 MB cap) when settings opens."""
+    _goto_fresh(page, base_url)
+    # Wait for the page to receive at least one state update so _lastState is populated.
+    _wait_for_state(page, base_url, lambda s: s.get("history_max_bytes") is not None)
+    _open_settings(page, base_url)
+    inp = page.locator("#inpHistoryMaxMB")
+    expect(inp).to_be_visible()
+    expect(inp).to_have_value("100")
+
+
+def test_history_max_bytes_change_saves_to_server(page: Page, base_url: str) -> None:
+    """Typing a new MB value in Settings posts the correct byte count to /api/config."""
+    _goto_fresh(page, base_url)
+    _wait_for_state(page, base_url, lambda s: s.get("history_max_bytes") is not None)
+    _open_settings(page, base_url)
+    inp = page.locator("#inpHistoryMaxMB")
+    inp.fill("50")
+    inp.dispatch_event("input")
+    # Debounce is 600 ms; wait for it to fire and the server to process the POST.
+    _wait_for_state(
+        page,
+        base_url,
+        lambda s: s.get("history_max_bytes") == 50 * 1024 * 1024,
+        timeout_sec=5.0,
+    )
+    # Verify settings modal re-opens with the saved value after a fresh page load.
+    _goto_fresh(page, base_url)
+    _wait_for_state(page, base_url, lambda s: s.get("history_max_bytes") == 50 * 1024 * 1024)
+    _open_settings(page, base_url)
+    expect(page.locator("#inpHistoryMaxMB")).to_have_value("50")
+
+
+def test_history_max_bytes_invalid_values_not_saved(page: Page, base_url: str) -> None:
+    """Values < 1 MB are silently ignored; the server value is unchanged."""
+    _goto_fresh(page, base_url)
+    state_before = _wait_for_state(page, base_url, lambda s: s.get("history_max_bytes") is not None)
+    bytes_before = state_before["history_max_bytes"]
+    _open_settings(page, base_url)
+    inp = page.locator("#inpHistoryMaxMB")
+    inp.fill("0")
+    inp.dispatch_event("input")
+    # Wait long enough for a debounce + round-trip if one were to fire.
+    page.wait_for_timeout(1200)
+    state_after = _wait_for_state(page, base_url, lambda s: True)
+    assert state_after["history_max_bytes"] == bytes_before, (
+        f"Expected bytes unchanged ({bytes_before}), got {state_after['history_max_bytes']}"
+    )
