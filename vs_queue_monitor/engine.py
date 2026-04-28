@@ -623,7 +623,16 @@ class QueueMonitorEngine:
             with QueueMonitorEngine._backfill_lock:
                 # Track the best outcome rank seen per key so backfill can upgrade
                 # discovery records (e.g. "interrupted") to terminal records ("completed").
-                _BFRANK = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0, "in_progress": -1}
+                # "completed with point-0" (rank 5) beats "completed without point-0" (rank 4)
+                # so that old records written before position-0 tracking was added get upgraded.
+                def _bfrank(rec: dict) -> int:
+                    base = {"completed": 4, "unknown": 3, "interrupted": 2, "abandoned": 1, "crashed": 0, "in_progress": -1}
+                    rnk = base.get(rec.get("outcome") or "", -1)
+                    if rnk == 4:  # completed
+                        pts = rec.get("points") or []
+                        if pts and int(pts[-1][1]) == 0:
+                            rnk = 5  # completed + has point-0
+                    return rnk
                 existing_sid: dict[tuple[str, int, int], int] = {}  # key → best rank
                 existing_sig: dict[tuple[str, int, Any], int] = {}
                 try:
@@ -638,7 +647,7 @@ class QueueMonitorEngine:
                                 sid = rec.get("session_id")
                                 se = rec.get("start_epoch")
                                 sp = rec.get("start_position")
-                                rnk = _BFRANK.get(rec.get("outcome") or "", -1)
+                                rnk = _bfrank(rec)
                                 if lf and sid is not None and se is not None:
                                     k = (lf, int(sid), int(se))
                                     existing_sid[k] = max(existing_sid.get(k, -2), rnk)
@@ -651,8 +660,8 @@ class QueueMonitorEngine:
                     pass
                 to_write = [
                     r for r in records
-                    if _BFRANK.get(r.get("outcome") or "", -1) > existing_sid.get((norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)), -2)
-                    and _BFRANK.get(r.get("outcome") or "", -1) > existing_sig.get((norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")), -2)
+                    if _bfrank(r) > existing_sid.get((norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)), -2)
+                    and _bfrank(r) > existing_sig.get((norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")), -2)
                 ]
                 if not to_write:
                     return
@@ -1431,6 +1440,9 @@ class QueueMonitorEngine:
                             self._last_queue_run_session = queue_sess
                             if position == 0:
                                 self._set_status_line('Completed')
+                                # Anchor the graph at position 0 using the log-backed timestamp
+                                # so the stored record always ends with an explicit (t, 0) point.
+                                self.append_graph_point(0, last_queue_line_epoch)
                                 self._write_session_record("completed")
                             elif position is not None and position <= 1:
                                 self._set_status_line('At front')
@@ -1446,11 +1458,6 @@ class QueueMonitorEngine:
                                 # Wall-clock samples every poll so the chart shows heartbeat / flat
                                 # segments, not only log-line times, while the queue is still live.
                                 self.append_graph_point(position, None)
-                            else:
-                                # Lock in completed state without adding a heartbeat sample.
-                                # Without this, last_position stays at the pre-completion value and
-                                # "Queue changed: N → 0" fires again on every subsequent poll.
-                                self.last_position = 0
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._checkpoint_session()
