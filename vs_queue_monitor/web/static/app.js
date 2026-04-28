@@ -1581,14 +1581,12 @@
 
     // Render sessions newest-first; insert opt0 just before the first past session
     // whose start is earlier than the loaded session's start.
+    // Loaded session always goes first — it is the current session regardless of
+    // when it started relative to completed cross-folder sessions.
+    sel.appendChild(opt0);
+
     var i;
-    var opt0Inserted = false;
     for (i = sessions.length - 1; i >= 0; i--) {
-      var sessStartEpoch = Number(sessions[i].start_epoch);
-      if (!opt0Inserted && (loadedStartEpoch === null || sessStartEpoch < loadedStartEpoch)) {
-        sel.appendChild(opt0);
-        opt0Inserted = true;
-      }
       var o = document.createElement("option");
       var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false, sessions[i].outcome);
       o.value = sessions[i].key;
@@ -1606,9 +1604,6 @@
       if (sessions[i].outcome) tipLines.push("Outcome: " + sessions[i].outcome);
       o.title = tipLines.join("\n");
       sel.appendChild(o);
-    }
-    if (!opt0Inserted) {
-      sel.appendChild(opt0);
     }
 
     if (!_sessionDropdownInited) {
