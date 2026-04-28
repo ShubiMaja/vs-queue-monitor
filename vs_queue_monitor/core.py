@@ -597,17 +597,22 @@ def play_default_failure_system_sound() -> bool:
 def trim_jsonl_to_size(path: Path, max_bytes: int) -> None:
     """Trim a JSONL file to at most max_bytes by dropping the oldest records.
 
-    Reads the file, drops lines from the front until the remainder fits, then
-    rewrites in place.  No-ops when the file is already within the limit.
-    Sorted order (oldest-first) is preserved.
+    One O(n) pass finds the cutoff index; only rewrites when the file actually
+    exceeds the limit.  No-ops on a stat() check before reading anything.
     """
     try:
         if not path.exists() or path.stat().st_size <= max_bytes:
             return
         lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
-        while lines and sum(len(l) + 1 for l in lines) > max_bytes:
-            lines.pop(0)
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        sizes = [len(l) + 1 for l in lines]  # +1 for newline
+        total = sum(sizes)
+        if total <= max_bytes:
+            return
+        drop = 0
+        while drop < len(sizes) and total > max_bytes:
+            total -= sizes[drop]
+            drop += 1
+        path.write_text("\n".join(lines[drop:]) + "\n", encoding="utf-8")
     except Exception:
         pass
 
