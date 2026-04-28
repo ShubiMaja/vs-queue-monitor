@@ -30,6 +30,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
+    OUTCOME_RANK,
     SEED_LOG_TAIL_BYTES,
     expand_path,
     get_config_path,
@@ -154,16 +155,8 @@ def _session_merge_rank(rec: dict[str, Any]) -> tuple:
     pts = rec.get("points") or []
     end_ep = float(rec.get("end_epoch") or 0)
     server = 1 if rec.get("server") else 0
-    # Rank by strength of the underlying signal, highest first:
-    #   completed=4  — post-queue signal witnessed
-    #   abandoned=3  — session boundary witnessed
-    #   interrupted=3 — stale detection witnessed
-    #   crashed=2    — checkpoint recovery (monitor process death witnessed)
-    #   unknown=1    — no terminal signal
-    #   in_progress  — live/transient, recency wins
-    terminal_rank = {"completed": 4, "abandoned": 3, "interrupted": 3, "crashed": 2, "unknown": 1}
-    if outcome in terminal_rank:
-        return (1, terminal_rank[outcome], len(pts), end_ep, server)
+    if outcome in OUTCOME_RANK and outcome != "in_progress":
+        return (1, OUTCOME_RANK[outcome], len(pts), end_ep, server)
     # in_progress: most recent write is most authoritative.
     return (0, end_ep, len(pts), server, 1 if outcome else 0)
 

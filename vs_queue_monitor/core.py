@@ -170,6 +170,17 @@ SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
 DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
+
+# Canonical outcome rank — higher = stronger/more authoritative evidence.
+# "completed" with an explicit point-0 endpoint gets rank 5 at call sites.
+OUTCOME_RANK: dict[str, int] = {
+    "completed":   4,  # post-queue signal witnessed
+    "abandoned":   3,  # next session boundary witnessed in log
+    "interrupted": 3,  # queue lines went stale (no heartbeat)
+    "crashed":     2,  # checkpoint left by dead monitor process
+    "unknown":     1,  # no terminal signal observed
+    "in_progress": -1, # live/transient — recency wins
+}
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
 # do not treat that alone as a new queue run (which would clear thresholds and re-alert all).

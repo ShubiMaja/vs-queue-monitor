@@ -1187,7 +1187,7 @@
       "Pos Change: " + t("infoStatCleared") + "\n" +
       "Duration: "   + t("infoStatSpan")    + "\n" +
       avgLbl + ": "  + t("infoStatAvg")     + "\n" +
-      "Full Rate: "  + t("infoStatGlo")     + "\n" +
+      "Session Rate: " + t("infoStatGlo")     + "\n" +
       "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
       function () { toast("Stats copied"); },
