@@ -1493,7 +1493,13 @@ def extract_all_session_records_from_log(
                 change_pts.append((t0, 0))
         elif _is_active_max_sess:
             outcome = "in_progress"
+        elif sess_id < max_sess:
+            # A later session boundary exists in this log — strong signal that VS
+            # started a new queue run, so this session ended without completion.
+            outcome = "abandoned"
         else:
+            # Last session in the log with no completion signal and no following
+            # session boundary — outcome genuinely unknown.
             outcome = "unknown"
 
         records.append({
