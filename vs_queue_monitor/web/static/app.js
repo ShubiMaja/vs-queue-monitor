@@ -1770,6 +1770,8 @@
     if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
     var ihp = $("inpHistoryPath");
     if (ihp) ihp.value = (s && (s.history_path || s.history_path_resolved)) || "";
+    var ihmb = $("inpHistoryMaxMB");
+    if (ihmb && s && s.history_max_bytes) ihmb.value = Math.round(s.history_max_bytes / (1024 * 1024));
   }
 
   function activateSettingsTab(tabName) {
@@ -4522,6 +4524,17 @@
     wireSettingInp("inpSetCompSound", "completion_sound_path");
     wireSettingInp("inpSetFailSound", "failure_sound_path");
     wireSettingInp("inpHistoryPath", "history_path");
+    (function () {
+      var el = $("inpHistoryMaxMB");
+      if (!el) return;
+      el.addEventListener("input", settingDebounce(function () {
+        var mb = parseFloat(el.value);
+        if (!isFinite(mb) || mb < 1) return;
+        postConfig({ history_max_bytes: Math.round(mb * 1024 * 1024) })
+          .then(applySettingsSave)
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      }));
+    })();
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {

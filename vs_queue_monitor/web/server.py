@@ -30,6 +30,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
+    DEFAULT_HISTORY_MAX_BYTES,
     OUTCOME_RANK,
     SEED_LOG_TAIL_BYTES,
     expand_path,
@@ -833,6 +834,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "history_path": engine.history_path_var.get(),
         "history_path_resolved": _mask_path_in_text(str(engine._effective_history_path().parent)),
+        "history_max_bytes": int(engine.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": [_mask_path_in_text(line) for line in hooks.history_lines(400)],
         "pending_new_queue_session": engine._pending_new_queue_session,
@@ -1042,6 +1044,10 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
             if "history_path" in body:
                 engine.history_path_var.set(str(body["history_path"]).strip())
+            if "history_max_bytes" in body:
+                v = int(body["history_max_bytes"])
+                if v > 0:
+                    engine.config["history_max_bytes"] = v
             engine.persist_config()
             # Match native folder browse: re-resolve the log and seed the graph so ``current_log_file``
             # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).

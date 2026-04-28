@@ -135,7 +135,7 @@ def test_active_session_zero_not_listed_as_failed_history() -> None:
     engine, _hooks = _engine_for_log_dir(log_dir)
     engine._last_queue_run_session = 0
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
 
 
@@ -162,7 +162,7 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
     engine.current_point = (1775763085.0, 10)
     engine.graph_points = [(1775763055.0, 12), (1775763085.0, 10)]
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
 
 
@@ -236,7 +236,7 @@ def test_queue_sessions_merge_cross_file_history_and_dedup_live_start_epoch() ->
         encoding="utf-8",
     )
 
-    sessions, active_id = _queue_sessions_for_engine(engine)
+    sessions, active_id, _active_epoch = _queue_sessions_for_engine(engine)
 
     assert active_id >= 0
     assert len(sessions) == 2, sessions
@@ -297,7 +297,7 @@ def test_queue_sessions_dedup_duplicate_history_records() -> None:
     }
     hist_path.write_text(json.dumps(dup_a) + "\n" + json.dumps(dup_b) + "\n", encoding="utf-8")
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
 
     gamma_sessions = [s for s in sessions if s.get("server") == "gamma.example.net"]
     assert len(gamma_sessions) == 1, gamma_sessions

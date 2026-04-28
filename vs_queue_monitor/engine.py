@@ -165,6 +165,7 @@ class QueueMonitorEngine:
         _hp = self.config.get("history_path", "")
         self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
         self._history_sessions_cache: Optional[tuple[str, float, list[dict]]] = None
+        self._session_history_path: Optional[Path] = None  # history path locked in at session start
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
@@ -197,7 +198,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'history_max_bytes': int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -277,6 +278,7 @@ class QueueMonitorEngine:
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
         self._pending_new_queue_session = None
+        self._session_history_path = None
         self.graph_points.clear()
         self.current_point = None
         self._alert_thresholds_fired.clear()
@@ -488,8 +490,10 @@ class QueueMonitorEngine:
         # Write an immediate in_progress record for active seeded sessions so cross-folder
         # views can see them before the 30 s throttle fires.  Interrupted sessions are
         # already handled by _write_seeded_session_discovery inside _adopt_interrupted_tail_on_start.
+        # Lock in the history path now so folder-switch writes stay in the correct file.
+        self._session_history_path = self._effective_history_path()
         if not self._interrupted_mode and self._last_queue_run_session >= 0 and self.graph_points:
-            self._write_session_progress(force=True)
+            self._write_session_progress(force=True, _path_override=self._session_history_path)
         threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
         threading.Thread(target=self._backfill_other_known_log_files, daemon=True).start()
         self.start_timer()
@@ -602,7 +606,7 @@ class QueueMonitorEngine:
     def _normalize_log_path_for_dedup(p: str) -> str:
         return normalize_log_path_for_dedup(p)
 
-    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None, include_active: bool = False) -> None:
+    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None, include_active: bool = False, _hist_path_override: Optional[Path] = None) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
         try:
             source_path = _source_path_override if _source_path_override is not None else str(self.config.get("source_path", "") or "")
@@ -614,7 +618,7 @@ class QueueMonitorEngine:
             )
             if not records:
                 return
-            hist = self._effective_history_path()
+            hist = _hist_path_override if _hist_path_override is not None else self._effective_history_path()
             norm_log_file = self._normalize_log_path_for_dedup(str(log_file))
             stored_log_file = normalize_log_path_for_storage(str(log_file))
             # Serialize the read-check-write block so concurrent backfill threads
@@ -959,7 +963,7 @@ class QueueMonitorEngine:
 
     _PROGRESS_WRITE_INTERVAL = 30.0  # seconds between in-progress JSONL writes
 
-    def _write_session_progress(self, *, force: bool = False) -> None:
+    def _write_session_progress(self, *, force: bool = False, _path_override: Optional[Path] = None) -> None:
         """Append an in-progress snapshot to JSONL so other folder views see live progress.
 
         Throttled to at most once per _PROGRESS_WRITE_INTERVAL seconds.  Pass force=True
@@ -976,7 +980,7 @@ class QueueMonitorEngine:
             return
         try:
             record = self._build_session_record("in_progress")
-            path = self._effective_history_path()
+            path = _path_override if _path_override is not None else self._effective_history_path()
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
@@ -1115,7 +1119,9 @@ class QueueMonitorEngine:
         # The backfill below still captures completed outcomes from the full log scan.
         if self._last_queue_run_session >= 0 and self.graph_points and not self._interrupted_mode:
             if folder_switch:
-                self._write_session_progress(force=True)
+                # Use the path locked in at session start so a simultaneous history_path
+                # config change doesn't redirect the record to the new folder.
+                self._write_session_progress(force=True, _path_override=self._session_history_path)
             else:
                 # Monitor stopped by user — we stopped watching, not a witnessed VS event.
                 self._write_session_record("unknown")
@@ -1125,8 +1131,11 @@ class QueueMonitorEngine:
         # never individually written (e.g. the app was opened after they completed).
         if self.current_log_file is not None and self.current_log_file.is_file():
             _log_to_backfill = self.current_log_file
+            # Use the session-locked path so a concurrent history_path config change
+            # doesn't redirect the backfill into the new folder's JSONL.
+            _hist_for_backfill = self._session_history_path or self._effective_history_path()
             threading.Thread(
-                target=lambda: self._backfill_sessions_from_log(_log_to_backfill),
+                target=lambda: self._backfill_sessions_from_log(_log_to_backfill, _hist_path_override=_hist_for_backfill),
                 daemon=True,
             ).start()
         self._interrupted_mode = False
@@ -1445,7 +1454,9 @@ class QueueMonitorEngine:
                                 self._set_status_line('Completed')
                                 # Anchor the graph at position 0 using the log-backed timestamp
                                 # so the stored record always ends with an explicit (t, 0) point.
-                                self.append_graph_point(0, last_queue_line_epoch)
+                                # Skip if already anchored (e.g. after seeding a completed session).
+                                if not self.graph_points or int(self.graph_points[-1][1]) != 0:
+                                    self.append_graph_point(0, last_queue_line_epoch)
                                 self._write_session_record("completed")
                             elif position is not None and position <= 1:
                                 self._set_status_line('At front')
