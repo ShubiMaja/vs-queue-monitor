@@ -1380,7 +1380,7 @@
     }
     var startText = formatSessionStart(startEpoch);
     var numStr = sessionNumber != null ? String(sessionNumber) : "";
-    return latestStatus.icon + " Session " + numStr + " — " + startText + " (latest)";
+    return latestStatus.icon + " Session " + numStr + " — " + startText + " (last read)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1580,7 +1580,7 @@
         !!s.interrupted_mode
       );
       opt0.title = [
-        latestStatus.label + " — latest session from the monitored file.",
+        latestStatus.label + " — last read session from the monitored file.",
         "Start: " + formatSessionStart(latestStartEpoch),
       ].join("\n");
       opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, latestSessionNumber);
@@ -1645,7 +1645,7 @@
     } catch (e) {}
     sel.title =
       sessions.length > 0
-        ? "Plot a past queue run; KPIs above stay live on the latest session."
+        ? "Plot a past queue run; KPIs above stay live on the last read session."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
     updateSessionBadge();
   }
@@ -1809,7 +1809,7 @@
       btnLive.disabled = false;
       btnLive.setAttribute("aria-disabled", "false");
       btnLive.title = !onLoadedSession
-        ? "Go to latest session"
+        ? "Go to last read session"
         : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
@@ -1821,7 +1821,7 @@
       btnWarn.disabled = !warnAvailable;
       btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
       btnWarn.title = !warnAvailable
-        ? "Warning dots are only available on the latest session"
+        ? "Warning dots are only available on the last read session"
         : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
@@ -2346,7 +2346,7 @@
       {
         title: "Chart & alerts",
         html:
-          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the latest session. The live button returns you to the latest session from any past run.</p>" +
+          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the last read session. The live button returns you to the last read session from any past run.</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — use the <strong>play button</strong> in the header when the path is set.</p>",
