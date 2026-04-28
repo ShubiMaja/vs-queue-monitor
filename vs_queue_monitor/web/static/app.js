@@ -1307,10 +1307,16 @@
         if (_ipts.length) loadedEpoch = Number(_ipts[0][0]);
       }
       var sessStartEp = Number(sess.start_epoch);
-      return loadedEpoch !== null
+      var epochClose = loadedEpoch !== null
         && Number.isFinite(sessStartEp)
         && Number.isFinite(loadedEpoch)
         && Math.abs(sessStartEp - loadedEpoch) <= 2;
+      if (!epochClose) return false;
+      // Only suppress sessions from the same source — don't hide records from other installations
+      var curSrc = (state.source_path_display || state.source_path || "").trim().toLowerCase();
+      var sesSrc = (sess.source_path || "").trim().toLowerCase();
+      if (curSrc && sesSrc && curSrc !== sesSrc) return false;
+      return true;
     }
     var currentPos = null;
     var pts = state.graph_points || [];
