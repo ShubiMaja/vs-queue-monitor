@@ -1377,7 +1377,7 @@
     }
     var startText = formatSessionStart(startEpoch);
     var numStr = sessionNumber != null ? String(sessionNumber) : "";
-    return latestStatus.icon + " Session " + numStr + " — " + startText + " (loaded)";
+    return latestStatus.icon + " Session " + numStr + " — " + startText + " (latest)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1545,45 +1545,39 @@
     });
     sel.innerHTML = "";
 
-    // Determine the loaded session start time so it can be inserted at its
-    // natural chronological position in the merged list and labelled correctly.
-    // Prefer the server-supplied active_queue_session_epoch (which reflects the
-    // true latest session even when it has no graph points, e.g. a failed connect
-    // attempt that never reached the queue).  Fall back to graph_points[0] so
-    // existing behaviour is preserved for normal running sessions.
-    var loadedStartEpoch = null;
+    // Determine whether there is a latest session in the monitored file.
+    // Prefer the server-supplied active_queue_session_epoch; fall back to graph_points[0].
+    var latestStartEpoch = null;
     if (s.active_queue_session_epoch != null) {
-      loadedStartEpoch = Number(s.active_queue_session_epoch);
+      latestStartEpoch = Number(s.active_queue_session_epoch);
     } else {
-      var loadedPts = s.graph_points || [];
-      if (loadedPts.length) loadedStartEpoch = Number(loadedPts[0][0]);
+      var latestPts = s.graph_points || [];
+      if (latestPts.length) latestStartEpoch = Number(latestPts[0][0]);
     }
+    var hasLatestSession = latestStartEpoch !== null;
 
-    // Loaded session is always N+1 so it has the highest number regardless of when
-    // it started relative to cross-folder completed sessions.
+    // Latest session gets number N+1 (always highest); completed sessions are 1..N.
     var allSessions = s.queue_sessions || [];
-    var loadedSessionNumber = allSessions.length + 1;
+    var latestSessionNumber = allSessions.length + 1;
 
-    // Build the "loaded" option — the most recent session from the active log tail.
-    var opt0 = document.createElement("option");
-    opt0.value = "latest";
-    opt0.style.fontWeight = "bold";
-    var latestStatus = loadedSessionStatusInfo(
-      s.graph_points || [],
-      !!s.running,
-      !!s.interrupted_mode
-    );
-    opt0.title = [
-      latestStatus.label + " — loaded session for the folder currently being monitored.",
-      "Start: " + formatSessionStart(loadedStartEpoch),
-    ].join("\n");
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, loadedSessionNumber);
-
-    // Render sessions newest-first; insert opt0 just before the first past session
-    // whose start is earlier than the loaded session's start.
-    // Loaded session always goes first — it is the current session regardless of
-    // when it started relative to completed cross-folder sessions.
-    sel.appendChild(opt0);
+    // Build the "latest" option only when the monitored file has a detectable session.
+    if (hasLatestSession) {
+      var opt0 = document.createElement("option");
+      opt0.value = "latest";
+      opt0.style.fontWeight = "bold";
+      var latestStatus = loadedSessionStatusInfo(
+        s.graph_points || [],
+        !!s.running,
+        !!s.interrupted_mode
+      );
+      opt0.title = [
+        latestStatus.label + " — latest session from the monitored file.",
+        "Start: " + formatSessionStart(latestStartEpoch),
+      ].join("\n");
+      opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, latestSessionNumber);
+      // Latest session always goes first — it is the current session.
+      sel.appendChild(opt0);
+    }
 
     var i;
     for (i = sessions.length - 1; i >= 0; i--) {
@@ -1609,7 +1603,7 @@
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
     }
-    var valid = selectedSessionKey === "latest";
+    var valid = hasLatestSession && selectedSessionKey === "latest";
     if (!valid) {
       for (i = 0; i < sessions.length; i++) {
         if (sessions[i].key === selectedSessionKey) {
@@ -1619,19 +1613,22 @@
       }
     }
     if (!valid) {
-      selectedSessionKey = "latest";
+      // Fall back to latest if available, otherwise the most recent completed session.
+      selectedSessionKey = hasLatestSession ? "latest"
+        : (sessions.length ? sessions[sessions.length - 1].key : "latest");
     }
     sel.value = selectedSessionKey;
     if (sel.value !== selectedSessionKey) {
-      sel.value = "latest";
-      selectedSessionKey = "latest";
+      selectedSessionKey = hasLatestSession ? "latest"
+        : (sessions.length ? sessions[sessions.length - 1].key : "");
+      sel.value = selectedSessionKey;
     }
     try {
       lsSetSession(selectedSessionKey);
     } catch (e) {}
     sel.title =
       sessions.length > 0
-        ? "Plot a past queue run; KPIs above stay live on the loaded session."
+        ? "Plot a past queue run; KPIs above stay live on the latest session."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
     updateSessionBadge();
   }
@@ -1793,7 +1790,7 @@
       btnLive.disabled = false;
       btnLive.setAttribute("aria-disabled", "false");
       btnLive.title = !onLoadedSession
-        ? "Go to loaded session"
+        ? "Go to latest session"
         : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
@@ -1805,7 +1802,7 @@
       btnWarn.disabled = !warnAvailable;
       btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
       btnWarn.title = !warnAvailable
-        ? "Warning dots are only available on the loaded session"
+        ? "Warning dots are only available on the latest session"
         : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
@@ -2330,7 +2327,7 @@
       {
         title: "Chart & alerts",
         html:
-          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the loaded session. The live button returns you to the loaded session from any past run.</p>" +
+          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the latest session. The live button returns you to the latest session from any past run.</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — use the <strong>play button</strong> in the header when the path is set.</p>",
@@ -4295,7 +4292,7 @@
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
-        // When viewing a past session, the live button returns to the loaded session.
+        // When viewing a past session, the live button returns to the latest session.
         if (selectedSessionKey !== "latest") {
           selectLatestSession();
           if (window._lastState) {
