@@ -1116,7 +1116,8 @@ class QueueMonitorEngine:
             if folder_switch:
                 self._write_session_progress(force=True)
             else:
-                self._write_session_record("abandoned")
+                # Monitor stopped by user — we stopped watching, not a witnessed VS event.
+                self._write_session_record("unknown")
         # Backfill the log being stopped so completed sessions are captured in the
         # global JSONL before we switch to a different folder.  This ensures
         # cross-folder history survives a folder switch even if the sessions were
@@ -1416,9 +1417,10 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                         if not self._interrupted_mode:
                             if self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session:
-                                # Old session ended without clean detection (log blanked / VS restarted).
+                                # Strong signal: a new session boundary appeared in the log — VS started
+                                # a fresh queue run, so the previous session ended without completion.
                                 if not self._session_record_written and self.graph_points:
-                                    self._write_session_record("unknown")
+                                    self._write_session_record("abandoned")
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
                                 self._connect_phase_started_epoch = None
