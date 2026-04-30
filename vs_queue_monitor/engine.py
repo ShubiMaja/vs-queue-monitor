@@ -1021,9 +1021,17 @@ class QueueMonitorEngine:
             # and old boundary lines scrolled out of the tail window.  If the most recent
             # queue line is provably newer than the epoch we entered interrupted state, it is
             # a new run regardless of the apparent session count.
-            if (last_queue_line_epoch is None or entry_epoch is None
-                    or last_queue_line_epoch <= entry_epoch):
-                return
+            #
+            # entry_epoch is None when the "Connecting…" branch cleared _last_queue_line_epoch
+            # before the hard disconnect fired (e.g. VS wrote "Connecting to…" then "Destroying
+            # game session" across two poll cycles).  In that case we cannot compare epochs, so
+            # we must NOT treat None as proof the queue line is old — that would silently drop
+            # every new session whose boundary count is at or below baseline (common when VS
+            # creates a fresh log file and the new file starts at session 1).
+            if last_queue_line_epoch is None:
+                return  # no epoch from new tail → cannot confirm it is a new run
+            if entry_epoch is not None and last_queue_line_epoch <= entry_epoch:
+                return  # epoch confirms this is the same or an older session
         if effective_sess == self._dismissed_new_queue_session:
             return
         if self._pending_new_queue_session == effective_sess:
