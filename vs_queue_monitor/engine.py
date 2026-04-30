@@ -522,10 +522,13 @@ class QueueMonitorEngine:
         kind, _tail_pos = classify_tail_connection_state(t)
         pos, _queue_sess = parse_tail_last_queue_reading(t)
         left = tail_has_post_queue_after_last_queue_line(t)
-        should_interrupt = (
+        # A completed session has post-queue signals after the last queue line AND the last
+        # queue position was <= 1. In that case do NOT enter interrupted mode — the session
+        # finished and any subsequent reconnect/disconnect is not an interruption of the queue.
+        completed_tail = left and (pos is not None and pos <= 1)
+        should_interrupt = not completed_tail and (
             kind == 'disconnected'
-            or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1))
-            or (kind in ('reconnecting', 'grace') and left and (pos is not None and pos <= 1))
+            or kind in ('reconnecting', 'grace')
         )
         if should_interrupt:
             self._interrupted_mode = True
@@ -545,6 +548,12 @@ class QueueMonitorEngine:
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
             self._write_seeded_session_discovery()
+        elif completed_tail:
+            # Startup found a completed session (queue reached position 0). Mark the
+            # record as already written so the live path does not overwrite with
+            # "abandoned" when a subsequent new queue run is detected in the log.
+            # The startup backfill thread handles writing the "completed" JSONL record.
+            self._session_record_written = True
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -1334,7 +1343,13 @@ class QueueMonitorEngine:
                     if self._interrupted_mode:
                         self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind, left)
                     elif kind == 'disconnected':
-                        self.enter_interrupted_state('Connection lost (final teardown).')
+                        if self._left_connect_queue_detected:
+                            # Queue already completed before VS disconnected — preserve
+                            # Completed status. Entering interrupted mode here would hide
+                            # the completed JSONL record via ghost suppression.
+                            self._set_status_line('Completed')
+                        else:
+                            self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
@@ -1346,7 +1361,10 @@ class QueueMonitorEngine:
                         self._set_position_display(None)
                         self.last_position = None
                     elif self._left_connect_queue_detected and kind in ('reconnecting', 'grace'):
-                        self.enter_interrupted_state('Connection lost after queue completion.')
+                        # Queue already completed (position reached 0, completed record
+                        # written) — VS reconnecting is not an interruption. Keep Completed
+                        # status so the JSONL completed record stays visible in history.
+                        self._set_status_line('Completed')
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
