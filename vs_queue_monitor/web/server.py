@@ -1438,6 +1438,7 @@ def _start_update_checker(app: Any) -> None:
                 app.state.update_available = bool(result.get("available"))
                 app.state.update_release_name = result.get("release_name", "")
                 app.state.update_zipball_url = result.get("zipball_url", "")
+                app.state.update_release_html_url = result.get("html_url", "")
             except Exception:
                 logging.getLogger(__name__).debug("update check failed", exc_info=True)
             time.sleep(1800)
