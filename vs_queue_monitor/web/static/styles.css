@@ -1373,6 +1373,14 @@ select.inp:focus-visible {
   max-width: min(480px, calc(100vw - 16px));
   padding: 4px 0;
 }
+.popover--path {
+  min-width: 300px;
+  max-width: min(520px, calc(100vw - 16px));
+}
+.popover--path__inp {
+  width: 100%;
+  box-sizing: border-box;
+}
 .pop-recent-paths__list {
   list-style: none;
   margin: 0;

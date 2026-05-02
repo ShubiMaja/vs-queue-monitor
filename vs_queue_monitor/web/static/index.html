@@ -129,6 +129,15 @@
             </button>
           </div>
           <div id="popRecentPaths" class="popover popover--recent-paths hidden" role="listbox" aria-label="Recently used paths"></div>
+          <div id="popPath" class="popover popover--path hidden" role="dialog" aria-modal="false" aria-labelledby="popPathLabel">
+            <label id="popPathLabel">Log source path</label>
+            <input type="text" id="inpPathPop" class="inp popover--path__inp" autocomplete="off" spellcheck="false" placeholder="Paste folder or .log file path…" />
+            <p class="popover__hint">Paste your <strong>VintagestoryData</strong> folder or a full <code>.log</code> path. Or use the <strong>folder / file</strong> icons to browse.</p>
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--small" id="btnPathPopOk">Save</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnPathPopCancel">Cancel</button>
+            </div>
+          </div>
           <p id="pathHint" class="path-hint hidden" aria-live="polite">← Set your VS log folder, then press <strong>Start</strong></p>
         </div>
       </div>
