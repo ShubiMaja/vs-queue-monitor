@@ -1392,7 +1392,20 @@ class QueueMonitorEngine:
                         self._position_one_reached_at = None
                         self._connect_phase_started_epoch = None
                         if log_silent or kind == 'grace':
-                            self._set_status_line('Reconnecting…')
+                            silence_sec = now - self._last_log_growth_epoch if self._last_log_growth_epoch else 0.0
+                            if silence_sec >= LOG_SILENCE_INTERRUPT_SEC:
+                                # Log has been silent long enough that VS is not coming back.
+                                # Trim the live session's graph to the last real data point so
+                                # the dwell period does not distort rate metrics, then interrupt.
+                                if self.graph_points and self.current_point is not None:
+                                    silence_start = now - silence_sec
+                                    # Keep all points before silence started; drop the dwell.
+                                    self.graph_points = [p for p in self.graph_points if p[0] <= silence_start]
+                                    if not self.graph_points:
+                                        self.graph_points = [list(self.current_point)]
+                                self.enter_interrupted_state(f'No log activity for {silence_sec:.0f}s — VS disconnected.')
+                            else:
+                                self._set_status_line('Reconnecting…')
                         else:
                             self._set_status_line('Connecting…')
                         self._set_position_display(None)
