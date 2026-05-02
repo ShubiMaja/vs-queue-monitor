@@ -528,6 +528,12 @@ body {
   font-style: italic;
   font-size: 0.85rem;
 }
+.path-hint {
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin: 5px 0 0;
+  padding: 0;
+}
 .path-summary::after {
   content: '✎';
   font-size: 0.7rem;
@@ -876,6 +882,17 @@ select.inp:focus-visible {
 }
 .warn-off {
   color: var(--warn-pass);
+}
+.warn-on[data-threshold],
+.warn-off[data-threshold] {
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 1px 2px;
+  transition: background 0.1s;
+}
+.warn-on[data-threshold]:hover,
+.warn-off[data-threshold]:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Fixed + JS placement: KPI strip uses overflow-x:auto which clips absolute popovers. */
@@ -1319,14 +1336,13 @@ select.inp:focus-visible {
   justify-content: center;
 }
 .btn-start-stop {
-  min-width: 36px;
-  padding-left: 0;
-  padding-right: 0;
+  gap: 6px;
 }
 .btn-start-stop__glyph {
   display: none;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   line-height: 0;
 }
 .btn-start-stop__glyph .icon {
@@ -1703,15 +1719,25 @@ select.inp:focus-visible {
 .about-link:hover {
   color: var(--text);
 }
+@keyframes update-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(87, 148, 242, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(87, 148, 242, 0.28); }
+}
 .update-badge {
   color: var(--accent);
-  border-color: transparent;
-  padding: 5px;
+  border-color: var(--accent);
+  background: rgba(87, 148, 242, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.update-badge:not(.update-badge--seen) {
+  animation: update-pulse 2s ease-in-out infinite;
 }
 .update-badge:hover,
 .update-badge:focus {
+  background: rgba(87, 148, 242, 0.15);
   border-color: var(--accent);
-  background: transparent;
 }
 .modal__text {
   line-height: 1.45;
