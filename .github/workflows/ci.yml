@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Install Playwright browsers
+        run: playwright install chromium
+
+      - name: Check version constants agree
+        run: |
+          python - <<'EOF'
+          import re, sys
+          with open("monitor.py") as f:
+              docstring = f.read()
+          with open("vs_queue_monitor/__init__.py") as f:
+              init = f.read()
+          m = re.search(r'VERSION\s*=\s*["\']([^"\']+)["\']', init)
+          if not m:
+              sys.exit("Could not find VERSION in vs_queue_monitor/__init__.py")
+          version = m.group(1)
+          if version not in docstring:
+              sys.exit(f"Version {version!r} from __init__.py not found in monitor.py docstring")
+          print(f"Version check passed: {version}")
+          EOF
+
+      - name: Lint (ruff)
+        run: pip install ruff && ruff check .
+
+      - name: Unit tests (smoke + history + interrupted)
+        run: |
+          python -m pytest tests/test_release_smoke.py tests/test_session_history.py tests/test_interrupted_elapsed.py -q
+
+      - name: Browser tests
+        run: |
+          python -m pytest tests/test_web_ui.py tests/test_notifications_ui.py tests/test_pixel_alignment.py -q
+        env:
+          DISPLAY: ":99"

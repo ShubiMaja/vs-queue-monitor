@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=62", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "vs-queue-monitor"
+dynamic = ["version"]
+description = "Vintage Story client log queue monitor — live position, ETA, alerts"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = [
+    "starlette>=0.37,<2",
+    "uvicorn[standard]>=0.27,<2",
+    "pystray>=0.19,<1",
+    "Pillow>=9.0,<13",
+    "pywebpush>=1.9,<3",
+]
+
+[project.scripts]
+vs-queue-monitor = "vs_queue_monitor.cli:main"
+vsqm = "vs_queue_monitor.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "vs_queue_monitor.VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vs_queue_monitor*"]
+
+# ---------------------------------------------------------------------------
+# Ruff — linting and formatting
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+exclude = [
+    "vs_queue_monitor/web/static/vendor/",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "build",
+]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes (default), B: bugbear, BLE: blind exception, I: isort
+select = ["E", "W", "F", "B", "BLE", "I"]
+ignore = [
+    "E501",   # line too long — handled by formatter; don't double-report
+    "B904",   # raise-without-from-inside-except — too noisy in existing code
+    "B008",   # do not perform function calls in default arguments
+]
+# BLE001 = blind bare except — this is the main rule we want from BLE
+extend-select = ["BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["BLE001"]  # tests may use broad excepts for assertion scaffolding
+
+# ---------------------------------------------------------------------------
+# Mypy — type checking (not enforced in CI yet; use as a guide)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_configs = true

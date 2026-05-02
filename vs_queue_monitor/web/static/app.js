@@ -10,6 +10,7 @@
   var lastFailureSeq = null;
   var LS_PATH = "vs_queue_monitor_web_last_path";
   var LS_PATH_LEGACY = "vsqm_web_last_path";
+  var LS_RECENT_PATHS = "vs_queue_monitor_recent_paths_v1";
   var LS_SESSION = "vs_queue_monitor_selected_session_v1";
   var LS_SESSION_LEGACY = "vsqm_selected_session_v1";
   var LS_HISTORY_AUTOSCROLL = "vs_queue_monitor_history_autoscroll_v1";
@@ -20,6 +21,7 @@
   var LS_NOTIFY_COMPLETION_POPUP = "vs_queue_monitor_completion_popup_v1";
   var LS_NOTIFY_FAILURE_POPUP = "vs_queue_monitor_failure_popup_v1";
   var LS_UPDATE_NOTIFY = "vs_queue_monitor_update_notify_v1";
+  var LS_SEEN_VERSION = "vs_queue_monitor_seen_version_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -138,6 +140,38 @@
       localStorage.removeItem(LS_PATH_LEGACY);
     } catch (e) {}
   }
+  function lsGetRecentPaths() {
+    try {
+      var raw = localStorage.getItem(LS_RECENT_PATHS);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function lsAddRecentPath(raw, display) {
+    if (!raw) return;
+    try {
+      var list = lsGetRecentPaths();
+      list = list.filter(function (x) { return x.raw !== raw; });
+      list.unshift({ raw: raw, display: display || raw });
+      if (list.length > 8) list = list.slice(0, 8);
+      localStorage.setItem(LS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+    updateRecentPathsButton();
+  }
+  function lsRemoveRecentPath(raw) {
+    try {
+      var list = lsGetRecentPaths().filter(function (x) { return x.raw !== raw; });
+      localStorage.setItem(LS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+    updateRecentPathsButton();
+  }
+  function lsClearRecentPaths() {
+    try { localStorage.removeItem(LS_RECENT_PATHS); } catch (e) {}
+    updateRecentPathsButton();
+  }
   function lsGetSession() {
     try {
       var v = localStorage.getItem(LS_SESSION);
@@ -250,6 +284,27 @@
   function lsSetUpdateNotify(val) {
     try { localStorage.setItem(LS_UPDATE_NOTIFY, val ? "1" : "0"); } catch (e) {}
   }
+  function lsGetSeenVersion() {
+    try { return localStorage.getItem(LS_SEEN_VERSION) || ""; } catch (e) { return ""; }
+  }
+  function lsSetSeenVersion(v) {
+    try { localStorage.setItem(LS_SEEN_VERSION, v); } catch (e) {}
+  }
+  function showWhatsNew(version, notes) {
+    var banner = $("whatsNewBanner");
+    var ver = $("whatsNewVersion");
+    var list = $("whatsNewList");
+    if (!banner || !ver || !list || !notes || !notes.length) return;
+    ver.textContent = "v" + version;
+    list.innerHTML = "";
+    var i;
+    for (i = 0; i < notes.length; i++) {
+      var li = document.createElement("li");
+      li.textContent = notes[i];
+      list.appendChild(li);
+    }
+    banner.classList.remove("hidden");
+  }
   function applyClientViewerPrefs(s) {
     applyClientGraphPrefs(s);
     applyClientNotificationPrefs(s);
@@ -272,7 +327,7 @@
 
   /** True while a modal, tour, or restore banner is visible — block global single-key shortcuts. */
   function uiBlockingLayerOpen() {
-    var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
+    var ids = ["modalNewQueue", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     var i;
     for (i = 0; i < ids.length; i++) {
       var el = $(ids[i]);
@@ -338,7 +393,11 @@
           btn.style.marginTop = "8px";
           btn.textContent = "Install update";
           btn.onclick = function () {
-            if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+            var relName = j.release_name || j.latest_tag || "";
+            var relUrl = j.html_url || "";
+            var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
+              + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+            if (!window.confirm(msg)) return;
             btn.disabled = true;
             closeAboutModal();
             fetch("/api/update/apply", { method: "POST" })
@@ -435,6 +494,87 @@
           : "Log source not set. Click to paste path.",
       );
     }
+    var hint = $("pathHint");
+    if (hint) hint.classList.toggle("hidden", !!raw);
+  }
+
+  function updateRecentPathsButton() {
+    var btn = $("btnRecentPaths");
+    if (!btn) return;
+    var list = lsGetRecentPaths();
+    if (list.length > 0) {
+      btn.classList.remove("hidden");
+    } else {
+      btn.classList.add("hidden");
+      closeRecentPathsPopover();
+    }
+  }
+  function closeRecentPathsPopover() {
+    var pop = $("popRecentPaths");
+    var btn = $("btnRecentPaths");
+    if (pop) pop.classList.add("hidden");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+  function renderRecentPathsList() {
+    var pop = $("popRecentPaths");
+    if (!pop) return;
+    var list = lsGetRecentPaths();
+    var currentPath = ($("inpPath") && String($("inpPath").value || "").trim()) || "";
+    pop.innerHTML = "";
+    var ul = document.createElement("ul");
+    ul.className = "pop-recent-paths__list";
+    list.forEach(function (item) {
+      var li = document.createElement("li");
+      li.className = "pop-recent-paths__row";
+      var itemBtn = document.createElement("button");
+      itemBtn.type = "button";
+      itemBtn.className = "pop-recent-paths__item" + (item.raw === currentPath ? " pop-recent-paths__item--active" : "");
+      itemBtn.title = item.display || item.raw;
+      itemBtn.textContent = item.display || item.raw;
+      itemBtn.onclick = function () {
+        var inpPath = $("inpPath");
+        if (inpPath) { inpPath.value = item.raw; syncPathDisplay(); }
+        closeRecentPathsPopover();
+        postConfig({ source_path: item.raw })
+          .then(function () { toast("Path restored from history"); })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pop-recent-paths__remove";
+      removeBtn.title = "Remove from history";
+      removeBtn.setAttribute("aria-label", "Remove from history");
+      removeBtn.textContent = "×";
+      removeBtn.onclick = function (e) {
+        e.stopPropagation();
+        lsRemoveRecentPath(item.raw);
+        renderRecentPathsList();
+      };
+      li.appendChild(itemBtn);
+      li.appendChild(removeBtn);
+      ul.appendChild(li);
+    });
+    pop.appendChild(ul);
+    if (list.length > 0) {
+      var sep = document.createElement("div");
+      sep.className = "pop-recent-paths__sep";
+      sep.setAttribute("aria-hidden", "true");
+      pop.appendChild(sep);
+      var clearBtn = document.createElement("button");
+      clearBtn.type = "button";
+      clearBtn.className = "pop-recent-paths__clear";
+      clearBtn.textContent = "Clear history";
+      clearBtn.onclick = function () { lsClearRecentPaths(); closeRecentPathsPopover(); };
+      pop.appendChild(clearBtn);
+    }
+  }
+  function openRecentPathsPopover() {
+    var pop = $("popRecentPaths");
+    var btn = $("btnRecentPaths");
+    if (!pop || !btn) return;
+    renderRecentPathsList();
+    positionKpiPopover(pop, btn);
+    btn.setAttribute("aria-expanded", "true");
   }
 
   /** Before the first WebSocket snapshot, show the last saved path so the header is not blank. */
@@ -749,6 +889,10 @@
   }
 
   function postConfig(patch) {
+    if ("source_path" in patch) {
+      var tlb = $("topLoadingBar");
+      if (tlb) tlb.classList.remove("hidden");
+    }
     return fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -756,6 +900,7 @@
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
+        if (j.state) applyState(j.state);
         return applyClientViewerPrefs(j.state || j);
       });
     });
@@ -1075,7 +1220,7 @@
       "Pos Change: " + t("infoStatCleared") + "\n" +
       "Duration: "   + t("infoStatSpan")    + "\n" +
       avgLbl + ": "  + t("infoStatAvg")     + "\n" +
-      "Full Rate: "  + t("infoStatGlo")     + "\n" +
+      "Session Rate: " + t("infoStatGlo")     + "\n" +
       "Global Rate: "+ t("infoStatHistGlo") + "\n";
     navigator.clipboard.writeText(text).then(
       function () { toast("Stats copied"); },
@@ -1110,7 +1255,14 @@
     return new Date(epoch * 1000).toLocaleString();
   }
 
-  function sessionStatusInfo(points, running, interruptedMode) {
+  function sessionStatusInfo(points, running, interruptedMode, outcome) {
+    // Use the stored outcome as the authoritative source when available.
+    // Computing status only from points is unreliable: a completed session may have
+    // no explicit position-0 point if completion was inferred from post-queue log lines.
+    if (outcome === "completed")  return { icon: "✓", label: "Succeeded" };
+    if (outcome === "interrupted" || outcome === "abandoned" || outcome === "crashed") return { icon: "✕", label: "Failed" };
+    if (outcome === "unknown")    return { icon: "?",  label: "Unknown" };
+    // Fallback: infer from points for in_progress or unrecognised outcomes.
     if (!points || !points.length) {
       return { icon: "?", label: "Unknown" };
     }
@@ -1123,7 +1275,28 @@
     if (running && !interruptedMode) {
       return { icon: "◌", label: "Ongoing" };
     }
-    return { icon: "✕", label: "Failed" };
+    // No explicit terminal outcome — could be an in-progress record from another folder.
+    // All failure outcomes (abandoned, crashed) are caught above; anything else is Unknown.
+    return { icon: "?", label: "Unknown" };
+  }
+
+  function loadedSessionStatusInfo(points, running, interruptedMode) {
+    // Check interrupted before position-0: an interrupted session may have a completed graph
+    // (position-0) from the seeded old run, but the engine is still watching → show ↻.
+    if (running && interruptedMode) {
+      return { icon: "↻", label: "Interrupted" };
+    }
+    if (points && points.length) {
+      for (var i = 0; i < points.length; i++) {
+        if (points[i][1] <= 0) {
+          return { icon: "✓", label: "Succeeded" };
+        }
+      }
+    }
+    if (!running) {
+      return { icon: points && points.length ? "✕" : "?", label: points && points.length ? "Failed" : "Unknown" };
+    }
+    return { icon: "⚡", label: "Active" };
   }
 
   function formatPositionDisplay(posRaw, statusRaw) {
@@ -1155,8 +1328,27 @@
   }
 
   function sessionLooksLikeCurrentRun(sess, state) {
-    if (!sess || !state || state.interrupted_mode) {
+    if (!sess || !state) {
       return false;
+    }
+    if (state.interrupted_mode) {
+      var loadedEpoch = state.active_queue_session_epoch != null
+        ? Number(state.active_queue_session_epoch) : null;
+      if (loadedEpoch === null || !Number.isFinite(loadedEpoch)) {
+        var _ipts = state.graph_points || [];
+        if (_ipts.length) loadedEpoch = Number(_ipts[0][0]);
+      }
+      var sessStartEp = Number(sess.start_epoch);
+      var epochClose = loadedEpoch !== null
+        && Number.isFinite(sessStartEp)
+        && Number.isFinite(loadedEpoch)
+        && Math.abs(sessStartEp - loadedEpoch) <= 2;
+      if (!epochClose) return false;
+      // Only suppress sessions from the same source — don't hide records from other installations
+      var curSrc = (state.source_path_display || state.source_path || "").trim().toLowerCase();
+      var sesSrc = (sess.source_path || "").trim().toLowerCase();
+      if (curSrc && sesSrc && curSrc !== sesSrc) return false;
+      return true;
     }
     var currentPos = null;
     var pts = state.graph_points || [];
@@ -1216,30 +1408,17 @@
     return true;
   }
 
-  function formatLatestSessionOptionLabel(state, latestStatus) {
+  function formatLatestSessionOptionLabelClean(state, latestStatus, sessionNumber) {
     var startEpoch = null;
-    var points = (state && state.graph_points) || [];
-    if (points.length) {
-      startEpoch = points[0][0];
+    if (state && state.active_queue_session_epoch != null) {
+      startEpoch = state.active_queue_session_epoch;
+    } else {
+      var points = (state && state.graph_points) || [];
+      if (points.length) startEpoch = points[0][0];
     }
-    var activeId = Number(state && state.active_queue_session_id);
-    var latestName = Number.isFinite(activeId) && activeId >= 0
-      ? ("Session " + activeId)
-      : "Session";
     var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " " + latestName + " â€” " + startText + " (latest)";
-  }
-
-  function formatLatestSessionOptionLabelClean(state, latestStatus, visiblePastCount) {
-    var startEpoch = null;
-    var points = (state && state.graph_points) || [];
-    if (points.length) {
-      startEpoch = points[0][0];
-    }
-    var displayIndex = Math.max(1, Number(visiblePastCount) + 1);
-    var latestName = "Session " + displayIndex;
-    var startText = formatSessionStart(startEpoch);
-    return latestStatus.icon + " " + latestName + " - " + startText + " (latest)";
+    var numStr = sessionNumber != null ? String(sessionNumber) : "";
+    return latestStatus.icon + " Session " + numStr + " — " + startText + " (last read)";
   }
 
   function parseAlertThresholdValues(raw) {
@@ -1327,8 +1506,10 @@
         last &&
         (isPastSession || (state && state.interrupted_mode) || (state && !state.running))
       ) {
+        var sessionOutcome = state && state.session_outcome;
+        var isOutcomeUnknown = !sessionOutcome || sessionOutcome === "in_progress" || sessionOutcome === "unknown";
         out.push({
-          kind: "disconnect",
+          kind: isOutcomeUnknown ? "unknown" : "disconnect",
           t: last[0],
           pos: last[1],
         });
@@ -1388,6 +1569,7 @@
     out.graph_live_view = false;
     out.running = false;
     out.progress = 1.0;
+    out.session_outcome = sess.outcome || null;
     var last = sess.points[sess.points.length - 1];
     out.current_point = [last[0], last[1]];
     out.graph_events = deriveGraphEvents(out, out.graph_points || [], true);
@@ -1403,19 +1585,56 @@
       return !sessionLooksLikeCurrentRun(sess, s);
     });
     sel.innerHTML = "";
-    var opt0 = document.createElement("option");
-    opt0.value = "latest";
-    var latestStatus = sessionStatusInfo(
-      s.graph_points || [],
-      !!s.running,
-      !!s.interrupted_mode
-    );
-    opt0.title = latestStatus.label + " — live engine graph for the current queue run.";
-    sel.appendChild(opt0);
+
+    // Determine whether there is a latest session in the monitored file.
+    // Prefer the server-supplied active_queue_session_epoch; fall back to graph_points[0].
+    var latestStartEpoch = null;
+    if (s.active_queue_session_epoch != null) {
+      latestStartEpoch = Number(s.active_queue_session_epoch);
+    } else {
+      var latestPts = s.graph_points || [];
+      if (latestPts.length) latestStartEpoch = Number(latestPts[0][0]);
+    }
+    var hasLatestSession = latestStartEpoch !== null;
+
+    // Latest session number = its chronological rank among *visible* sessions only.
+    // Use the already-filtered `sessions` list so near-epoch entries from other installations
+    // (which sessionLooksLikeCurrentRun suppresses from the dropdown) don't inflate the count.
+    var latestSessionNumber = 1;
+    for (var j = 0; j < sessions.length; j++) {
+      if (latestStartEpoch !== null && Number(sessions[j].start_epoch) < latestStartEpoch) {
+        latestSessionNumber++;
+      }
+    }
+
+    // Build the "latest" option only when the monitored file has a detectable session.
+    if (hasLatestSession) {
+      var opt0 = document.createElement("option");
+      opt0.value = "latest";
+      opt0.style.fontWeight = "bold";
+      var latestStatus = loadedSessionStatusInfo(
+        s.graph_points || [],
+        !!s.running,
+        !!s.interrupted_mode
+      );
+      opt0.title = [
+        latestStatus.label + " — last read session from the monitored file.",
+        "Start: " + formatSessionStart(latestStartEpoch),
+      ].join("\n");
+      opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, latestSessionNumber);
+    }
+
+    // Render sessions newest-first; insert the latest option at its chronological position.
     var i;
+    var opt0Inserted = !hasLatestSession;
     for (i = sessions.length - 1; i >= 0; i--) {
+      var sessStartEpoch = Number(sessions[i].start_epoch);
+      if (!opt0Inserted && sessStartEpoch < latestStartEpoch) {
+        sel.appendChild(opt0);
+        opt0Inserted = true;
+      }
       var o = document.createElement("option");
-      var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false);
+      var sessStatus = sessionStatusInfo(sessions[i].points || [], false, false, sessions[i].outcome);
       o.value = sessions[i].key;
       o.textContent =
         sessStatus.icon +
@@ -1432,12 +1651,14 @@
       o.title = tipLines.join("\n");
       sel.appendChild(o);
     }
-    opt0.textContent = formatLatestSessionOptionLabelClean(s, latestStatus, sel.options.length - 1);
+    if (!opt0Inserted) {
+      sel.appendChild(opt0);
+    }
+
     if (!_sessionDropdownInited) {
       _sessionDropdownInited = true;
-      // Always start on "latest" (active session) on page load.
     }
-    var valid = selectedSessionKey === "latest";
+    var valid = hasLatestSession && selectedSessionKey === "latest";
     if (!valid) {
       for (i = 0; i < sessions.length; i++) {
         if (sessions[i].key === selectedSessionKey) {
@@ -1447,19 +1668,22 @@
       }
     }
     if (!valid) {
-      selectedSessionKey = "latest";
+      // Fall back to latest if available, otherwise the most recent completed session.
+      selectedSessionKey = hasLatestSession ? "latest"
+        : (sessions.length ? sessions[sessions.length - 1].key : "latest");
     }
     sel.value = selectedSessionKey;
     if (sel.value !== selectedSessionKey) {
-      sel.value = "latest";
-      selectedSessionKey = "latest";
+      selectedSessionKey = hasLatestSession ? "latest"
+        : (sessions.length ? sessions[sessions.length - 1].key : "");
+      sel.value = selectedSessionKey;
     }
     try {
       lsSetSession(selectedSessionKey);
     } catch (e) {}
     sel.title =
       sessions.length > 0
-        ? "Plot a past queue run from the log tail; KPIs above stay live."
+        ? "Plot a past queue run; KPIs above stay live on the last read session."
         : "More queue sessions appear here when the log has more than one run in the saved tail.";
     updateSessionBadge();
   }
@@ -1587,6 +1811,8 @@
     if (chkPre) chkPre.checked = !!(s && s.include_prereleases);
     var ihp = $("inpHistoryPath");
     if (ihp) ihp.value = (s && (s.history_path || s.history_path_resolved)) || "";
+    var ihmb = $("inpHistoryMaxMB");
+    if (ihmb && s && s.history_max_bytes) ihmb.value = Math.round(s.history_max_bytes / (1024 * 1024));
   }
 
   function activateSettingsTab(tabName) {
@@ -1615,13 +1841,13 @@
     applyClientViewerPrefs(s);
     var btnLive = $("btnGraphLive");
     if (btnLive) {
-      var liveAvailable = selectedSessionKey === "latest";
-      var liveOn = liveAvailable && s.graph_live_view !== false;
+      var onLoadedSession = selectedSessionKey === "latest";
+      var liveOn = onLoadedSession && s.graph_live_view !== false;
       btnLive.setAttribute("aria-pressed", liveOn ? "true" : "false");
-      btnLive.disabled = !liveAvailable;
-      btnLive.setAttribute("aria-disabled", liveAvailable ? "false" : "true");
-      btnLive.title = !liveAvailable
-        ? "Live follow is only available on the latest session"
+      btnLive.disabled = false;
+      btnLive.setAttribute("aria-disabled", "false");
+      btnLive.title = !onLoadedSession
+        ? "Go to last read session"
         : (liveOn ? "Live follow on" : "Live follow off");
       btnLive.setAttribute("aria-label", btnLive.title);
     }
@@ -1633,7 +1859,7 @@
       btnWarn.disabled = !warnAvailable;
       btnWarn.setAttribute("aria-disabled", warnAvailable ? "false" : "true");
       btnWarn.title = !warnAvailable
-        ? "Warning dots are only available on the latest session"
+        ? "Warning dots are only available on the last read session"
         : (warnOn ? "Warning dots on" : "Warning dots off");
       btnWarn.setAttribute("aria-label", btnWarn.title);
     }
@@ -1663,6 +1889,8 @@
   }
 
   function applyState(s) {
+    var tlb = $("topLoadingBar");
+    if (tlb) tlb.classList.toggle("hidden", !s.loading);
     applyClientViewerPrefs(s);
     if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];
@@ -1735,6 +1963,7 @@
       sp.className = row.passed ? "warn-off" : "warn-on";
       sp.setAttribute("data-threshold", String(row.t));
       sp.setAttribute("data-passed", row.passed ? "true" : "false");
+      sp.title = "Click to edit thresholds";
       kw.appendChild(sp);
     });
     if (!w.length) {
@@ -1871,6 +2100,9 @@
       var pth = (inpPathEl && String(inpPathEl.value || "").trim()) || (s.source_path || "").trim();
       if (pth) lsSetPath(pth);
     } catch (e) {}
+    if (srvPath) {
+      lsAddRecentPath(srvPath, (s.source_path_display || srvPath));
+    }
 
     var modalSettings = $("modalSettings");
     if (!modalSettings || modalSettings.classList.contains("hidden")) {
@@ -1881,7 +2113,7 @@
     var btnSS = $("btnStartStop");
     if (btnSS) {
       btnSS.className = s.running ? "btn btn--danger" : "btn btn--primary";
-      btnSS.classList.add("btn--icon-only", "btn-start-stop");
+      btnSS.classList.add("btn-start-stop");
       btnSS.setAttribute("data-state", s.running ? "running" : "stopped");
       btnSS.title = s.running ? "Stop monitoring" : "Start monitoring";
       btnSS.setAttribute("aria-label", s.running ? "Stop monitoring" : "Start monitoring");
@@ -1933,10 +2165,18 @@
     var _uBadge = $("btnUpdateAvail");
     if (_uBadge) {
       if (s.update_available && lsGetUpdateNotify()) {
+        var _uRelName = s.update_release_name || "";
+        var _uRelUrl = s.update_release_html_url || "";
         _uBadge.classList.remove("hidden");
-        _uBadge.title = s.update_release_name
-          ? "Update available: " + s.update_release_name + " — click to install"
+        _uBadge.title = _uRelName
+          ? "Update available: " + _uRelName + (_uRelUrl ? "\nSee what's new — right-click to open release notes" : "") + "\nClick to install"
           : "Update available — click to install";
+        var _seenKey = "vsqm_update_seen";
+        if (localStorage.getItem(_seenKey) === _uRelName) {
+          _uBadge.classList.add("update-badge--seen");
+        } else {
+          _uBadge.classList.remove("update-badge--seen");
+        }
       } else {
         _uBadge.classList.add("hidden");
       }
@@ -2042,6 +2282,8 @@
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
   var _offlineMode = false;
+  var _wsRetryMs = 1500;
+  var _WS_RETRY_MAX_MS = 30000;
 
   function _showOfflineBanner() {
     var b = document.getElementById("offlineBanner");
@@ -2104,11 +2346,13 @@
     };
     ws.onopen = function () {
       _wsEverConnected = true;
+      _wsRetryMs = 1500;
       if (!_offlineMode) _hideDisconnectOverlay();
     };
     ws.onclose = function () {
       if (_wsEverConnected && !_offlineMode) _showDisconnectOverlay();
-      setTimeout(connectWs, 1500);
+      setTimeout(connectWs, _wsRetryMs);
+      _wsRetryMs = Math.min(_wsRetryMs * 2, _WS_RETRY_MAX_MS);
     };
   }
 
@@ -2155,7 +2399,7 @@
       {
         title: "Chart & alerts",
         html:
-          "<p>Use <strong>Session</strong> to plot an earlier queue run from the log tail (KPIs stay live).</p>" +
+          "<p>Use <strong>Session</strong> to plot an earlier queue run; KPIs stay live on the last read session. The live button returns you to the last read session from any past run.</p>" +
           "<p>Tap or hover the chart for a <strong>tooltip</strong>. Drag to zoom a range; use <strong>REL/ABS</strong> and <strong>LIN/LOG</strong> in the chart footer to change axis mode. Use the top-right chart buttons to <strong>save PNG</strong> or <strong>copy PNG</strong>.</p>" +
           "<p>Use the <strong>notification switch</strong> in the header to allow browser alerts or turn them off; <strong>Send test notification</strong> in Settings checks banners.</p>" +
           "<p>Open <strong>⚙</strong> for alerts and general settings; use the small History gear for history verbosity. You’re ready — use the <strong>play button</strong> in the header when the path is set.</p>",
@@ -2323,6 +2567,9 @@
     if (!$("popWarnAdd").classList.contains("hidden")) {
       positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
     }
+    if ($("popPath") && !$("popPath").classList.contains("hidden")) {
+      positionKpiPopover($("popPath"), $("pathSummary"));
+    }
   }
 
   function setStepperValue(inputEl, nextValue, minValue) {
@@ -2486,6 +2733,18 @@
         requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
+    // Clicking any threshold pill opens the same edit popover
+    var kpiWarnEl = $("kpiWarnings");
+    if (kpiWarnEl) {
+      kpiWarnEl.addEventListener("click", function (e) {
+        var sp = e.target.closest("[data-threshold]");
+        if (sp) {
+          e.stopPropagation();
+          var editBtn = $("btnEditWarn");
+          if (editBtn) editBtn.click();
+        }
+      });
+    }
     function validateThresholdInput(rawStr) {
       var tokens = String(rawStr || "").replace(/,/g, " ").split(/\s+/);
       var i;
@@ -2589,7 +2848,7 @@
       var btnHistorySettings = $("btnHistorySettings");
       if (popHistory) popHistory.classList.add("hidden");
       if (btnHistorySettings) btnHistorySettings.setAttribute("aria-expanded", "false");
-      ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
+      ["popPoll", "popWindow", "popWarn", "popWarnAdd", "popPath"].forEach(function (id) {
         var p = $(id);
         if (p) {
           p.classList.add("hidden");
@@ -2992,6 +3251,17 @@
       };
   }
 
+  function setupWhatsNewBanner() {
+    var btn = $("btnDismissWhatsNew");
+    if (btn) {
+      btn.onclick = function () {
+        var b = $("whatsNewBanner");
+        if (b) b.classList.add("hidden");
+        if (window._metaVersion) lsSetSeenVersion(window._metaVersion);
+      };
+    }
+  }
+
   function setupUpdateBanner() {
     var btnDismiss = $("btnDismissUpdate");
     if (btnDismiss) {
@@ -3002,8 +3272,17 @@
     }
     var btnBadge = $("btnUpdateAvail");
     if (btnBadge) {
+      btnBadge.addEventListener("mouseenter", function () {
+        btnBadge.classList.add("update-badge--seen");
+        var relName = (window._lastState && window._lastState.update_release_name) || "";
+        localStorage.setItem("vsqm_update_seen", relName);
+      }, { once: true });
       btnBadge.onclick = function () {
-        if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+        var relName = (window._lastState && window._lastState.update_release_name) || "";
+        var relUrl = (window._lastState && window._lastState.update_release_html_url) || "";
+        var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
+          + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+        if (!window.confirm(msg)) return;
         btnBadge.disabled = true;
         fetch("/api/update/apply", { method: "POST" })
           .then(function (r) { return r.json(); })
@@ -3751,66 +4030,54 @@
   }
 
   function setupPathModal() {
-    var modal = $("modalPath");
+    var pop = $("popPath");
     var inpHidden = $("inpPath");
-    var inpModal = $("inpPathModal");
+    var inpPop = $("inpPathPop");
     var ps = $("pathSummary");
 
-    function closePathModal() {
-      if (modal) hideEl(modal);
+    function closePathPop() {
+      if (pop) { pop.classList.add("hidden"); pop.style.left = ""; pop.style.top = ""; }
       if (ps) ps.focus();
     }
 
-    function applyPathModal() {
-      var v = inpModal ? String(inpModal.value || "").trim() : "";
+    function applyPathPop() {
+      var v = inpPop ? String(inpPop.value || "").trim() : "";
       if (inpHidden) inpHidden.value = v;
       syncPathDisplay();
-      if (modal) hideEl(modal);
-      postConfig({ source_path: v }).catch(function (e) {
-        toast(String(e.message || e), "warn");
-      });
-      if (ps) ps.focus();
+      closePathPop();
+      postConfig({ source_path: v }).catch(function (e) { toast(String(e.message || e), "warn"); });
     }
 
     if (ps) {
-      ps.onclick = function () {
-        if (inpModal && inpHidden) inpModal.value = inpHidden.value;
-        if (modal) showEl(modal);
-        if (inpModal) {
-          setTimeout(function () {
-            inpModal.focus();
-            try {
-              inpModal.select();
-            } catch (e) {}
-          }, 0);
-        }
+      ps.onclick = function (e) {
+        e.stopPropagation();
+        if (!pop) return;
+        if (!pop.classList.contains("hidden")) { closePathPop(); return; }
+        if (inpPop && inpHidden) inpPop.value = inpHidden.value;
+        positionKpiPopover(pop, ps);
+        setTimeout(function () {
+          if (inpPop) { inpPop.focus(); try { inpPop.select(); } catch (ex) {} }
+        }, 0);
       };
     }
-    var ok = $("btnPathOk");
-    if (ok) ok.onclick = function () {
-      applyPathModal();
-    };
-    var cancel = $("btnPathCancel");
-    if (cancel) cancel.onclick = function () {
-      closePathModal();
-    };
-    var bd = $("modalPathBackdrop");
-    bindBackdropDismiss(bd, function () {
-      closePathModal();
-    });
-    if (inpModal) {
-      inpModal.addEventListener("keydown", function (ev) {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          applyPathModal();
-        }
+    if (pop) {
+      pop.addEventListener("click", function (e) { e.stopPropagation(); });
+    }
+    var ok = $("btnPathPopOk");
+    if (ok) ok.onclick = function () { applyPathPop(); };
+    var cancel = $("btnPathPopCancel");
+    if (cancel) cancel.onclick = function () { closePathPop(); };
+    if (inpPop) {
+      inpPop.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { ev.preventDefault(); applyPathPop(); }
+        if (ev.key === "Escape") { ev.preventDefault(); closePathPop(); }
       });
     }
   }
 
   /** Keep Tab cycling within an open dialog (WCAG-friendly). */
   function setupModalTabTrap() {
-    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
+    var modalIds = ["modalNewQueue", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     document.addEventListener(
       "keydown",
       function (ev) {
@@ -3867,11 +4134,14 @@
           if (no) no.click();
           return;
         }
-        var mp = $("modalPath");
-        if (mp && !mp.classList.contains("hidden")) {
+        var pp = $("popPath");
+        if (pp && !pp.classList.contains("hidden")) {
           ev.preventDefault();
-          var bd = $("modalPathBackdrop");
-          if (bd) bd.click();
+          pp.classList.add("hidden");
+          pp.style.left = "";
+          pp.style.top = "";
+          var psEl = $("pathSummary");
+          if (psEl) psEl.focus();
           return;
         }
         if ($("modalAbout") && !$("modalAbout").classList.contains("hidden")) {
@@ -3905,6 +4175,10 @@
     if (btnStartStop) {
       btnStartStop.onclick = function () {
         var wasRunning = !!(window._lastState && window._lastState.running);
+        if (!wasRunning) {
+          var tlb = $("topLoadingBar");
+          if (tlb) tlb.classList.remove("hidden");
+        }
         postToggle().then(function () {
           if (!wasRunning) {
             selectedSessionKey = "latest";
@@ -3963,6 +4237,29 @@
           });
       };
     }
+    var brecent = $("btnRecentPaths");
+    if (brecent) {
+      brecent.onclick = function (e) {
+        e.stopPropagation();
+        var pop = $("popRecentPaths");
+        if (pop && !pop.classList.contains("hidden")) {
+          closeRecentPathsPopover();
+        } else {
+          openRecentPathsPopover();
+        }
+      };
+    }
+    document.addEventListener("click", function (e) {
+      var pop = $("popRecentPaths");
+      var btn = $("btnRecentPaths");
+      if (!pop || pop.classList.contains("hidden")) return;
+      if (pop.contains(e.target) || (btn && btn.contains(e.target))) return;
+      closeRecentPathsPopover();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeRecentPathsPopover();
+    });
+    updateRecentPathsButton();
     function wireSoundFilePicker(buttonId, inputId, label) {
       var btnPick = $(buttonId);
       var input = $(inputId);
@@ -4097,7 +4394,19 @@
     var btnGraphLive = $("btnGraphLive");
     if (btnGraphLive) {
       btnGraphLive.onclick = function () {
-        if (selectedSessionKey !== "latest") return;
+        // When viewing a past session, the live button returns to the latest session.
+        if (selectedSessionKey !== "latest") {
+          selectLatestSession();
+          if (window._lastState) {
+            window._graphZoom = null;
+            syncSettingsFormFromState(window._lastState);
+            syncGraphToolbarButtons(window._lastState);
+            window._displayState = buildDisplayState(window._lastState);
+            redrawGraphOnly();
+            renderSessionStats();
+          }
+          return;
+        }
         var next = !lsGetGraphLive();
         var canvas = $("graphCanvas");
         var ds = canvas && canvas._drawState;
@@ -4214,13 +4523,7 @@
     // Auto-save settings on change — no Save button needed.
     function applySettingsSave(state) {
       if (state && typeof state === "object") window._lastState = state;
-      if (window._lastState) {
-        syncSettingsFormFromState(window._lastState);
-        syncGraphToolbarButtons(window._lastState);
-        window._displayState = buildDisplayState(window._lastState);
-        redrawGraphOnly();
-        renderSessionStats();
-      }
+      if (window._lastState) applyState(window._lastState);
       if (notifySyncHint) notifySyncHint();
     }
     function settingDebounce(fn, ms) {
@@ -4301,6 +4604,17 @@
     wireSettingInp("inpSetCompSound", "completion_sound_path");
     wireSettingInp("inpSetFailSound", "failure_sound_path");
     wireSettingInp("inpHistoryPath", "history_path");
+    (function () {
+      var el = $("inpHistoryMaxMB");
+      if (!el) return;
+      el.addEventListener("input", settingDebounce(function () {
+        var mb = parseFloat(el.value);
+        if (!isFinite(mb) || mb < 1) return;
+        postConfig({ history_max_bytes: Math.round(mb * 1024 * 1024) })
+          .then(applySettingsSave)
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      }));
+    })();
     var btnReset = $("btnReset");
     if (btnReset) {
       btnReset.onclick = function () {
@@ -4590,6 +4904,7 @@
   safeInit("setupGraphResize", setupGraphResize);
   safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
   safeInit("setupRestoreBanner", setupRestoreBanner);
+  safeInit("setupWhatsNewBanner", setupWhatsNewBanner);
   safeInit("setupUpdateBanner", setupUpdateBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
@@ -4641,6 +4956,10 @@
       if (av) av.textContent = m.version ? "v" + m.version : "";
       var agl = $("aboutGithubLink");
       if (agl && m.github_url) agl.href = m.github_url;
+      window._metaVersion = m.version || "";
+      if (m.version && m.whatsnew && m.whatsnew.length && lsGetSeenVersion() !== m.version) {
+        showWhatsNew(m.version, m.whatsnew);
+      }
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();

@@ -25,8 +25,10 @@ Prefer established patterns: seamless flow, progressive disclosure, honest state
 
 When you finish a coherent set of edits or complete a user-requested task:
 
-1. **Bump the micro (patch) version** in `monitor.py` on every commit (unless the user says skip):
-   - Increment the third semver number (`1.0.0` → `1.0.1`). Update both the `VERSION` constant and the `Version:` line in the module docstring so they stay in sync.
+1. **Bump the micro (patch) version** on every commit (unless the user says skip):
+   - Increment the third semver number (`1.0.0` → `1.0.1`) in **`vs_queue_monitor/__init__.py`** — that is the single source of truth for the version.
+   - `pyproject.toml` reads the version dynamically via `[tool.setuptools.dynamic] version = {attr = "vs_queue_monitor.VERSION"}` — no change needed there.
+   - `monitor.py` no longer has its own `Version:` docstring line — do not add one back.
 
 2. **Update `README.md` before commit** when the change affects user-visible behavior, CLI flags, configuration, saved settings/defaults, paths, requirements, or install/run steps. Skip only for purely internal refactors or comments-only edits.
 

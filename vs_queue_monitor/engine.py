@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import subprocess
-import sys
 import threading
 import time
 import traceback
@@ -42,6 +40,9 @@ if TYPE_CHECKING:
 
 
 class QueueMonitorEngine:
+    # Serializes JSONL writes across all backfill threads so concurrent log-switches
+    # cannot race to append duplicates before any thread has finished writing.
+    _backfill_lock = threading.Lock()
 
     def __init__(self, hooks: MonitorHooks, initial_path: str = "", auto_start: bool = True) -> None:
         self._hooks = hooks
@@ -160,14 +161,17 @@ class QueueMonitorEngine:
         self._session_start_epoch: Optional[float] = None
         self._session_start_position: Optional[int] = None
         self._session_record_written: bool = False
+        self._last_progress_write: float = 0.0
         _hp = self.config.get("history_path", "")
         self.history_path_var = hooks.string_var(str(_hp).strip() if _hp else "")
         self._history_sessions_cache: Optional[tuple[str, float, list[dict]]] = None
+        self._session_history_path: Optional[Path] = None  # history path locked in at session start
 
         self.avg_window_var.trace_add("write", self._on_avg_window_write)
         self.show_log_var.trace_add("write", self._schedule_config_persist)
         self.show_status_var.trace_add("write", self._schedule_config_persist)
         self._bind_config_persist_traces()
+        self._migrate_session_history()
         self._recover_crashed_session()
         self.start_timer()
         self._hooks.append_history(
@@ -194,7 +198,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'history_max_bytes': int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -274,6 +278,7 @@ class QueueMonitorEngine:
         self._interrupt_baseline_session = -1
         self._dismissed_new_queue_session = None
         self._pending_new_queue_session = None
+        self._session_history_path = None
         self.graph_points.clear()
         self.current_point = None
         self._alert_thresholds_fired.clear()
@@ -331,7 +336,7 @@ class QueueMonitorEngine:
         if self._starting:
             return
         if self.running:
-            self.stop_monitoring()
+            self.stop_monitoring(folder_switch=True)
         self.start_monitoring()
 
     def _apply_browsed_log_path(self, raw: str) -> None:
@@ -482,7 +487,15 @@ class QueueMonitorEngine:
         self._refresh_server_target_from_log(resolved, self._last_queue_run_session if self._last_queue_run_session >= 0 else None)
         self._suppress_completion_notify_if_tail_already_completed(resolved)
         self._adopt_interrupted_tail_on_start(resolved)
+        # Write an immediate in_progress record for active seeded sessions so cross-folder
+        # views can see them before the 30 s throttle fires.  Interrupted sessions are
+        # already handled by _write_seeded_session_discovery inside _adopt_interrupted_tail_on_start.
+        # Lock in the history path now so folder-switch writes stay in the correct file.
+        self._session_history_path = self._effective_history_path()
+        if not self._interrupted_mode and self._last_queue_run_session >= 0 and self.graph_points:
+            self._write_session_progress(force=True, _path_override=self._session_history_path)
         threading.Thread(target=lambda: self._backfill_sessions_from_log(resolved), daemon=True).start()
+        threading.Thread(target=self._backfill_other_known_log_files, daemon=True).start()
         self.start_timer()
         if self.job_id is not None:
             self._hooks.schedule_cancel(self.job_id)
@@ -509,10 +522,13 @@ class QueueMonitorEngine:
         kind, _tail_pos = classify_tail_connection_state(t)
         pos, _queue_sess = parse_tail_last_queue_reading(t)
         left = tail_has_post_queue_after_last_queue_line(t)
-        should_interrupt = (
+        # A completed session has post-queue signals after the last queue line AND the last
+        # queue position was <= 1. In that case do NOT enter interrupted mode — the session
+        # finished and any subsequent reconnect/disconnect is not an interruption of the queue.
+        completed_tail = left and (pos is not None and pos <= 1)
+        should_interrupt = not completed_tail and (
             kind == 'disconnected'
-            or (kind in ('reconnecting', 'grace') and not (pos is not None and pos <= 1))
-            or (kind in ('reconnecting', 'grace') and left and (pos is not None and pos <= 1))
+            or kind in ('reconnecting', 'grace')
         )
         if should_interrupt:
             self._interrupted_mode = True
@@ -531,6 +547,13 @@ class QueueMonitorEngine:
             self._set_status_line('Interrupted', danger=True)
             self.update_time_estimates()
             self.write_history('Monitoring started on an already-interrupted queue run; still watching the log for a newer run.')
+            self._write_seeded_session_discovery()
+        elif completed_tail:
+            # Startup found a completed session (queue reached position 0). Mark the
+            # record as already written so the live path does not overwrite with
+            # "abandoned" when a subsequent new queue run is detected in the log.
+            # The startup backfill thread handles writing the "completed" JSONL record.
+            self._session_record_written = True
 
     def _last_queue_position_is_at_front(self) -> bool:
         """True when waiting at the front of the queue (log still shows position 1), not past-queue (0)."""
@@ -588,42 +611,128 @@ class QueueMonitorEngine:
         if self.failure_sound_enabled_var.get():
             self.play_failure_sound()
 
-    def _backfill_sessions_from_log(self, log_file: Path) -> None:
+    @staticmethod
+    def _normalize_log_path_for_dedup(p: str) -> str:
+        return normalize_log_path_for_dedup(p)
+
+    def _backfill_sessions_from_log(self, log_file: Path, _source_path_override: Optional[str] = None, include_active: bool = False, _hist_path_override: Optional[Path] = None) -> None:
         """Write history records for past sessions in the log not already in session_history.jsonl."""
         try:
+            source_path = _source_path_override if _source_path_override is not None else str(self.config.get("source_path", "") or "")
             records = extract_all_session_records_from_log(
                 log_file,
-                source_path=str(self.config.get("source_path", "") or ""),
+                source_path=source_path,
                 vsqm_version=VERSION,
+                include_active=include_active,
             )
             if not records:
                 return
-            existing: set[tuple[str, int]] = set()
-            hist = self._effective_history_path()
-            try:
-                if hist.exists():
-                    for line in hist.read_text(encoding="utf-8").splitlines():
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            rec = json.loads(line)
-                            lf = str(rec.get("log_file", ""))
-                            sid = rec.get("session_id")
-                            if lf and sid is not None:
-                                existing.add((lf, int(sid)))
-                        except Exception:
-                            pass
-            except Exception:
-                pass
-            to_write = [r for r in records if (str(log_file), r["session_id"]) not in existing]
-            if not to_write:
-                return
-            hist.parent.mkdir(parents=True, exist_ok=True)
-            with open(hist, "a", encoding="utf-8") as fh:
-                for r in to_write:
-                    fh.write(json.dumps(r) + "\n")
+            hist = _hist_path_override if _hist_path_override is not None else self._effective_history_path()
+            norm_log_file = self._normalize_log_path_for_dedup(str(log_file))
+            stored_log_file = normalize_log_path_for_storage(str(log_file))
+            # Serialize the read-check-write block so concurrent backfill threads
+            # (triggered by rapid log-folder switches) cannot all read the same
+            # pre-write JSONL and then each append the same session records.
+            with QueueMonitorEngine._backfill_lock:
+                # Track the best outcome rank seen per key so backfill can upgrade
+                # discovery records (e.g. "interrupted") to terminal records ("completed").
+                # "completed with point-0" (rank 5) beats "completed without point-0" (rank 4)
+                # so that old records written before position-0 tracking was added get upgraded.
+                def _bfrank(rec: dict) -> int:
+                    rnk = OUTCOME_RANK.get(rec.get("outcome") or "", -1)
+                    if rnk == 4:  # completed: upgrade to 5 when point-0 is present
+                        pts = rec.get("points") or []
+                        if pts and int(pts[-1][1]) == 0:
+                            rnk = 5
+                    return rnk
+                existing_sid: dict[tuple[str, int, int], int] = {}  # key → best rank
+                existing_sig: dict[tuple[str, int, Any], int] = {}
+                try:
+                    if hist.exists():
+                        for line in hist.read_text(encoding="utf-8").splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                rec = json.loads(line)
+                                lf = self._normalize_log_path_for_dedup(str(rec.get("log_file", "")))
+                                sid = rec.get("session_id")
+                                se = rec.get("start_epoch")
+                                sp = rec.get("start_position")
+                                rnk = _bfrank(rec)
+                                if lf and sid is not None and se is not None:
+                                    k = (lf, int(sid), int(se))
+                                    existing_sid[k] = max(existing_sid.get(k, -2), rnk)
+                                if lf and se is not None:
+                                    k2 = (lf, int(se), sp)
+                                    existing_sig[k2] = max(existing_sig.get(k2, -2), rnk)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                to_write = [
+                    r for r in records
+                    if _bfrank(r) > existing_sid.get((norm_log_file, r["session_id"], int(r.get("start_epoch") or 0)), -2)
+                    and _bfrank(r) > existing_sig.get((norm_log_file, int(r.get("start_epoch") or 0), r.get("start_position")), -2)
+                ]
+                if not to_write:
+                    return
+                hist.parent.mkdir(parents=True, exist_ok=True)
+                with open(hist, "a", encoding="utf-8") as fh:
+                    for r in to_write:
+                        r_stored = dict(r)
+                        r_stored["log_file"] = stored_log_file
+                        fh.write(json.dumps(r_stored) + "\n")
+                max_bytes = int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES)
+                trim_jsonl_to_size(hist, max_bytes)
             self._invalidate_history_cache()
+        except Exception:
+            pass
+
+    def _backfill_other_known_log_files(self) -> None:
+        """Backfill sessions from log files referenced in JSONL history that we aren't monitoring now.
+
+        Runs on a background thread at startup so that cross-folder session records remain
+        up-to-date even when the user's current folder view differs from where the sessions
+        were recorded.  Uses the source_path already stored in JSONL for each foreign log
+        so that the attribution in the Path field stays correct.
+        """
+        try:
+            current_norm = normalize_log_path_for_dedup(str(self.current_log_file)) if self.current_log_file else ""
+            hist = self._effective_history_path()
+            if not hist.exists():
+                return
+            foreign: dict[str, tuple[str, str]] = {}  # norm_path → (stored_lf_token, source_path)
+            try:
+                for line in hist.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        raw_lf = str(rec.get("log_file") or "")
+                        if not raw_lf:
+                            continue
+                        norm = normalize_log_path_for_dedup(raw_lf)
+                        if norm == current_norm or norm in foreign:
+                            continue
+                        sp = str(rec.get("source_path") or "")
+                        foreign[norm] = (raw_lf, sp)
+                    except Exception:
+                        pass
+            except Exception:
+                return
+            for norm, (raw_lf, source_path) in foreign.items():
+                try:
+                    lf_path = Path(normalize_log_path_for_dedup(raw_lf))
+                    if not lf_path.is_file():
+                        continue
+                    # include_active=True: also emit an in_progress record for the last
+                    # (potentially still-live) session so cross-folder views see it without
+                    # the user having to visit that folder.
+                    self._backfill_sessions_from_log(lf_path, source_path, include_active=True)
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -667,6 +776,98 @@ class QueueMonitorEngine:
             return Path(raw) / "current_session.json"
         return get_checkpoint_path()
 
+    _MIGRATION_DEDUP_PATHS = "dedup_paths_v1"
+    _MIGRATION_NORMALIZE_PATHS = "normalize_paths_v1"
+
+    def _migrate_session_history(self) -> None:
+        """Run one-time JSONL migrations gated by markers in config["migrations_done"]."""
+        try:
+            done: list = list(self.config.get("migrations_done") or [])
+            dirty = False
+
+            # --- Migration 1: dedup records with path-format mismatches ---
+            if self._MIGRATION_DEDUP_PATHS not in done:
+                hist = self._effective_history_path()
+                if hist.exists():
+                    lines = hist.read_text(encoding="utf-8").splitlines()
+                    records = []
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except Exception:
+                            pass
+
+                    if records:
+                        def _rank(rec: dict) -> tuple:
+                            pts = rec.get("points") or []
+                            return (OUTCOME_RANK.get(rec.get("outcome", ""), -1), len(pts))
+
+                        primary: dict[tuple[str, int], dict] = {}
+                        no_id: list[dict] = []
+                        for rec in records:
+                            sid = rec.get("session_id")
+                            lf = self._normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
+                            if sid is not None:
+                                pk = (lf, int(sid))
+                                prev = primary.get(pk)
+                                if prev is None or _rank(rec) > _rank(prev):
+                                    primary[pk] = rec
+                            else:
+                                no_id.append(rec)
+
+                        deduped = list(primary.values()) + no_id
+                        if len(deduped) < len(records):
+                            deduped.sort(key=lambda r: float(r.get("start_epoch") or 0))
+                            hist.write_text("\n".join(json.dumps(r) for r in deduped) + "\n", encoding="utf-8")
+                            self._invalidate_history_cache()
+
+                done.append(self._MIGRATION_DEDUP_PATHS)
+                dirty = True
+
+            # --- Migration 2: normalize log_file paths to portable tokens ---
+            if self._MIGRATION_NORMALIZE_PATHS not in done:
+                hist = self._effective_history_path()
+                if hist.exists():
+                    lines = hist.read_text(encoding="utf-8").splitlines()
+                    records = []
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            records.append(json.loads(line))
+                        except Exception:
+                            pass
+
+                    if records:
+                        changed = False
+                        normalized: list[dict] = []
+                        for rec in records:
+                            raw_lf = str(rec.get("log_file") or "")
+                            normed = normalize_log_path_for_storage(raw_lf)
+                            if normed != raw_lf:
+                                rec = dict(rec)
+                                rec["log_file"] = normed
+                                changed = True
+                            normalized.append(rec)
+                        if changed:
+                            hist.write_text(
+                                "\n".join(json.dumps(r) for r in normalized) + "\n", encoding="utf-8"
+                            )
+                            self._invalidate_history_cache()
+
+                done.append(self._MIGRATION_NORMALIZE_PATHS)
+                dirty = True
+
+            if dirty:
+                self.config["migrations_done"] = done
+                save_config(self.config)
+        except Exception:
+            pass
+
     def _recover_crashed_session(self) -> None:
         """On startup, recover any session left behind by a hard crash."""
         try:
@@ -674,7 +875,13 @@ class QueueMonitorEngine:
             if not cp.exists():
                 return
             data = json.loads(cp.read_text(encoding="utf-8"))
-            data["outcome"] = "crashed"
+            # If the checkpoint was written by a different engine (different source_path),
+            # we never witnessed it crash — keep it as "in_progress" so it shows ? and
+            # remains visible, rather than stamping it crashed (✕) or unknown (which can
+            # be collided away by adjacent backfill records and disappear entirely).
+            my_sp = normalize_log_path_for_dedup(str(self.config.get("source_path", "") or ""))
+            cp_sp = normalize_log_path_for_dedup(str(data.get("source_path", "") or ""))
+            data["outcome"] = "crashed" if (not cp_sp or cp_sp == my_sp) else "in_progress"
             hist = self._effective_history_path()
             hist.parent.mkdir(parents=True, exist_ok=True)
             with open(hist, "a", encoding="utf-8") as fh:
@@ -697,10 +904,11 @@ class QueueMonitorEngine:
                 last_pos = p
         start_epoch = self._session_start_epoch or (pts[0][0] if pts else time.time())
         server = self.server_target_var.get()
+        raw_lf = str(self.current_log_file) if self.current_log_file else None
         return {
             "session_id": self._last_queue_run_session,
             "source_path": str(self.config.get("source_path", "") or ""),
-            "log_file": str(self.current_log_file) if self.current_log_file else None,
+            "log_file": normalize_log_path_for_storage(raw_lf) if raw_lf else None,
             "server": server if server and server != "—" else None,
             "start_epoch": start_epoch,
             "end_epoch": time.time(),
@@ -731,6 +939,8 @@ class QueueMonitorEngine:
             path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record) + "\n")
+            max_bytes = int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES)
+            trim_jsonl_to_size(path, max_bytes)
             self._session_record_written = True
             self._invalidate_history_cache()
         except Exception:
@@ -740,7 +950,55 @@ class QueueMonitorEngine:
         except Exception:
             pass
 
-    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '') -> None:
+    def _write_seeded_session_discovery(self) -> None:
+        """Append a cross-folder discovery record without setting _session_record_written.
+
+        Called when adopting a seeded-interrupted session at startup.  Ensures the session
+        is visible in other folder views regardless of the 100 MB backfill cap, while
+        leaving _session_record_written=False so future terminal writes (completed, etc.)
+        can still fire for the same monitoring lifetime.
+        """
+        if self._last_queue_run_session < 0 or not self.graph_points:
+            return
+        try:
+            record = self._build_session_record("interrupted")
+            path = self._effective_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self._invalidate_history_cache()
+        except Exception:
+            pass
+
+    _PROGRESS_WRITE_INTERVAL = 30.0  # seconds between in-progress JSONL writes
+
+    def _write_session_progress(self, *, force: bool = False, _path_override: Optional[Path] = None) -> None:
+        """Append an in-progress snapshot to JSONL so other folder views see live progress.
+
+        Throttled to at most once per _PROGRESS_WRITE_INTERVAL seconds.  Pass force=True
+        to bypass the throttle (e.g. on folder switch, to guarantee at least one record
+        exists even if the session just started).  The final _write_session_record call
+        supersedes these via server-side Pass A dedup (completed/interrupted rank higher).
+        """
+        if self._session_record_written:
+            return
+        if self._last_queue_run_session < 0 or not self.graph_points:
+            return
+        now = time.time()
+        if not force and now - self._last_progress_write < self._PROGRESS_WRITE_INTERVAL:
+            return
+        try:
+            record = self._build_session_record("in_progress")
+            path = _path_override if _path_override is not None else self._effective_history_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+            self._last_progress_write = now
+            self._invalidate_history_cache()
+        except Exception:
+            pass
+
+    def _handle_interrupted_tail(self, position: Optional[int], queue_sess: int, last_queue_line_epoch: Optional[float] = None, total_queue_boundaries: Optional[int] = None, kind: str = '', left: bool = False) -> None:
         """While interrupted, detect a newer queue session and offer to load it."""
         # Use total boundary count only when there is also at least one new position line in the
         # new session (queue_sess == total_queue_boundaries), avoiding false triggers from
@@ -761,6 +1019,10 @@ class QueueMonitorEngine:
         # do not offer it as a fresh run to adopt.
         if kind == 'disconnected' or (kind in ('reconnecting', 'grace') and not (position is not None and position <= 1)):
             return
+        # If the queue already completed (post-queue lines present after the last queue line),
+        # don't offer to adopt — the run already ended.
+        if left and position is not None and position <= 1:
+            return
         if position is None and effective_sess <= self._interrupt_baseline_session:
             return
         if effective_sess <= self._interrupt_baseline_session:
@@ -768,9 +1030,17 @@ class QueueMonitorEngine:
             # and old boundary lines scrolled out of the tail window.  If the most recent
             # queue line is provably newer than the epoch we entered interrupted state, it is
             # a new run regardless of the apparent session count.
-            if (last_queue_line_epoch is None or entry_epoch is None
-                    or last_queue_line_epoch <= entry_epoch):
-                return
+            #
+            # entry_epoch is None when the "Connecting…" branch cleared _last_queue_line_epoch
+            # before the hard disconnect fired (e.g. VS wrote "Connecting to…" then "Destroying
+            # game session" across two poll cycles).  In that case we cannot compare epochs, so
+            # we must NOT treat None as proof the queue line is old — that would silently drop
+            # every new session whose boundary count is at or below baseline (common when VS
+            # creates a fresh log file and the new file starts at session 1).
+            if last_queue_line_epoch is None:
+                return  # no epoch from new tail → cannot confirm it is a new run
+            if entry_epoch is not None and last_queue_line_epoch <= entry_epoch:
+                return  # epoch confirms this is the same or an older session
         if effective_sess == self._dismissed_new_queue_session:
             return
         if self._pending_new_queue_session == effective_sess:
@@ -853,9 +1123,38 @@ class QueueMonitorEngine:
             self._set_position_display(None)
             self._hooks.request_redraw_graph()
 
-    def stop_monitoring(self) -> None:
-        if self._last_queue_run_session >= 0 and self.graph_points:
-            self._write_session_record("abandoned")
+    def stop_monitoring(self, *, folder_switch: bool = False) -> None:
+        # Skip the abandoned write for interrupted sessions: enter_interrupted_state already
+        # wrote "interrupted" (live case, _session_record_written=True → no-op anyway), and
+        # for seeded-interrupted sessions _adopt_interrupted_tail_on_start deliberately skips
+        # the write so the backfill can record the correct terminal outcome.
+        #
+        # On a folder switch the game session may still be live; write a forced in_progress
+        # snapshot (bypassing the 30 s throttle) so cross-folder views can see the session
+        # as Unknown (?).  Writing abandoned would show it as dead; writing nothing at all
+        # would make it invisible if the throttle hasn't fired yet in this session.
+        # The backfill below still captures completed outcomes from the full log scan.
+        if self._last_queue_run_session >= 0 and self.graph_points and not self._interrupted_mode:
+            if folder_switch:
+                # Use the path locked in at session start so a simultaneous history_path
+                # config change doesn't redirect the record to the new folder.
+                self._write_session_progress(force=True, _path_override=self._session_history_path)
+            else:
+                # Monitor stopped by user — we stopped watching, not a witnessed VS event.
+                self._write_session_record("unknown")
+        # Backfill the log being stopped so completed sessions are captured in the
+        # global JSONL before we switch to a different folder.  This ensures
+        # cross-folder history survives a folder switch even if the sessions were
+        # never individually written (e.g. the app was opened after they completed).
+        if self.current_log_file is not None and self.current_log_file.is_file():
+            _log_to_backfill = self.current_log_file
+            # Use the session-locked path so a concurrent history_path config change
+            # doesn't redirect the backfill into the new folder's JSONL.
+            _hist_for_backfill = self._session_history_path or self._effective_history_path()
+            threading.Thread(
+                target=lambda: self._backfill_sessions_from_log(_log_to_backfill, _hist_path_override=_hist_for_backfill),
+                daemon=True,
+            ).start()
         self._interrupted_mode = False
         self._interrupted_elapsed_sec = None
         self._frozen_rates_at_interrupt = None
@@ -943,6 +1242,11 @@ class QueueMonitorEngine:
             return
         segment_points, segment_len, positions_len, tail_mb, seg_min, seg_max, queue_run_session_id, authoritative_pos, first_le_one_epoch, connect_phase_started_epoch = data
         self._last_queue_run_session = queue_run_session_id
+        # Store the true session start BEFORE the deque truncates segment_points to MAX_GRAPH_POINTS.
+        # Without this, _build_session_record falls back to graph_points[0][0] which is a
+        # mid-session timestamp, causing epoch mismatches in JSONL dedup.
+        if segment_points:
+            self._session_start_epoch = segment_points[0][0]
         self._connect_phase_started_epoch = connect_phase_started_epoch
         if authoritative_pos is not None and authoritative_pos <= 1 and (first_le_one_epoch is not None):
             self._position_one_reached_at = first_le_one_epoch
@@ -990,6 +1294,13 @@ class QueueMonitorEngine:
             resolved = resolve_log_file(self.source_path_var.get())
             if resolved is not None:
                 if self.current_log_file != resolved:
+                    # Finalize the old session before switching log files.
+                    if self._last_queue_run_session >= 0 and self.graph_points and not self._session_record_written:
+                        self._write_session_record("unknown")
+                    # Reset session tracking so the new file's sessions can be recorded.
+                    self._session_record_written = False
+                    self._session_start_epoch = None
+                    self._session_start_position = None
                     self.current_log_file = resolved
                     self.resolved_path_var.set(str(resolved))
                     self._last_queue_run_session = -1
@@ -1030,9 +1341,22 @@ class QueueMonitorEngine:
                     now = time.time()
                     log_silent = self._last_log_growth_epoch is not None and now - self._last_log_growth_epoch >= LOG_SILENCE_RECONNECT_SEC
                     if self._interrupted_mode:
-                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind)
+                        self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind, left)
                     elif kind == 'disconnected':
-                        self.enter_interrupted_state('Connection lost (final teardown).')
+                        # A completed session is signalled by either:
+                        #  • _left_connect_queue_detected (we saw position 0 in this run), OR
+                        #  • the current tail showing a post-queue signal after the last queue
+                        #    line with last position ≤ 1 (e.g. on first poll after folder switch
+                        #    or app start, where _left_connect_queue_detected was just reset).
+                        completed_in_tail = left and position is not None and position <= 1
+                        if self._left_connect_queue_detected or completed_in_tail:
+                            # Queue already completed before VS disconnected — preserve
+                            # Completed status. Entering interrupted mode here would hide
+                            # the completed JSONL record via ghost suppression and emit a
+                            # spurious "Queue interrupted" failure popup.
+                            self._set_status_line('Completed')
+                        else:
+                            self.enter_interrupted_state('Connection lost (final teardown).')
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
@@ -1043,8 +1367,11 @@ class QueueMonitorEngine:
                         self._connect_phase_started_epoch = None
                         self._set_position_display(None)
                         self.last_position = None
-                    elif self._left_connect_queue_detected and kind in ('reconnecting', 'grace'):
-                        self.enter_interrupted_state('Connection lost after queue completion.')
+                    elif (self._left_connect_queue_detected or (left and position is not None and position <= 1)) and kind in ('reconnecting', 'grace'):
+                        # Queue already completed (position reached 0, completed record
+                        # written) — VS reconnecting is not an interruption. Keep Completed
+                        # status so the JSONL completed record stays visible in history.
+                        self._set_status_line('Completed')
                         self._queue_stale_latched = False
                         self._queue_stale_logged_once = False
                         self._last_queue_position_change_epoch = None
@@ -1065,7 +1392,20 @@ class QueueMonitorEngine:
                         self._position_one_reached_at = None
                         self._connect_phase_started_epoch = None
                         if log_silent or kind == 'grace':
-                            self._set_status_line('Reconnecting…')
+                            silence_sec = now - self._last_log_growth_epoch if self._last_log_growth_epoch else 0.0
+                            if silence_sec >= LOG_SILENCE_INTERRUPT_SEC:
+                                # Log has been silent long enough that VS is not coming back.
+                                # Trim the live session's graph to the last real data point so
+                                # the dwell period does not distort rate metrics, then interrupt.
+                                if self.graph_points and self.current_point is not None:
+                                    silence_start = now - silence_sec
+                                    # Keep all points before silence started; drop the dwell.
+                                    self.graph_points = [p for p in self.graph_points if p[0] <= silence_start]
+                                    if not self.graph_points:
+                                        self.graph_points = [list(self.current_point)]
+                                self.enter_interrupted_state(f'No log activity for {silence_sec:.0f}s — VS disconnected.')
+                            else:
+                                self._set_status_line('Reconnecting…')
                         else:
                             self._set_status_line('Connecting…')
                         self._set_position_display(None)
@@ -1122,7 +1462,14 @@ class QueueMonitorEngine:
                                     self._queue_stale_logged_once = False
                                 elif self._last_queue_position_change_epoch is None:
                                     self._last_queue_position_change_epoch = now
-                                if self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit:
+                                # VS only writes queue lines when position changes, not on a fixed
+                                # interval. An active log (not log_silent) means VS is alive;
+                                # absence of new queue lines just means position is stable.
+                                # Only treat as stale when the log has gone silent — the
+                                # Reconnecting… path at line ~1385 already handles that case,
+                                # but stale_latched can still fire here if we somehow slipped
+                                # through with a None epoch on a live connection.
+                                if not new_queue_run and log_silent and (self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit):
                                     self._queue_stale_latched = True
                                     if not self._queue_stale_logged_once:
                                         self.write_history(f'No new queue log lines for {stale_limit:.0f}s ({QUEUE_STALE_TIMEOUT_MULT:.0f}× expected {QUEUE_UPDATE_INTERVAL_SEC:.0f}s updates); treating as interrupted.')
@@ -1133,9 +1480,10 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                         if not self._interrupted_mode:
                             if self._last_queue_run_session >= 0 and queue_sess > self._last_queue_run_session:
-                                # Old session ended without clean detection (log blanked / VS restarted).
+                                # Strong signal: a new session boundary appeared in the log — VS started
+                                # a fresh queue run, so the previous session ended without completion.
                                 if not self._session_record_written and self.graph_points:
-                                    self._write_session_record("unknown")
+                                    self._write_session_record("abandoned")
                                 self._alert_thresholds_fired.clear()
                                 self._position_one_reached_at = None
                                 self._connect_phase_started_epoch = None
@@ -1148,7 +1496,7 @@ class QueueMonitorEngine:
                                 self._queue_stale_logged_once = False
                                 self._mpp_floor_position = None
                                 self._mpp_floor_value = None
-                                self._session_start_epoch = time.time()
+                                self._session_start_epoch = last_queue_line_epoch or time.time()
                                 self._session_start_position = position
                                 self._session_record_written = False
                                 self.write_history('New queue run (from log).')
@@ -1157,6 +1505,11 @@ class QueueMonitorEngine:
                             self._last_queue_run_session = queue_sess
                             if position == 0:
                                 self._set_status_line('Completed')
+                                # Anchor the graph at position 0 using the log-backed timestamp
+                                # so the stored record always ends with an explicit (t, 0) point.
+                                # Skip if already anchored (e.g. after seeding a completed session).
+                                if not self.graph_points or int(self.graph_points[-1][1]) != 0:
+                                    self.append_graph_point(0, last_queue_line_epoch)
                                 self._write_session_record("completed")
                             elif position is not None and position <= 1:
                                 self._set_status_line('At front')
@@ -1172,14 +1525,10 @@ class QueueMonitorEngine:
                                 # Wall-clock samples every poll so the chart shows heartbeat / flat
                                 # segments, not only log-line times, while the queue is still live.
                                 self.append_graph_point(position, None)
-                            else:
-                                # Lock in completed state without adding a heartbeat sample.
-                                # Without this, last_position stays at the pre-completion value and
-                                # "Queue changed: N → 0" fires again on every subsequent poll.
-                                self.last_position = 0
                             self.update_time_estimates()
                             if position != prev_pos:
                                 self._checkpoint_session()
+                                self._write_session_progress()
                                 self._mpp_floor_position = position
                                 self._mpp_floor_value = self._minutes_per_position_from_window()
                                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')

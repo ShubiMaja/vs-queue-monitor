@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VS Queue Monitor (Web)</title>
     <link rel="icon" type="image/svg+xml" href="/notify-icon.svg" />
-    <link rel="stylesheet" href="/styles.css?v=1.1.89" />
+    <link rel="stylesheet" href="/styles.css?v=1.1.189" />
   </head>
   <body>
+    <div id="topLoadingBar" class="top-loading-bar" aria-hidden="true"></div>
     <div id="updateBanner" class="update-banner hidden" role="status" aria-live="polite">
       <div class="update-banner__inner">
         <div class="update-banner__body">
@@ -30,6 +31,19 @@
           <button type="button" class="btn btn--ghost btn--small" id="btnDismissRestore">Not now</button>
         </div>
         <button type="button" class="banner-close" id="btnCloseRestoreBanner" aria-label="Dismiss restore banner" title="Dismiss restore banner">×</button>
+      </div>
+    </div>
+
+    <div id="whatsNewBanner" class="whats-new-banner hidden" role="region" aria-label="What's new">
+      <div class="whats-new-banner__inner">
+        <div class="whats-new-banner__body">
+          <div class="whats-new-banner__head">
+            <span class="whats-new-banner__badge">What's new</span>
+            <span id="whatsNewVersion" class="whats-new-banner__ver"></span>
+          </div>
+          <ul id="whatsNewList" class="whats-new-banner__list"></ul>
+        </div>
+        <button type="button" class="banner-close" id="btnDismissWhatsNew" aria-label="Dismiss what's new" title="Dismiss">×</button>
       </div>
     </div>
 
@@ -114,7 +128,31 @@
                 <line x1="10" x2="8" y1="9" y2="9" />
               </svg>
             </button>
+            <button
+              type="button"
+              class="btn btn--small btn--browse btn--browse-icon hidden"
+              id="btnRecentPaths"
+              title="Recently used paths"
+              aria-label="Recently used paths"
+              aria-expanded="false"
+            >
+              <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+            </button>
           </div>
+          <div id="popRecentPaths" class="popover popover--recent-paths hidden" role="listbox" aria-label="Recently used paths"></div>
+          <div id="popPath" class="popover popover--path hidden" role="dialog" aria-modal="false" aria-labelledby="popPathLabel">
+            <label id="popPathLabel">Log source path</label>
+            <input type="text" id="inpPathPop" class="inp popover--path__inp" autocomplete="off" spellcheck="false" placeholder="Paste folder or .log file path…" />
+            <p class="popover__hint">Paste your <strong>VintagestoryData</strong> folder or a full <code>.log</code> path. Or use the <strong>folder / file</strong> icons to browse.</p>
+            <div class="popover__row">
+              <button type="button" class="btn btn--primary btn--small" id="btnPathPopOk">Save</button>
+              <button type="button" class="btn btn--ghost btn--small" id="btnPathPopCancel">Cancel</button>
+            </div>
+          </div>
+          <p id="pathHint" class="path-hint hidden" aria-live="polite">← Set your VS log folder, then press <strong>Start</strong></p>
         </div>
       </div>
       <div class="topbar__actions">
@@ -145,6 +183,12 @@
             </span>
           </span>
         </button>
+        <button type="button" class="btn btn--secondary update-badge hidden" id="btnUpdateAvail" aria-label="Update available — click to install" title="Update available — click to install">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+          <span>Update</span>
+        </button>
         <button
           type="button"
           class="btn btn--secondary btn--icon-only"
@@ -159,15 +203,10 @@
           </svg>
         </button>
         <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help" title="Help (F1)">?</button>
-        <button type="button" class="btn btn--icon-only update-badge hidden" id="btnUpdateAvail" aria-label="Update available — click to install" title="Update available — click to install">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 19V5M5 12l7-7 7 7"/>
-          </svg>
-        </button>
         <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings" title="Settings (o)">⚙</button>
         <button
           type="button"
-          class="btn btn--primary btn--icon-only btn-start-stop"
+          class="btn btn--primary btn-start-stop"
           id="btnStartStop"
           data-state="stopped"
           aria-label="Start monitoring"
@@ -177,11 +216,13 @@
             <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <polygon points="8 6 19 12 8 18 8 6" />
             </svg>
+            <span>Start</span>
           </span>
           <span class="btn-start-stop__glyph btn-start-stop__glyph--stop" aria-hidden="true">
             <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <rect x="7" y="7" width="10" height="10" rx="1.5" />
             </svg>
+            <span>Stop</span>
           </span>
         </button>
       </div>
@@ -284,7 +325,7 @@
             <div class="graph-toolbar__left">
               <label class="graph-session-label muted" for="selSession">Session</label>
               <select id="selSession" class="inp graph-session-select" title="Graph scope (KPIs stay live)">
-                <option value="latest">Latest session (auto)</option>
+                <option value="latest">Last read session (auto)</option>
               </select>
             </div>
             
@@ -425,7 +466,7 @@
                   <div><span class="muted">Pos Change</span> <span id="infoStatCleared">—</span></div>
                   <div><span class="muted">Duration</span> <span id="infoStatSpan">—</span></div>
                   <div><span class="muted" id="infoStatAvgLbl">10p Rate</span> <span id="infoStatAvg" title="Average minutes per position change for the rolling window (m/p = min/pos)">—</span></div>
-                  <div><span class="muted">Full Rate</span> <span id="infoStatGlo" title="Average minutes per position change across the full displayed session (m/p = min/pos)">—</span></div>
+                  <div><span class="muted">Session Rate</span> <span id="infoStatGlo" title="Average minutes per position change across the full displayed session (m/p = min/pos)">—</span></div>
                   <div><span class="muted">Global Rate</span> <span id="infoStatHistGlo" title="Average minutes per position change across all recorded sessions (m/p = min/pos)">—</span></div>
                 </div>
               </div>
@@ -487,35 +528,18 @@
       </section>
     </main>
 
-    <div id="modalPath" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalPathHeading">
-      <div class="modal__backdrop" id="modalPathBackdrop"></div>
-      <div class="modal__box modal__box--wide">
-        <h2 id="modalPathHeading">Log source path</h2>
-        <p class="modal__text muted">
-          Paste the folder that contains <code>client-main.log</code>, your <strong>VintagestoryData</strong> folder, or a full path to a <code>.log</code> file. You can also use the folder or file buttons in the header.
-        </p>
-        <label class="settings-field" for="inpPathModal">Path</label>
-        <input type="text" id="inpPathModal" class="inp settings-inp" autocomplete="off" spellcheck="false" />
-        <div class="modal__actions">
-          <button type="button" class="btn btn--primary" id="btnPathOk">Save</button>
-          <button type="button" class="btn btn--ghost" id="btnPathCancel">Cancel</button>
-        </div>
-      </div>
-    </div>
-
     <div id="modalAbout" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalAboutHeading">
       <div class="modal__backdrop" data-close-about="1"></div>
       <div class="modal__box modal__box--about">
         <button type="button" class="modal-close" id="btnAboutOk" data-close-about="1" aria-label="Close" title="Close">×</button>
         <div class="about-icon" aria-hidden="true">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4" y="8" width="48" height="32" rx="4" fill="var(--card)" stroke="var(--accent)" stroke-width="2.5"/>
-            <line x1="12" y1="18" x2="44" y2="18" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="24" x2="36" y2="24" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
-            <line x1="12" y1="30" x2="30" y2="30" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
-            <line x1="20" y1="40" x2="36" y2="40" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
-            <line x1="28" y1="40" x2="28" y2="48" stroke="var(--line)" stroke-width="2"/>
-            <line x1="18" y1="48" x2="38" y2="48" stroke="var(--line)" stroke-width="2" stroke-linecap="round"/>
+            <!-- V chevron brand mark -->
+            <path d="M7 11 L28 39 L49 11" stroke="var(--accent)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Queue position dots -->
+            <circle cx="16" cy="49" r="3" fill="var(--line)"/>
+            <circle cx="28" cy="49" r="3.5" fill="var(--accent)"/>
+            <circle cx="40" cy="49" r="3" fill="var(--line)"/>
           </svg>
         </div>
         <h2 id="modalAboutHeading" class="about-name">VS Queue Monitor</h2>
@@ -714,6 +738,9 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 </button>
               </div>
+            </label>
+            <label class="settings-select-label settings-field" title="Oldest session records are dropped when the history file exceeds this size. Default: 100 MB.">History file size limit (MB)
+              <input type="number" id="inpHistoryMaxMB" class="inp settings-inp" min="1" step="1" placeholder="100" style="max-width:8em;" />
             </label>
           </div>
         </section>

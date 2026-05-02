@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import threading
+import time
 from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
@@ -10,7 +11,9 @@ from vs_queue_monitor.web.hooks_web import WebMonitorHooks
 from vs_queue_monitor.core import (
     SEED_LOG_TAIL_BYTES,
     compute_seed_graph_from_log,
+    decode_log_bytes,
     parse_tail_latest_connect_target,
+    queue_position_match,
     queue_sessions_for_log_tail,
 )
 from vs_queue_monitor.web.server import _queue_sessions_for_engine
@@ -57,6 +60,10 @@ def _write_log(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def _write_log_utf16(path: Path, lines: list[str], encoding: str = "utf-16-le") -> None:
+    path.write_bytes(("\n".join(lines) + "\n").encode(encoding))
+
+
 def test_completion_then_disconnect_then_requeue() -> None:
     root = Path(".tmp-release-smoke-tests")
     if root.exists():
@@ -97,9 +104,10 @@ def test_completion_then_disconnect_then_requeue() -> None:
     _write_log(log_path, disconnected_lines)
 
     engine.poll_once()
-    assert engine._interrupted_mode is True
-    assert engine.status_var.get() == "Interrupted"
-    assert hooks._failure_notify_seq == 1
+    # v1.1.173: post-completion disconnect stays "Completed", does NOT enter interrupted mode
+    assert engine._interrupted_mode is False
+    assert engine.status_var.get() == "Completed"
+    assert hooks._failure_notify_seq == 0
 
     requeue_lines = disconnected_lines + [
         "9.4.2026 22:32:00 [Notification] Connecting to tops.vintagestory.at...",
@@ -108,13 +116,61 @@ def test_completion_then_disconnect_then_requeue() -> None:
     _write_log(log_path, requeue_lines)
 
     engine.poll_once()
-    assert engine._pending_new_queue_session is not None
+    # v1.1.173: new queue run auto-adopted directly (not via dialog when not in interrupted mode)
+    assert engine._pending_new_queue_session is None
 
+    # resolve_new_queue_offer is a no-op when pending is None; state already updated by poll_once
     engine.resolve_new_queue_offer(True)
     assert engine._interrupted_mode is False
     assert engine.status_var.get() == "Monitoring"
     assert engine.position_var.get() == "12"
     assert engine.last_position == 12
+
+
+def test_slow_queue_does_not_trigger_spurious_interrupted() -> None:
+    """Regression: stale-queue detection must not fire while the log is actively growing.
+
+    VS only writes queue position lines when the position changes.  A slow queue can stay
+    at the same position for many minutes without writing a new queue line, while VS keeps
+    writing other log traffic (pings, etc.).  Previously the stale check compared wall time
+    against the log-embedded queue-line timestamp, firing 'Queue interrupted' whenever the
+    last queue line was >60s old — even with an active connection.
+    """
+    root = Path(".tmp-slow-queue-stale-test")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+
+    # Fixed timestamp that is clearly > stale_limit (30 * 2 = 60s) in the past
+    old_ts = "9.4.2026 00:00:00"
+    _write_log(log_path, [
+        f"{old_ts} [Notification] Connecting to tops.vintagestory.at...",
+        f"{old_ts} [Notification] Client is in connect queue at position: 50",
+    ])
+
+    engine, hooks = _engine_for_log_dir(log_dir)
+    engine.poll_once()
+    assert engine.position_var.get() == "50"
+    assert engine._interrupted_mode is False
+
+    # Simulate active log growth: VS writes non-queue ping lines, stat changes
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("9.4.2026 00:00:00 [Debug] Server ping 42ms\n")
+        f.write("9.4.2026 00:00:05 [Debug] Server ping 43ms\n")
+
+    engine.poll_once()
+    # Log is growing → NOT silent → stale detection must NOT fire
+    assert engine._interrupted_mode is False, (
+        "Spurious interrupted fired: log is active but queue position was unchanged for >60s"
+    )
+    assert engine.status_var.get() in ("Monitoring", "At front", ""), (
+        f"Unexpected status: {engine.status_var.get()!r}"
+    )
+    assert hooks._failure_notify_seq == 0
+
+    shutil.rmtree(root, ignore_errors=True)
 
 
 def test_active_session_zero_not_listed_as_failed_history() -> None:
@@ -135,7 +191,7 @@ def test_active_session_zero_not_listed_as_failed_history() -> None:
     engine, _hooks = _engine_for_log_dir(log_dir)
     engine._last_queue_run_session = 0
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
 
 
@@ -162,7 +218,7 @@ def test_live_session_fallback_filter_hides_latest_incomplete_entry() -> None:
     engine.current_point = (1775763085.0, 10)
     engine.graph_points = [(1775763055.0, 12), (1775763085.0, 10)]
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
     assert sessions == [], sessions
 
 
@@ -236,7 +292,7 @@ def test_queue_sessions_merge_cross_file_history_and_dedup_live_start_epoch() ->
         encoding="utf-8",
     )
 
-    sessions, active_id = _queue_sessions_for_engine(engine)
+    sessions, active_id, _active_epoch = _queue_sessions_for_engine(engine)
 
     assert active_id >= 0
     assert len(sessions) == 2, sessions
@@ -297,7 +353,7 @@ def test_queue_sessions_dedup_duplicate_history_records() -> None:
     }
     hist_path.write_text(json.dumps(dup_a) + "\n" + json.dumps(dup_b) + "\n", encoding="utf-8")
 
-    sessions, _active_id = _queue_sessions_for_engine(engine)
+    sessions, _active_id, _active_epoch = _queue_sessions_for_engine(engine)
 
     gamma_sessions = [s for s in sessions if s.get("server") == "gamma.example.net"]
     assert len(gamma_sessions) == 1, gamma_sessions
@@ -442,7 +498,8 @@ def test_web_client_notification_events_do_not_depend_on_shared_popup_flags() ->
         "9.4.2026 22:31:40 [Error] Connection closed unexpectedly",
     ])
     engine.poll_once()
-    assert hooks._failure_notify_seq == 1
+    # v1.1.173: post-completion disconnect does NOT fire failure notification
+    assert hooks._failure_notify_seq == 0
 
 
 def test_server_target_refresh_falls_back_to_seed_window() -> None:
@@ -520,11 +577,14 @@ def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
     engine._apply_seed_result(compute_seed_graph_from_log(log_path))
     engine._adopt_interrupted_tail_on_start(log_path)
 
-    assert engine._interrupted_mode is True
-    assert engine.status_var.get() == "Interrupted"
-    assert engine.elapsed_var.get() == "0:32"
-    assert engine.queue_rate_var.get() == "—"
-    assert engine.global_rate_var.get() == "—"
+    # v1.1.173: completed+disconnect at startup does NOT enter interrupted mode
+    assert engine._interrupted_mode is False
+    assert engine.status_var.get() == "Idle"
+    # Elapsed computed from graph points (first queue line → last queue line), not connect phase
+    assert engine.elapsed_var.get() == "0:30"
+    # Rates are computed from seeded graph points, not frozen at "—"
+    assert engine.queue_rate_var.get() != "—"
+    assert engine.global_rate_var.get() != "—"
     assert engine.predicted_remaining_var.get() == "—"
 
 
@@ -561,3 +621,59 @@ def test_completed_queue_restart_does_not_add_post_completion_heartbeat_points()
     assert engine.position_var.get() == "0"
     assert list(engine.graph_points) == seeded_points
     assert engine.queue_rate_var.get() == seeded_rate
+
+
+# ---------------------------------------------------------------------------
+# Encoding: UTF-16 log fixture (regression for silent byte-strip via errors="ignore")
+# ---------------------------------------------------------------------------
+
+_UTF16_QUEUE_LINES = [
+    "12 Jun 2025 09:00:00 [Client] Connecting to example.vs.server:42420",
+    "12 Jun 2025 09:00:01 [Client] Client is in connect queue at position: 42",
+    "12 Jun 2025 09:00:30 [Client] Client is in connect queue at position: 20",
+    "12 Jun 2025 09:01:00 [Client] Client is in connect queue at position: 5",
+]
+
+
+def test_decode_log_bytes_utf16le() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16-le")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+    assert "position: 5" in text
+
+
+def test_decode_log_bytes_utf16le_with_bom() -> None:
+    # utf-16 encoding includes BOM automatically
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+
+
+def test_decode_log_bytes_utf8() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-8")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+    assert "position: 5" in text
+
+
+def test_queue_position_match_survives_utf16_round_trip() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16-le")
+    text = decode_log_bytes(raw)
+    positions = [int(queue_position_match(ln).group(1)) for ln in text.splitlines() if queue_position_match(ln)]
+    assert positions == [42, 20, 5]
+
+
+def test_decode_log_bytes_utf16le_engine_parses_position() -> None:
+    root = Path(".tmp-release-smoke-tests-utf16")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log_utf16(log_path, _UTF16_QUEUE_LINES)
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine.poll_once()
+
+    assert engine.position_var.get() == "5", f"Expected position 5, got {engine.position_var.get()!r}"
+    shutil.rmtree(root, ignore_errors=True)

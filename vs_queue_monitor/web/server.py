@@ -30,9 +30,14 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
+    DEFAULT_HISTORY_MAX_BYTES,
+    OUTCOME_RANK,
+    RELEASE_NOTES,
     SEED_LOG_TAIL_BYTES,
     expand_path,
     get_config_path,
+    get_newer_session_attempt,
+    normalize_log_path_for_dedup,
     parse_alert_thresholds,
     parse_tail_last_queue_reading,
     queue_sessions_for_log_tail,
@@ -102,6 +107,7 @@ def _check_for_release_update(include_prereleases: bool = False) -> dict[str, An
             "latest_tag": tag,
             "release_name": name,
             "zipball_url": data.get("zipball_url", ""),
+            "html_url": data.get("html_url", ""),
             "current_version": VERSION,
             "error": None,
         }
@@ -146,68 +152,82 @@ def _build_fingerprint() -> str:
 _window_mode: str | None = None
 
 
-def _session_merge_rank(rec: dict[str, Any]) -> tuple[int, int, int]:
-    """Prefer records with more points and richer metadata when duplicates collide."""
+def _session_merge_rank(rec: dict[str, Any]) -> tuple:
+    """completed always wins; all other outcomes compete by recency, then outcome rank."""
+    outcome = rec.get("outcome") or ""
     pts = rec.get("points") or []
-    return (
-        len(pts),
-        1 if rec.get("server") else 0,
-        1 if rec.get("outcome") else 0,
-    )
+    end_ep = float(rec.get("end_epoch") or 0)
+    server = 1 if rec.get("server") else 0
+    if outcome == "completed":
+        # Highest tier: post-queue signal is authoritative regardless of recency.
+        return (2, OUTCOME_RANK.get(outcome, 0), len(pts), end_ep, server)
+    # All other outcomes (abandoned, interrupted, crashed, in_progress, …):
+    # the most recently written record (highest end_epoch) is most authoritative.
+    # Within the same end_epoch, prefer the stronger terminal outcome.
+    return (1, end_ep, OUTCOME_RANK.get(outcome, 0), len(pts), server)
 
 
-def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int]:
-    """Return (past_sessions, active_seed_session_id) using the SEED tail window for both.
+def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[str, Any]], int, Optional[float]]:
+    """Return (past_sessions, active_seed_session_id, active_session_epoch).
 
-    The engine's ``_last_queue_run_session`` is counted against the smaller TAIL_BYTES window
-    and disagrees with the session IDs in the SEED window used by ``queue_sessions_for_log_tail``.
-    Deriving the active ID directly from the SEED tail keeps all session IDs in the same
-    coordinate space, preventing historical sessions from being incorrectly filtered and
-    phantom sessions from leaking into the dropdown.
-
-    Also merges sessions from session_history.jsonl so cross-file history appears in the dropdown.
+    ``active_seed_session_id`` is the ACTUAL latest session that started in the log
+    (by boundary count), even if it never logged a queue position (e.g. VS failed to
+    connect before the queue was reached).  ``active_session_epoch`` is that session's
+    start time, used by the JS to label and position the synthetic "loaded" option
+    correctly in the session dropdown.
     """
     path = engine.current_log_file
-    seed_active_id = -1
+    current_norm_lf = normalize_log_path_for_dedup(str(path)) if path is not None else ""
+    seed_active_id = -1   # session id from last queue-position line
+    true_seed_id = -1     # actual latest session (may have no queue positions)
+    _has_newer: bool = False   # reconnecting-type line seen after last queue position
+    _newer_epoch: Optional[float] = None
+    tail_text: Optional[str] = None
     live_sessions: list[dict[str, Any]] = []
+    _active_tail_session: Optional[dict[str, Any]] = None
     if path is not None and path.is_file():
         try:
             tail_text = read_log_file_tail_text(path, SEED_LOG_TAIL_BYTES)
             live_sessions = queue_sessions_for_log_tail(path, SEED_LOG_TAIL_BYTES)
-            if tail_text and engine.running:
+            if tail_text:
                 _pos, seed_active_id = parse_tail_last_queue_reading(tail_text)
+                # Only a reconnecting-type line after the last queue position indicates a
+                # genuinely newer session.  Disconnect/teardown lines that follow a completed
+                # session are NOT a new attempt and must not falsely inflate true_seed_id.
+                _has_newer, _newer_epoch = get_newer_session_attempt(tail_text)
+                # If no queue positions are visible in the tail, _has_newer is unreliable:
+                # any connecting line from prior game play would falsely fire. Suppress it.
+                if seed_active_id < 0:
+                    _has_newer = False
+                    _newer_epoch = None
+            true_seed_id = seed_active_id + 1 if _has_newer else seed_active_id
             if seed_active_id >= 0:
-                live_sessions = [s for s in live_sessions if int(s.get("session_id", -1)) != seed_active_id]
+                filtered: list[dict[str, Any]] = []
+                for s in live_sessions:
+                    if int(s.get("session_id", -1)) == seed_active_id:
+                        _active_tail_session = s
+                    else:
+                        filtered.append(s)
+                live_sessions = filtered
         except Exception:
             pass
 
-    # Merge JSONL history records into the session list.
-    #
-    # Two dedup passes are needed because the old signature-based approach had two bugs:
-    #   1. end_epoch was in the signature, so checkpoint / crash-recovery / explicit writes
-    #      for the same queue run each got a unique signature and all appeared in the dropdown.
-    #   2. Live sessions have no log_file/server/source_path metadata, so their signatures
-    #      never matched JSONL records and the seen_signatures guard was effectively dead.
-    #
-    # Fix:
-    #   Pass A — collapse JSONL records for the same run: (log_file, session_id) is a stable
-    #             primary key because the engine writes the same session_id for every
-    #             checkpoint and final write of a given queue run.
-    #   Pass B — exclude JSONL records already covered by live tail sessions: match on
-    #             (floor_epoch, start_pos) only — the two fields present in both sources.
-    #   Pass C — dedup any remaining JSONL records by (floor_epoch, start_pos, log_file),
-    #             without end_epoch, so further stale duplicates collapse.
     try:
         hist_records = engine.load_history_sessions()
 
-        # Pass A: collapse same-run JSONL records by (log_file, session_id).
-        hist_primary: dict[tuple[str, int], dict[str, Any]] = {}
+        # Pass A: collapse same-run JSONL records by (norm_log_file, session_id, floor_start_epoch).
+        # Including start_epoch prevents different sessions that share a session_id (due to log
+        # rotation / VS reusing small IDs) from being merged into one.  In-progress + terminal
+        # records for the same actual run share the same session_id AND start_epoch so they still
+        # collapse correctly.
+        hist_primary: dict[tuple[str, int, int], dict[str, Any]] = {}
         hist_no_id: list[dict[str, Any]] = []
         for rec in hist_records:
             sid = rec.get("session_id")
-            lf = str(rec.get("log_file") or "")
-            if sid is not None:
-                pk = (lf, int(sid))
+            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
+            se = rec.get("start_epoch")
+            if sid is not None and se is not None:
+                pk = (lf, int(sid), int(math.floor(float(se))))
                 prev = hist_primary.get(pk)
                 if prev is None or _session_merge_rank(rec) > _session_merge_rank(prev):
                     hist_primary[pk] = rec
@@ -215,62 +235,215 @@ def _queue_sessions_for_engine(engine: QueueMonitorEngine) -> tuple[list[dict[st
                 hist_no_id.append(rec)
         deduped_hist = list(hist_primary.values()) + hist_no_id
 
-        # Pass B: build live match keys — (floor_epoch, start_pos).
-        live_match_keys: set[tuple[Any, Any]] = set()
-        key_counts: dict[str, int] = {}
-        for s in live_sessions:
-            se = s.get("start_epoch")
-            mk: tuple[Any, Any] = (int(math.floor(float(se))) if se is not None else None, s.get("start_pos"))
-            live_match_keys.add(mk)
-            base = str(s.get("key", "")).split("#")[0]
-            key_counts[base] = key_counts.get(base, 0) + 1
+        # Pass A2: collapse records with the same (lf, session_id) that are close in time.
+        # Pre-fix engines wrote records with truncated graph-deque timestamps, producing
+        # multiple JSONL entries for the same session with different floor epochs that Pass A
+        # cannot collapse.  Grouping by (lf, session_id) + keeping highest merge_rank
+        # eliminates those phantom duplicates.
+        #
+        # Epoch guard: VS reuses small session_id values over time (the boundary counter is
+        # relative to the current log file and wraps/repeats).  Two records with the same
+        # (lf, session_id) but start_epochs >4 hours apart are genuinely different queue
+        # sessions — do NOT collapse them.  Distant records go to _hist_sid_extra and flow
+        # through to Pass C's (floor_se, lf) dedup where they survive as separate sessions.
+        _PASS_A2_MAX_EPOCH_GAP_S = 4 * 3600
+        _hist_by_lf_sid: dict[tuple[str, int], dict[str, Any]] = {}
+        _hist_no_sid: list[dict[str, Any]] = []
+        _hist_sid_extra: list[dict[str, Any]] = []
+        for _rec in deduped_hist:
+            _sid2 = _rec.get("session_id")
+            _lf2 = normalize_log_path_for_dedup(str(_rec.get("log_file") or ""))
+            _se2 = float(_rec.get("start_epoch") or 0)
+            if _sid2 is not None:
+                _k2 = (_lf2, int(_sid2))
+                _prev2 = _hist_by_lf_sid.get(_k2)
+                if _prev2 is None:
+                    _hist_by_lf_sid[_k2] = _rec
+                else:
+                    _prev_se = float(_prev2.get("start_epoch") or 0)
+                    if abs(_se2 - _prev_se) <= _PASS_A2_MAX_EPOCH_GAP_S:
+                        if _session_merge_rank(_rec) > _session_merge_rank(_prev2):
+                            _hist_by_lf_sid[_k2] = _rec
+                    else:
+                        # Different session — same lf+sid but far apart in time; keep separately.
+                        _hist_sid_extra.append(_rec)
+            else:
+                _hist_no_sid.append(_rec)
+        deduped_hist = list(_hist_by_lf_sid.values()) + _hist_no_sid + _hist_sid_extra
 
-        # Pass C: build JSONL candidate dict, skipping live-covered sessions.
+        # Pass B: derive the suppression epoch and session-id for the active session's ghost.
+        #
+        # Two subtleties make this non-trivial:
+        #
+        # (A) parse_tail_last_queue_reading returns a TAIL-RELATIVE session-id counter
+        #     (iter_session_log_lines increments from 0 at the first "Connecting to" visible
+        #     in the 2 MB window).  JSONL records store ABSOLUTE session-ids (counted from
+        #     the beginning of the full log, including all non-queue reconnect boundaries).
+        #     They match only when the entire log fits in the tail.  Do NOT rely on the
+        #     tail-derived seed_active_id to identify a JSONL record.
+        #
+        # (B) In INTERRUPTED mode the engine has adopted an older session; the tail may show
+        #     more-recent COMPLETED sessions (which must appear as history, not be suppressed).
+        #     The loaded (seeded) session is identified solely by engine._session_start_epoch
+        #     and engine._last_queue_run_session — ignore whatever the tail's boundary counter
+        #     says.
+        #
+        # Strategy:
+        #   • Interrupted: always derive active_floor_epoch and seed_active_id from engine.
+        #   • Running (not interrupted): prefer tail when available, fall back to engine when
+        #     queue lines have scrolled past the SEED_LOG_TAIL_BYTES window.
+        active_floor_epoch: Optional[int] = None
+        _eng_fallback_epoch: Optional[float] = None
+        if engine._session_start_epoch is not None:
+            _eng_fallback_epoch = float(engine._session_start_epoch)
+        elif engine.graph_points:
+            _eng_pts = list(engine.graph_points)
+            if _eng_pts:
+                _eng_fallback_epoch = float(_eng_pts[0][0])
+
+        if engine._interrupted_mode:
+            # Interrupted: seeded session IS the loaded session — engine data is authoritative.
+            if _eng_fallback_epoch is not None:
+                active_floor_epoch = int(math.floor(_eng_fallback_epoch))
+            if engine._last_queue_run_session >= 0:
+                seed_active_id = engine._last_queue_run_session
+                true_seed_id = seed_active_id
+        else:
+            # Running: use tail-derived epoch when available.
+            if _active_tail_session is not None:
+                se = _active_tail_session.get("start_epoch")
+                if se is not None:
+                    active_floor_epoch = int(math.floor(float(se)))
+            # Fallback when queue lines have scrolled past the 2 MB tail window.
+            if active_floor_epoch is None and _eng_fallback_epoch is not None:
+                active_floor_epoch = int(math.floor(_eng_fallback_epoch))
+                if seed_active_id < 0 and engine._last_queue_run_session >= 0:
+                    seed_active_id = engine._last_queue_run_session
+                    true_seed_id = seed_active_id
+
+        # Trigger a background backfill if completed live sessions are missing from JSONL.
+        jsonl_floor_epochs: set[int] = set()
+        for rec in hist_records:
+            se = rec.get("start_epoch")
+            if se is not None:
+                jsonl_floor_epochs.add(int(math.floor(float(se))))
+        unmatched = [
+            s for s in live_sessions
+            if int(math.floor(float(s.get("start_epoch") or 0))) not in jsonl_floor_epochs
+        ]
+        if unmatched and path is not None:
+            threading.Thread(
+                target=engine._backfill_sessions_from_log, args=(path,), daemon=True
+            ).start()
+
+        # Pass C: build JSONL candidates, suppressing the in-progress ghost when applicable.
+        # Ghost suppression only fires when:
+        #   • engine is actively running (stopped engine means the terminal record was just
+        #     written and should appear as a normal historical session)
+        #   • no newer reconnecting-type session exists (_has_newer=True means the active
+        #     session's JSONL record is a completed historical entry that must stay visible)
+        no_newer_session = not _has_newer
+        key_counts: dict[str, int] = {}
         hist_by_sig: dict[tuple[Any, ...], dict[str, Any]] = {}
         for rec in deduped_hist:
             se = rec.get("start_epoch")
             if se is None:
                 continue
+            lf = normalize_log_path_for_dedup(str(rec.get("log_file") or ""))
             floor_se = int(math.floor(float(se)))
             start_pos = rec.get("start_position")
-            if (floor_se, start_pos) in live_match_keys:
-                continue  # already represented by the live tail session
-            lf = str(rec.get("log_file") or "")
-            sig = (floor_se, start_pos, lf)
+            _rec_sid = rec.get("session_id")
+            _epoch_match = (
+                active_floor_epoch is not None
+                and abs(floor_se - active_floor_epoch) <= 2
+            )
+            _sid_match = (
+                _rec_sid is not None and seed_active_id >= 0
+                and int(_rec_sid) == seed_active_id
+                and (active_floor_epoch is None
+                     or floor_se >= active_floor_epoch - 4 * 3600)
+            )
+            if (engine.running and no_newer_session
+                    and current_norm_lf and lf == current_norm_lf
+                    and (_sid_match or (engine._interrupted_mode and _epoch_match))):
+                continue  # in-progress ghost for the currently loaded session
+            # Use (floor_se, lf) as the merge key — start_pos is omitted because
+            # engine-written records store start_position=null while backfill records
+            # store the real first-position value.  The two represent the same session
+            # but get different sigs when start_pos is included, causing phantom
+            # duplicates.  Same-epoch same-log collisions (genuine distinct sessions)
+            # are extremely rare and already handled by Pass A (session_id + epoch key).
+            sig = (floor_se, lf)
             pts = rec.get("points") or []
+            end_ep = float(rec.get("end_epoch") or se)
+            outcome = rec.get("outcome")
+            # Ensure completed sessions always end with an explicit position-0 point,
+            # even for records written before position-0 tracking was added.
+            if outcome == "completed" and pts and int(pts[-1][1]) != 0:
+                t_last = float(pts[-1][0])
+                pts = list(pts) + [(max(end_ep, t_last + 1e-6), 0)]
+            elif outcome == "completed" and not pts:
+                pts = [(end_ep, 0)]
             candidate: dict[str, Any] = {
                 "key": f"t:{floor_se}",
                 "session_id": rec.get("session_id"),
                 "label": "",
                 "start_epoch": float(se),
-                "end_epoch": float(rec.get("end_epoch") or se),
+                "end_epoch": end_ep,
                 "start_pos": start_pos,
                 "end_pos": rec.get("end_position"),
                 "points": [[float(t), int(p)] for t, p in pts],
                 "server": rec.get("server"),
                 "source_path": rec.get("source_path"),
                 "log_file": rec.get("log_file"),
-                "outcome": rec.get("outcome"),
+                "outcome": outcome,
             }
             prev = hist_by_sig.get(sig)
             if prev is None or _session_merge_rank(candidate) > _session_merge_rank(prev):
                 hist_by_sig[sig] = candidate
 
-        hist_sessions: list[dict[str, Any]] = []
+        all_sessions: list[dict[str, Any]] = []
         for _sig, sess in sorted(hist_by_sig.items(), key=lambda item: float(item[1].get("start_epoch") or 0)):
             base = str(sess.get("key", "")).split("#")[0]
             seen = key_counts.get(base, 0)
             key_counts[base] = seen + 1
             sess["key"] = base if seen == 0 else f"{base}#{seen + 1}"
-            hist_sessions.append(sess)
+            all_sessions.append(sess)
 
-        all_sessions = live_sessions + hist_sessions
-        all_sessions.sort(key=lambda s: float(s.get("start_epoch") or 0))
+        # Determine active_session_epoch: the loaded session's start time.
+        # Used by the JS to place and label the synthetic "loaded" option correctly.
+        # • Interrupted: always use the engine's seeded session epoch — the tail may show
+        #   more-recent completed sessions that must not override the opt0 label.
+        # • Normal session (no newer attempt): use the active tail session's start_epoch.
+        # • Boundary-only newer session (_has_newer=True): use the reconnecting line's epoch.
+        #   Boundary-only sessions never have JSONL records, so no JSONL lookup is needed.
+        active_session_epoch: Optional[float] = None
+        if engine._interrupted_mode and _eng_fallback_epoch is not None:
+            active_session_epoch = _eng_fallback_epoch
+        elif not _has_newer and _active_tail_session is not None:
+            se = _active_tail_session.get("start_epoch")
+            if se is not None:
+                active_session_epoch = float(se)
+        elif _has_newer:
+            active_session_epoch = _newer_epoch
+        # Fallback: tail had no queue positions.
+        if active_session_epoch is None and _eng_fallback_epoch is not None:
+            active_session_epoch = _eng_fallback_epoch
+
+        # Assign 1-based labels by chronological order, reserving the slot for the
+        # active session.  The active session is never in all_sessions (ghost-suppressed
+        # or boundary-only), so compute the gap from active_session_epoch.
+        label_slot: Optional[int] = None
+        if active_session_epoch is not None:
+            label_slot = sum(
+                1 for _s in all_sessions
+                if float(_s.get("start_epoch", 0)) < float(active_session_epoch)
+            )
         for i, s in enumerate(all_sessions):
-            s["label"] = f"Session {i + 1}"
-        return all_sessions, seed_active_id
+            s["label"] = f"Session {i + 2}" if (label_slot is not None and i >= label_slot) else f"Session {i + 1}"
+        return all_sessions, true_seed_id, active_session_epoch
     except Exception:
-        return live_sessions, seed_active_id
+        return [], true_seed_id, None
 
 
 def _wait_for_tcp(host: str, port: int, timeout_sec: float = 20.0) -> bool:
@@ -621,7 +794,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         rate_hdr = f"RATE (Rolling {n})"
     except Exception:
         rate_hdr = "RATE"
-    queue_sessions, active_session_id = _queue_sessions_for_engine(engine)
+    queue_sessions, active_session_id, active_session_epoch = _queue_sessions_for_engine(engine)
     for _qs in queue_sessions:
         for _qf in ("source_path", "log_file"):
             if _qs.get(_qf):
@@ -629,6 +802,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
     result = {
         "version": VERSION,
         "running": engine.running,
+        "loading": getattr(hooks, "loading_active", False),
         "interrupted_mode": engine._interrupted_mode,
         "position": engine.position_var.get(),
         "status": engine.status_var.get(),
@@ -666,6 +840,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "tutorial_done": bool(engine.tutorial_done_var.get()),
         "history_path": engine.history_path_var.get(),
         "history_path_resolved": _mask_path_in_text(str(engine._effective_history_path().parent)),
+        "history_max_bytes": int(engine.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES),
         "last_log_growth_epoch": engine._last_log_growth_epoch,
         "history_tail": [_mask_path_in_text(line) for line in hooks.history_lines(400)],
         "pending_new_queue_session": engine._pending_new_queue_session,
@@ -673,6 +848,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "failure_notify_seq": int(getattr(hooks, "_failure_notify_seq", 0)),
         "queue_sessions": queue_sessions,
         "active_queue_session_id": active_session_id,
+        "active_queue_session_epoch": active_session_epoch,
         "build_fingerprint": _build_fingerprint(),
     }
     if extra:
@@ -691,6 +867,7 @@ def _api_meta(request: Request) -> JSONResponse:
             "chrome_theme": chrome_theme_css_vars(),
             "window_mode": _window_mode,
             "push_status": push_status(),
+            "whatsnew": RELEASE_NOTES.get(VERSION, []),
         }
     )
 
@@ -703,6 +880,7 @@ def _api_state(request: Request) -> JSONResponse:
         update_extra = {
             "update_available": getattr(request.app.state, "update_available", False),
             "update_release_name": getattr(request.app.state, "update_release_name", ""),
+            "update_release_html_url": getattr(request.app.state, "update_release_html_url", ""),
             "update_status": getattr(request.app.state, "update_status", None),
             "update_error": getattr(request.app.state, "update_error", ""),
             "update_download_bytes": getattr(request.app.state, "update_download_bytes", 0),
@@ -874,6 +1052,10 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.tutorial_done_var.set(bool(body["tutorial_done"]))
             if "history_path" in body:
                 engine.history_path_var.set(str(body["history_path"]).strip())
+            if "history_max_bytes" in body:
+                v = int(body["history_max_bytes"])
+                if v > 0:
+                    engine.config["history_max_bytes"] = v
             engine.persist_config()
             # Match native folder browse: re-resolve the log and seed the graph so ``current_log_file``
             # and ``queue_sessions`` update (otherwise path is saved but monitoring never restarts).
@@ -1010,6 +1192,7 @@ async def _api_update_check(request: Request) -> JSONResponse:
     result = await asyncio.to_thread(_check_for_release_update, include_pre)
     request.app.state.update_available = bool(result.get("available"))
     request.app.state.update_release_name = result.get("release_name", "")
+    request.app.state.update_release_html_url = result.get("html_url", "")
     request.app.state.update_zipball_url = result.get("zipball_url", "")
     return JSONResponse(result)
 
@@ -1109,7 +1292,7 @@ async def _api_update_apply(request: Request) -> JSONResponse:
                     shutil.rmtree(str(tmp_dir), ignore_errors=True)
                     try:
                         zip_path.unlink()
-                    except Exception:
+                    except OSError:
                         pass
 
             await asyncio.to_thread(_install, zip_path)
@@ -1136,6 +1319,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
         while True:
             update_available = getattr(websocket.app.state, "update_available", False)
             update_release_name = getattr(websocket.app.state, "update_release_name", "")
+            update_release_html_url = getattr(websocket.app.state, "update_release_html_url", "")
             update_status = getattr(websocket.app.state, "update_status", None)
             update_error = getattr(websocket.app.state, "update_error", "")
             update_download_bytes = getattr(websocket.app.state, "update_download_bytes", 0)
@@ -1147,6 +1331,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
                     return build_snapshot(engine, hooks, {
                         "update_available": update_available,
                         "update_release_name": update_release_name,
+                        "update_release_html_url": update_release_html_url,
                         "update_status": update_status,
                         "update_error": update_error,
                         "update_download_bytes": update_download_bytes,
@@ -1225,6 +1410,12 @@ class _NoCacheStaticFiles(StaticFiles):
                     (b"cache-control", b"no-cache, no-store, must-revalidate"),
                     (b"pragma", b"no-cache"),
                     (b"expires", b"0"),
+                    # CSP: same-origin only; ws:/wss: for WebSocket; data:/blob: for canvas PNG export and audio API.
+                    (b"content-security-policy",
+                     b"default-src 'self'; connect-src 'self' ws: wss:; "
+                     b"img-src 'self' data: blob:; media-src 'self' blob:; "
+                     b"object-src 'none'; frame-ancestors 'none'"),
+                    (b"x-frame-options", b"DENY"),
                 ])
                 message = {**message, "headers": hdrs}
             await send(message)
@@ -1250,8 +1441,9 @@ def _start_update_checker(app: Any) -> None:
                 app.state.update_available = bool(result.get("available"))
                 app.state.update_release_name = result.get("release_name", "")
                 app.state.update_zipball_url = result.get("zipball_url", "")
+                app.state.update_release_html_url = result.get("html_url", "")
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("update check failed", exc_info=True)
             time.sleep(1800)
 
     threading.Thread(target=worker, daemon=True, name="vsqm-update-checker").start()

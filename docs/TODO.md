@@ -2,6 +2,28 @@
 
 ## Open
 
+### From 2026-05-02 expert audit
+
+- **Bug: VAPID keypair was committed to git history and is recoverable from any clone.** `.env` was added in commit `6dcf305 "try to add mobile push"` and removed in `1b73122 "dont store secrets"`. History still contains `VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY` (full key), `VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY` (path), and the maintainer email. Rotate the keypair and either `git filter-repo` the file out of history or accept the leak as exposed.
+
+- **Bug: auto-update has no integrity check and silently overwrites the running install.** `vs_queue_monitor/web/server.py:1222-1296` downloads `zipball_url` from GitHub, `zipfile.ZipFile.extractall()` into a tempdir, `shutil.copytree`s over the live `vs_queue_monitor/` package, runs unpinned `pip install -r requirements.txt`, then `os.execv`. No checksum, no signature, no version pin. A compromised GitHub account or MITM in front of `codeload.github.com` lands arbitrary code. At minimum publish a SHA256 in release notes and verify before extracting; better, replace the auto-overwrite with an "open releases page" prompt.
+
+- **Bug: WebSocket snapshot reads engine state without consistent locking.** `server.py:~1307-1343` reads engine fields under `app.state.lock` for `snap` but `poll_once()` mutates without a per-engine lock. Snapshots can tear (e.g. `position_var` changing between reads). Either lock all reads or move to a single-writer/snapshot model.
+
+~~Bug: log decoding silently strips bytes via `errors="ignore"`. `core.py:1197-1215` heuristically picks UTF-16 by NUL-byte ratio and falls back with `errors="ignore"`. On a non-English Vintage Story log this can drop queue-position lines and the operator never sees a warning. Log a one-time `WARNING` whenever the decode falls back, and add a UTF-16/BOM fixture to the test corpus.~~
+Fixed: `errors="ignore"` replaced with `errors="replace"` + strict-first decode; WARNING logged on fallback; 5 UTF-16 fixture tests added to test_release_smoke.py covering LE, BOM, round-trip position parsing, and engine integration (v1.1.178)
+
+~~Bug: 3 pre-existing smoke test failures~~ (`test_completion_then_disconnect_then_requeue`, `test_web_client_notification_events_do_not_depend_on_shared_popup_flags`, `test_startup_seeded_post_queue_disconnect_keeps_elapsed`) — all assert `_interrupted_mode is True` or failure notify seq.
+Fixed: Root cause was two-fold. (1) The test assertions encoded v1.1.172-era interrupted-mode behavior that v1.1.173 intentionally removed; updated assertions to match the new contract. (2) A latent stale-queue false alarm: after a post-completion disconnect clears `_last_queue_line_epoch`, the next poll with `position > 1` (a new queue run) triggered immediate stale/interrupted because historical log timestamps compare as ">60s old" vs real wall time. Fixed by guarding the stale latch with `not new_queue_run` — when a new session boundary is detected, we are starting fresh and stale detection is not applicable. All 20 smoke tests now pass (v1.1.180)
+
+~~Bug: ~25-30 silent `except Exception: pass` blocks make production failures invisible. Examples: `core.py:147-149`, `monitor.py:49-50` and `:57-58`, `server.py:1287-1290`. User-reported "the app didn't notice my queue" cannot be diagnosed. Replace with logged warnings or one-line comments explaining why silent is correct; enforce with ruff `BLE001`.~~
+Partially fixed: `core.py:147-149` now logs at DEBUG; `server.py:1287-1290` narrowed to `OSError`; `server.py:1430` (update checker) now logs at DEBUG; `monitor.py` startup-error fallbacks intentionally silent (tkinter/ctypes display fallback — comment added). Remaining broad excepts to sweep via ruff BLE001 in CI (v1.1.176)
+
+- **Bug: `app.js` event listeners leak.** 76 `addEventListener` vs 14 `removeEventListener`. Popovers re-bind handlers each rebuild; WS reconnect at 1.5s re-binds globals each cycle (`app.js:~2284-2309`). Use an `AbortController` per scope or a small subscribe/unsubscribe pattern.
+
+~~Bug: WebSocket reconnect has no backoff. Fixed 1.5s in `app.js:~2307`. A long network outage hammers the loop. Switch to exponential backoff with a cap.~~
+Fixed: exponential backoff added (1.5s → doubles → 30s cap); reset to 1.5s on successful open (v1.1.176)
+
 ## Deferred (not to be solved yet)
 
 - **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
@@ -254,23 +276,95 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 ## Open
 
-tweak: make the upgrade button match the style of all other buttons next to it
+~~tweak: be 1000% sure that user needs to manually press a button before an update actually occurs avoiding interruptions~~
+Done: audited both update entry points (topbar badge + About modal). Background checker only sets flags; install only runs on `POST /api/update/apply` which requires explicit badge click + window.confirm() with release name and notes URL. About modal confirm updated to match. No auto-install path. (v1.1.182)
 
-tweak: make the start/stop button match the size of other buttons next to it
+~~tweak: make quick start way more obvious and show it as early as possible in the page~~
+Done: inline "← Set your VS log folder, then press Start" hint added below the path field; hidden once a path is set (v1.1.181)
 
-tweak: put the upgrade button all the way tot he left (after the notification bell switch)
+~~tweak: remove confusing notes from the readme about pip install and vapid if there's no need~~
+Done: replaced the 5-step "Mobile push not yet fully implemented" section with a single paragraph noting that browser notifications work while the tab is open; removed pip install pywebpush instruction and VAPID setup detail (v1.1.181)
 
-tweak: make the upgrade button glow slightly until the user hovers over it at least once.
+~~tweak: click on fields to edit them. e.g. click on the warnings values 15, 10, 5, and so on to edit it~~
+Done: warning threshold pills are now clickable (cursor:pointer + hover background); clicking any pill opens the Edit Thresholds popover (same as ✎) (v1.1.181)
 
-tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.
+~~tweak: when user is updating, they should have a "What's new in vx.x.x" to explain why the update happened~~
+Done: update confirmation dialog now includes the release name and GitHub release notes URL; server exposes update_release_html_url via WS snapshot; badge tooltip also shows a note to right-click for release notes (v1.1.181)
 
-tweak: rename Full rate to Session Rate. 
-  - consider chnage Rate fields ->  (is it better or worse?)
-  10 Point m/p: n
-  Session m/p: n
-  Global m/p: n
+~~tweak: make the upgrade button glow (pulsate) slightly until the user hovers over it at least once.~~
+Done: pulsating box-shadow animation added; stops on first hover and persists via localStorage keyed by release version (v1.1.181)
 
-tweak: add max file size for JSONL which is configurable via settings (use a sane default)
+~~tweak: make the upgrade button match the style of all other buttons next to it~~
+Done: update badge now uses btn--secondary base with accent border/background, gap, and inline icon+text layout matching other topbar buttons (v1.1.181)
+
+~~tweak: make the start/stop button match the size of other buttons next to it~~
+Done: removed zero-padding override from .btn-start-stop; button now shows icon + "Start"/"Stop" text at full standard size (v1.1.181)
+
+~~tweak: put the upgrade button all the way tot he left (after the notification bell switch)~~
+Done: btnUpdateAvail moved in HTML to immediately after btnNotify (before Tour, Help, Settings) (v1.1.181)
+
+~~tweak: give the logs path edit experience the same popover treatment as other fields. basically you should be ablle to click inside the field to edit it and a pop up with info and a save button appears when you do~~
+Done: clicking pathSummary now opens popPath (inline popover below the field, same UX as popPoll/popWindow); contains label, full-width text input, hint, Save/Cancel; closes on outside click, Escape, or Cancel (v1.1.183)
+
+~~tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.~~
+Done: applySettingsSave now calls full applyState() so KPI warnings and all live displays update immediately after any settings change (v1.1.181)
+
+~~tweak: develop a method so when github release is autopopulated it has info about what changed~~
+Done: update confirmation dialog shows release name + GitHub release notes URL; see "What's new" above (v1.1.181)
+
+~~tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history~~
+Done: each row in the recent-paths popover now shows an × button on the right that appears on hover/focus; clicking it removes only that entry via lsRemoveRecentPath and re-renders the list in place (v1.1.124)
+
+~~tweak: rename Full rate to Session Rate.~~
+Done: "Full Rate" label renamed to "Session Rate" in info panel, graph overlay, and copy tooltip (v1.1.160)
+
+~~tweak: add max file size for JSONL which is configurable via settings (use a sane default)~~
+Done: DEFAULT_HISTORY_MAX_BYTES = 100 MB; trim_jsonl_to_size() drops oldest records after every backfill and terminal write; configurable via history_max_bytes in config (v1.1.161)
+
+tweak: update all tests, lessons learned docs, todo, tour, etc
+
+### From 2026-05-02 expert audit (ops / DX)
+
+~~tweak: add a LICENSE file. Repo has none. README's "no warranty" / "AI-assisted code" copy is a disclaimer, not a grant. Default is all-rights-reserved which legally blocks contributors and forks. MIT or Apache-2.0.~~
+Done: MIT LICENSE added, copyright Shubi Maja 2024 (v1.1.174)
+
+~~tweak: add `pyproject.toml` with a single `__version__` source of truth. Version currently lives in two places (`monitor.py:4` docstring and `vs_queue_monitor/__init__.py:3`) kept in sync by hand per CLAUDE.md. Make `__init__.py` authoritative and have `monitor.py` read it. Bonus: enables `pip install -e .` and console entry points.~~
+Done: pyproject.toml added with dynamic version from vs_queue_monitor.VERSION; monitor.py Version: line removed; CLAUDE.md and shared-instructions updated to point at __init__.py only; console entry points vs-queue-monitor and vsqm added (v1.1.174)
+
+~~tweak: add `ci.yml` GitHub Action that runs `pytest -q` on push and PR. Only existing workflow is `release-notes.yml`. The "stable build" gate is currently a manual smoke run documented in README. Free on public repos; one file.~~
+Done: .github/workflows/ci.yml added — runs version-constant check, ruff lint, unit smoke/session/interrupted tests, and browser Playwright tests on every push/PR (v1.1.174)
+
+~~tweak: pin upper bounds in `requirements.txt` and add a lock file. `starlette>=0.37`, `uvicorn[standard]>=0.27`, `Pillow>=9.0` have no upper bound; `pywebpush` has no version constraint at all. A breaking minor release silently breaks fresh installs. Pin `<MAJOR+1.0` and produce `requirements-lock.txt` from `pip freeze` for reproducible installs.~~
+Done: upper bounds added to all deps in requirements.txt (starlette<2, uvicorn<2, pystray<1, Pillow<13, pywebpush>=1.9,<3); lock file deferred (v1.1.174)
+
+~~tweak: add `ruff` config + pre-commit hook. No linting tool is configured. CLAUDE.md prescribes `python -m py_compile` and "editor diagnostics" but nothing is enforced. Ruff catches the bare-except problem (BLE001), unused imports, and the magic-number sprawl in one pass.~~
+Done: [tool.ruff] added to pyproject.toml (E/W/F/B/BLE/I, line-length 120, BLE001 for blind excepts); .pre-commit-config.yaml added with ruff check --fix + ruff-format (v1.1.174)
+
+~~tweak: add CI check that `monitor.py:Version` and `vs_queue_monitor/__init__.py:VERSION` agree. Cheap guard until `pyproject.toml` lands.~~
+Done: superseded — monitor.py no longer has a Version: line; single source is __init__.py (v1.1.174)
+
+~~tweak: pin curl-pipe install to a tagged release, not `main` HEAD. README quick-start downloads `bootstrap-windows.cmd` / `bootstrap.py` from `raw.githubusercontent.com/.../main/...`. Anyone running the one-liner gets whatever's currently on main, including in-progress refactors. Pin to `vX.Y.Z` URLs or have bootstrap fetch the latest release tag.~~
+Done: bootstrap.py now resolves the latest tagged release via the GitHub Releases API (`_resolve_archive_url()`); falls back to `VS_QUEUE_MONITOR_BRANCH` env override, then main HEAD only if no releases exist. The bootstrap wrapper scripts stay on main intentionally (they're tiny launchers), but the app code they install is always a tagged release (v1.1.176)
+
+~~tweak: add SHA256 reference for vendored `dayjs.min.js` in `vs_queue_monitor/web/static/vendor/README.md`. Anyone updating the bundle has no trusted hash to compare against.~~
+Done: SHA-256 added to vendor/README.md table (v1.1.176)
+
+~~tweak: add a basic `Content-Security-Policy: default-src 'self'` header to served pages. Threat is low (loopback) but it blocks any future regression where a contributor adds a CDN script.~~
+Done: CSP (`default-src 'self'; connect-src ws: wss:; img-src data: blob:; media-src blob:; object-src none; frame-ancestors none`) + `X-Frame-Options: DENY` added to all static file responses via `_NoCacheStaticFiles` (v1.1.176)
+
+- **tweak: decide on mobile push notifications: finish or remove.** README:171-191 says push is wired but unreliable, and the deferred bugs section confirms it does not work backgrounded. `pywebpush`, VAPID generation, the bell, and a public-history secret leak cost code and risk for ~zero shipped value today. Either implement a real background service worker with push or rip out the dependency, the bell, and `setup-push-notifications.py`.
+
+- **tweak: convert `~~Fixed:~~` entries from this TODO into regression tests.** ~250 fixed entries, many in the same areas (session-id increment, latest-vs-history dedup, completion-vs-front, DPR trendline). Each "Fixed:" line is a test that should be running automatically.
+
+- **tweak: stop attaching state to `window` in `app.js`.** `_graphTheme`, `_graphHover`, `_graphZoom`, `_graphTrend`, `_graphShowWarnings`, `_lastState`, `_displayState`, `_graphH`, `_pendingHardReload` leak across reloads and get patched accidentally. Move into a closure or module scope.
+
+- **tweak: stop running full `applyState()` on every WS message.** ~350-line full re-render at every tick (`app.js:1858-2206`). Diff or split into per-region updates.
+
+- **tweak: decide on light/dark theme: ship a switcher or delete the variable indirection.** `:root` defines tokens but there is no theme switch and colors are dark-only. Currently the worst of both worlds.
+
+- **tweak: introduce a config dataclass / TypedDict and run mypy.** Type-hint coverage is ~95% but config and snapshot payloads are loose `dict`. Add `[tool.mypy]` to `pyproject.toml` and run in CI.
+
+- **tweak: make magic-number constants user-configurable or document why they aren't.** `TAIL_BYTES = 128 * 1024`, `POPUP_TIMEOUT_MS = 12_000`, 1500ms WS reconnect, 6500ms toast, 8 recent paths. `history_max_bytes` already follows the right pattern (config-driven); copy it.
 
 ## Deferred
 
@@ -400,7 +494,31 @@ Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, g
 ~~Tweak: clarify rate display; add Global Rate to stats; use m/p with tooltip~~
 Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302/337)
 
+# REFACTORS
+
+Architectural debt surfaced by the 2026-05-02 expert audit. These are multi-day rewrites, not one-touch tweaks; they live here so they don't get lost between bugs and features.
+
+## Open
+
+- **refactor: decompose `QueueMonitorEngine` (`vs_queue_monitor/engine.py`).** 2138 LOC, 91 instance attributes initialized in `__init__` (lines 47-169), 85 methods. Mixes Tk `StringVar`/`BoolVar` bindings (legacy from a tkinter UI that's no longer the primary surface), poll state machine flags (`_interrupted_mode`, `_starting`, `_queue_stale_latched`, `_queue_stale_logged_once`, `_last_queue_run_session`, …), file-IO and history backfill threads, config persistence, and push notifier wiring. Split into `QueueState` (pure dataclass), `LogPoller` (threaded), `HistoryStore`, `Notifier`. Drop the Tk var indirection while you're in there.
+
+- **refactor: split `app.js` (4893 LOC) into ES modules.** 213 top-level functions, ~9 leaked `window._*` globals, `applyState()` ~350 lines (`app.js:1858-2206`), `setupChrome()` ~800 lines (`app.js:4099-4900`). Use `<script type="module">` (no bundler needed) and break into ~10 files: graph, settings, history, ws, kpi, chrome, push, sounds, modals, state. Lets each domain be reviewed and tested in isolation.
+
+- **refactor: extract `LogClassifier` from `core.py` regex pile.** `QUEUE_RE`, `POST_QUEUE_PROGRESS_LINE_RES`, `DISCONNECTED_LINE_RES`, `RECONNECTING_LINE_RES`, `QUEUE_RUN_BOUNDARY_RES` are scattered across `core.py:24-121` and feed the 128-line `extract_all_session_records_from_log()` (`core.py:1427-1555`). Most session-boundary regression entries in this TODO trace back here. Build a deterministic classifier with named line types and a state machine, with one fixture test per "Fixed:" entry that originated in this region.
+
+- **refactor: introduce a CSS system in `styles.css` (2199 LOC).** Currently mixes BEM (`.kpi__val`), utility classes (`.hidden`), and ad-hoc selectors. No documented spacing rhythm, duplicated topbar rules. Pick one pattern, document tokens at the top of the file, drop unused indirection, and decide on the theme story.
+
+- **refactor: kill the Tk `StringVar`/`BoolVar` indirection on the engine.** Holdover from the original Tk UI. Every config field currently has a getter, setter, trace_add callback, and persistence round-trip through Tk variables, but the tkinter UI is no longer the primary surface. Replace with plain attributes plus an explicit `on_change` event for the web hooks. Reduces the engine's 91-attribute surface and removes a hidden tkinter dependency.
+
 # FEATURES
+
+
+~~feature: store recent files (*history button) of selected file swso they can be selected again from a history button~~
+Done: recent paths popover (clock icon in header path row) stores last N folders; per-entry × remove; click to switch instantly (v1.1.124+)
+
+feature: option to disable automatic updates (currently update install requires explicit user confirmation; background check still runs)
+
+feature: choose Rate for display and remianing (Global, Full, Point)
 
 Feature: show the user when they are expected to join (ETA) in their local time
 - options: 
@@ -408,17 +526,6 @@ Feature: show the user when they are expected to join (ETA) in their local time
   - 1. Remaining becomes ETR / ETA
   - 2. add a new section (bad because warnings will be reduced to retain same size as the other blocks)
   - 3. Add "Est. Join Time: users-local-time" some prominent place like the bar with the session drop down or maybe someplace else
-
-feature: store recent files (*history button) of selected file swso they can be selected again from a history button
-
-feature: disable automatic updates
-
-feature: choose Rate for display and remianing (Global, Full, Point)
-
-~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
-Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
-
-feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
 feature: add light and dark theme
 
@@ -436,24 +543,26 @@ while ((Get-Date) -lt $Target) {
 
 Start-Process "C:\Users\Name\AppData\Roaming\Vintagestory\Vintagestory.exe" -ArgumentList "--connect=tops.vintagestory.at" # Set to your Vintagestory.exe directory
 
-requires you to set the game directory instead of the log directory
-
-
-Simply paste this into a text document, change to your preferred time and game directory, save, and then rename the text document so that its a .ps1 file. Run the file with Power shell when you leave your computer and you will automatically join the queue at the time you set.
+requires you to set the game directory instead of the log directory and you will automatically join the queue at the time you set.
 
 Give yourself some leeway, I am not responsible if you accidently join the game while not at your computer and get afk kicked or die. I recommend disconnecting in a safe location and putting your inventory loot in a chest before doing this.
 
 ---
 Feature: Join Scheduling
-
-additional feature
-
-I suppose it's a player made script that will have them get into the queue exactly when they need to be in it, like, it checks how big is the queue, then the time it takes to finish it (0.54 user a minute usually goes through the queue), and so you can set it up to boot you into the queue two hours earlier and then appear in the TOPS somewhat around the time they need
+1. have the user get into the queue exactly when they need to be in it.
+2. check how big is the queue, then the time it takes to finish it (check global rate) 
+3. set it up to boot you into the queue early enough to appear in the chosen server somewhat around the time you need
 
 Feature: Auto-Leave (leave if idle for x mins)
 
-Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server)
+Feature: Auto-Join (try the server until join works or entered queue -- be respectful of the server use things like exponential backoff)
 
 Feature: Auto-rejoin (if disconnected while in queue, try to Auto rejoin the queue)
 
 Feature: Keep-Alive (leave the queue 1 position before you join and rejoin it -- always keep you in the queue)
+
+## Done
+
+
+~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
+Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)

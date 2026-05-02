@@ -145,7 +145,8 @@ def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
         if p.is_file():
             return str(p.parent)
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug("initial_logs_folder_path: could not expand %r", raw, exc_info=True)
     return raw
 POPUP_TIMEOUT_MS = 12_000
 POPUP_COMPLETION_TIMEOUT_MS = 14_000
@@ -170,6 +171,19 @@ SINGLE_POINT_GRAPH_SPAN_SEC = 60.0
 DEFAULT_PREDICTION_WINDOW_POINTS = 10
 DEFAULT_ALERT_THRESHOLDS = "15, 10, 5, 3, 2, 1"
 SEED_LOG_TAIL_BYTES = 2 * 1024 * 1024
+
+# Canonical outcome rank — higher = stronger/more authoritative evidence.
+# "completed" with an explicit point-0 endpoint gets rank 5 at call sites.
+DEFAULT_HISTORY_MAX_BYTES = 100 * 1024 * 1024  # 100 MB — trim oldest records when exceeded
+
+OUTCOME_RANK: dict[str, int] = {
+    "completed":   4,  # post-queue signal witnessed
+    "abandoned":   3,  # next session boundary witnessed in log
+    "interrupted": 3,  # queue lines went stale (no heartbeat)
+    "crashed":     2,  # checkpoint left by dead monitor process
+    "unknown":     1,  # no terminal signal observed
+    "in_progress": -1, # live/transient — recency wins
+}
 QUEUE_RESET_JUMP_THRESHOLD = 10
 # After reaching the front (position ≤1), a single +10 jump often re-reads stale lines (e.g. 1→11);
 # do not treat that alone as a new queue run (which would clear thresholds and re-alert all).
@@ -188,6 +202,56 @@ QUEUE_UPDATE_INTERVAL_SEC = 30.0
 QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
+# After this long with no log activity while in queue, declare interrupted (VS clearly not coming back).
+LOG_SILENCE_INTERRUPT_SEC = 90.0
+
+# Per-version release notes shown to the user once after updating.
+# Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
+RELEASE_NOTES: dict[str, list[str]] = {
+    "1.1.189": [
+        "New brand icon — V chevron mark visible in the browser tab and About dialog",
+        "\"What's new\" banner: shown once per version upgrade, dismissed with ×",
+    ],
+    "1.1.188": [
+        "Auto-detects VS disconnect after 90 s of log silence — no more perpetual Reconnecting…",
+        "Graph trims to last real data on disconnect; rate/speed metrics stay accurate",
+    ],
+    "1.1.187": [
+        "Loading bar now appears immediately when clicking a path from history",
+    ],
+    "1.1.186": [
+        "Animated top loading bar shows while switching log files or starting for the first time",
+    ],
+    "1.1.185": [
+        "Fixed spurious \"Queue interrupted\" alerts on slow or stalled queues",
+    ],
+    "1.1.184": [
+        "Path editing converted from a blocking modal to a lightweight inline popover",
+    ],
+    "1.1.182": [
+        "Update installation is fully user-gated — app never installs updates without confirmation",
+        "About dialog now shows the release name and a link to GitHub release notes",
+    ],
+    "1.1.181": [
+        "Quick-start hint in empty state, improved Start/Stop button, clickable alert thresholds",
+    ],
+    "1.1.178": [
+        "Fixed silent byte-drop on UTF-16 encoded Vintage Story logs",
+    ],
+    "1.1.176": [
+        "Security hardening: CSP headers, signed release fetch, exponential WS backoff",
+    ],
+    "1.1.174": [
+        "Added LICENSE, pyproject.toml, CI pipeline, and pre-commit hooks",
+    ],
+    "1.1.173": [
+        "Fixed spurious \"Queue interrupted\" alert after switching folders or starting the app",
+    ],
+    "1.1.165": [
+        "Session history size cap configurable in Settings (default 100 MB)",
+        "Fixed five bugs found during stability review",
+    ],
+}
 
 # One default clip per OS per kind (warning vs completion). Pre-filled in Settings; tried before registry/bell fallbacks.
 # Windows: %SystemRoot%\\Media or %WINDIR%\\Media, else C:\\Windows\\Media. macOS: MACOS_SYSTEM_SOUNDS_DIR.
@@ -581,12 +645,81 @@ def play_default_failure_system_sound() -> bool:
     return False
 
 
+def trim_jsonl_to_size(path: Path, max_bytes: int) -> None:
+    """Trim a JSONL file to at most max_bytes by dropping the oldest records.
+
+    One O(n) pass finds the cutoff index; only rewrites when the file actually
+    exceeds the limit.  No-ops on a stat() check before reading anything.
+    """
+    try:
+        if not path.exists() or path.stat().st_size <= max_bytes:
+            return
+        lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+        sizes = [len(l) + 1 for l in lines]  # +1 for newline
+        total = sum(sizes)
+        if total <= max_bytes:
+            return
+        drop = 0
+        while drop < len(sizes) and total > max_bytes:
+            total -= sizes[drop]
+            drop += 1
+        path.write_text("\n".join(lines[drop:]) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
 def get_config_path() -> Path:
     if sys.platform.startswith("win"):
         base = Path(os.environ.get("APPDATA", Path.home()))
         return base / "vs-queue-monitor" / "config.json"
     base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
     return base / "vs-queue-monitor" / "config.json"
+
+
+def normalize_log_path_for_dedup(p: str) -> str:
+    """Normalize a log file path so raw and token-masked variants compare equal."""
+    if not p:
+        return p
+    for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+        val = os.environ.get(env_var, "")
+        if val:
+            p = p.replace(token, val)
+    try:
+        home = str(Path.home())
+        p = p.replace("$HOME", home)
+    except Exception:
+        pass
+    if sys.platform == "win32":
+        p = p.replace("/", "\\").lower()
+    return p
+
+
+def normalize_log_path_for_storage(p: str) -> str:
+    """Replace raw user-path prefixes with portable tokens for JSONL storage.
+
+    Inverse of ``normalize_log_path_for_dedup``: raw ``C:\\Users\\...`` becomes
+    ``%APPDATA%\\...`` (or ``$HOME/...`` on non-Windows) so stored records are
+    portable and don't accumulate multiple formats.
+    """
+    if not p:
+        return p
+    for env_var, token in (("APPDATA", "%APPDATA%"), ("LOCALAPPDATA", "%LOCALAPPDATA%")):
+        val = os.environ.get(env_var, "")
+        if val:
+            # Case-insensitive on Windows; paths may have mixed casing.
+            if sys.platform == "win32":
+                if p.lower().startswith(val.lower()):
+                    return token + p[len(val):]
+            else:
+                if p.startswith(val):
+                    return token + p[len(val):]
+    try:
+        home = str(Path.home())
+        if p.startswith(home):
+            return "$HOME" + p[len(home):]
+    except Exception:
+        pass
+    return p
 
 
 def get_history_path() -> Path:
@@ -927,14 +1060,19 @@ def walk_queue_position_events(data: str) -> list[tuple[float, int, int]]:
 
 
 def parse_tail_last_queue_reading(data: str) -> tuple[Optional[int], int]:
-    """Latest queue position in the buffer and its run session (0 = no boundary seen in tail).
+    """Latest queue position in the buffer and its run session.
+
+    Returns (position, session_id) where session_id is the boundary-counter value
+    from iter_session_log_lines at the last queue position line.  Returns (None, -1)
+    when the tail contains no queue position lines at all -- callers must distinguish
+    this from session_id=0 (queue position found before the first boundary in the tail).
 
     Uses the *last* queue phrase in **file order** (bottom of tail). ``walk_queue_position_events``
     sorts by parsed line timestamps, which can reorder events and yield the wrong ``ev[-1]``
-    (e.g. 108) when the log order is the ground truth for “current” position.
+    when the log order is the ground truth for the current position.
     """
     last_pos: Optional[int] = None
-    last_sess = 0
+    last_sess = -1
     for session, line, is_boundary in iter_session_log_lines(data):
         if is_boundary:
             continue
@@ -988,6 +1126,52 @@ def count_queue_run_boundaries(data: str) -> int:
     return sum(1 for line in data.splitlines() if is_queue_run_boundary_line(line))
 
 
+def parse_latest_session_boundary_epoch(data: str) -> Optional[float]:
+    """Timestamp of the last queue-run boundary line (= when the newest session started)."""
+    last_t: Optional[float] = None
+    for _session, line, is_boundary in iter_session_log_lines(data):
+        if is_boundary:
+            t = parse_log_timestamp_epoch(line)
+            if t is not None:
+                last_t = t
+    return last_t
+
+
+def get_newer_session_attempt(data: str) -> tuple[bool, Optional[float]]:
+    """True if a reconnecting-type line appears strictly after the last queue-position line.
+
+    Only RECONNECTING_LINE_RES patterns count (``Connecting to…``, ``Initialized server
+    connection``, etc.).  Disconnect/teardown lines (``Disconnected by server``, ``connection
+    closed``, etc.) that appear after a completed session do NOT trigger a false positive.
+
+    Post-queue world-join false positive: when VS leaves the queue it logs "Connecting to
+    <host>" to join the game world — the same pattern as a new session attempt.  If any
+    POST_QUEUE_PROGRESS_LINE_RES line appears in the after-queue section, the whole section
+    is a post-queue world-join sequence, not a new session.  Suppress in that case.
+
+    Returns (has_newer, epoch_of_first_reconnect_line_after_last_queue).
+    """
+    lines = data.splitlines()
+    last_queue_idx = -1
+    for i, line in enumerate(lines):
+        if queue_position_match(line.strip()):
+            last_queue_idx = i
+    search_lines = lines[last_queue_idx + 1:] if last_queue_idx >= 0 else lines
+    # If the after-queue section contains post-queue progress lines (mod loading, world
+    # download, etc.) the session already left the queue — any "connecting to" here is
+    # the world join, not a new queue session attempt.
+    if any(is_post_queue_progress_line(l) for l in search_lines):
+        return False, None
+    for line in search_lines:
+        s = line.strip()
+        if not s:
+            continue
+        for pat in RECONNECTING_LINE_RES:
+            if pat.search(s):
+                return True, parse_log_timestamp_epoch(line)
+    return False, None
+
+
 def parse_tail_last_queue_line_epoch(data: str) -> Optional[float]:
     """Last timestamp (epoch seconds) of any raw queue line in the buffer.
 
@@ -1032,6 +1216,21 @@ def tail_has_post_queue_after_last_queue_line(data: str) -> bool:
     return False
 
 
+def tail_post_queue_epoch_after_last_queue_line(data: str) -> Optional[float]:
+    """Return the timestamp of the first post-queue signal after the last queue line, or None."""
+    lines = data.splitlines()
+    last_q = -1
+    for i, line in enumerate(lines):
+        if queue_position_match(line):
+            last_q = i
+    if last_q < 0:
+        return None
+    for line in lines[last_q + 1 :]:
+        if is_post_queue_progress_line(line):
+            return parse_log_timestamp_epoch(line)
+    return None
+
+
 def completion_would_fire_for_tail(tail_text: str) -> bool:
     """True when the tail matches ``_maybe_notify_queue_completion`` (mapped position 0 + post-queue).
 
@@ -1049,6 +1248,9 @@ def completion_would_fire_for_tail(tail_text: str) -> bool:
 def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
     # Vintage Story logs are typically UTF-8, but some environments can produce UTF-16.
     # Heuristic: if the buffer has many NUL bytes, try UTF-16.
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
     if not raw:
         return ""
 
@@ -1060,11 +1262,25 @@ def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
             raw = raw[1:]
         for enc in ("utf-16-le", "utf-16-be", "utf-16"):
             try:
-                return raw.decode(enc, errors="ignore")
-            except Exception:
+                return raw.decode(enc)
+            except (UnicodeDecodeError, Exception):
                 pass
+        _log.warning(
+            "decode_log_bytes: all UTF-16 variants failed at offset %d; "
+            "falling back to UTF-8 with replacement — some log characters may be lost",
+            start_offset,
+        )
+        return raw.decode("utf-8", errors="replace")
 
-    return raw.decode("utf-8", errors="ignore")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        _log.warning(
+            "decode_log_bytes: UTF-8 decode error at offset %d; "
+            "some log characters replaced — log may contain corrupt bytes",
+            start_offset,
+        )
+        return raw.decode("utf-8", errors="replace")
 
 
 def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[int]:
@@ -1258,24 +1474,40 @@ def compute_seed_graph_from_log(
     )
 
 
+def _next_session_post_queue_epoch(text: str) -> Optional[float]:
+    """Return the parsed timestamp of the first post-queue signal in text, before any queue line.
+
+    Returns None if no such signal exists (new queue run started first, or no signals at all).
+    Used to detect completions where the world-join boundary pushed post-queue lines into the
+    next session counter, and to obtain the actual connection timestamp for the position-0 point.
+    """
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if queue_position_match(line):
+            return None  # new queue run — not a completion continuation
+        if any(r.search(line) for r in POST_QUEUE_PROGRESS_LINE_RES):
+            return parse_log_timestamp_epoch(line)
+    return None
+
+
 def extract_all_session_records_from_log(
     log_file: Path,
     source_path: str = "",
     vsqm_version: str = "",
+    include_active: bool = False,
 ) -> list[dict]:
     """Extract one history record per completed historical queue session from the full log.
 
-    The most recent session (currently active or just finished) is excluded — the engine
-    handles that one via live monitoring.  Reads the whole file (capped at 100 MB).
+    The most recent session (currently active or just finished) is normally excluded —
+    the live engine handles that one.  Pass include_active=True to also emit an
+    "in_progress" record for the active (max_sess) session when it has not completed;
+    used by cross-folder backfill so other engines can see a foreign live session.
+    Reads the entire file from position 0.  Runs on a background thread.
     """
     try:
-        file_size = log_file.stat().st_size
-    except Exception:
-        return []
-    max_read = min(file_size, 100 * 1024 * 1024)
-    try:
         with log_file.open("rb") as fh:
-            fh.seek(max(0, file_size - max_read))
             raw = fh.read()
     except Exception:
         return []
@@ -1308,8 +1540,23 @@ def extract_all_session_records_from_log(
     records: list[dict] = []
 
     for sess_id in sorted(by_session.keys()):
+        _is_active_max_sess = False
         if sess_id == max_sess:
-            continue  # active session — handled by live monitoring
+            # Normally skip the last session — still potentially active; the live engine
+            # handles it.  include_active=True emits an in_progress record so cross-folder
+            # views can see the session without visiting that folder.
+            _ms_pts = sorted(by_session[sess_id])
+            _ms_text = "\n".join(lines_by_session.get(sess_id, []))
+            _ms_last_pos = _ms_pts[-1][1] if _ms_pts else None
+            _ms_next_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+            _ms_done = _ms_last_pos is not None and _ms_last_pos <= 1 and (
+                tail_has_post_queue_after_last_queue_line(_ms_text)
+                or _next_session_post_queue_epoch(_ms_next_text) is not None
+            )
+            if not _ms_done:
+                if not include_active:
+                    continue  # active/in-progress — handled by live monitoring
+                _is_active_max_sess = True
 
         pts = sorted(by_session[sess_id])
         if not pts:
@@ -1328,11 +1575,35 @@ def extract_all_session_records_from_log(
         end_pos = pts[-1][1]
 
         sess_text = "\n".join(lines_by_session.get(sess_id, []))
-        completed = end_pos <= 1 and tail_has_post_queue_after_last_queue_line(sess_text)
+        connect_epoch: Optional[float] = None
+        completed = False
+        if end_pos <= 1:
+            # Primary path: post-queue signals in the session's own text.
+            if tail_has_post_queue_after_last_queue_line(sess_text):
+                completed = True
+                connect_epoch = tail_post_queue_epoch_after_last_queue_line(sess_text)
+            else:
+                # "Connecting to world" is a QUEUE_RUN_BOUNDARY_RES that bumps the session
+                # counter, so post-queue signals land in sess_id+1 instead of sess_id.
+                next_sess_text = "\n".join(lines_by_session.get(sess_id + 1, []))
+                connect_epoch = _next_session_post_queue_epoch(next_sess_text)
+                completed = connect_epoch is not None
         if completed:
             end_pos = 0
             outcome = "completed"
+            # Use the witnessed timestamp; fall back to end_epoch when parse returned None.
+            t0 = connect_epoch if connect_epoch is not None else end_epoch
+            if not change_pts or change_pts[-1][1] != 0:
+                change_pts.append((t0, 0))
+        elif _is_active_max_sess:
+            outcome = "in_progress"
+        elif sess_id < max_sess:
+            # A later session boundary exists in this log — strong signal that VS
+            # started a new queue run, so this session ended without completion.
+            outcome = "abandoned"
         else:
+            # Last session in the log with no completion signal and no following
+            # session boundary — outcome genuinely unknown.
             outcome = "unknown"
 
         records.append({
