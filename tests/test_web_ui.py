@@ -327,22 +327,25 @@ def test_history_max_bytes_invalid_values_not_saved(page: Page, base_url: str) -
 def test_interrupted_session_with_completed_graph_shows_interrupted_not_succeeded(
     page: Page, base_url: str, tmp_path: Path
 ) -> None:
-    """When interrupted_mode=True, opt0 must show ↻ even if graph_points includes position-0.
+    """When interrupted_mode=True, opt0 must show ↻, not ✓ Succeeded.
 
     Regression: loadedSessionStatusInfo checked position-0 first, so an interrupted session
-    that had already completed showed ✓ Succeeded simultaneously with the Interrupted status
-    KPI, producing three conflicting states in the UI.
+    showed ✓ Succeeded simultaneously with the Interrupted status KPI.
+
+    Setup: session still in queue when VS hard-disconnects (no post-queue completion signal).
+    The engine correctly enters interrupted_mode for a mid-queue hard disconnect.
+    Note: completed sessions followed by a trailing disconnect deliberately stay in Completed
+    state (engine fix v1.1.172) to avoid ghost-suppression and spurious failure alerts.
     """
     log_dir = tmp_path / "VintagestoryData"
     log_dir.mkdir(parents=True)
     log_path = log_dir / "client-main.log"
     lines = [
         "9.4.2026 22:30:53 [Notification] Connecting to tops.vintagestory.at...",
-        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 3",
-        "9.4.2026 22:31:15 [Notification] Client is in connect queue at position: 2",
-        "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 1",
-        "9.4.2026 22:31:26 [Notification] Connected to server, downloading data...",
-        # A hard disconnect after completion triggers interrupted mode on next startup.
+        "9.4.2026 22:30:55 [Notification] Client is in connect queue at position: 25",
+        "9.4.2026 22:31:15 [Notification] Client is in connect queue at position: 20",
+        "9.4.2026 22:31:25 [Notification] Client is in connect queue at position: 15",
+        # Hard disconnect while still in queue — engine must enter interrupted mode.
         "9.4.2026 22:35:00 [Notification] Exiting current game to disconnected screen",
     ]
     log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
