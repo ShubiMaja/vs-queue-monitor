@@ -1862,6 +1862,8 @@
   }
 
   function applyState(s) {
+    var tlb = $("topLoadingBar");
+    if (tlb) tlb.classList.toggle("hidden", !s.loading);
     applyClientViewerPrefs(s);
     if (_tourAutoShowFn) _tourAutoShowFn(!!(s && s.tutorial_done));
     var fallbackPts = (s && s.graph_points) || [];

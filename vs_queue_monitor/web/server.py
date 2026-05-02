@@ -801,6 +801,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
     result = {
         "version": VERSION,
         "running": engine.running,
+        "loading": getattr(hooks, "loading_active", False),
         "interrupted_mode": engine._interrupted_mode,
         "position": engine.position_var.get(),
         "status": engine.status_var.get(),

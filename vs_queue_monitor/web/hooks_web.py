@@ -23,6 +23,7 @@ class WebMonitorHooks:
         self._history: deque[str] = deque(maxlen=4000)
         self._completion_notify_seq = 0
         self._failure_notify_seq = 0
+        self.loading_active: bool = False
 
     def attach_engine(self, engine: Any) -> None:
         self._engine = engine
@@ -89,7 +90,7 @@ class WebMonitorHooks:
         pass
 
     def show_start_loading(self, show: bool) -> None:
-        pass
+        self.loading_active = show
 
     def bell(self) -> None:
         pass
