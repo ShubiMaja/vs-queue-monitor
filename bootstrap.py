@@ -11,19 +11,13 @@ On Windows, after install, creates a Desktop shortcut to ``vs-queue-monitor.cmd`
 Piped installs (``curl ... | python -``) start the app without prompting. Set
 ``VS_QUEUE_MONITOR_SKIP_RUN=1`` to exit after install without starting.
 
-No git required. The app files are downloaded as a zip from GitHub and extracted locally.
-Once installed, use the in-app ``About → Check for updates`` (or the auto-update banner)
-to keep the app current. Git is not needed to run or update the app.
+No git required. The app files are downloaded as a zip from GitHub Releases and extracted
+locally. Once installed, use the in-app ``About → Check for updates`` (or the auto-update
+banner) to keep the app current. Git is not needed to run or update the app.
 
-Windows (no Python on PATH yet): use ``bootstrap-windows.cmd`` from the repo or
-the README one-liner; it checks for ``py`` / ``python`` before running this script.
-
-Pipe (no saved file; installs to ~/vs-queue-monitor by default). Prefer the README
-one-liners: they use **Downloads** when that folder already exists (never created
-by us), otherwise your profile/home, before ``curl``. ``bootstrap-windows.cmd``
-does the same before fetching.
-
-  curl -fsSL https://raw.githubusercontent.com/ShubiMaja/vs-queue-monitor/main/bootstrap.py | python3 -
+By default the bootstrap fetches the **latest tagged release** from the GitHub Releases API.
+Set ``VS_QUEUE_MONITOR_BRANCH=main`` to install HEAD of main instead (development builds).
+Set ``VS_QUEUE_MONITOR_ARCHIVE_URL`` to a full zip URL for forks or local mirrors.
 
 Override install location:
   set VS_QUEUE_MONITOR_HOME=C:\\path\\to\\install
@@ -43,14 +37,40 @@ from pathlib import Path
 # Display name for Windows desktop shortcut (keep in sync with vs_queue_monitor.APP_DISPLAY_NAME).
 _APP_SHORTCUT_STEM = "VS Queue Monitor"
 
-# Branch to download when installing fresh (override with VS_QUEUE_MONITOR_BRANCH).
-REPO_BRANCH = os.environ.get("VS_QUEUE_MONITOR_BRANCH", "main")
-# Archive download URL. Override with VS_QUEUE_MONITOR_ARCHIVE_URL for forks or mirrors.
 _REPO_OWNER_REPO = "ShubiMaja/vs-queue-monitor"
-ARCHIVE_URL = os.environ.get(
-    "VS_QUEUE_MONITOR_ARCHIVE_URL",
-    f"https://github.com/{_REPO_OWNER_REPO}/archive/refs/heads/{REPO_BRANCH}.zip",
-)
+_RELEASES_API = f"https://api.github.com/repos/{_REPO_OWNER_REPO}/releases/latest"
+
+
+def _resolve_archive_url() -> str:
+    """Return the zip URL to install from.
+
+    Priority:
+    1. ``VS_QUEUE_MONITOR_ARCHIVE_URL`` env — explicit full URL (forks / mirrors).
+    2. ``VS_QUEUE_MONITOR_BRANCH`` env — named branch, skips release lookup.
+    3. Latest tagged GitHub Release (fetched from the Releases API).
+    4. Fallback to ``main`` HEAD if there are no releases yet.
+    """
+    override = os.environ.get("VS_QUEUE_MONITOR_ARCHIVE_URL", "").strip()
+    if override:
+        return override
+    branch = os.environ.get("VS_QUEUE_MONITOR_BRANCH", "").strip()
+    if branch:
+        return f"https://github.com/{_REPO_OWNER_REPO}/archive/refs/heads/{branch}.zip"
+    import json as _json
+    try:
+        req = urllib.request.Request(
+            _RELEASES_API,
+            headers={"User-Agent": "vs-queue-monitor-bootstrap", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = _json.loads(resp.read())
+            zipball = data.get("zipball_url")
+            if zipball:
+                return zipball
+    except Exception:
+        pass
+    # No tagged release yet — fall back to main HEAD.
+    return f"https://github.com/{_REPO_OWNER_REPO}/archive/refs/heads/main.zip"
 
 
 def _eprint(*args: object) -> None:
@@ -118,11 +138,12 @@ def _ensure_app_files(root: Path) -> None:
 
     root.parent.mkdir(parents=True, exist_ok=True)
 
-    _eprint(f"Downloading VS Queue Monitor ({ARCHIVE_URL})...")
+    url = _resolve_archive_url()
+    _eprint(f"Downloading VS Queue Monitor ({url})...")
     tmp_zip = Path(tempfile.mktemp(suffix=".zip", prefix="vsqm_bootstrap_"))
     try:
         req = urllib.request.Request(
-            ARCHIVE_URL,
+            url,
             headers={"User-Agent": "vs-queue-monitor-bootstrap"},
         )
         with urllib.request.urlopen(req, timeout=120) as resp:

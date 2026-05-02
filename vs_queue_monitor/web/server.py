@@ -1286,7 +1286,7 @@ async def _api_update_apply(request: Request) -> JSONResponse:
                     shutil.rmtree(str(tmp_dir), ignore_errors=True)
                     try:
                         zip_path.unlink()
-                    except Exception:
+                    except OSError:
                         pass
 
             await asyncio.to_thread(_install, zip_path)
@@ -1402,6 +1402,12 @@ class _NoCacheStaticFiles(StaticFiles):
                     (b"cache-control", b"no-cache, no-store, must-revalidate"),
                     (b"pragma", b"no-cache"),
                     (b"expires", b"0"),
+                    # CSP: same-origin only; ws:/wss: for WebSocket; data:/blob: for canvas PNG export and audio API.
+                    (b"content-security-policy",
+                     b"default-src 'self'; connect-src 'self' ws: wss:; "
+                     b"img-src 'self' data: blob:; media-src 'self' blob:; "
+                     b"object-src 'none'; frame-ancestors 'none'"),
+                    (b"x-frame-options", b"DENY"),
                 ])
                 message = {**message, "headers": hdrs}
             await send(message)
@@ -1428,7 +1434,7 @@ def _start_update_checker(app: Any) -> None:
                 app.state.update_release_name = result.get("release_name", "")
                 app.state.update_zipball_url = result.get("zipball_url", "")
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("update check failed", exc_info=True)
             time.sleep(1800)
 
     threading.Thread(target=worker, daemon=True, name="vsqm-update-checker").start()

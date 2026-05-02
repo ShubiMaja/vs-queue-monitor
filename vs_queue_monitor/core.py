@@ -145,7 +145,8 @@ def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
         if p.is_file():
             return str(p.parent)
     except Exception:
-        pass
+        import logging
+        logging.getLogger(__name__).debug("initial_logs_folder_path: could not expand %r", raw, exc_info=True)
     return raw
 POPUP_TIMEOUT_MS = 12_000
 POPUP_COMPLETION_TIMEOUT_MS = 14_000
