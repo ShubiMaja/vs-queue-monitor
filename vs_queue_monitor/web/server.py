@@ -106,6 +106,7 @@ def _check_for_release_update(include_prereleases: bool = False) -> dict[str, An
             "latest_tag": tag,
             "release_name": name,
             "zipball_url": data.get("zipball_url", ""),
+            "html_url": data.get("html_url", ""),
             "current_version": VERSION,
             "error": None,
         }
@@ -876,6 +877,7 @@ def _api_state(request: Request) -> JSONResponse:
         update_extra = {
             "update_available": getattr(request.app.state, "update_available", False),
             "update_release_name": getattr(request.app.state, "update_release_name", ""),
+            "update_release_html_url": getattr(request.app.state, "update_release_html_url", ""),
             "update_status": getattr(request.app.state, "update_status", None),
             "update_error": getattr(request.app.state, "update_error", ""),
             "update_download_bytes": getattr(request.app.state, "update_download_bytes", 0),
@@ -1187,6 +1189,7 @@ async def _api_update_check(request: Request) -> JSONResponse:
     result = await asyncio.to_thread(_check_for_release_update, include_pre)
     request.app.state.update_available = bool(result.get("available"))
     request.app.state.update_release_name = result.get("release_name", "")
+    request.app.state.update_release_html_url = result.get("html_url", "")
     request.app.state.update_zipball_url = result.get("zipball_url", "")
     return JSONResponse(result)
 
@@ -1313,6 +1316,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
         while True:
             update_available = getattr(websocket.app.state, "update_available", False)
             update_release_name = getattr(websocket.app.state, "update_release_name", "")
+            update_release_html_url = getattr(websocket.app.state, "update_release_html_url", "")
             update_status = getattr(websocket.app.state, "update_status", None)
             update_error = getattr(websocket.app.state, "update_error", "")
             update_download_bytes = getattr(websocket.app.state, "update_download_bytes", 0)
@@ -1324,6 +1328,7 @@ async def _ws_endpoint(websocket: WebSocket) -> None:
                     return build_snapshot(engine, hooks, {
                         "update_available": update_available,
                         "update_release_name": update_release_name,
+                        "update_release_html_url": update_release_html_url,
                         "update_status": update_status,
                         "update_error": update_error,
                         "update_download_bytes": update_download_bytes,

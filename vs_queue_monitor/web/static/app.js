@@ -468,6 +468,8 @@
           : "Log source not set. Click to paste path.",
       );
     }
+    var hint = $("pathHint");
+    if (hint) hint.classList.toggle("hidden", !!raw);
   }
 
   function updateRecentPathsButton() {
@@ -1928,6 +1930,7 @@
       sp.className = row.passed ? "warn-off" : "warn-on";
       sp.setAttribute("data-threshold", String(row.t));
       sp.setAttribute("data-passed", row.passed ? "true" : "false");
+      sp.title = "Click to edit thresholds";
       kw.appendChild(sp);
     });
     if (!w.length) {
@@ -2077,7 +2080,7 @@
     var btnSS = $("btnStartStop");
     if (btnSS) {
       btnSS.className = s.running ? "btn btn--danger" : "btn btn--primary";
-      btnSS.classList.add("btn--icon-only", "btn-start-stop");
+      btnSS.classList.add("btn-start-stop");
       btnSS.setAttribute("data-state", s.running ? "running" : "stopped");
       btnSS.title = s.running ? "Stop monitoring" : "Start monitoring";
       btnSS.setAttribute("aria-label", s.running ? "Stop monitoring" : "Start monitoring");
@@ -2129,10 +2132,18 @@
     var _uBadge = $("btnUpdateAvail");
     if (_uBadge) {
       if (s.update_available && lsGetUpdateNotify()) {
+        var _uRelName = s.update_release_name || "";
+        var _uRelUrl = s.update_release_html_url || "";
         _uBadge.classList.remove("hidden");
-        _uBadge.title = s.update_release_name
-          ? "Update available: " + s.update_release_name + " — click to install"
+        _uBadge.title = _uRelName
+          ? "Update available: " + _uRelName + (_uRelUrl ? "\nSee what's new — right-click to open release notes" : "") + "\nClick to install"
           : "Update available — click to install";
+        var _seenKey = "vsqm_update_seen";
+        if (localStorage.getItem(_seenKey) === _uRelName) {
+          _uBadge.classList.add("update-badge--seen");
+        } else {
+          _uBadge.classList.remove("update-badge--seen");
+        }
       } else {
         _uBadge.classList.add("hidden");
       }
@@ -2686,6 +2697,18 @@
         requestAnimationFrame(function () { $("inpWarn").focus(); });
       }
     };
+    // Clicking any threshold pill opens the same edit popover
+    var kpiWarnEl = $("kpiWarnings");
+    if (kpiWarnEl) {
+      kpiWarnEl.addEventListener("click", function (e) {
+        var sp = e.target.closest("[data-threshold]");
+        if (sp) {
+          e.stopPropagation();
+          var editBtn = $("btnEditWarn");
+          if (editBtn) editBtn.click();
+        }
+      });
+    }
     function validateThresholdInput(rawStr) {
       var tokens = String(rawStr || "").replace(/,/g, " ").split(/\s+/);
       var i;
@@ -3202,8 +3225,17 @@
     }
     var btnBadge = $("btnUpdateAvail");
     if (btnBadge) {
+      btnBadge.addEventListener("mouseenter", function () {
+        btnBadge.classList.add("update-badge--seen");
+        var relName = (window._lastState && window._lastState.update_release_name) || "";
+        localStorage.setItem("vsqm_update_seen", relName);
+      }, { once: true });
       btnBadge.onclick = function () {
-        if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+        var relName = (window._lastState && window._lastState.update_release_name) || "";
+        var relUrl = (window._lastState && window._lastState.update_release_html_url) || "";
+        var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
+          + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+        if (!window.confirm(msg)) return;
         btnBadge.disabled = true;
         fetch("/api/update/apply", { method: "POST" })
           .then(function (r) { return r.json(); })
@@ -4449,13 +4481,7 @@
     // Auto-save settings on change — no Save button needed.
     function applySettingsSave(state) {
       if (state && typeof state === "object") window._lastState = state;
-      if (window._lastState) {
-        syncSettingsFormFromState(window._lastState);
-        syncGraphToolbarButtons(window._lastState);
-        window._displayState = buildDisplayState(window._lastState);
-        redrawGraphOnly();
-        renderSessionStats();
-      }
+      if (window._lastState) applyState(window._lastState);
       if (notifySyncHint) notifySyncHint();
     }
     function settingDebounce(fn, ms) {

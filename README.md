@@ -168,27 +168,11 @@ The tunnel forwards your laptop's port 8765 to the server's loopback - nothing i
 
 > **Tip:** add `-N` to the SSH command (`ssh -N -L ...`) to open just the tunnel without a shell.
 
-## Mobile push notifications (not yet fully implemented!)
+## Browser notifications
 
-Push notifications let your phone buzz when you reach the front of the queue. They require HTTPS (ngrok or an SSH tunnel works) and a one-time browser permission grant.
+Click the **bell icon** in the top bar and grant permission to receive browser alerts when your position hits a threshold, completes, or is interrupted.
 
-> **Known limitation:** Browser-side notifications (the bell icon in the top bar) only fire while the tab is open and active. They do **not** wake up the browser or deliver alerts when the tab is in the background or the browser is closed. Server-side push via `pywebpush` is implemented but not yet reliable across all mobile browsers. Use the web UI on a desktop machine and rely on desktop notifications there for the most dependable alerts.
-
-**1. Install the push dependency** (if not already installed):
-
-```bash
-pip install pywebpush
-```
-
-**2. Restart VS Queue Monitor.** VAPID keys are generated automatically on first startup when `pywebpush` is available. Keys are written to `.secrets/vapid_private.pem` and `.env` — no manual setup needed.
-
-**3. Open the app over HTTPS** (ngrok or SSH tunnel — see sections above).
-
-**4. Click the bell icon** in the top bar and grant notification permission. The browser registers your device automatically. Every subscribed device will receive push notifications going forward.
-
-> **Why HTTPS?** Browsers block push subscriptions on plain HTTP outside localhost. Use ngrok or an SSH tunnel for remote/mobile access.
->
-> **Custom email in VAPID subject:** If you want to use your own email instead of the default placeholder, set `VS_QUEUE_MONITOR_VAPID_SUBJECT=mailto:you@example.com` in `.env` before first startup, or run `python setup-push-notifications.py` to regenerate keys interactively.
+> **While the tab is open** notifications work on desktop and mobile alike — the browser plays a sound and shows a banner. **Background push** (waking your phone when the tab is closed) is not yet implemented.
 
 ## Disclaimer
 
