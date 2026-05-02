@@ -512,6 +512,13 @@ Architectural debt surfaced by the 2026-05-02 expert audit. These are multi-day 
 
 # FEATURES
 
+
+feature: store recent files (*history button) of selected file swso they can be selected again from a history button
+
+feature: option to disable automatic updates
+
+feature: choose Rate for display and remianing (Global, Full, Point)
+
 Feature: show the user when they are expected to join (ETA) in their local time
 - options: 
   - 0. Remaining value because ETR_TIME (ETA_TIME)
@@ -519,14 +526,6 @@ Feature: show the user when they are expected to join (ETA) in their local time
   - 2. add a new section (bad because warnings will be reduced to retain same size as the other blocks)
   - 3. Add "Est. Join Time: users-local-time" some prominent place like the bar with the session drop down or maybe someplace else
 
-feature: store recent files (*history button) of selected file swso they can be selected again from a history button
-
-feature: disable automatic updates
-
-feature: choose Rate for display and remianing (Global, Full, Point)
-
-~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
-Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
 
 feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
@@ -546,10 +545,7 @@ while ((Get-Date) -lt $Target) {
 
 Start-Process "C:\Users\Name\AppData\Roaming\Vintagestory\Vintagestory.exe" -ArgumentList "--connect=tops.vintagestory.at" # Set to your Vintagestory.exe directory
 
-requires you to set the game directory instead of the log directory
-
-
-Simply paste this into a text document, change to your preferred time and game directory, save, and then rename the text document so that its a .ps1 file. Run the file with Power shell when you leave your computer and you will automatically join the queue at the time you set.
+requires you to set the game directory instead of the log directory and you will automatically join the queue at the time you set.
 
 Give yourself some leeway, I am not responsible if you accidently join the game while not at your computer and get afk kicked or die. I recommend disconnecting in a safe location and putting your inventory loot in a chest before doing this.
 
@@ -566,3 +562,9 @@ Feature: Auto-Join (try the server until join works or entered queue -- be respe
 Feature: Auto-rejoin (if disconnected while in queue, try to Auto rejoin the queue)
 
 Feature: Keep-Alive (leave the queue 1 position before you join and rejoin it -- always keep you in the queue)
+
+## Done
+
+
+~~Feature: Persist queue session history to a local JSONL file so historical data survives restarts and can be analyzed later. Each record should capture: profile path (source_path), server name (parsed from "Connecting to <server>..." log line), start/end epoch, outcome (completed/interrupted/unknown), and position-over-time points at change resolution. File lives alongside app config. Dedup on restart so a session is not written twice. No external dependencies needed.~~
+Done: session_history.jsonl written alongside app config on session end (completed/interrupted/abandoned); records source_path, server, start/end epoch, outcome, and position-change-resolution points. Dedup by (log_file, session_id). Merged into the graph session dropdown across restarts and log sources (v1.1.86+)
