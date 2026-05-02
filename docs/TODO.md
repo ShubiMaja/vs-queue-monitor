@@ -307,23 +307,29 @@ tweak: update all tests, lessons learned docs, todo, tour, etc
 
 ### From 2026-05-02 expert audit (ops / DX)
 
-- **tweak: add a LICENSE file.** Repo has none. README's "no warranty" / "AI-assisted code" copy is a disclaimer, not a grant. Default is all-rights-reserved which legally blocks contributors and forks. MIT or Apache-2.0.
+~~tweak: add a LICENSE file. Repo has none. README's "no warranty" / "AI-assisted code" copy is a disclaimer, not a grant. Default is all-rights-reserved which legally blocks contributors and forks. MIT or Apache-2.0.~~
+Done: MIT LICENSE added, copyright Shubi Maja 2024 (v1.1.174)
 
-- **tweak: add `pyproject.toml` with a single `__version__` source of truth.** Version currently lives in two places (`monitor.py:4` docstring and `vs_queue_monitor/__init__.py:3`) kept in sync by hand per CLAUDE.md. Make `__init__.py` authoritative and have `monitor.py` read it. Bonus: enables `pip install -e .` and console entry points.
+~~tweak: add `pyproject.toml` with a single `__version__` source of truth. Version currently lives in two places (`monitor.py:4` docstring and `vs_queue_monitor/__init__.py:3`) kept in sync by hand per CLAUDE.md. Make `__init__.py` authoritative and have `monitor.py` read it. Bonus: enables `pip install -e .` and console entry points.~~
+Done: pyproject.toml added with dynamic version from vs_queue_monitor.VERSION; monitor.py Version: line removed; CLAUDE.md and shared-instructions updated to point at __init__.py only; console entry points vs-queue-monitor and vsqm added (v1.1.174)
 
-- **tweak: add `ci.yml` GitHub Action that runs `pytest -q` on push and PR.** Only existing workflow is `release-notes.yml`. The "stable build" gate is currently a manual smoke run documented in README. Free on public repos; one file.
+~~tweak: add `ci.yml` GitHub Action that runs `pytest -q` on push and PR. Only existing workflow is `release-notes.yml`. The "stable build" gate is currently a manual smoke run documented in README. Free on public repos; one file.~~
+Done: .github/workflows/ci.yml added — runs version-constant check, ruff lint, unit smoke/session/interrupted tests, and browser Playwright tests on every push/PR (v1.1.174)
 
-- **tweak: pin upper bounds in `requirements.txt` and add a lock file.** `starlette>=0.37`, `uvicorn[standard]>=0.27`, `Pillow>=9.0` have no upper bound; `pywebpush` has no version constraint at all. A breaking minor release silently breaks fresh installs. Pin `<MAJOR+1.0` and produce `requirements-lock.txt` from `pip freeze` for reproducible installs.
+~~tweak: pin upper bounds in `requirements.txt` and add a lock file. `starlette>=0.37`, `uvicorn[standard]>=0.27`, `Pillow>=9.0` have no upper bound; `pywebpush` has no version constraint at all. A breaking minor release silently breaks fresh installs. Pin `<MAJOR+1.0` and produce `requirements-lock.txt` from `pip freeze` for reproducible installs.~~
+Done: upper bounds added to all deps in requirements.txt (starlette<2, uvicorn<2, pystray<1, Pillow<13, pywebpush>=1.9,<3); lock file deferred (v1.1.174)
 
-- **tweak: add `ruff` config + pre-commit hook.** No linting tool is configured. CLAUDE.md prescribes `python -m py_compile` and "editor diagnostics" but nothing is enforced. Ruff catches the bare-except problem (BLE001), unused imports, and the magic-number sprawl in one pass.
+~~tweak: add `ruff` config + pre-commit hook. No linting tool is configured. CLAUDE.md prescribes `python -m py_compile` and "editor diagnostics" but nothing is enforced. Ruff catches the bare-except problem (BLE001), unused imports, and the magic-number sprawl in one pass.~~
+Done: [tool.ruff] added to pyproject.toml (E/W/F/B/BLE/I, line-length 120, BLE001 for blind excepts); .pre-commit-config.yaml added with ruff check --fix + ruff-format (v1.1.174)
+
+~~tweak: add CI check that `monitor.py:Version` and `vs_queue_monitor/__init__.py:VERSION` agree. Cheap guard until `pyproject.toml` lands.~~
+Done: superseded — monitor.py no longer has a Version: line; single source is __init__.py (v1.1.174)
 
 - **tweak: pin curl-pipe install to a tagged release, not `main` HEAD.** README quick-start downloads `bootstrap-windows.cmd` / `bootstrap.py` from `raw.githubusercontent.com/.../main/...`. Anyone running the one-liner gets whatever's currently on main, including in-progress refactors. Pin to `vX.Y.Z` URLs or have bootstrap fetch the latest release tag.
 
 - **tweak: decide on mobile push notifications: finish or remove.** README:171-191 says push is wired but unreliable, and the deferred bugs section confirms it does not work backgrounded. `pywebpush`, VAPID generation, the bell, and a public-history secret leak cost code and risk for ~zero shipped value today. Either implement a real background service worker with push or rip out the dependency, the bell, and `setup-push-notifications.py`.
 
 - **tweak: convert `~~Fixed:~~` entries from this TODO into regression tests.** ~250 fixed entries, many in the same areas (session-id increment, latest-vs-history dedup, completion-vs-front, DPR trendline). Each "Fixed:" line is a test that should be running automatically.
-
-- **tweak: add CI check that `monitor.py:Version` and `vs_queue_monitor/__init__.py:VERSION` agree.** Cheap guard until `pyproject.toml` lands.
 
 - **tweak: stop attaching state to `window` in `app.js`.** `_graphTheme`, `_graphHover`, `_graphZoom`, `_graphTrend`, `_graphShowWarnings`, `_lastState`, `_displayState`, `_graphH`, `_pendingHardReload` leak across reloads and get patched accidentally. Move into a closure or module scope.
 
