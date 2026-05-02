@@ -278,27 +278,37 @@ Fixed: same DPR double-scaling fix as the desktop trendline bug; on a 3x mobile 
 
 tweak: be 1000% sure that user needs to manually press a button before an update actually occurs avoiding interruptions 
 
-tweak: make quick start way more obvious and show it as early as possible in the page
+~~tweak: make quick start way more obvious and show it as early as possible in the page~~
+Done: inline "← Set your VS log folder, then press Start" hint added below the path field; hidden once a path is set (v1.1.181)
 
-tweak: remove confusing notes from the readme about pip install and vapid if there's no need
+~~tweak: remove confusing notes from the readme about pip install and vapid if there's no need~~
+Done: replaced the 5-step "Mobile push not yet fully implemented" section with a single paragraph noting that browser notifications work while the tab is open; removed pip install pywebpush instruction and VAPID setup detail (v1.1.181)
 
-tweak: click on fields to edit them. e.g. click on the warnings values 15, 10, 5, and so on to edit it
+~~tweak: click on fields to edit them. e.g. click on the warnings values 15, 10, 5, and so on to edit it~~
+Done: warning threshold pills are now clickable (cursor:pointer + hover background); clicking any pill opens the Edit Thresholds popover (same as ✎) (v1.1.181)
 
-tweak: when user is updating, they should have a "What's new in vx.x.x" to explain why the update happened
+~~tweak: when user is updating, they should have a "What's new in vx.x.x" to explain why the update happened~~
+Done: update confirmation dialog now includes the release name and GitHub release notes URL; server exposes update_release_html_url via WS snapshot; badge tooltip also shows a note to right-click for release notes (v1.1.181)
 
-tweak: make the upgrade button glow (pulsate) slightly until the user hovers over it at least once.
+~~tweak: make the upgrade button glow (pulsate) slightly until the user hovers over it at least once.~~
+Done: pulsating box-shadow animation added; stops on first hover and persists via localStorage keyed by release version (v1.1.181)
 
-tweak: make the upgrade button match the style of all other buttons next to it
+~~tweak: make the upgrade button match the style of all other buttons next to it~~
+Done: update badge now uses btn--secondary base with accent border/background, gap, and inline icon+text layout matching other topbar buttons (v1.1.181)
 
-tweak: make the start/stop button match the size of other buttons next to it
+~~tweak: make the start/stop button match the size of other buttons next to it~~
+Done: removed zero-padding override from .btn-start-stop; button now shows icon + "Start"/"Stop" text at full standard size (v1.1.181)
 
-tweak: put the upgrade button all the way tot he left (after the notification bell switch)
+~~tweak: put the upgrade button all the way tot he left (after the notification bell switch)~~
+Done: btnUpdateAvail moved in HTML to immediately after btnNotify (before Tour, Help, Settings) (v1.1.181)
 
 tweak: give the logs path edit experience the same popover treatment as other fields. basically you should be ablle to click inside the field to edit it and a pop up with info and a save button appears when you do
 
-tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.
+~~tweak: i had to hard reload to get the right behavior on the settings. make it so user does not have to do that.~~
+Done: applySettingsSave now calls full applyState() so KPI warnings and all live displays update immediately after any settings change (v1.1.181)
 
-tweak: develop a method so when github release is autopopulated it has info about what changed
+~~tweak: develop a method so when github release is autopopulated it has info about what changed~~
+Done: update confirmation dialog shows release name + GitHub release notes URL; see "What's new" above (v1.1.181)
 
 ~~tweak: in the logs path history list, include a small x to the right of each entry so individual entries can be removed from history~~
 Done: each row in the recent-paths popover now shows an × button on the right that appears on hover/focus; clicking it removes only that entry via lsRemoveRecentPath and re-renders the list in place (v1.1.124)
