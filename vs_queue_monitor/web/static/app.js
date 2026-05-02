@@ -371,7 +371,11 @@
           btn.style.marginTop = "8px";
           btn.textContent = "Install update";
           btn.onclick = function () {
-            if (!window.confirm("Install update and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back.")) return;
+            var relName = j.release_name || j.latest_tag || "";
+            var relUrl = j.html_url || "";
+            var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
+              + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+            if (!window.confirm(msg)) return;
             btn.disabled = true;
             closeAboutModal();
             fetch("/api/update/apply", { method: "POST" })
