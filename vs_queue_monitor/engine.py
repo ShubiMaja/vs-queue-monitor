@@ -1449,7 +1449,7 @@ class QueueMonitorEngine:
                                     self._queue_stale_logged_once = False
                                 elif self._last_queue_position_change_epoch is None:
                                     self._last_queue_position_change_epoch = now
-                                if self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit:
+                                if not new_queue_run and (self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit):
                                     self._queue_stale_latched = True
                                     if not self._queue_stale_logged_once:
                                         self.write_history(f'No new queue log lines for {stale_limit:.0f}s ({QUEUE_STALE_TIMEOUT_MULT:.0f}× expected {QUEUE_UPDATE_INTERVAL_SEC:.0f}s updates); treating as interrupted.')
