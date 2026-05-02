@@ -867,6 +867,10 @@
   }
 
   function postConfig(patch) {
+    if ("source_path" in patch) {
+      var tlb = $("topLoadingBar");
+      if (tlb) tlb.classList.remove("hidden");
+    }
     return fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -874,6 +878,7 @@
     }).then(function (r) {
       return r.json().then(function (j) {
         if (!r.ok) throw new Error(j.error || r.statusText);
+        if (j.state) applyState(j.state);
         return applyClientViewerPrefs(j.state || j);
       });
     });
@@ -4137,6 +4142,10 @@
     if (btnStartStop) {
       btnStartStop.onclick = function () {
         var wasRunning = !!(window._lastState && window._lastState.running);
+        if (!wasRunning) {
+          var tlb = $("topLoadingBar");
+          if (tlb) tlb.classList.remove("hidden");
+        }
         postToggle().then(function () {
           if (!wasRunning) {
             selectedSessionKey = "latest";
