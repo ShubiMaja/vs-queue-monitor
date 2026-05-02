@@ -202,6 +202,8 @@ QUEUE_UPDATE_INTERVAL_SEC = 30.0
 QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
+# After this long with no log activity while in queue, declare interrupted (VS clearly not coming back).
+LOG_SILENCE_INTERRUPT_SEC = 90.0
 
 # One default clip per OS per kind (warning vs completion). Pre-filled in Settings; tried before registry/bell fallbacks.
 # Windows: %SystemRoot%\\Media or %WINDIR%\\Media, else C:\\Windows\\Media. macOS: MACOS_SYSTEM_SOUNDS_DIR.
