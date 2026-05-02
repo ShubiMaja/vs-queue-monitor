@@ -1343,10 +1343,17 @@ class QueueMonitorEngine:
                     if self._interrupted_mode:
                         self._handle_interrupted_tail(position, queue_sess, last_queue_line_epoch, total_queue_boundaries, kind, left)
                     elif kind == 'disconnected':
-                        if self._left_connect_queue_detected:
+                        # A completed session is signalled by either:
+                        #  • _left_connect_queue_detected (we saw position 0 in this run), OR
+                        #  • the current tail showing a post-queue signal after the last queue
+                        #    line with last position ≤ 1 (e.g. on first poll after folder switch
+                        #    or app start, where _left_connect_queue_detected was just reset).
+                        completed_in_tail = left and position is not None and position <= 1
+                        if self._left_connect_queue_detected or completed_in_tail:
                             # Queue already completed before VS disconnected — preserve
                             # Completed status. Entering interrupted mode here would hide
-                            # the completed JSONL record via ghost suppression.
+                            # the completed JSONL record via ghost suppression and emit a
+                            # spurious "Queue interrupted" failure popup.
                             self._set_status_line('Completed')
                         else:
                             self.enter_interrupted_state('Connection lost (final teardown).')
@@ -1360,7 +1367,7 @@ class QueueMonitorEngine:
                         self._connect_phase_started_epoch = None
                         self._set_position_display(None)
                         self.last_position = None
-                    elif self._left_connect_queue_detected and kind in ('reconnecting', 'grace'):
+                    elif (self._left_connect_queue_detected or (left and position is not None and position <= 1)) and kind in ('reconnecting', 'grace'):
                         # Queue already completed (position reached 0, completed record
                         # written) — VS reconnecting is not an interruption. Keep Completed
                         # status so the JSONL completed record stays visible in history.
