@@ -10,7 +10,9 @@ from vs_queue_monitor.web.hooks_web import WebMonitorHooks
 from vs_queue_monitor.core import (
     SEED_LOG_TAIL_BYTES,
     compute_seed_graph_from_log,
+    decode_log_bytes,
     parse_tail_latest_connect_target,
+    queue_position_match,
     queue_sessions_for_log_tail,
 )
 from vs_queue_monitor.web.server import _queue_sessions_for_engine
@@ -55,6 +57,10 @@ def _engine_for_log_dir(log_dir: Path) -> tuple[QueueMonitorEngine, SmokeHooks]:
 
 def _write_log(path: Path, lines: list[str]) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_log_utf16(path: Path, lines: list[str], encoding: str = "utf-16-le") -> None:
+    path.write_bytes(("\n".join(lines) + "\n").encode(encoding))
 
 
 def test_completion_then_disconnect_then_requeue() -> None:
@@ -561,3 +567,59 @@ def test_completed_queue_restart_does_not_add_post_completion_heartbeat_points()
     assert engine.position_var.get() == "0"
     assert list(engine.graph_points) == seeded_points
     assert engine.queue_rate_var.get() == seeded_rate
+
+
+# ---------------------------------------------------------------------------
+# Encoding: UTF-16 log fixture (regression for silent byte-strip via errors="ignore")
+# ---------------------------------------------------------------------------
+
+_UTF16_QUEUE_LINES = [
+    "12 Jun 2025 09:00:00 [Client] Connecting to example.vs.server:42420",
+    "12 Jun 2025 09:00:01 [Client] Client is in connect queue at position: 42",
+    "12 Jun 2025 09:00:30 [Client] Client is in connect queue at position: 20",
+    "12 Jun 2025 09:01:00 [Client] Client is in connect queue at position: 5",
+]
+
+
+def test_decode_log_bytes_utf16le() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16-le")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+    assert "position: 5" in text
+
+
+def test_decode_log_bytes_utf16le_with_bom() -> None:
+    # utf-16 encoding includes BOM automatically
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+
+
+def test_decode_log_bytes_utf8() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-8")
+    text = decode_log_bytes(raw)
+    assert "position: 42" in text
+    assert "position: 5" in text
+
+
+def test_queue_position_match_survives_utf16_round_trip() -> None:
+    raw = ("\n".join(_UTF16_QUEUE_LINES) + "\n").encode("utf-16-le")
+    text = decode_log_bytes(raw)
+    positions = [int(queue_position_match(ln).group(1)) for ln in text.splitlines() if queue_position_match(ln)]
+    assert positions == [42, 20, 5]
+
+
+def test_decode_log_bytes_utf16le_engine_parses_position() -> None:
+    root = Path(".tmp-release-smoke-tests-utf16")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+    _write_log_utf16(log_path, _UTF16_QUEUE_LINES)
+
+    engine, _hooks = _engine_for_log_dir(log_dir)
+    engine.poll_once()
+
+    assert engine.position_var.get() == "5", f"Expected position 5, got {engine.position_var.get()!r}"
+    shutil.rmtree(root, ignore_errors=True)
