@@ -12,11 +12,13 @@
 
 - **Bug: log decoding silently strips bytes via `errors="ignore"`.** `core.py:1197-1215` heuristically picks UTF-16 by NUL-byte ratio and falls back with `errors="ignore"`. On a non-English Vintage Story log this can drop queue-position lines and the operator never sees a warning. Log a one-time `WARNING` whenever the decode falls back, and add a UTF-16/BOM fixture to the test corpus.
 
-- **Bug: ~25-30 silent `except Exception: pass` blocks make production failures invisible.** Examples: `core.py:147-149`, `monitor.py:49-50` and `:57-58`, `server.py:1287-1290`. User-reported "the app didn't notice my queue" cannot be diagnosed. Replace with logged warnings or one-line comments explaining why silent is correct; enforce with ruff `BLE001`.
+~~Bug: ~25-30 silent `except Exception: pass` blocks make production failures invisible. Examples: `core.py:147-149`, `monitor.py:49-50` and `:57-58`, `server.py:1287-1290`. User-reported "the app didn't notice my queue" cannot be diagnosed. Replace with logged warnings or one-line comments explaining why silent is correct; enforce with ruff `BLE001`.~~
+Partially fixed: `core.py:147-149` now logs at DEBUG; `server.py:1287-1290` narrowed to `OSError`; `server.py:1430` (update checker) now logs at DEBUG; `monitor.py` startup-error fallbacks intentionally silent (tkinter/ctypes display fallback — comment added). Remaining broad excepts to sweep via ruff BLE001 in CI (v1.1.176)
 
 - **Bug: `app.js` event listeners leak.** 76 `addEventListener` vs 14 `removeEventListener`. Popovers re-bind handlers each rebuild; WS reconnect at 1.5s re-binds globals each cycle (`app.js:~2284-2309`). Use an `AbortController` per scope or a small subscribe/unsubscribe pattern.
 
-- **Bug: WebSocket reconnect has no backoff.** Fixed 1.5s in `app.js:~2307`. A long network outage hammers the loop. Switch to exponential backoff with a cap.
+~~Bug: WebSocket reconnect has no backoff. Fixed 1.5s in `app.js:~2307`. A long network outage hammers the loop. Switch to exponential backoff with a cap.~~
+Fixed: exponential backoff added (1.5s → doubles → 30s cap); reset to 1.5s on successful open (v1.1.176)
 
 ## Deferred (not to be solved yet)
 
@@ -325,7 +327,14 @@ Done: [tool.ruff] added to pyproject.toml (E/W/F/B/BLE/I, line-length 120, BLE00
 ~~tweak: add CI check that `monitor.py:Version` and `vs_queue_monitor/__init__.py:VERSION` agree. Cheap guard until `pyproject.toml` lands.~~
 Done: superseded — monitor.py no longer has a Version: line; single source is __init__.py (v1.1.174)
 
-- **tweak: pin curl-pipe install to a tagged release, not `main` HEAD.** README quick-start downloads `bootstrap-windows.cmd` / `bootstrap.py` from `raw.githubusercontent.com/.../main/...`. Anyone running the one-liner gets whatever's currently on main, including in-progress refactors. Pin to `vX.Y.Z` URLs or have bootstrap fetch the latest release tag.
+~~tweak: pin curl-pipe install to a tagged release, not `main` HEAD. README quick-start downloads `bootstrap-windows.cmd` / `bootstrap.py` from `raw.githubusercontent.com/.../main/...`. Anyone running the one-liner gets whatever's currently on main, including in-progress refactors. Pin to `vX.Y.Z` URLs or have bootstrap fetch the latest release tag.~~
+Done: bootstrap.py now resolves the latest tagged release via the GitHub Releases API (`_resolve_archive_url()`); falls back to `VS_QUEUE_MONITOR_BRANCH` env override, then main HEAD only if no releases exist. The bootstrap wrapper scripts stay on main intentionally (they're tiny launchers), but the app code they install is always a tagged release (v1.1.176)
+
+~~tweak: add SHA256 reference for vendored `dayjs.min.js` in `vs_queue_monitor/web/static/vendor/README.md`. Anyone updating the bundle has no trusted hash to compare against.~~
+Done: SHA-256 added to vendor/README.md table (v1.1.176)
+
+~~tweak: add a basic `Content-Security-Policy: default-src 'self'` header to served pages. Threat is low (loopback) but it blocks any future regression where a contributor adds a CDN script.~~
+Done: CSP (`default-src 'self'; connect-src ws: wss:; img-src data: blob:; media-src blob:; object-src none; frame-ancestors none`) + `X-Frame-Options: DENY` added to all static file responses via `_NoCacheStaticFiles` (v1.1.176)
 
 - **tweak: decide on mobile push notifications: finish or remove.** README:171-191 says push is wired but unreliable, and the deferred bugs section confirms it does not work backgrounded. `pywebpush`, VAPID generation, the bell, and a public-history secret leak cost code and risk for ~zero shipped value today. Either implement a real background service worker with push or rip out the dependency, the bell, and `setup-push-notifications.py`.
 
@@ -336,10 +345,6 @@ Done: superseded — monitor.py no longer has a Version: line; single source is 
 - **tweak: stop running full `applyState()` on every WS message.** ~350-line full re-render at every tick (`app.js:1858-2206`). Diff or split into per-region updates.
 
 - **tweak: decide on light/dark theme: ship a switcher or delete the variable indirection.** `:root` defines tokens but there is no theme switch and colors are dark-only. Currently the worst of both worlds.
-
-- **tweak: add SHA256 reference for vendored `dayjs.min.js` in `vs_queue_monitor/web/static/vendor/README.md`.** Anyone updating the bundle has no trusted hash to compare against.
-
-- **tweak: add a basic `Content-Security-Policy: default-src 'self'` header to served pages.** Threat is low (loopback) but it blocks any future regression where a contributor adds a CDN script.
 
 - **tweak: introduce a config dataclass / TypedDict and run mypy.** Type-hint coverage is ~95% but config and snapshot payloads are loose `dict`. Add `[tool.mypy]` to `pyproject.toml` and run in CI.
 
