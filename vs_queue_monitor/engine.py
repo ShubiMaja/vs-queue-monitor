@@ -1449,7 +1449,14 @@ class QueueMonitorEngine:
                                     self._queue_stale_logged_once = False
                                 elif self._last_queue_position_change_epoch is None:
                                     self._last_queue_position_change_epoch = now
-                                if not new_queue_run and (self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit):
+                                # VS only writes queue lines when position changes, not on a fixed
+                                # interval. An active log (not log_silent) means VS is alive;
+                                # absence of new queue lines just means position is stable.
+                                # Only treat as stale when the log has gone silent — the
+                                # Reconnecting… path at line ~1385 already handles that case,
+                                # but stale_latched can still fire here if we somehow slipped
+                                # through with a None epoch on a live connection.
+                                if not new_queue_run and log_silent and (self._last_queue_line_epoch is None or now - self._last_queue_line_epoch > stale_limit):
                                     self._queue_stale_latched = True
                                     if not self._queue_stale_logged_once:
                                         self.write_history(f'No new queue log lines for {stale_limit:.0f}s ({QUEUE_STALE_TIMEOUT_MULT:.0f}× expected {QUEUE_UPDATE_INTERVAL_SEC:.0f}s updates); treating as interrupted.')

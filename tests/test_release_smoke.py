@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import threading
+import time
 from pathlib import Path
 
 from vs_queue_monitor.engine import QueueMonitorEngine
@@ -124,6 +125,52 @@ def test_completion_then_disconnect_then_requeue() -> None:
     assert engine.status_var.get() == "Monitoring"
     assert engine.position_var.get() == "12"
     assert engine.last_position == 12
+
+
+def test_slow_queue_does_not_trigger_spurious_interrupted() -> None:
+    """Regression: stale-queue detection must not fire while the log is actively growing.
+
+    VS only writes queue position lines when the position changes.  A slow queue can stay
+    at the same position for many minutes without writing a new queue line, while VS keeps
+    writing other log traffic (pings, etc.).  Previously the stale check compared wall time
+    against the log-embedded queue-line timestamp, firing 'Queue interrupted' whenever the
+    last queue line was >60s old — even with an active connection.
+    """
+    root = Path(".tmp-slow-queue-stale-test")
+    if root.exists():
+        shutil.rmtree(root, ignore_errors=True)
+    log_dir = root / "VintagestoryData"
+    log_dir.mkdir(parents=True)
+    log_path = log_dir / "client-main.log"
+
+    # Fixed timestamp that is clearly > stale_limit (30 * 2 = 60s) in the past
+    old_ts = "9.4.2026 00:00:00"
+    _write_log(log_path, [
+        f"{old_ts} [Notification] Connecting to tops.vintagestory.at...",
+        f"{old_ts} [Notification] Client is in connect queue at position: 50",
+    ])
+
+    engine, hooks = _engine_for_log_dir(log_dir)
+    engine.poll_once()
+    assert engine.position_var.get() == "50"
+    assert engine._interrupted_mode is False
+
+    # Simulate active log growth: VS writes non-queue ping lines, stat changes
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("9.4.2026 00:00:00 [Debug] Server ping 42ms\n")
+        f.write("9.4.2026 00:00:05 [Debug] Server ping 43ms\n")
+
+    engine.poll_once()
+    # Log is growing → NOT silent → stale detection must NOT fire
+    assert engine._interrupted_mode is False, (
+        "Spurious interrupted fired: log is active but queue position was unchanged for >60s"
+    )
+    assert engine.status_var.get() in ("Monitoring", "At front", ""), (
+        f"Unexpected status: {engine.status_var.get()!r}"
+    )
+    assert hooks._failure_notify_seq == 0
+
+    shutil.rmtree(root, ignore_errors=True)
 
 
 def test_active_session_zero_not_listed_as_failed_history() -> None:
