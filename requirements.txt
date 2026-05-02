@@ -1,8 +1,8 @@
 # Local web UI: Starlette + uvicorn serve the static client.
 # Standalone mode opens an embedded Chromium --app window (Edge or Chrome required on Windows/macOS).
-starlette>=0.37
-uvicorn[standard]>=0.27
+starlette>=0.37,<2
+uvicorn[standard]>=0.27,<2
 # Optional: system-tray icon (Windows/macOS/Linux). Gracefully skipped if not installed.
-pystray>=0.19
-Pillow>=9.0
-pywebpush
+pystray>=0.19,<1
+Pillow>=9.0,<13
+pywebpush>=1.9,<3

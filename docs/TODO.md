@@ -2,6 +2,22 @@
 
 ## Open
 
+### From 2026-05-02 expert audit
+
+- **Bug: VAPID keypair was committed to git history and is recoverable from any clone.** `.env` was added in commit `6dcf305 "try to add mobile push"` and removed in `1b73122 "dont store secrets"`. History still contains `VS_QUEUE_MONITOR_VAPID_PUBLIC_KEY` (full key), `VS_QUEUE_MONITOR_VAPID_PRIVATE_KEY` (path), and the maintainer email. Rotate the keypair and either `git filter-repo` the file out of history or accept the leak as exposed.
+
+- **Bug: auto-update has no integrity check and silently overwrites the running install.** `vs_queue_monitor/web/server.py:1222-1296` downloads `zipball_url` from GitHub, `zipfile.ZipFile.extractall()` into a tempdir, `shutil.copytree`s over the live `vs_queue_monitor/` package, runs unpinned `pip install -r requirements.txt`, then `os.execv`. No checksum, no signature, no version pin. A compromised GitHub account or MITM in front of `codeload.github.com` lands arbitrary code. At minimum publish a SHA256 in release notes and verify before extracting; better, replace the auto-overwrite with an "open releases page" prompt.
+
+- **Bug: WebSocket snapshot reads engine state without consistent locking.** `server.py:~1307-1343` reads engine fields under `app.state.lock` for `snap` but `poll_once()` mutates without a per-engine lock. Snapshots can tear (e.g. `position_var` changing between reads). Either lock all reads or move to a single-writer/snapshot model.
+
+- **Bug: log decoding silently strips bytes via `errors="ignore"`.** `core.py:1197-1215` heuristically picks UTF-16 by NUL-byte ratio and falls back with `errors="ignore"`. On a non-English Vintage Story log this can drop queue-position lines and the operator never sees a warning. Log a one-time `WARNING` whenever the decode falls back, and add a UTF-16/BOM fixture to the test corpus.
+
+- **Bug: ~25-30 silent `except Exception: pass` blocks make production failures invisible.** Examples: `core.py:147-149`, `monitor.py:49-50` and `:57-58`, `server.py:1287-1290`. User-reported "the app didn't notice my queue" cannot be diagnosed. Replace with logged warnings or one-line comments explaining why silent is correct; enforce with ruff `BLE001`.
+
+- **Bug: `app.js` event listeners leak.** 76 `addEventListener` vs 14 `removeEventListener`. Popovers re-bind handlers each rebuild; WS reconnect at 1.5s re-binds globals each cycle (`app.js:~2284-2309`). Use an `AbortController` per scope or a small subscribe/unsubscribe pattern.
+
+- **Bug: WebSocket reconnect has no backoff.** Fixed 1.5s in `app.js:~2307`. A long network outage hammers the loop. Switch to exponential backoff with a cap.
+
 ## Deferred (not to be solved yet)
 
 - **Mobile notifications only fire when the tab is open.** Browser-side notifications (the bell icon) require the tab to be active; they do not wake the browser or deliver when it is closed or backgrounded. Server-side VAPID push (`pywebpush`) is wired up but not yet reliable across mobile browsers. Full background push would require a persistent service worker with push event support — not currently implemented.
@@ -289,6 +305,40 @@ Done: DEFAULT_HISTORY_MAX_BYTES = 100 MB; trim_jsonl_to_size() drops oldest reco
 
 tweak: update all tests, lessons learned docs, todo, tour, etc
 
+### From 2026-05-02 expert audit (ops / DX)
+
+- **tweak: add a LICENSE file.** Repo has none. README's "no warranty" / "AI-assisted code" copy is a disclaimer, not a grant. Default is all-rights-reserved which legally blocks contributors and forks. MIT or Apache-2.0.
+
+- **tweak: add `pyproject.toml` with a single `__version__` source of truth.** Version currently lives in two places (`monitor.py:4` docstring and `vs_queue_monitor/__init__.py:3`) kept in sync by hand per CLAUDE.md. Make `__init__.py` authoritative and have `monitor.py` read it. Bonus: enables `pip install -e .` and console entry points.
+
+- **tweak: add `ci.yml` GitHub Action that runs `pytest -q` on push and PR.** Only existing workflow is `release-notes.yml`. The "stable build" gate is currently a manual smoke run documented in README. Free on public repos; one file.
+
+- **tweak: pin upper bounds in `requirements.txt` and add a lock file.** `starlette>=0.37`, `uvicorn[standard]>=0.27`, `Pillow>=9.0` have no upper bound; `pywebpush` has no version constraint at all. A breaking minor release silently breaks fresh installs. Pin `<MAJOR+1.0` and produce `requirements-lock.txt` from `pip freeze` for reproducible installs.
+
+- **tweak: add `ruff` config + pre-commit hook.** No linting tool is configured. CLAUDE.md prescribes `python -m py_compile` and "editor diagnostics" but nothing is enforced. Ruff catches the bare-except problem (BLE001), unused imports, and the magic-number sprawl in one pass.
+
+- **tweak: pin curl-pipe install to a tagged release, not `main` HEAD.** README quick-start downloads `bootstrap-windows.cmd` / `bootstrap.py` from `raw.githubusercontent.com/.../main/...`. Anyone running the one-liner gets whatever's currently on main, including in-progress refactors. Pin to `vX.Y.Z` URLs or have bootstrap fetch the latest release tag.
+
+- **tweak: decide on mobile push notifications: finish or remove.** README:171-191 says push is wired but unreliable, and the deferred bugs section confirms it does not work backgrounded. `pywebpush`, VAPID generation, the bell, and a public-history secret leak cost code and risk for ~zero shipped value today. Either implement a real background service worker with push or rip out the dependency, the bell, and `setup-push-notifications.py`.
+
+- **tweak: convert `~~Fixed:~~` entries from this TODO into regression tests.** ~250 fixed entries, many in the same areas (session-id increment, latest-vs-history dedup, completion-vs-front, DPR trendline). Each "Fixed:" line is a test that should be running automatically.
+
+- **tweak: add CI check that `monitor.py:Version` and `vs_queue_monitor/__init__.py:VERSION` agree.** Cheap guard until `pyproject.toml` lands.
+
+- **tweak: stop attaching state to `window` in `app.js`.** `_graphTheme`, `_graphHover`, `_graphZoom`, `_graphTrend`, `_graphShowWarnings`, `_lastState`, `_displayState`, `_graphH`, `_pendingHardReload` leak across reloads and get patched accidentally. Move into a closure or module scope.
+
+- **tweak: stop running full `applyState()` on every WS message.** ~350-line full re-render at every tick (`app.js:1858-2206`). Diff or split into per-region updates.
+
+- **tweak: decide on light/dark theme: ship a switcher or delete the variable indirection.** `:root` defines tokens but there is no theme switch and colors are dark-only. Currently the worst of both worlds.
+
+- **tweak: add SHA256 reference for vendored `dayjs.min.js` in `vs_queue_monitor/web/static/vendor/README.md`.** Anyone updating the bundle has no trusted hash to compare against.
+
+- **tweak: add a basic `Content-Security-Policy: default-src 'self'` header to served pages.** Threat is low (loopback) but it blocks any future regression where a contributor adds a CDN script.
+
+- **tweak: introduce a config dataclass / TypedDict and run mypy.** Type-hint coverage is ~95% but config and snapshot payloads are loose `dict`. Add `[tool.mypy]` to `pyproject.toml` and run in CI.
+
+- **tweak: make magic-number constants user-configurable or document why they aren't.** `TAIL_BYTES = 128 * 1024`, `POPUP_TIMEOUT_MS = 12_000`, 1500ms WS reconnect, 6500ms toast, 8 recent paths. `history_max_bytes` already follows the right pattern (config-driven); copy it.
+
 ## Deferred
 
 - make it as easy as possible for people to get started with ngrok on all platforms including official way to get ngrok installed and a built in way to connect with ngrok e.g. a form field that starts ngrok with your gmail user and any other and a pop up from the ui to instal ngrok if its not installed (grayed out form and link to install or something along those lines)
@@ -416,6 +466,22 @@ Done: drawGraphEventMarker replaced with solid colored circles (amber=warning, g
 
 ~~Tweak: clarify rate display; add Global Rate to stats; use m/p with tooltip~~
 Done: stats mini-panel now shows Avg Rate and Full Rate rows; rate unit changed from "min/pos" to "m/p" with title tooltips explaining the abbreviation; KPI Rate card also gets title tooltip (v1.0.302/337)
+
+# REFACTORS
+
+Architectural debt surfaced by the 2026-05-02 expert audit. These are multi-day rewrites, not one-touch tweaks; they live here so they don't get lost between bugs and features.
+
+## Open
+
+- **refactor: decompose `QueueMonitorEngine` (`vs_queue_monitor/engine.py`).** 2138 LOC, 91 instance attributes initialized in `__init__` (lines 47-169), 85 methods. Mixes Tk `StringVar`/`BoolVar` bindings (legacy from a tkinter UI that's no longer the primary surface), poll state machine flags (`_interrupted_mode`, `_starting`, `_queue_stale_latched`, `_queue_stale_logged_once`, `_last_queue_run_session`, …), file-IO and history backfill threads, config persistence, and push notifier wiring. Split into `QueueState` (pure dataclass), `LogPoller` (threaded), `HistoryStore`, `Notifier`. Drop the Tk var indirection while you're in there.
+
+- **refactor: split `app.js` (4893 LOC) into ES modules.** 213 top-level functions, ~9 leaked `window._*` globals, `applyState()` ~350 lines (`app.js:1858-2206`), `setupChrome()` ~800 lines (`app.js:4099-4900`). Use `<script type="module">` (no bundler needed) and break into ~10 files: graph, settings, history, ws, kpi, chrome, push, sounds, modals, state. Lets each domain be reviewed and tested in isolation.
+
+- **refactor: extract `LogClassifier` from `core.py` regex pile.** `QUEUE_RE`, `POST_QUEUE_PROGRESS_LINE_RES`, `DISCONNECTED_LINE_RES`, `RECONNECTING_LINE_RES`, `QUEUE_RUN_BOUNDARY_RES` are scattered across `core.py:24-121` and feed the 128-line `extract_all_session_records_from_log()` (`core.py:1427-1555`). Most session-boundary regression entries in this TODO trace back here. Build a deterministic classifier with named line types and a state machine, with one fixture test per "Fixed:" entry that originated in this region.
+
+- **refactor: introduce a CSS system in `styles.css` (2199 LOC).** Currently mixes BEM (`.kpi__val`), utility classes (`.hidden`), and ad-hoc selectors. No documented spacing rhythm, duplicated topbar rules. Pick one pattern, document tokens at the top of the file, drop unused indirection, and decide on the theme story.
+
+- **refactor: kill the Tk `StringVar`/`BoolVar` indirection on the engine.** Holdover from the original Tk UI. Every config field currently has a getter, setter, trace_add callback, and persistence round-trip through Tk variables, but the tkinter UI is no longer the primary surface. Replace with plain attributes plus an explicit `on_change` event for the web hooks. Reduces the engine's 91-attribute surface and removes a hidden tkinter dependency.
 
 # FEATURES
 
