@@ -1198,6 +1198,9 @@ def completion_would_fire_for_tail(tail_text: str) -> bool:
 def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
     # Vintage Story logs are typically UTF-8, but some environments can produce UTF-16.
     # Heuristic: if the buffer has many NUL bytes, try UTF-16.
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
     if not raw:
         return ""
 
@@ -1209,11 +1212,25 @@ def decode_log_bytes(raw: bytes, start_offset: int = 0) -> str:
             raw = raw[1:]
         for enc in ("utf-16-le", "utf-16-be", "utf-16"):
             try:
-                return raw.decode(enc, errors="ignore")
-            except Exception:
+                return raw.decode(enc)
+            except (UnicodeDecodeError, Exception):
                 pass
+        _log.warning(
+            "decode_log_bytes: all UTF-16 variants failed at offset %d; "
+            "falling back to UTF-8 with replacement — some log characters may be lost",
+            start_offset,
+        )
+        return raw.decode("utf-8", errors="replace")
 
-    return raw.decode("utf-8", errors="ignore")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        _log.warning(
+            "decode_log_bytes: UTF-8 decode error at offset %d; "
+            "some log characters replaced — log may contain corrupt bytes",
+            start_offset,
+        )
+        return raw.decode("utf-8", errors="replace")
 
 
 def extract_recent_positions_from_log(log_file: Path, tail_bytes: int) -> list[int]:
