@@ -2238,6 +2238,8 @@
   var _wsEverConnected = false;
   var _disconnectOverlayShown = false;
   var _offlineMode = false;
+  var _wsRetryMs = 1500;
+  var _WS_RETRY_MAX_MS = 30000;
 
   function _showOfflineBanner() {
     var b = document.getElementById("offlineBanner");
@@ -2300,11 +2302,13 @@
     };
     ws.onopen = function () {
       _wsEverConnected = true;
+      _wsRetryMs = 1500;
       if (!_offlineMode) _hideDisconnectOverlay();
     };
     ws.onclose = function () {
       if (_wsEverConnected && !_offlineMode) _showDisconnectOverlay();
-      setTimeout(connectWs, 1500);
+      setTimeout(connectWs, _wsRetryMs);
+      _wsRetryMs = Math.min(_wsRetryMs * 2, _WS_RETRY_MAX_MS);
     };
   }
 
