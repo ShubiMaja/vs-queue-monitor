@@ -208,6 +208,21 @@ LOG_SILENCE_INTERRUPT_SEC = 90.0
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
+    "1.2.1": [
+        "Update badge now hides immediately when you confirm installation",
+        "Simplified install confirm — just the version name, no wall of text",
+        "What's New banner now links to GitHub release notes",
+    ],
+    "1.2.0": [
+        "New brand icon — V chevron mark visible in the browser tab and About dialog",
+        "\"What's new\" banner: shown once per version upgrade, dismissed with ×",
+        "Recent paths history — clock icon recalls last-used folders instantly",
+        "Auto-detects VS disconnect after 90 s of log silence",
+        "Graph trims to last real data on disconnect; rate/speed metrics stay accurate",
+        "Animated loading bar when switching log files",
+        "Fixed spurious interrupted alerts on slow queues",
+        "Path editing now uses an inline popover",
+    ],
     "1.1.189": [
         "New brand icon — V chevron mark visible in the browser tab and About dialog",
         "\"What's new\" banner: shown once per version upgrade, dismissed with ×",

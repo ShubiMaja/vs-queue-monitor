@@ -290,7 +290,7 @@
   function lsSetSeenVersion(v) {
     try { localStorage.setItem(LS_SEEN_VERSION, v); } catch (e) {}
   }
-  function showWhatsNew(version, notes) {
+  function showWhatsNew(version, notes, repoUrl) {
     var banner = $("whatsNewBanner");
     var ver = $("whatsNewVersion");
     var list = $("whatsNewList");
@@ -302,6 +302,17 @@
       var li = document.createElement("li");
       li.textContent = notes[i];
       list.appendChild(li);
+    }
+    var existingLink = banner.querySelector(".whats-new-banner__link");
+    if (existingLink) existingLink.remove();
+    if (repoUrl) {
+      var a = document.createElement("a");
+      a.href = repoUrl + "/releases/tag/v" + version;
+      a.textContent = "Full release notes on GitHub →";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.className = "whats-new-banner__link";
+      banner.querySelector(".whats-new-banner__body").appendChild(a);
     }
     banner.classList.remove("hidden");
   }
@@ -3279,21 +3290,25 @@
       }, { once: true });
       btnBadge.onclick = function () {
         var relName = (window._lastState && window._lastState.update_release_name) || "";
-        var relUrl = (window._lastState && window._lastState.update_release_html_url) || "";
-        var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
-          + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+        var msg = "Install " + (relName || "update") + " and restart VS Queue Monitor?";
         if (!window.confirm(msg)) return;
         btnBadge.disabled = true;
+        btnBadge.classList.add("hidden");
         fetch("/api/update/apply", { method: "POST" })
           .then(function (r) { return r.json(); })
           .then(function (j) {
-            btnBadge.disabled = false;
-            if (!j.ok) { toast("Update failed: " + (j.error || "unknown"), "warn"); return; }
+            if (!j.ok) {
+              btnBadge.disabled = false;
+              btnBadge.classList.remove("hidden");
+              toast("Update failed: " + (j.error || "unknown"), "warn");
+              return;
+            }
             window._pendingHardReload = true;
             toast("Update in progress — reloading when server is back…");
           })
           .catch(function (e) {
             btnBadge.disabled = false;
+            btnBadge.classList.remove("hidden");
             toast("Update error: " + String(e.message || e), "warn");
           });
       };
@@ -4958,7 +4973,7 @@
       if (agl && m.github_url) agl.href = m.github_url;
       window._metaVersion = m.version || "";
       if (m.version && m.whatsnew && m.whatsnew.length && lsGetSeenVersion() !== m.version) {
-        showWhatsNew(m.version, m.whatsnew);
+        showWhatsNew(m.version, m.whatsnew, m.github_url || "");
       }
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
