@@ -103,9 +103,10 @@ def test_completion_then_disconnect_then_requeue() -> None:
     _write_log(log_path, disconnected_lines)
 
     engine.poll_once()
-    assert engine._interrupted_mode is True
-    assert engine.status_var.get() == "Interrupted"
-    assert hooks._failure_notify_seq == 1
+    # v1.1.173: post-completion disconnect stays "Completed", does NOT enter interrupted mode
+    assert engine._interrupted_mode is False
+    assert engine.status_var.get() == "Completed"
+    assert hooks._failure_notify_seq == 0
 
     requeue_lines = disconnected_lines + [
         "9.4.2026 22:32:00 [Notification] Connecting to tops.vintagestory.at...",
@@ -114,8 +115,10 @@ def test_completion_then_disconnect_then_requeue() -> None:
     _write_log(log_path, requeue_lines)
 
     engine.poll_once()
-    assert engine._pending_new_queue_session is not None
+    # v1.1.173: new queue run auto-adopted directly (not via dialog when not in interrupted mode)
+    assert engine._pending_new_queue_session is None
 
+    # resolve_new_queue_offer is a no-op when pending is None; state already updated by poll_once
     engine.resolve_new_queue_offer(True)
     assert engine._interrupted_mode is False
     assert engine.status_var.get() == "Monitoring"
@@ -448,7 +451,8 @@ def test_web_client_notification_events_do_not_depend_on_shared_popup_flags() ->
         "9.4.2026 22:31:40 [Error] Connection closed unexpectedly",
     ])
     engine.poll_once()
-    assert hooks._failure_notify_seq == 1
+    # v1.1.173: post-completion disconnect does NOT fire failure notification
+    assert hooks._failure_notify_seq == 0
 
 
 def test_server_target_refresh_falls_back_to_seed_window() -> None:
@@ -526,11 +530,14 @@ def test_startup_seeded_post_queue_disconnect_keeps_elapsed() -> None:
     engine._apply_seed_result(compute_seed_graph_from_log(log_path))
     engine._adopt_interrupted_tail_on_start(log_path)
 
-    assert engine._interrupted_mode is True
-    assert engine.status_var.get() == "Interrupted"
-    assert engine.elapsed_var.get() == "0:32"
-    assert engine.queue_rate_var.get() == "—"
-    assert engine.global_rate_var.get() == "—"
+    # v1.1.173: completed+disconnect at startup does NOT enter interrupted mode
+    assert engine._interrupted_mode is False
+    assert engine.status_var.get() == "Idle"
+    # Elapsed computed from graph points (first queue line → last queue line), not connect phase
+    assert engine.elapsed_var.get() == "0:30"
+    # Rates are computed from seeded graph points, not frozen at "—"
+    assert engine.queue_rate_var.get() != "—"
+    assert engine.global_rate_var.get() != "—"
     assert engine.predicted_remaining_var.get() == "—"
 
 
