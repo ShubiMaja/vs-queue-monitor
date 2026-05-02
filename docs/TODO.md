@@ -513,9 +513,10 @@ Architectural debt surfaced by the 2026-05-02 expert audit. These are multi-day 
 # FEATURES
 
 
-feature: store recent files (*history button) of selected file swso they can be selected again from a history button
+~~feature: store recent files (*history button) of selected file swso they can be selected again from a history button~~
+Done: recent paths popover (clock icon in header path row) stores last N folders; per-entry × remove; click to switch instantly (v1.1.124+)
 
-feature: option to disable automatic updates
+feature: option to disable automatic updates (currently update install requires explicit user confirmation; background check still runs)
 
 feature: choose Rate for display and remianing (Global, Full, Point)
 
@@ -525,9 +526,6 @@ Feature: show the user when they are expected to join (ETA) in their local time
   - 1. Remaining becomes ETR / ETA
   - 2. add a new section (bad because warnings will be reduced to retain same size as the other blocks)
   - 3. Add "Est. Join Time: users-local-time" some prominent place like the bar with the session drop down or maybe someplace else
-
-
-feature: store recent files (*history button) of selected file swso they can be selected again from a history button
 
 feature: add light and dark theme
 
