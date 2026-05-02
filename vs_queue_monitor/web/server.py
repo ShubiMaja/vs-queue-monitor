@@ -32,6 +32,7 @@ from .. import GITHUB_REPO_URL, VERSION
 from ..core import (
     DEFAULT_HISTORY_MAX_BYTES,
     OUTCOME_RANK,
+    RELEASE_NOTES,
     SEED_LOG_TAIL_BYTES,
     expand_path,
     get_config_path,
@@ -866,6 +867,7 @@ def _api_meta(request: Request) -> JSONResponse:
             "chrome_theme": chrome_theme_css_vars(),
             "window_mode": _window_mode,
             "push_status": push_status(),
+            "whatsnew": RELEASE_NOTES.get(VERSION, []),
         }
     )
 

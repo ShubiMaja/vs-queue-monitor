@@ -205,6 +205,54 @@ LOG_SILENCE_RECONNECT_SEC = 30.0
 # After this long with no log activity while in queue, declare interrupted (VS clearly not coming back).
 LOG_SILENCE_INTERRUPT_SEC = 90.0
 
+# Per-version release notes shown to the user once after updating.
+# Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
+RELEASE_NOTES: dict[str, list[str]] = {
+    "1.1.189": [
+        "New brand icon — V chevron mark visible in the browser tab and About dialog",
+        "\"What's new\" banner: shown once per version upgrade, dismissed with ×",
+    ],
+    "1.1.188": [
+        "Auto-detects VS disconnect after 90 s of log silence — no more perpetual Reconnecting…",
+        "Graph trims to last real data on disconnect; rate/speed metrics stay accurate",
+    ],
+    "1.1.187": [
+        "Loading bar now appears immediately when clicking a path from history",
+    ],
+    "1.1.186": [
+        "Animated top loading bar shows while switching log files or starting for the first time",
+    ],
+    "1.1.185": [
+        "Fixed spurious \"Queue interrupted\" alerts on slow or stalled queues",
+    ],
+    "1.1.184": [
+        "Path editing converted from a blocking modal to a lightweight inline popover",
+    ],
+    "1.1.182": [
+        "Update installation is fully user-gated — app never installs updates without confirmation",
+        "About dialog now shows the release name and a link to GitHub release notes",
+    ],
+    "1.1.181": [
+        "Quick-start hint in empty state, improved Start/Stop button, clickable alert thresholds",
+    ],
+    "1.1.178": [
+        "Fixed silent byte-drop on UTF-16 encoded Vintage Story logs",
+    ],
+    "1.1.176": [
+        "Security hardening: CSP headers, signed release fetch, exponential WS backoff",
+    ],
+    "1.1.174": [
+        "Added LICENSE, pyproject.toml, CI pipeline, and pre-commit hooks",
+    ],
+    "1.1.173": [
+        "Fixed spurious \"Queue interrupted\" alert after switching folders or starting the app",
+    ],
+    "1.1.165": [
+        "Session history size cap configurable in Settings (default 100 MB)",
+        "Fixed five bugs found during stability review",
+    ],
+}
+
 # One default clip per OS per kind (warning vs completion). Pre-filled in Settings; tried before registry/bell fallbacks.
 # Windows: %SystemRoot%\\Media or %WINDIR%\\Media, else C:\\Windows\\Media. macOS: MACOS_SYSTEM_SOUNDS_DIR.
 # Linux: XDG_DATA_DIRS + relative path, plus /usr/share and /usr/local/share (see _linux_sound_paths_from_relatives).
