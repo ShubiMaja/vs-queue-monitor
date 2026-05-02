@@ -398,6 +398,56 @@ body {
   display: flex;
   gap: 8px;
 }
+.whats-new-banner {
+  background: #1a2438;
+  border-bottom: 1px solid var(--accent);
+  padding: 10px 16px;
+}
+.whats-new-banner.hidden {
+  display: none;
+}
+.whats-new-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.whats-new-banner__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.whats-new-banner__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.whats-new-banner__badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.whats-new-banner__ver {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.whats-new-banner__list {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.whats-new-banner__list li {
+  font-size: 0.88rem;
+  color: #c5d4f0;
+}
 .banner-close {
   appearance: none;
   border: 0;

@@ -21,6 +21,7 @@
   var LS_NOTIFY_COMPLETION_POPUP = "vs_queue_monitor_completion_popup_v1";
   var LS_NOTIFY_FAILURE_POPUP = "vs_queue_monitor_failure_popup_v1";
   var LS_UPDATE_NOTIFY = "vs_queue_monitor_update_notify_v1";
+  var LS_SEEN_VERSION = "vs_queue_monitor_seen_version_v1";
   var selectedSessionKey = "latest";
   var _sessionDropdownInited = false;
   var _restoreOnce = false;
@@ -282,6 +283,27 @@
   }
   function lsSetUpdateNotify(val) {
     try { localStorage.setItem(LS_UPDATE_NOTIFY, val ? "1" : "0"); } catch (e) {}
+  }
+  function lsGetSeenVersion() {
+    try { return localStorage.getItem(LS_SEEN_VERSION) || ""; } catch (e) { return ""; }
+  }
+  function lsSetSeenVersion(v) {
+    try { localStorage.setItem(LS_SEEN_VERSION, v); } catch (e) {}
+  }
+  function showWhatsNew(version, notes) {
+    var banner = $("whatsNewBanner");
+    var ver = $("whatsNewVersion");
+    var list = $("whatsNewList");
+    if (!banner || !ver || !list || !notes || !notes.length) return;
+    ver.textContent = "v" + version;
+    list.innerHTML = "";
+    var i;
+    for (i = 0; i < notes.length; i++) {
+      var li = document.createElement("li");
+      li.textContent = notes[i];
+      list.appendChild(li);
+    }
+    banner.classList.remove("hidden");
   }
   function applyClientViewerPrefs(s) {
     applyClientGraphPrefs(s);
@@ -3229,6 +3251,17 @@
       };
   }
 
+  function setupWhatsNewBanner() {
+    var btn = $("btnDismissWhatsNew");
+    if (btn) {
+      btn.onclick = function () {
+        var b = $("whatsNewBanner");
+        if (b) b.classList.add("hidden");
+        if (window._metaVersion) lsSetSeenVersion(window._metaVersion);
+      };
+    }
+  }
+
   function setupUpdateBanner() {
     var btnDismiss = $("btnDismissUpdate");
     if (btnDismiss) {
@@ -4871,6 +4904,7 @@
   safeInit("setupGraphResize", setupGraphResize);
   safeInit("setupInfoHistoryResize", setupInfoHistoryResize);
   safeInit("setupRestoreBanner", setupRestoreBanner);
+  safeInit("setupWhatsNewBanner", setupWhatsNewBanner);
   safeInit("setupUpdateBanner", setupUpdateBanner);
   safeInit("setupNewQueueModal", setupNewQueueModal);
   safeInit("cleanupLegacyNotificationServiceWorker", cleanupLegacyNotificationServiceWorker);
@@ -4922,6 +4956,10 @@
       if (av) av.textContent = m.version ? "v" + m.version : "";
       var agl = $("aboutGithubLink");
       if (agl && m.github_url) agl.href = m.github_url;
+      window._metaVersion = m.version || "";
+      if (m.version && m.whatsnew && m.whatsnew.length && lsGetSeenVersion() !== m.version) {
+        showWhatsNew(m.version, m.whatsnew);
+      }
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
         redrawGraphOnly();
