@@ -305,7 +305,7 @@
 
   /** True while a modal, tour, or restore banner is visible — block global single-key shortcuts. */
   function uiBlockingLayerOpen() {
-    var ids = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
+    var ids = ["modalNewQueue", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     var i;
     for (i = 0; i < ids.length; i++) {
       var el = $(ids[i]);
@@ -2538,6 +2538,9 @@
     if (!$("popWarnAdd").classList.contains("hidden")) {
       positionKpiPopover($("popWarnAdd"), $("btnAddWarn"));
     }
+    if ($("popPath") && !$("popPath").classList.contains("hidden")) {
+      positionKpiPopover($("popPath"), $("pathSummary"));
+    }
   }
 
   function setStepperValue(inputEl, nextValue, minValue) {
@@ -2816,7 +2819,7 @@
       var btnHistorySettings = $("btnHistorySettings");
       if (popHistory) popHistory.classList.add("hidden");
       if (btnHistorySettings) btnHistorySettings.setAttribute("aria-expanded", "false");
-      ["popPoll", "popWindow", "popWarn", "popWarnAdd"].forEach(function (id) {
+      ["popPoll", "popWindow", "popWarn", "popWarnAdd", "popPath"].forEach(function (id) {
         var p = $(id);
         if (p) {
           p.classList.add("hidden");
@@ -3987,66 +3990,54 @@
   }
 
   function setupPathModal() {
-    var modal = $("modalPath");
+    var pop = $("popPath");
     var inpHidden = $("inpPath");
-    var inpModal = $("inpPathModal");
+    var inpPop = $("inpPathPop");
     var ps = $("pathSummary");
 
-    function closePathModal() {
-      if (modal) hideEl(modal);
+    function closePathPop() {
+      if (pop) { pop.classList.add("hidden"); pop.style.left = ""; pop.style.top = ""; }
       if (ps) ps.focus();
     }
 
-    function applyPathModal() {
-      var v = inpModal ? String(inpModal.value || "").trim() : "";
+    function applyPathPop() {
+      var v = inpPop ? String(inpPop.value || "").trim() : "";
       if (inpHidden) inpHidden.value = v;
       syncPathDisplay();
-      if (modal) hideEl(modal);
-      postConfig({ source_path: v }).catch(function (e) {
-        toast(String(e.message || e), "warn");
-      });
-      if (ps) ps.focus();
+      closePathPop();
+      postConfig({ source_path: v }).catch(function (e) { toast(String(e.message || e), "warn"); });
     }
 
     if (ps) {
-      ps.onclick = function () {
-        if (inpModal && inpHidden) inpModal.value = inpHidden.value;
-        if (modal) showEl(modal);
-        if (inpModal) {
-          setTimeout(function () {
-            inpModal.focus();
-            try {
-              inpModal.select();
-            } catch (e) {}
-          }, 0);
-        }
+      ps.onclick = function (e) {
+        e.stopPropagation();
+        if (!pop) return;
+        if (!pop.classList.contains("hidden")) { closePathPop(); return; }
+        if (inpPop && inpHidden) inpPop.value = inpHidden.value;
+        positionKpiPopover(pop, ps);
+        setTimeout(function () {
+          if (inpPop) { inpPop.focus(); try { inpPop.select(); } catch (ex) {} }
+        }, 0);
       };
     }
-    var ok = $("btnPathOk");
-    if (ok) ok.onclick = function () {
-      applyPathModal();
-    };
-    var cancel = $("btnPathCancel");
-    if (cancel) cancel.onclick = function () {
-      closePathModal();
-    };
-    var bd = $("modalPathBackdrop");
-    bindBackdropDismiss(bd, function () {
-      closePathModal();
-    });
-    if (inpModal) {
-      inpModal.addEventListener("keydown", function (ev) {
-        if (ev.key === "Enter") {
-          ev.preventDefault();
-          applyPathModal();
-        }
+    if (pop) {
+      pop.addEventListener("click", function (e) { e.stopPropagation(); });
+    }
+    var ok = $("btnPathPopOk");
+    if (ok) ok.onclick = function () { applyPathPop(); };
+    var cancel = $("btnPathPopCancel");
+    if (cancel) cancel.onclick = function () { closePathPop(); };
+    if (inpPop) {
+      inpPop.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { ev.preventDefault(); applyPathPop(); }
+        if (ev.key === "Escape") { ev.preventDefault(); closePathPop(); }
       });
     }
   }
 
   /** Keep Tab cycling within an open dialog (WCAG-friendly). */
   function setupModalTabTrap() {
-    var modalIds = ["modalNewQueue", "modalPath", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
+    var modalIds = ["modalNewQueue", "modalHelp", "modalSettings", "modalAbout", "tourOverlay"];
     document.addEventListener(
       "keydown",
       function (ev) {
@@ -4103,11 +4094,14 @@
           if (no) no.click();
           return;
         }
-        var mp = $("modalPath");
-        if (mp && !mp.classList.contains("hidden")) {
+        var pp = $("popPath");
+        if (pp && !pp.classList.contains("hidden")) {
           ev.preventDefault();
-          var bd = $("modalPathBackdrop");
-          if (bd) bd.click();
+          pp.classList.add("hidden");
+          pp.style.left = "";
+          pp.style.top = "";
+          var psEl = $("pathSummary");
+          if (psEl) psEl.focus();
           return;
         }
         if ($("modalAbout") && !$("modalAbout").classList.contains("hidden")) {
