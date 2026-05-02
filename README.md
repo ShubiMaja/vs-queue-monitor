@@ -87,6 +87,8 @@ If that browser view goes offline, the in-page banner tells you to start the app
 | **Failure alert**       | Popup + sound + desktop notification when monitoring drops into the interrupted state                        |
 | **Graph**               | Step chart of position over time with warning/connect/disconnect markers; zoom, pan, export as PNG or TSV    |
 | **Session history**     | Per-run log of position changes; graph session selector lets you review any past run, each labeled with its chronological index and outcome (Succeeded / Failed / Interrupted / Unknown). History capped at 100 MB by default (configurable in Settings → General) |
+| **Recent paths**        | Clock icon next to the path field shows the last few folders you've monitored; click any to switch instantly                                                                                                                                                       |
+| **What's new banner**   | One-time banner on first launch after an update summarises what changed; dismisses with ×                                                                                                                                                                          |
 | **System tray**         | Icon in notification area while running; right-click to open or quit                                         |
 | **Embedded window**     | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
@@ -104,7 +106,7 @@ If that browser view goes offline, the in-page banner tells you to start the app
 
 ## Pointing at the log
 
-In the app header, paste your **VintagestoryData** folder path or click the folder icon. Typical locations:
+In the app header, paste your **VintagestoryData** folder path, click the folder icon to browse, or click the **clock icon** to pick from recently used folders. Typical locations:
 
 
 | OS      | Default path                                     |
