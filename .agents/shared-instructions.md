@@ -32,7 +32,7 @@ Prefer the established patterns in this repo: seamless flow, progressive disclos
 
 When you finish a coherent change set:
 
-1. Bump the patch version in `monitor.py` unless the user explicitly says to skip it.
+1. Bump the patch version in `vs_queue_monitor/__init__.py` (the single source of truth) unless the user explicitly says to skip it. Do not add a `Version:` line to `monitor.py` — it no longer carries one.
 2. Update `README.md` when the change affects users.
 3. Run `python -m py_compile` on changed Python files before committing.
 4. Commit intentional changes with a clear message.
