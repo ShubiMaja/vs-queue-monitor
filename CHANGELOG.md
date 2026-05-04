@@ -4,6 +4,25 @@ All notable changes to VS Queue Monitor are documented here.
 
 ---
 
+## v1.2.10 — 2026-05-04
+
+### New features
+- **Delayed connect** — "in: N min" field next to the Connect button. Set any number of minutes; clicking Connect starts a live countdown shown in the button ("Connect in 4:32"). A Cancel button aborts the countdown at any time.
+
+---
+
+## v1.2.9 — 2026-05-04
+
+### New features
+- **ngrok session survives app close** — ngrok is launched in its own terminal window on Windows (close it to stop the tunnel) and as a detached process on Unix. The tunnel keeps running if you restart or close the monitor.
+
+### Fixes
+- **Detect existing ngrok session** — status and Start both query the ngrok local API, so a tunnel started by a previous app session is correctly shown as running on restart.
+- **Stop works across sessions** — PID is saved to `ngrok.pid` in the config dir; Stop tunnel kills the process even when the Popen handle is gone.
+- **ngrok guide copy** — clarified that the URL is random on each start and that the Google email field restricts who can authenticate, not just "share with friends".
+
+---
+
 ## v1.2.8 — 2026-05-04
 
 ### New features

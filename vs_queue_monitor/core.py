@@ -209,6 +209,14 @@ LOG_SILENCE_INTERRUPT_SEC = 60.0
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
+    "1.2.10": [
+        "Delayed connect — set \"in: N min\" next to Connect; a live countdown runs in the button and Cancel aborts it",
+    ],
+    "1.2.9": [
+        "ngrok now runs in its own terminal window (Windows) or detached process (Unix) — survives app close",
+        "Detects an existing ngrok session on restart via the local ngrok API",
+        "Fixed: Stop tunnel works across sessions using a saved PID file",
+    ],
     "1.2.8": [
         "Client panel (monitor icon in topbar) — VS install folder, favourite server picker, Connect / Disconnect",
         "ngrok tunnel controls — Start tunnel button creates a shareable public URL; optional Google email restriction",
