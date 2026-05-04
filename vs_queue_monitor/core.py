@@ -203,7 +203,8 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 # After this long with no log activity while in queue, declare interrupted (VS clearly not coming back).
-LOG_SILENCE_INTERRUPT_SEC = 90.0
+# Kept at 2× the reconnect window so "Reconnecting…" is brief before giving up.
+LOG_SILENCE_INTERRUPT_SEC = 60.0
 
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.

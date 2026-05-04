@@ -1092,17 +1092,13 @@ class QueueMonitorEngine:
         if ok:
             tail_text = read_log_file_tail_text(path, TAIL_BYTES)
             adopted_kind = None
-            adopted_pos = None
             if tail_text:
                 adopted_kind, _tail_pos = classify_tail_connection_state(tail_text)
-                adopted_pos, _tail_sess = parse_tail_last_queue_reading(tail_text)
-            stays_interrupted = (
-                adopted_kind == 'disconnected'
-                or (
-                    adopted_kind in ('reconnecting', 'grace')
-                    and not (adopted_pos is not None and adopted_pos <= 1)
-                )
-            )
+            # Stay interrupted only if VS has fully disconnected — not if it is mid-reconnect
+            # (reconnecting/grace), because that means VS is actively joining the server and
+            # will produce new queue lines shortly.  Re-entering interrupted on reconnecting
+            # locks the epoch guard and prevents the next new-run detection from firing.
+            stays_interrupted = adopted_kind == 'disconnected'
             if stays_interrupted:
                 self._interrupted_mode = True
                 self._interrupt_baseline_session = self._last_queue_run_session
