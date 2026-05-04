@@ -2313,3 +2313,73 @@ body.tour-open {
   border: 1px dashed var(--line);
   border-radius: var(--radius-md);
 }
+
+/* ── Client management panel ─────────────────────────────── */
+.client-panel {
+  background: #141c28;
+  border-bottom: 1px solid var(--line);
+}
+.client-panel.hidden {
+  display: none;
+}
+.client-panel__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.client-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.client-panel__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  min-width: 56px;
+}
+.client-panel__path-summary {
+  flex: 1;
+  min-width: 0;
+}
+.client-panel__server-select {
+  flex: 1;
+  min-width: 180px;
+  max-width: 480px;
+  font-size: 0.88rem;
+  padding: 4px 8px;
+  height: 30px;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.client-panel__server-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.client-panel__exe-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.client-panel__exe-status--ok {
+  color: #73bf69;
+}
+.client-panel__exe-status--err {
+  color: var(--danger);
+}
+/* Toggle button active state */
+#btnClientPanel[aria-expanded="true"] {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}

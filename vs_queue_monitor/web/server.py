@@ -35,6 +35,7 @@ from ..core import (
     RELEASE_NOTES,
     SEED_LOG_TAIL_BYTES,
     expand_path,
+    find_vs_executable,
     get_config_path,
     get_newer_session_attempt,
     normalize_log_path_for_dedup,
@@ -724,12 +725,7 @@ def _pick_path_sync(mode: str, initial_dir: str | None = None) -> str | None:
                 initialdir=start_dir,
             )
         else:
-            p = filedialog.askdirectory(
-                parent=root,
-                title="Select Vintage Story game folder (containing executable and Logs folder)",
-                mustexist=True,
-                initialdir=start_dir,
-            )
+            p = filedialog.askdirectory(parent=root, mustexist=True, initialdir=start_dir)
         return str(p).strip() if p else None
     finally:
         try:
@@ -826,6 +822,9 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
         "source_path_display": _mask_path_in_text(engine.source_path_var.get()),
+        "vs_install_path": engine.vs_install_path_var.get(),
+        "vs_install_path_display": _mask_path_in_text(engine.vs_install_path_var.get()),
+        "vs_exe_found": bool(find_vs_executable(expand_path(engine.vs_install_path_var.get())) if engine.vs_install_path_var.get().strip() else None),
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -1026,6 +1025,8 @@ async def _api_config(request: Request) -> JSONResponse:
         with lock:
             if "source_path" in body:
                 engine.source_path_var.set(str(body["source_path"]))
+            if "vs_install_path" in body:
+                engine.vs_install_path_var.set(str(body["vs_install_path"]))
             if "poll_sec" in body:
                 engine.poll_sec_var.set(str(body["poll_sec"]))
             if "avg_window" in body:
@@ -1094,6 +1095,125 @@ def _api_reset(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+def _parse_vs_servers(data_path: Path) -> list[dict[str, str]]:
+    """Parse favorite multiplayer servers from VS clientsettings.json."""
+    settings_file = data_path / "clientsettings.json"
+    if not settings_file.is_file():
+        return []
+    try:
+        with settings_file.open(encoding="utf-8") as f:
+            data = json.load(f)
+        raw_list: list[str] = data.get("stringListSettings", {}).get("multiplayerservers", [])
+        seen: set[str] = set()
+        servers: list[dict[str, str]] = []
+        for entry in raw_list:
+            parts = entry.split(",", 2)
+            name = parts[0].strip() if parts else ""
+            host = parts[1].strip() if len(parts) > 1 else ""
+            if not host or host in seen:
+                continue
+            seen.add(host)
+            servers.append({"name": name, "host": host})
+        return servers
+    except Exception:
+        return []
+
+
+def _get_vs_data_path(engine: "QueueMonitorEngine") -> Optional[Path]:
+    """Resolve the VintagestoryData folder: from source_path if it looks right, else default."""
+    from ..core import expand_path, get_default_vintagestory_path
+    raw = engine.source_path_var.get().strip()
+    if raw:
+        p = expand_path(raw)
+        if p.is_file():
+            p = p.parent
+        if (p / "clientsettings.json").is_file():
+            return p
+        if (p / "Logs").is_dir() and (p.parent / "clientsettings.json").is_file():
+            return p.parent
+    default = get_default_vintagestory_path()
+    if default.is_dir():
+        return default
+    return None
+
+
+_vs_process: Optional["subprocess.Popen[bytes]"] = None
+
+
+async def _api_vs_servers(request: Request) -> JSONResponse:
+    """Return the user's VS favourite multiplayer servers."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    with lock:
+        data_path = _get_vs_data_path(engine)
+    if data_path is None:
+        return JSONResponse({"ok": True, "servers": [], "note": "Could not locate VintagestoryData folder"})
+    servers = await asyncio.to_thread(_parse_vs_servers, data_path)
+    return JSONResponse({"ok": True, "servers": servers})
+
+
+async def _api_vs_connect(request: Request) -> JSONResponse:
+    """Launch Vintage Story and connect to a server."""
+    global _vs_process
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    if not host:
+        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    with lock:
+        install_path_raw = engine.vs_install_path_var.get().strip()
+    if not install_path_raw:
+        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
+    install_path = expand_path(install_path_raw)
+    exe = find_vs_executable(install_path)
+    if exe is None:
+        return JSONResponse({"ok": False, "error": f"Vintagestory.exe not found in {install_path}"}, status_code=400)
+    try:
+        if _vs_process is not None and _vs_process.poll() is None:
+            _vs_process.terminate()
+            try:
+                _vs_process.wait(timeout=3)
+            except Exception:
+                _vs_process.kill()
+        _vs_process = subprocess.Popen(
+            [str(exe), f"--connect={host}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=(sys.platform != "win32"),
+        )
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True, "pid": _vs_process.pid})
+
+
+async def _api_vs_disconnect(_request: Request) -> JSONResponse:
+    """Terminate the VS process that was launched by Connect."""
+    global _vs_process
+    if _vs_process is None or _vs_process.poll() is not None:
+        return JSONResponse({"ok": True, "note": "VS is not running (launched by this app)"})
+    try:
+        _vs_process.terminate()
+        try:
+            _vs_process.wait(timeout=5)
+        except Exception:
+            _vs_process.kill()
+        _vs_process = None
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+async def _api_vs_status(request: Request) -> JSONResponse:
+    """Return whether VS (launched by this app) is currently running."""
+    running = _vs_process is not None and _vs_process.poll() is None
+    pid = _vs_process.pid if running and _vs_process else None
+    return JSONResponse({"ok": True, "running": running, "pid": pid})
 
 
 async def _api_new_queue(request: Request) -> JSONResponse:
@@ -1472,6 +1592,10 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/update/check", _api_update_check, methods=["GET"]),
         Route("/api/update/apply", _api_update_apply, methods=["POST"]),
         Route("/api/update/config", _api_update_config, methods=["POST"]),
+        Route("/api/vs/servers", _api_vs_servers, methods=["GET"]),
+        Route("/api/vs/connect", _api_vs_connect, methods=["POST"]),
+        Route("/api/vs/disconnect", _api_vs_disconnect, methods=["POST"]),
+        Route("/api/vs/status", _api_vs_status, methods=["GET"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

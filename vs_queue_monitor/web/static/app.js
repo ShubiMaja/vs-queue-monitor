@@ -2115,6 +2115,8 @@
       lsAddRecentPath(srvPath, (s.source_path_display || srvPath));
     }
 
+    applyVsStateToPanel(s);
+
     var modalSettings = $("modalSettings");
     if (!modalSettings || modalSettings.classList.contains("hidden")) {
       syncSettingsFormFromState(s);
@@ -4226,7 +4228,7 @@
             return postConfig({ source_path: $("inpPath").value.trim() });
           })
           .then(function () {
-            if ($("inpPath").value.trim()) toast("Path set from game folder picker");
+            if ($("inpPath").value.trim()) toast("Path set from folder picker");
           })
           .catch(function (e) {
             toast(String(e.message || e), "warn");
@@ -4909,6 +4911,259 @@
     });
   }
 
+  // ── Client panel ────────────────────────────────────────────────────────────
+
+  var LS_VS_RECENT_PATHS = "vs_queue_monitor_vs_recent_paths_v1";
+
+  function lsGetVsRecentPaths() {
+    try {
+      var raw = localStorage.getItem(LS_VS_RECENT_PATHS);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function lsAddVsRecentPath(raw, display) {
+    if (!raw) return;
+    try {
+      var list = lsGetVsRecentPaths().filter(function (x) { return x.raw !== raw; });
+      list.unshift({ raw: raw, display: display || raw });
+      if (list.length > 10) list = list.slice(0, 10);
+      localStorage.setItem(LS_VS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+  }
+  function lsRemoveVsRecentPath(raw) {
+    try {
+      var list = lsGetVsRecentPaths().filter(function (x) { return x.raw !== raw; });
+      localStorage.setItem(LS_VS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+  }
+
+  function syncVsPathDisplay() {
+    var inp = $("inpVsPath");
+    var tx = $("vsPathSummaryText");
+    var btn = $("vsPathSummary");
+    var raw = inp ? String(inp.value || "").trim() : "";
+    var s = window._lastState;
+    var display = (s && s.vs_install_path_display) || raw;
+    if (tx) {
+      tx.textContent = raw ? "‎" + display : "Select VS install folder…";
+      tx.classList.toggle("path-summary__text--has-path", !!raw);
+    }
+    if (btn) {
+      btn.classList.toggle("path-summary--empty", !raw);
+      btn.title = raw ? display : "Click to paste VS install folder path";
+    }
+  }
+
+  function updateVsRecentPathsButton() {
+    var btn = $("btnRecentVsPaths");
+    if (!btn) return;
+    var list = lsGetVsRecentPaths();
+    btn.classList.toggle("hidden", list.length === 0);
+    if (list.length === 0) closeVsRecentPathsPopover();
+  }
+
+  function closeVsRecentPathsPopover() {
+    var pop = $("popRecentVsPaths");
+    var btn = $("btnRecentVsPaths");
+    if (pop) pop.classList.add("hidden");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  function renderVsRecentPathsList() {
+    var pop = $("popRecentVsPaths");
+    if (!pop) return;
+    var list = lsGetVsRecentPaths();
+    var currentPath = ($("inpVsPath") && String($("inpVsPath").value || "").trim()) || "";
+    pop.innerHTML = "";
+    var ul = document.createElement("ul");
+    ul.className = "pop-recent-paths__list";
+    list.forEach(function (item) {
+      var li = document.createElement("li");
+      li.className = "pop-recent-paths__row";
+      var itemBtn = document.createElement("button");
+      itemBtn.type = "button";
+      itemBtn.className = "pop-recent-paths__item" + (item.raw === currentPath ? " pop-recent-paths__item--active" : "");
+      itemBtn.title = item.display || item.raw;
+      itemBtn.textContent = item.display || item.raw;
+      itemBtn.onclick = function () {
+        var inp = $("inpVsPath");
+        if (inp) { inp.value = item.raw; syncVsPathDisplay(); }
+        closeVsRecentPathsPopover();
+        postConfig({ vs_install_path: item.raw })
+          .then(function () { toast("VS folder restored from history"); refreshVsPanel(); })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pop-recent-paths__remove";
+      removeBtn.title = "Remove from history";
+      removeBtn.setAttribute("aria-label", "Remove from history");
+      removeBtn.textContent = "\xd7";
+      removeBtn.onclick = function (ev) {
+        ev.stopPropagation();
+        lsRemoveVsRecentPath(item.raw);
+        renderVsRecentPathsList();
+        updateVsRecentPathsButton();
+      };
+      li.appendChild(itemBtn);
+      li.appendChild(removeBtn);
+      ul.appendChild(li);
+    });
+    pop.appendChild(ul);
+  }
+
+  function refreshVsPanel() {
+    var s = window._lastState;
+    var exeOk = s && s.vs_exe_found;
+    var installPath = s && s.vs_install_path || ($("inpVsPath") && $("inpVsPath").value.trim()) || "";
+    var exeEl = $("vsExeStatus");
+    if (exeEl) {
+      if (!installPath) {
+        exeEl.textContent = "";
+        exeEl.className = "client-panel__exe-status";
+      } else if (exeOk) {
+        exeEl.textContent = "✔ exe found";
+        exeEl.className = "client-panel__exe-status client-panel__exe-status--ok";
+      } else {
+        exeEl.textContent = "✗ Vintagestory.exe not found";
+        exeEl.className = "client-panel__exe-status client-panel__exe-status--err";
+      }
+    }
+    var connectBtn = $("btnVsConnect");
+    var disconnectBtn = $("btnVsDisconnect");
+    var sel = $("selVsServer");
+    if (connectBtn) connectBtn.disabled = !exeOk || !sel || !sel.value;
+    if (disconnectBtn) {
+      fetch("/api/vs/status").then(function (r) { return r.json(); }).then(function (j) {
+        if (disconnectBtn) disconnectBtn.disabled = !j.running;
+      }).catch(function () {});
+    }
+  }
+
+  function loadVsServers() {
+    var sel = $("selVsServer");
+    if (!sel) return;
+    fetch("/api/vs/servers").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      var current = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      (j.servers || []).forEach(function (srv) {
+        var opt = document.createElement("option");
+        opt.value = srv.host;
+        opt.textContent = srv.name ? srv.name + " (" + srv.host + ")" : srv.host;
+        sel.appendChild(opt);
+      });
+      if (current) sel.value = current;
+      refreshVsPanel();
+    }).catch(function () {});
+  }
+
+  function setupClientPanel() {
+    var toggleBtn = $("btnClientPanel");
+    var panel = $("clientPanel");
+    if (toggleBtn && panel) {
+      toggleBtn.onclick = function () {
+        var open = panel.classList.toggle("hidden");
+        toggleBtn.setAttribute("aria-expanded", String(!open));
+        if (!open) { loadVsServers(); }
+      };
+    }
+
+    var browseBtn = $("btnBrowseVsFolder");
+    if (browseBtn) {
+      browseBtn.onclick = function () {
+        pickPath("folder", $("inpVsPath") && $("inpVsPath").value.trim())
+          .then(function (j) {
+            if (j.cancelled || !j.path) return;
+            var inp = $("inpVsPath");
+            if (inp) inp.value = j.path;
+            syncVsPathDisplay();
+            return postConfig({ vs_install_path: j.path }).then(function () {
+              lsAddVsRecentPath(j.path, j.path);
+              updateVsRecentPathsButton();
+              toast("VS folder set");
+              refreshVsPanel();
+            });
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+    }
+
+    var recentBtn = $("btnRecentVsPaths");
+    var recentPop = $("popRecentVsPaths");
+    if (recentBtn && recentPop) {
+      recentBtn.onclick = function (ev) {
+        ev.stopPropagation();
+        var open = recentPop.classList.contains("hidden");
+        if (open) {
+          renderVsRecentPathsList();
+          recentPop.classList.remove("hidden");
+          recentBtn.setAttribute("aria-expanded", "true");
+        } else {
+          closeVsRecentPathsPopover();
+        }
+      };
+      document.addEventListener("click", function (ev) {
+        if (!recentPop.classList.contains("hidden") &&
+            !recentPop.contains(ev.target) && ev.target !== recentBtn) {
+          closeVsRecentPathsPopover();
+        }
+      });
+    }
+    updateVsRecentPathsButton();
+
+    var sel = $("selVsServer");
+    if (sel) {
+      sel.onchange = function () { refreshVsPanel(); };
+    }
+
+    var connectBtn = $("btnVsConnect");
+    if (connectBtn) {
+      connectBtn.onclick = function () {
+        var host = sel && sel.value;
+        if (!host) { toast("Choose a server first", "warn"); return; }
+        connectBtn.disabled = true;
+        fetch("/api/vs/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: host }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (!j.ok) { toast("Connect failed: " + (j.error || "unknown"), "warn"); connectBtn.disabled = false; return; }
+          toast("Launching Vintage Story…");
+          setTimeout(refreshVsPanel, 1500);
+        }).catch(function (e) { toast(String(e.message || e), "warn"); connectBtn.disabled = false; });
+      };
+    }
+
+    var disconnectBtn = $("btnVsDisconnect");
+    if (disconnectBtn) {
+      disconnectBtn.onclick = function () {
+        disconnectBtn.disabled = true;
+        fetch("/api/vs/disconnect", { method: "POST" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) { toast("Disconnect failed: " + (j.error || "unknown"), "warn"); }
+            else { toast("Vintage Story closed"); }
+            refreshVsPanel();
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); disconnectBtn.disabled = false; });
+      };
+    }
+  }
+
+  function applyVsStateToPanel(s) {
+    if (!s) return;
+    var inp = $("inpVsPath");
+    if (inp && s.vs_install_path !== undefined) {
+      inp.value = s.vs_install_path || "";
+      syncVsPathDisplay();
+      updateVsRecentPathsButton();
+      if (s.vs_install_path) lsAddVsRecentPath(s.vs_install_path, s.vs_install_path_display || s.vs_install_path);
+    }
+    refreshVsPanel();
+  }
+
+  safeInit("setupClientPanel", setupClientPanel);
   safeInit("setupChrome", setupChrome);
   safeInit("setupSettingsTabs", setupSettingsTabs);
   safeInit("setupPopovers", setupPopovers);

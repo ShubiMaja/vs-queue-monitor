@@ -99,15 +99,15 @@
               id="pathSummary"
               title="Click to paste or edit the full path"
             >
-              <span id="pathSummaryText" class="path-summary__text">Select VS game folder or log file…</span>
+              <span id="pathSummaryText" class="path-summary__text">Select log folder or file…</span>
             </button>
             <input type="hidden" id="inpPath" autocomplete="off" />
             <button
               type="button"
               class="btn btn--small btn--browse btn--browse-icon"
               id="btnBrowseFolder"
-              title="Choose VS game folder — the folder containing the Vintage Story executable and Logs folder"
-              aria-label="Choose VS game folder"
+              title="Choose logs folder (native dialog on this PC)"
+              aria-label="Choose logs folder"
             >
               <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
@@ -146,13 +146,13 @@
           <div id="popPath" class="popover popover--path hidden" role="dialog" aria-modal="false" aria-labelledby="popPathLabel">
             <label id="popPathLabel">Log source path</label>
             <input type="text" id="inpPathPop" class="inp popover--path__inp" autocomplete="off" spellcheck="false" placeholder="Paste folder or .log file path…" />
-            <p class="popover__hint">Paste your VS <strong>game folder</strong> (contains the executable &amp; Logs folder) or your <strong>VintagestoryData</strong> folder. Or use the <strong>folder / file</strong> icons to browse.</p>
+            <p class="popover__hint">Paste your <strong>VintagestoryData</strong> folder or a full <code>.log</code> path. Or use the <strong>folder / file</strong> icons to browse.</p>
             <div class="popover__row">
               <button type="button" class="btn btn--primary btn--small" id="btnPathPopOk">Save</button>
               <button type="button" class="btn btn--ghost btn--small" id="btnPathPopCancel">Cancel</button>
             </div>
           </div>
-          <p id="pathHint" class="path-hint hidden" aria-live="polite">← Set your VS game folder, then press <strong>Start</strong></p>
+          <p id="pathHint" class="path-hint hidden" aria-live="polite">← Set your VS log folder, then press <strong>Start</strong></p>
         </div>
       </div>
       <div class="topbar__actions">
@@ -202,6 +202,12 @@
             <path d="M15 4v13" />
           </svg>
         </button>
+        <button type="button" class="btn btn--secondary" id="btnClientPanel" aria-label="VS client panel" title="Vintage Story client — connect &amp; disconnect" aria-expanded="false">
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+        </button>
         <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help" title="Help (F1)">?</button>
         <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings" title="Settings (o)">⚙</button>
         <button
@@ -227,6 +233,63 @@
         </button>
       </div>
     </header>
+
+    <!-- Client management panel -->
+    <div id="clientPanel" class="client-panel hidden" role="region" aria-label="Vintage Story client">
+      <div class="client-panel__inner">
+
+        <!-- Install path row -->
+        <div class="client-panel__row client-panel__row--path">
+          <label class="client-panel__label" for="inpVsPath">VS folder</label>
+          <button
+            type="button"
+            class="path-summary client-panel__path-summary"
+            id="vsPathSummary"
+            title="Click to paste or edit the VS install folder path"
+          >
+            <span id="vsPathSummaryText" class="path-summary__text">Select VS install folder…</span>
+          </button>
+          <input type="hidden" id="inpVsPath" autocomplete="off" />
+          <button
+            type="button"
+            class="btn btn--small btn--browse btn--browse-icon"
+            id="btnBrowseVsFolder"
+            title="Browse for Vintage Story install folder (contains Vintagestory.exe)"
+            aria-label="Browse for VS install folder"
+          >
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="btn btn--small btn--browse btn--browse-icon hidden"
+            id="btnRecentVsPaths"
+            title="Recently used VS install folders"
+            aria-label="Recently used VS install folders"
+            aria-expanded="false"
+          >
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+          </button>
+          <span id="vsExeStatus" class="client-panel__exe-status" aria-live="polite"></span>
+        </div>
+        <div id="popRecentVsPaths" class="popover popover--recent-paths hidden" role="listbox" aria-label="Recently used VS install folders"></div>
+
+        <!-- Server + action row -->
+        <div class="client-panel__row client-panel__row--actions">
+          <label class="client-panel__label" for="selVsServer">Server</label>
+          <select id="selVsServer" class="client-panel__server-select inp" aria-label="Select server to connect to">
+            <option value="">— choose server —</option>
+          </select>
+          <button type="button" class="btn btn--primary btn--small" id="btnVsConnect" disabled>Connect</button>
+          <button type="button" class="btn btn--ghost btn--small" id="btnVsDisconnect" disabled>Disconnect</button>
+        </div>
+
+      </div>
+    </div>
 
     <main class="main">
       <section class="kpi" id="secKpi">
@@ -563,14 +626,13 @@
         <h2 id="modalHelpHeading">Help</h2>
         <div class="help-scroll">
           <h3 class="help-h3">Getting started</h3>
-          <p class="muted">Set the <strong>VS game folder</strong> in the header (paste a path or use the folder icon), then use the <strong>play button</strong> in the top bar to start monitoring. The app watches <code>client-main.log</code> for queue position changes.</p>
+          <p class="muted">Set the <strong>Vintage Story data folder</strong> in the header (paste a path or use the folder icon), then use the <strong>play button</strong> in the top bar to start monitoring. The app watches <code>client-main.log</code> for queue position changes.</p>
           <p class="muted">While the app is running you can also open <strong><code>http://localhost:8765</code></strong> in any browser — the embedded window and a standalone browser tab share the same live state. Use <code>--web-port PORT</code> if you changed the default port.</p>
-          <h3 class="help-h3">Typical folders</h3>
+          <h3 class="help-h3">Typical log paths</h3>
           <ul class="help-list">
-            <li><strong>Game folder (recommended):</strong> the folder containing <code>Vintagestory.exe</code> and a <code>Logs</code> subfolder</li>
-            <li><strong>Windows data folder:</strong> <code>%APPDATA%\VintagestoryData</code></li>
-            <li><strong>macOS data folder:</strong> <code>~/Library/Application Support/VintagestoryData</code></li>
-            <li><strong>Linux data folder:</strong> <code>~/.config/VintagestoryData</code></li>
+            <li><strong>Windows:</strong> <code>%APPDATA%\VintagestoryData</code></li>
+            <li><strong>macOS:</strong> <code>~/Library/Application Support/VintagestoryData</code></li>
+            <li><strong>Linux:</strong> <code>~/.config/VintagestoryData</code></li>
           </ul>
           <h3 class="help-h3">Threshold alerts</h3>
           <p class="muted">Alerts fire when position drops <strong>below</strong> a threshold — once per threshold per queue run. Add or edit thresholds in the Warnings KPI cell (+ or ✎).</p>
