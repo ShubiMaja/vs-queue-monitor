@@ -5257,26 +5257,6 @@
     var helpBtn = $("btnNgrokHelp");
     if (helpBtn) helpBtn.onclick = openNgrokGuide;
 
-    var emailInfoBtn = $("btnNgrokEmailInfo");
-    var emailInfoPop = $("popNgrokEmailInfo");
-    if (emailInfoBtn && emailInfoPop) {
-      emailInfoBtn.onclick = function (ev) {
-        ev.stopPropagation();
-        var hidden = emailInfoPop.classList.contains("hidden");
-        if (hidden) {
-          positionKpiPopover(emailInfoPop, emailInfoBtn);
-          emailInfoPop.classList.remove("hidden");
-        } else {
-          emailInfoPop.classList.add("hidden");
-        }
-      };
-      document.addEventListener("click", function (ev) {
-        if (!emailInfoPop.classList.contains("hidden") &&
-            !emailInfoPop.contains(ev.target) && ev.target !== emailInfoBtn) {
-          emailInfoPop.classList.add("hidden");
-        }
-      });
-    }
     var guideOk = $("btnNgrokGuideOk");
     if (guideOk) {
       guideOk.onclick = function () {
@@ -5292,9 +5272,10 @@
     }
     if (startBtn) {
       startBtn.onclick = function () {
+        var email = emailInp ? emailInp.value.trim() : "";
+        if (!email && !confirm("No auth email set — anyone with the tunnel URL can view your queue.\n\nStart tunnel anyway?")) return;
         startBtn.disabled = true;
         startBtn.textContent = "Starting…";
-        var email = emailInp ? emailInp.value.trim() : "";
         fetch("/api/ngrok/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

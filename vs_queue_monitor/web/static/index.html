@@ -294,7 +294,7 @@
 
         <!-- ngrok row -->
         <div class="client-panel__row client-panel__row--ngrok">
-          <label class="client-panel__label" for="inpNgrokEmail">Tunnel</label>
+          <span class="client-panel__label">ngrok</span>
           <input
             type="email"
             id="inpNgrokEmail"
@@ -303,16 +303,10 @@
             autocomplete="email"
             spellcheck="false"
           />
-          <button type="button" class="client-panel__info-btn" id="btnNgrokEmailInfo" aria-label="What is the auth email?">ⓘ</button>
-          <div id="popNgrokEmailInfo" class="client-panel__info-pop hidden" role="tooltip">
-            <strong>Auth email</strong> — restricts access to the tunnel URL to a single Google account.
-            When set, visitors must sign in with Google and the email must match exactly.
-            Leave blank to allow anyone with the URL to view your queue.
-          </div>
           <button type="button" class="btn btn--secondary btn--small" id="btnNgrokStart">Start tunnel</button>
           <button type="button" class="btn btn--ghost btn--small hidden" id="btnNgrokStop">Stop</button>
-          <button type="button" class="btn btn--ghost btn--small client-panel__ngrok-help" id="btnNgrokHelp" title="How to set up ngrok" aria-label="ngrok setup guide">?</button>
           <a id="ngrokUrl" class="client-panel__ngrok-url hidden" target="_blank" rel="noopener noreferrer" title="Public ngrok URL — click to open, right-click to copy"></a>
+          <button type="button" class="btn btn--ghost btn--small client-panel__ngrok-help" id="btnNgrokHelp" title="About the tunnel" aria-label="About the tunnel">?</button>
         </div>
 
       </div>
@@ -647,23 +641,27 @@
       </div>
     </div>
 
-    <!-- ngrok setup guide -->
+    <!-- ngrok guide -->
     <div id="modalNgrokGuide" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalNgrokGuideHeading">
       <div class="modal__backdrop" data-close="1"></div>
       <div class="modal__box modal__box--help">
-        <h2 id="modalNgrokGuideHeading">Set up ngrok</h2>
+        <h2 id="modalNgrokGuideHeading">Tunnel (ngrok)</h2>
         <div class="help-scroll">
-          <h3 class="help-h3">1 — Install</h3>
+          <h3 class="help-h3">What it does</h3>
+          <p class="muted">Creates a temporary public HTTPS URL that forwards to your local monitor. Anyone who has the URL can view your queue in real time — from any device, anywhere. The URL is randomly generated each time you start a tunnel.</p>
+
+          <h3 class="help-h3">Auth email</h3>
+          <p class="muted">Enter your Google account email to gate access. Visitors must sign in with Google and only that exact email is allowed through. Leave blank to allow anyone with the URL to view your queue.</p>
+
+          <h3 class="help-h3">First-time setup</h3>
+          <p class="muted">1. Install ngrok:</p>
           <pre class="help-pre"><code>winget install ngrok.ngrok</code></pre>
           <p class="muted">Or download from <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" class="help-link">ngrok.com/download</a>.</p>
-
-          <h3 class="help-h3">2 — Add your authtoken</h3>
-          <p class="muted">Sign up free at <a href="https://dashboard.ngrok.com/signup" target="_blank" rel="noopener noreferrer" class="help-link">dashboard.ngrok.com</a>, copy your token, then run:</p>
+          <p class="muted">2. Sign up free at <a href="https://dashboard.ngrok.com/signup" target="_blank" rel="noopener noreferrer" class="help-link">dashboard.ngrok.com</a>, then add your token:</p>
           <pre class="help-pre"><code>ngrok config add-authtoken &lt;YOUR_TOKEN&gt;</code></pre>
 
-          <h3 class="help-h3">3 — Start the tunnel</h3>
-          <p class="muted">Click <strong>Start tunnel</strong>. A public URL will appear — anyone with that URL can view your queue. The URL is randomly generated each time you start a tunnel. Enter a Google account email in the field above to restrict access to that account only.</p>
-          <p class="muted">The tunnel keeps running even if you close or restart the monitor. On Windows a terminal window opens — closing it also stops the tunnel. Click <strong>Stop tunnel</strong> to end it from here.</p>
+          <h3 class="help-h3">Stopping the tunnel</h3>
+          <p class="muted">The tunnel keeps running even if you close or restart the monitor. On Windows a terminal window opens — closing it also stops the tunnel. Click <strong>Stop</strong> to end it from here.</p>
         </div>
         <div class="modal__actions">
           <button type="button" class="btn btn--primary" id="btnNgrokGuideOk" data-close="1">Got it</button>

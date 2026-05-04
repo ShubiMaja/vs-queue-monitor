@@ -220,13 +220,13 @@ LOG_SILENCE_INTERRUPT_SEC = 60.0
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
-    "1.2.10": [
-        "Delayed connect — set \"in: N min\" next to Connect; a live countdown runs in the button and Cancel aborts it",
-    ],
-    "1.2.9": [
-        "ngrok now runs in its own terminal window (Windows) or detached process (Unix) — survives app close",
-        "Detects an existing ngrok session on restart via the local ngrok API",
-        "Fixed: Stop tunnel works across sessions using a saved PID file",
+    "1.2.16": [
+        "Delayed connect — \"Delay: N min\" field next to Connect; live countdown in button, Cancel to abort",
+        "VS folder auto-fills with the platform default VS install path when not yet configured",
+        "Tunnel ? button explains the feature, auth email, setup, and how to stop — all in one place",
+        "ngrok tunnel survives app close — own terminal window on Windows, detached on Unix",
+        "Fixed: detects existing ngrok session on restart; Stop works across sessions via saved PID",
+        "Warning when starting tunnel with no auth email set — confirms before exposing queue publicly",
     ],
     "1.2.8": [
         "Client panel (monitor icon in topbar) — VS install folder, favourite server picker, Connect / Disconnect",

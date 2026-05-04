@@ -2414,30 +2414,6 @@ body.tour-open {
   text-overflow: ellipsis;
   max-width: 260px;
 }
-.client-panel__info-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.95rem;
-  padding: 0 2px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.client-panel__info-btn:hover { color: var(--fg); }
-.client-panel__info-pop {
-  position: fixed;
-  z-index: 120;
-  background: var(--surface2, #1e2a3a);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px 14px;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: var(--fg);
-  max-width: 280px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-}
 .client-panel__ngrok-url:hover { text-decoration: underline; }
 .client-panel__delay-label {
   font-size: 0.78rem;

@@ -4,22 +4,20 @@ All notable changes to VS Queue Monitor are documented here.
 
 ---
 
-## v1.2.10 — 2026-05-04
+## v1.2.16 — 2026-05-04
 
 ### New features
-- **Delayed connect** — "in: N min" field next to the Connect button. Set any number of minutes; clicking Connect starts a live countdown shown in the button ("Connect in 4:32"). A Cancel button aborts the countdown at any time.
-
----
-
-## v1.2.9 — 2026-05-04
-
-### New features
-- **ngrok session survives app close** — ngrok is launched in its own terminal window on Windows (close it to stop the tunnel) and as a detached process on Unix. The tunnel keeps running if you restart or close the monitor.
+- **Delayed connect** — "Delay: N min" field next to Connect. Set any number of minutes; clicking Connect starts a live countdown in the button ("Connect in 4:32"). Cancel aborts at any time.
+- **VS folder auto-filled** — defaults to the platform standard VS install path (`%APPDATA%\Vintagestory` on Windows) when not yet configured.
+- **Tunnel ? guide** — single `?` button at the right of the tunnel row opens a modal explaining what the tunnel does, how to set it up, and what the auth email field does.
 
 ### Fixes
-- **Detect existing ngrok session** — status and Start both query the ngrok local API, so a tunnel started by a previous app session is correctly shown as running on restart.
-- **Stop works across sessions** — PID is saved to `ngrok.pid` in the config dir; Stop tunnel kills the process even when the Popen handle is gone.
-- **ngrok guide copy** — clarified that the URL is random on each start and that the Google email field restricts who can authenticate, not just "share with friends".
+- **Removed ngrok path field** — always uses `ngrok` from PATH; the path override input added noise without benefiting most users.
+- **ngrok session survives app close** — ngrok is launched in its own terminal window on Windows (close it to stop the tunnel) and as a detached process on Unix.
+- **Detect existing ngrok session on restart** — status and Start query the ngrok local API so a tunnel from a previous session shows correctly.
+- **Stop works across sessions** — PID saved to `ngrok.pid`; Stop kills the process even when the Popen handle is gone.
+- **Row label** — "Share" renamed to "ngrok" so it's immediately clear what powers the feature; auth email placeholder simplified to "Auth email".
+- **Empty auth email warning** — starting the tunnel without an auth email now shows a confirm dialog explaining anyone with the URL can view your queue.
 
 ---
 
