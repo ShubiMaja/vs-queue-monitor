@@ -209,6 +209,13 @@ LOG_SILENCE_INTERRUPT_SEC = 60.0
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
+    "1.2.8": [
+        "Client panel (monitor icon in topbar) — VS install folder, favourite server picker, Connect / Disconnect",
+        "ngrok tunnel controls — Start tunnel button creates a shareable public URL; optional Google email restriction",
+        "Interrupt now fires after 60 s of log silence (was 90 s)",
+        "Fixed: adopting a new queue run no longer re-locks you in interrupted state",
+        "Fixed: selected server and ngrok email remembered between sessions",
+    ],
     "1.2.1": [
         "Update badge now hides immediately when you confirm installation",
         "Simplified install confirm — just the version name, no wall of text",

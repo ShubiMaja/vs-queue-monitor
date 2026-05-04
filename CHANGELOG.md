@@ -4,6 +4,20 @@ All notable changes to VS Queue Monitor are documented here.
 
 ---
 
+## v1.2.8 — 2026-05-04
+
+### New features
+- **Client panel** — monitor icon in the topbar opens a panel to set your VS install folder, pick a favourite server from your VS server list, and Connect / Disconnect the game client.
+- **ngrok tunnel** — built-in Start/Stop tunnel controls in the client panel; publishes a shareable HTTPS URL with one click; optional Google account email restriction to gate access to your queue view.
+- **Recent VS paths** — clock icon next to the VS install folder field works the same as the log-folder recent paths.
+
+### Fixes
+- **Interrupt fires after 60 s** (was 90 s) — log silence threshold reduced so the engine leaves "Reconnecting…" sooner after the game drops.
+- **Adopt-new-run loop** — after accepting a new queue run from a `reconnecting` tail, the engine no longer immediately re-enters interrupted state and locks out future run detection.
+- **Selected server and ngrok email remembered** between sessions via `localStorage`.
+
+---
+
 ## v1.1.189 — 2026-05-03
 
 ### New features
