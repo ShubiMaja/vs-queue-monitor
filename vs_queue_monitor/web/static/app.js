@@ -4226,7 +4226,7 @@
             return postConfig({ source_path: $("inpPath").value.trim() });
           })
           .then(function () {
-            if ($("inpPath").value.trim()) toast("Path set from folder picker");
+            if ($("inpPath").value.trim()) toast("Path set from game folder picker");
           })
           .catch(function (e) {
             toast(String(e.message || e), "warn");

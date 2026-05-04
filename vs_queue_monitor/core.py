@@ -791,10 +791,24 @@ def save_config(data: dict) -> None:
         pass
 
 
+VS_EXECUTABLE_NAMES = ("Vintagestory.exe", "vintagestory", "VintagestoryClient.exe")
+
+
+def find_vs_executable(folder: Path) -> Optional[Path]:
+    """Return the VS game executable if *folder* looks like a VS install directory."""
+    for name in VS_EXECUTABLE_NAMES:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def resolve_log_file(raw: str) -> Optional[Path]:
     """Resolve the Vintage Story **client** log from a **folder** path (or legacy saved file path → parent).
 
-    Searches fixed paths and *client*.log-style names only — does not accept arbitrary *.log files.
+    Accepts the VS **game install folder** (contains the executable and a Logs/ subfolder),
+    a **VintagestoryData** folder (contains Logs/), a Logs subfolder, or a legacy saved
+    file path (parent folder is used).  Does not accept arbitrary *.log files.
     """
     path = expand_path(raw)
 

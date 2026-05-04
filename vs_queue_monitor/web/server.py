@@ -724,7 +724,12 @@ def _pick_path_sync(mode: str, initial_dir: str | None = None) -> str | None:
                 initialdir=start_dir,
             )
         else:
-            p = filedialog.askdirectory(parent=root, mustexist=True, initialdir=start_dir)
+            p = filedialog.askdirectory(
+                parent=root,
+                title="Select Vintage Story game folder (containing executable and Logs folder)",
+                mustexist=True,
+                initialdir=start_dir,
+            )
         return str(p).strip() if p else None
     finally:
         try:
