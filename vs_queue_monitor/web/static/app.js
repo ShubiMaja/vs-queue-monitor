@@ -4915,6 +4915,7 @@
   // ── Client panel ────────────────────────────────────────────────────────────
 
   var LS_VS_RECENT_PATHS = "vs_queue_monitor_vs_recent_paths_v1";
+  var LS_VS_SERVER = "vs_queue_monitor_vs_server_v1";
 
   function lsGetVsRecentPaths() {
     try {
@@ -5046,7 +5047,8 @@
     if (!sel) return;
     fetch("/api/vs/servers").then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok) return;
-      var current = sel.value;
+      var saved = "";
+      try { saved = localStorage.getItem(LS_VS_SERVER) || ""; } catch (e) {}
       while (sel.options.length > 1) sel.remove(1);
       (j.servers || []).forEach(function (srv) {
         var opt = document.createElement("option");
@@ -5054,7 +5056,7 @@
         opt.textContent = srv.name ? srv.name + " (" + srv.host + ")" : srv.host;
         sel.appendChild(opt);
       });
-      if (current) sel.value = current;
+      if (saved) sel.value = saved;
       refreshVsPanel();
     }).catch(function () {});
   }
@@ -5098,7 +5100,7 @@
         var open = recentPop.classList.contains("hidden");
         if (open) {
           renderVsRecentPathsList();
-          recentPop.classList.remove("hidden");
+          positionKpiPopover(recentPop, recentBtn);
           recentBtn.setAttribute("aria-expanded", "true");
         } else {
           closeVsRecentPathsPopover();
@@ -5115,7 +5117,10 @@
 
     var sel = $("selVsServer");
     if (sel) {
-      sel.onchange = function () { refreshVsPanel(); };
+      sel.onchange = function () {
+        try { localStorage.setItem(LS_VS_SERVER, sel.value); } catch (e) {}
+        refreshVsPanel();
+      };
     }
 
     var connectBtn = $("btnVsConnect");
@@ -5280,7 +5285,7 @@
     if (!s) return;
     var emailInp = $("inpNgrokEmail");
     var pathInp = $("inpNgrokPath");
-    if (emailInp && s.ngrok_email !== undefined && !document.activeElement === emailInp) {
+    if (emailInp && s.ngrok_email !== undefined && document.activeElement !== emailInp) {
       emailInp.value = s.ngrok_email || "";
     }
     if (pathInp && s.ngrok_path !== undefined && document.activeElement !== pathInp) {
