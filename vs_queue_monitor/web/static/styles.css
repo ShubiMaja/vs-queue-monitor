@@ -2424,6 +2424,28 @@ body.tour-open {
   max-width: 260px;
 }
 .client-panel__ngrok-url:hover { text-decoration: underline; }
+.client-panel__delay-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  margin-left: 6px;
+}
+.client-panel__delay-inp {
+  width: 52px;
+  text-align: center;
+  padding: 3px 6px;
+}
+.client-panel__delay-unit {
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.btn--warn {
+  background: transparent;
+  border: 1px solid var(--warn, #e8a000);
+  color: var(--warn, #e8a000);
+}
+.btn--warn:hover { background: rgba(232,160,0,0.12); }
 .client-panel__row--ngrok {
   border-top: 1px solid var(--line);
   padding-top: 8px;
