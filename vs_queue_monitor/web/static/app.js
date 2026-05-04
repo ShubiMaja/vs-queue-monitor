@@ -5125,8 +5125,21 @@
 
     var connectBtn = $("btnVsConnect");
     var cancelDelayBtn = $("btnVsCancelDelay");
-    var delayInp = $("inpConnectDelay");
+    var delayInps = [$("inpDelayH"), $("inpDelayM"), $("inpDelayS")];
     var _connectCountdownTimer = null;
+
+    function _getDelaySec() {
+      var h = Math.max(0, parseInt(delayInps[0] && delayInps[0].value || 0, 10) || 0);
+      var m = Math.max(0, parseInt(delayInps[1] && delayInps[1].value || 0, 10) || 0);
+      var s = Math.max(0, parseInt(delayInps[2] && delayInps[2].value || 0, 10) || 0);
+      return h * 3600 + m * 60 + s;
+    }
+
+    function _fmtCountdown(sec) {
+      var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+      var mm = (m < 10 ? "0" : "") + m, ss = (s < 10 ? "0" : "") + s;
+      return h > 0 ? h + ":" + mm + ":" + ss : m + ":" + ss;
+    }
 
     function _doConnect(host) {
       connectBtn.disabled = true;
@@ -5145,28 +5158,21 @@
       if (_connectCountdownTimer) { clearInterval(_connectCountdownTimer); _connectCountdownTimer = null; }
       if (connectBtn) { connectBtn.textContent = "Connect"; connectBtn.disabled = false; }
       if (cancelDelayBtn) cancelDelayBtn.classList.add("hidden");
-      if (delayInp) delayInp.disabled = false;
+      delayInps.forEach(function (inp) { if (inp) inp.disabled = false; });
     }
 
     if (connectBtn) {
       connectBtn.onclick = function () {
         var host = sel && sel.value;
         if (!host) { toast("Choose a server first", "warn"); return; }
-        var delayMin = delayInp ? Math.max(0, parseInt(delayInp.value, 10) || 0) : 0;
-        if (delayMin <= 0) { _doConnect(host); return; }
-        // Start countdown.
-        var remaining = delayMin * 60;
+        var remaining = _getDelaySec();
+        if (remaining <= 0) { _doConnect(host); return; }
         connectBtn.disabled = true;
-        if (delayInp) delayInp.disabled = true;
+        delayInps.forEach(function (inp) { if (inp) inp.disabled = true; });
         if (cancelDelayBtn) cancelDelayBtn.classList.remove("hidden");
         function _tick() {
-          if (remaining <= 0) {
-            _cancelConnectCountdown();
-            _doConnect(host);
-            return;
-          }
-          var m = Math.floor(remaining / 60), s = remaining % 60;
-          connectBtn.textContent = "Connect in " + m + ":" + (s < 10 ? "0" : "") + s;
+          if (remaining <= 0) { _cancelConnectCountdown(); _doConnect(host); return; }
+          connectBtn.textContent = "Connect in " + _fmtCountdown(remaining);
           remaining--;
         }
         _tick();

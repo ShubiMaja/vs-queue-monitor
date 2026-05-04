@@ -284,9 +284,12 @@
           <select id="selVsServer" class="client-panel__server-select inp" aria-label="Select server to connect to">
             <option value="">— choose server —</option>
           </select>
-          <label class="client-panel__delay-label" for="inpConnectDelay">in:</label>
-          <input type="number" id="inpConnectDelay" class="inp client-panel__delay-inp" min="0" max="9999" value="0" title="Minutes to wait before connecting (0 = immediately)">
-          <span class="client-panel__delay-unit">min</span>
+          <label class="client-panel__delay-label">Delay:</label>
+          <input type="number" id="inpDelayH" class="inp client-panel__delay-inp" min="0" max="99" value="0" aria-label="Hours">
+          <span class="client-panel__delay-sep">:</span>
+          <input type="number" id="inpDelayM" class="inp client-panel__delay-inp" min="0" max="59" value="0" aria-label="Minutes">
+          <span class="client-panel__delay-sep">:</span>
+          <input type="number" id="inpDelayS" class="inp client-panel__delay-inp" min="0" max="59" value="0" aria-label="Seconds">
           <button type="button" class="btn btn--primary btn--small" id="btnVsConnect" disabled>Connect</button>
           <button type="button" class="btn btn--warn btn--small hidden" id="btnVsCancelDelay">Cancel</button>
           <button type="button" class="btn btn--ghost btn--small" id="btnVsDisconnect" disabled>Disconnect</button>
@@ -294,7 +297,7 @@
 
         <!-- ngrok row -->
         <div class="client-panel__row client-panel__row--ngrok">
-          <label class="client-panel__label" for="inpNgrokEmail">Share</label>
+          <label class="client-panel__label" for="inpNgrokEmail">Tunnel</label>
           <input
             type="email"
             id="inpNgrokEmail"

@@ -116,7 +116,10 @@ class QueueMonitorEngine:
         )
         self.show_every_change_var = hooks.boolean_var(bool(self.config.get("show_every_change", True)))
         _vip = self.config.get("vs_install_path", "")
-        self.vs_install_path_var = hooks.string_var(_vip.strip() if isinstance(_vip, str) else "")
+        _vip = _vip.strip() if isinstance(_vip, str) else ""
+        if not _vip:
+            _vip = str(get_default_vs_install_path())
+        self.vs_install_path_var = hooks.string_var(_vip)
         _ngp = self.config.get("ngrok_path", "")
         self.ngrok_path_var = hooks.string_var(_ngp.strip() if isinstance(_ngp, str) else "")
         _nge = self.config.get("ngrok_email", "")

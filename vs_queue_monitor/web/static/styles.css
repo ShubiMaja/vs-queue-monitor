@@ -2422,14 +2422,15 @@ body.tour-open {
   margin-left: 6px;
 }
 .client-panel__delay-inp {
-  width: 52px;
+  width: 38px;
   text-align: center;
-  padding: 3px 6px;
+  padding: 3px 4px;
 }
-.client-panel__delay-unit {
-  font-size: 0.78rem;
+.client-panel__delay-sep {
+  font-size: 0.9rem;
   color: var(--muted);
-  white-space: nowrap;
+  margin: 0 1px;
+  user-select: none;
 }
 .btn--warn {
   background: transparent;

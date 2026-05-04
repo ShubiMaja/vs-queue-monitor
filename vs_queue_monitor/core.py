@@ -133,6 +133,17 @@ def get_default_vintagestory_path() -> Path:
     return base_dir / "VintagestoryData"
 DEFAULT_PATH = str(get_default_vintagestory_path())
 
+
+def get_default_vs_install_path() -> Path:
+    """Default location of the Vintage Story install directory (where the exe lives)."""
+    if sys.platform == "win32":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base_dir = Path.home() / "Library" / "Application Support"
+    else:
+        base_dir = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return base_dir / "Vintagestory"
+
 def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
     """Path shown in Logs folder: always a directory string. Saved or CLI paths to a file become its parent."""
     raw = (cli_path or "").strip()
