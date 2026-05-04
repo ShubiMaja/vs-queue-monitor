@@ -5209,11 +5209,28 @@
     });
   }
 
+  function openNgrokGuide() {
+    var m = $("modalNgrokGuide");
+    if (m) {
+      m.classList.remove("hidden");
+      m.setAttribute("aria-hidden", "false");
+    }
+  }
+
   function setupNgrok() {
     var startBtn = $("btnNgrokStart");
     var stopBtn = $("btnNgrokStop");
     var emailInp = $("inpNgrokEmail");
     var pathInp = $("inpNgrokPath");
+    var helpBtn = $("btnNgrokHelp");
+    if (helpBtn) helpBtn.onclick = openNgrokGuide;
+    var guideOk = $("btnNgrokGuideOk");
+    if (guideOk) {
+      guideOk.onclick = function () {
+        var m = $("modalNgrokGuide");
+        if (m) { m.classList.add("hidden"); m.setAttribute("aria-hidden", "true"); }
+      };
+    }
 
     if (emailInp) {
       emailInp.onblur = function () {
@@ -5238,7 +5255,15 @@
         }).then(function (r) { return r.json(); }).then(function (j) {
           startBtn.disabled = false;
           startBtn.textContent = "Start tunnel";
-          if (!j.ok) { toast("ngrok failed: " + (j.error || "unknown"), "warn"); return; }
+          if (!j.ok) {
+            var msg = j.error || "unknown";
+            if (msg.toLowerCase().indexOf("not found") !== -1 || msg.toLowerCase().indexOf("no such file") !== -1) {
+              openNgrokGuide();
+            } else {
+              toast("ngrok failed: " + msg, "warn");
+            }
+            return;
+          }
           setNgrokRunning(true);
           setNgrokUrl(j.url || "");
           if (!j.url) {

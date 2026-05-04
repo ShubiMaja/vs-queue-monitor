@@ -309,6 +309,7 @@
           />
           <button type="button" class="btn btn--secondary btn--small" id="btnNgrokStart">Start tunnel</button>
           <button type="button" class="btn btn--ghost btn--small hidden" id="btnNgrokStop">Stop</button>
+          <button type="button" class="btn btn--ghost btn--small client-panel__ngrok-help" id="btnNgrokHelp" title="How to set up ngrok" aria-label="ngrok setup guide">?</button>
           <a id="ngrokUrl" class="client-panel__ngrok-url hidden" target="_blank" rel="noopener noreferrer" title="Public ngrok URL — click to open, right-click to copy"></a>
         </div>
 
@@ -640,6 +641,41 @@
             </svg>
             View on GitHub
           </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ngrok setup guide -->
+    <div id="modalNgrokGuide" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalNgrokGuideHeading">
+      <div class="modal__backdrop" data-close="1"></div>
+      <div class="modal__box modal__box--help">
+        <h2 id="modalNgrokGuideHeading">Set up ngrok</h2>
+        <div class="help-scroll">
+          <p class="muted">ngrok creates a public HTTPS tunnel to your VS Queue Monitor so friends can watch your queue from anywhere.</p>
+
+          <h3 class="help-h3">1 — Install ngrok</h3>
+          <ul class="help-list">
+            <li><strong>Windows:</strong> <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" class="help-link">ngrok.com/download</a> → unzip → place <code>ngrok.exe</code> somewhere on your PATH (e.g. <code>C:\Windows\System32\</code>) <em>or</em> paste the full path in the <strong>ngrok path</strong> field in the client panel.</li>
+            <li><strong>winget:</strong> <code>winget install ngrok.ngrok</code></li>
+            <li><strong>Chocolatey:</strong> <code>choco install ngrok</code></li>
+            <li><strong>macOS (Homebrew):</strong> <code>brew install ngrok/ngrok/ngrok</code></li>
+            <li><strong>Linux:</strong> see <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" class="help-link">ngrok.com/download</a></li>
+          </ul>
+
+          <h3 class="help-h3">2 — Create a free account &amp; add your authtoken</h3>
+          <p class="muted">Sign up at <a href="https://dashboard.ngrok.com/signup" target="_blank" rel="noopener noreferrer" class="help-link">dashboard.ngrok.com/signup</a> (free tier is enough). Then run once in a terminal:</p>
+          <pre class="help-pre"><code>ngrok config add-authtoken &lt;YOUR_TOKEN&gt;</code></pre>
+          <p class="muted">Your token is at <a href="https://dashboard.ngrok.com/get-started/your-authtoken" target="_blank" rel="noopener noreferrer" class="help-link">dashboard.ngrok.com → Your Authtoken</a>.</p>
+
+          <h3 class="help-h3">3 — Restrict access (optional but recommended)</h3>
+          <p class="muted">Enter your Google account email in the <strong>Share</strong> email field. Only that Google account can open the tunnel URL — everyone else gets an auth prompt.</p>
+          <p class="muted">Requires a <strong>paid ngrok plan</strong> for OAuth restrictions.</p>
+
+          <h3 class="help-h3">4 — Start the tunnel</h3>
+          <p class="muted">Click <strong>Start tunnel</strong> in the client panel. A public <code>https://…ngrok-free.app</code> URL will appear — share it with anyone you want to let watch your queue.</p>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnNgrokGuideOk" data-close="1">Got it</button>
         </div>
       </div>
     </div>

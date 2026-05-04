@@ -1744,6 +1744,21 @@ select.inp:focus-visible {
   margin: 0 0 10px;
   line-height: 1.45;
 }
+.help-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.help-link:hover { text-decoration: underline; }
+.help-pre {
+  background: var(--plot);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 6px 0 10px;
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: pre;
+}
 .help-about-link {
   margin-top: 16px;
   padding-top: 12px;
@@ -2412,4 +2427,10 @@ body.tour-open {
 .client-panel__row--ngrok {
   border-top: 1px solid var(--line);
   padding-top: 8px;
+}
+.client-panel__ngrok-help {
+  padding: 0 7px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  flex-shrink: 0;
 }
