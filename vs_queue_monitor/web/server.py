@@ -825,6 +825,8 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "vs_install_path": engine.vs_install_path_var.get(),
         "vs_install_path_display": _mask_path_in_text(engine.vs_install_path_var.get()),
         "vs_exe_found": bool(find_vs_executable(expand_path(engine.vs_install_path_var.get())) if engine.vs_install_path_var.get().strip() else None),
+        "ngrok_path": engine.ngrok_path_var.get(),
+        "ngrok_email": engine.ngrok_email_var.get(),
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -1027,6 +1029,12 @@ async def _api_config(request: Request) -> JSONResponse:
                 engine.source_path_var.set(str(body["source_path"]))
             if "vs_install_path" in body:
                 engine.vs_install_path_var.set(str(body["vs_install_path"]))
+            if "ngrok_path" in body:
+                engine.ngrok_path_var.set(str(body["ngrok_path"]))
+                engine.config["ngrok_path"] = str(body["ngrok_path"]).strip()
+            if "ngrok_email" in body:
+                engine.ngrok_email_var.set(str(body["ngrok_email"]))
+                engine.config["ngrok_email"] = str(body["ngrok_email"]).strip()
             if "poll_sec" in body:
                 engine.poll_sec_var.set(str(body["poll_sec"]))
             if "avg_window" in body:
@@ -1214,6 +1222,96 @@ async def _api_vs_status(request: Request) -> JSONResponse:
     running = _vs_process is not None and _vs_process.poll() is None
     pid = _vs_process.pid if running and _vs_process else None
     return JSONResponse({"ok": True, "running": running, "pid": pid})
+
+
+_ngrok_process: Optional["subprocess.Popen[bytes]"] = None
+_ngrok_public_url: str = ""
+
+
+def _query_ngrok_url() -> str:
+    """Ask the local ngrok agent API for the first HTTPS tunnel URL."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+        for tunnel in data.get("tunnels", []):
+            if tunnel.get("proto") == "https":
+                return tunnel.get("public_url", "")
+        for tunnel in data.get("tunnels", []):
+            return tunnel.get("public_url", "")
+    except Exception:
+        pass
+    return ""
+
+
+async def _api_ngrok_start(request: Request) -> JSONResponse:
+    """Start ngrok to expose the monitor's web port."""
+    global _ngrok_process, _ngrok_public_url
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    with lock:
+        ngrok_path = str(engine.config.get("ngrok_path", "") or "").strip() or "ngrok"
+        ngrok_email = str(body.get("email", "") or engine.config.get("ngrok_email", "") or "").strip()
+        web_port = int(getattr(request.app.state, "_web_port", 8765))
+    if _ngrok_process is not None and _ngrok_process.poll() is None:
+        url = await asyncio.to_thread(_query_ngrok_url)
+        _ngrok_public_url = url
+        return JSONResponse({"ok": True, "url": url, "note": "already running"})
+    cmd = [ngrok_path, "http", str(web_port)]
+    if ngrok_email:
+        cmd += ["--oauth=google", f"--oauth-allow-email={ngrok_email}"]
+    try:
+        _ngrok_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=(sys.platform != "win32"),
+        )
+    except FileNotFoundError:
+        return JSONResponse(
+            {"ok": False, "error": f"ngrok not found at '{ngrok_path}'. Install ngrok or set the correct path."},
+            status_code=400,
+        )
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    # Give ngrok a moment to open its agent API, then query the URL.
+    await asyncio.sleep(2.0)
+    url = await asyncio.to_thread(_query_ngrok_url)
+    _ngrok_public_url = url
+    return JSONResponse({"ok": True, "url": url})
+
+
+async def _api_ngrok_stop(_request: Request) -> JSONResponse:
+    """Stop the ngrok tunnel."""
+    global _ngrok_process, _ngrok_public_url
+    if _ngrok_process is None or _ngrok_process.poll() is not None:
+        _ngrok_public_url = ""
+        return JSONResponse({"ok": True, "note": "ngrok is not running"})
+    try:
+        _ngrok_process.terminate()
+        try:
+            _ngrok_process.wait(timeout=5)
+        except Exception:
+            _ngrok_process.kill()
+        _ngrok_process = None
+        _ngrok_public_url = ""
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+async def _api_ngrok_status(_request: Request) -> JSONResponse:
+    """Return ngrok tunnel status and public URL."""
+    global _ngrok_public_url
+    running = _ngrok_process is not None and _ngrok_process.poll() is None
+    if running and not _ngrok_public_url:
+        _ngrok_public_url = await asyncio.to_thread(_query_ngrok_url)
+    if not running:
+        _ngrok_public_url = ""
+    return JSONResponse({"ok": True, "running": running, "url": _ngrok_public_url})
 
 
 async def _api_new_queue(request: Request) -> JSONResponse:
@@ -1504,6 +1602,7 @@ def _init_web_stack(
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
 
     app = create_app(engine, hooks, lock)
+    app.state._web_port = p
     url = f"http://127.0.0.1:{p}/"
     return app, engine, hooks, lock, p, url
 
@@ -1596,6 +1695,9 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/vs/connect", _api_vs_connect, methods=["POST"]),
         Route("/api/vs/disconnect", _api_vs_disconnect, methods=["POST"]),
         Route("/api/vs/status", _api_vs_status, methods=["GET"]),
+        Route("/api/ngrok/start", _api_ngrok_start, methods=["POST"]),
+        Route("/api/ngrok/stop", _api_ngrok_stop, methods=["POST"]),
+        Route("/api/ngrok/status", _api_ngrok_status, methods=["GET"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]

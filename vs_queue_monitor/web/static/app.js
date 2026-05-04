@@ -2116,6 +2116,7 @@
     }
 
     applyVsStateToPanel(s);
+    applyNgrokStateToPanel(s);
 
     var modalSettings = $("modalSettings");
     if (!modalSettings || modalSettings.classList.contains("hidden")) {
@@ -5164,6 +5165,130 @@
   }
 
   safeInit("setupClientPanel", setupClientPanel);
+
+  // ── ngrok ────────────────────────────────────────────────────────────────
+
+  var _ngrokPollTimer = null;
+
+  function setNgrokUrl(url) {
+    var a = $("ngrokUrl");
+    if (!a) return;
+    if (url) {
+      a.href = url;
+      a.textContent = url.replace(/^https?:\/\//, "");
+      a.classList.remove("hidden");
+    } else {
+      a.classList.add("hidden");
+      a.href = "";
+      a.textContent = "";
+    }
+  }
+
+  function setNgrokRunning(running) {
+    var startBtn = $("btnNgrokStart");
+    var stopBtn = $("btnNgrokStop");
+    if (startBtn) startBtn.classList.toggle("hidden", running);
+    if (stopBtn) stopBtn.classList.toggle("hidden", !running);
+  }
+
+  function pollNgrokStatus() {
+    fetch("/api/ngrok/status").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      setNgrokRunning(j.running);
+      setNgrokUrl(j.url || "");
+      if (j.running) {
+        _ngrokPollTimer = setTimeout(pollNgrokStatus, 5000);
+      }
+    }).catch(function () {
+      _ngrokPollTimer = setTimeout(pollNgrokStatus, 10000);
+    });
+  }
+
+  function setupNgrok() {
+    var startBtn = $("btnNgrokStart");
+    var stopBtn = $("btnNgrokStop");
+    var emailInp = $("inpNgrokEmail");
+    var pathInp = $("inpNgrokPath");
+
+    if (emailInp) {
+      emailInp.onblur = function () {
+        postConfig({ ngrok_email: emailInp.value.trim() }).catch(function () {});
+      };
+    }
+    if (pathInp) {
+      pathInp.onblur = function () {
+        postConfig({ ngrok_path: pathInp.value.trim() }).catch(function () {});
+      };
+    }
+
+    if (startBtn) {
+      startBtn.onclick = function () {
+        startBtn.disabled = true;
+        startBtn.textContent = "Starting…";
+        var email = emailInp ? emailInp.value.trim() : "";
+        fetch("/api/ngrok/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          startBtn.disabled = false;
+          startBtn.textContent = "Start tunnel";
+          if (!j.ok) { toast("ngrok failed: " + (j.error || "unknown"), "warn"); return; }
+          setNgrokRunning(true);
+          setNgrokUrl(j.url || "");
+          if (!j.url) {
+            toast("ngrok started — waiting for URL…");
+            _ngrokPollTimer = setTimeout(pollNgrokStatus, 2000);
+          } else {
+            toast("Tunnel open: " + j.url);
+          }
+        }).catch(function (e) {
+          startBtn.disabled = false;
+          startBtn.textContent = "Start tunnel";
+          toast(String(e.message || e), "warn");
+        });
+      };
+    }
+
+    if (stopBtn) {
+      stopBtn.onclick = function () {
+        stopBtn.disabled = true;
+        if (_ngrokPollTimer) { clearTimeout(_ngrokPollTimer); _ngrokPollTimer = null; }
+        fetch("/api/ngrok/stop", { method: "POST" }).then(function (r) { return r.json(); }).then(function (j) {
+          stopBtn.disabled = false;
+          setNgrokRunning(false);
+          setNgrokUrl("");
+          if (!j.ok) toast("ngrok stop failed: " + (j.error || "unknown"), "warn");
+          else toast("Tunnel closed");
+        }).catch(function (e) {
+          stopBtn.disabled = false;
+          toast(String(e.message || e), "warn");
+        });
+      };
+    }
+
+    // Sync initial state from server on page load.
+    fetch("/api/ngrok/status").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      setNgrokRunning(j.running);
+      setNgrokUrl(j.url || "");
+      if (j.running) _ngrokPollTimer = setTimeout(pollNgrokStatus, 5000);
+    }).catch(function () {});
+  }
+
+  function applyNgrokStateToPanel(s) {
+    if (!s) return;
+    var emailInp = $("inpNgrokEmail");
+    var pathInp = $("inpNgrokPath");
+    if (emailInp && s.ngrok_email !== undefined && !document.activeElement === emailInp) {
+      emailInp.value = s.ngrok_email || "";
+    }
+    if (pathInp && s.ngrok_path !== undefined && document.activeElement !== pathInp) {
+      pathInp.value = s.ngrok_path || "";
+    }
+  }
+
+  safeInit("setupNgrok", setupNgrok);
   safeInit("setupChrome", setupChrome);
   safeInit("setupSettingsTabs", setupSettingsTabs);
   safeInit("setupPopovers", setupPopovers);

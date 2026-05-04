@@ -2383,3 +2383,33 @@ body.tour-open {
   color: #fff;
   border-color: var(--primary);
 }
+.client-panel__ngrok-email {
+  flex: 2;
+  min-width: 160px;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  height: 30px;
+}
+.client-panel__ngrok-path {
+  flex: 1;
+  min-width: 100px;
+  max-width: 200px;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  height: 30px;
+  color: var(--muted);
+}
+.client-panel__ngrok-url {
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.client-panel__ngrok-url:hover { text-decoration: underline; }
+.client-panel__row--ngrok {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}

@@ -288,6 +288,30 @@
           <button type="button" class="btn btn--ghost btn--small" id="btnVsDisconnect" disabled>Disconnect</button>
         </div>
 
+        <!-- ngrok row -->
+        <div class="client-panel__row client-panel__row--ngrok">
+          <label class="client-panel__label" for="inpNgrokEmail">Share</label>
+          <input
+            type="email"
+            id="inpNgrokEmail"
+            class="inp client-panel__ngrok-email"
+            placeholder="your@email.com (Google — restricts access)"
+            autocomplete="email"
+            spellcheck="false"
+          />
+          <input
+            type="text"
+            id="inpNgrokPath"
+            class="inp client-panel__ngrok-path"
+            placeholder="ngrok (path or leave blank if in PATH)"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" class="btn btn--secondary btn--small" id="btnNgrokStart">Start tunnel</button>
+          <button type="button" class="btn btn--ghost btn--small hidden" id="btnNgrokStop">Stop</button>
+          <a id="ngrokUrl" class="client-panel__ngrok-url hidden" target="_blank" rel="noopener noreferrer" title="Public ngrok URL — click to open, right-click to copy"></a>
+        </div>
+
       </div>
     </div>
 
