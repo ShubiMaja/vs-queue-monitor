@@ -1228,6 +1228,52 @@ _ngrok_process: Optional["subprocess.Popen[bytes]"] = None
 _ngrok_public_url: str = ""
 
 
+def _ngrok_pid_path() -> Path:
+    return get_config_path().parent / "ngrok.pid"
+
+
+def _is_pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        try:
+            r = subprocess.run(
+                ["tasklist", "/fi", f"PID eq {pid}", "/fo", "csv", "/nh"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return str(pid) in r.stdout
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _save_ngrok_pid(pid: int) -> None:
+    try:
+        _ngrok_pid_path().write_text(str(pid))
+    except Exception:
+        pass
+
+
+def _kill_ngrok_by_pid_file() -> None:
+    """Kill the process recorded in ngrok.pid and remove the file."""
+    try:
+        pid = int(_ngrok_pid_path().read_text().strip())
+        if _is_pid_alive(pid):
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/f", "/pid", str(pid)], capture_output=True, timeout=5)
+            else:
+                subprocess.run(["kill", str(pid)], capture_output=True, timeout=5)
+    except Exception:
+        pass
+    finally:
+        try:
+            _ngrok_pid_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def _query_ngrok_url() -> str:
     """Ask the local ngrok agent API for the first HTTPS tunnel URL."""
     try:
@@ -1256,20 +1302,30 @@ async def _api_ngrok_start(request: Request) -> JSONResponse:
         ngrok_path = str(engine.config.get("ngrok_path", "") or "").strip() or "ngrok"
         ngrok_email = str(body.get("email", "") or engine.config.get("ngrok_email", "") or "").strip()
         web_port = int(getattr(request.app.state, "_web_port", 8765))
+    # Detect an already-running tunnel (managed process or survivor from previous session).
     if _ngrok_process is not None and _ngrok_process.poll() is None:
         url = await asyncio.to_thread(_query_ngrok_url)
         _ngrok_public_url = url
         return JSONResponse({"ok": True, "url": url, "note": "already running"})
+    existing_url = await asyncio.to_thread(_query_ngrok_url)
+    if existing_url:
+        _ngrok_public_url = existing_url
+        return JSONResponse({"ok": True, "url": existing_url, "note": "already running"})
     cmd = [ngrok_path, "http", str(web_port)]
     if ngrok_email:
         cmd += ["--oauth=google", f"--oauth-allow-email={ngrok_email}"]
+    # On Windows, open ngrok in its own console window so the user can close it independently.
+    # On Unix, detach from the session so it survives the parent process exiting.
+    popen_kwargs: dict = {}
+    if sys.platform == "win32":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
+        popen_kwargs["stdout"] = subprocess.DEVNULL
+        popen_kwargs["stderr"] = subprocess.DEVNULL
     try:
-        _ngrok_process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=(sys.platform != "win32"),
-        )
+        _ngrok_process = subprocess.Popen(cmd, **popen_kwargs)
+        _save_ngrok_pid(_ngrok_process.pid)
     except FileNotFoundError:
         return JSONResponse(
             {"ok": False, "error": f"ngrok not found at '{ngrok_path}'. Install ngrok or set the correct path."},
@@ -1285,18 +1341,18 @@ async def _api_ngrok_start(request: Request) -> JSONResponse:
 
 
 async def _api_ngrok_stop(_request: Request) -> JSONResponse:
-    """Stop the ngrok tunnel."""
+    """Stop the ngrok tunnel (managed process or previous-session survivor)."""
     global _ngrok_process, _ngrok_public_url
-    if _ngrok_process is None or _ngrok_process.poll() is not None:
-        _ngrok_public_url = ""
-        return JSONResponse({"ok": True, "note": "ngrok is not running"})
     try:
-        _ngrok_process.terminate()
-        try:
-            _ngrok_process.wait(timeout=5)
-        except Exception:
-            _ngrok_process.kill()
+        if _ngrok_process is not None and _ngrok_process.poll() is None:
+            _ngrok_process.terminate()
+            try:
+                _ngrok_process.wait(timeout=5)
+            except Exception:
+                _ngrok_process.kill()
         _ngrok_process = None
+        # Also kill any survivor tracked by PID file (previous session).
+        _kill_ngrok_by_pid_file()
         _ngrok_public_url = ""
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
@@ -1304,13 +1360,13 @@ async def _api_ngrok_stop(_request: Request) -> JSONResponse:
 
 
 async def _api_ngrok_status(_request: Request) -> JSONResponse:
-    """Return ngrok tunnel status and public URL."""
+    """Return ngrok tunnel status; detects tunnels started by previous app sessions."""
     global _ngrok_public_url
-    running = _ngrok_process is not None and _ngrok_process.poll() is None
-    if running and not _ngrok_public_url:
-        _ngrok_public_url = await asyncio.to_thread(_query_ngrok_url)
-    if not running:
-        _ngrok_public_url = ""
+    managed_alive = _ngrok_process is not None and _ngrok_process.poll() is None
+    # Query the ngrok agent API — this detects survivors from previous app runs too.
+    url = await asyncio.to_thread(_query_ngrok_url)
+    running = managed_alive or bool(url)
+    _ngrok_public_url = url if running else ""
     return JSONResponse({"ok": True, "running": running, "url": _ngrok_public_url})
 
 
