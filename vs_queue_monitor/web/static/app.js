@@ -5259,7 +5259,6 @@
     var startBtn = $("btnNgrokStart");
     var stopBtn = $("btnNgrokStop");
     var emailInp = $("inpNgrokEmail");
-    var pathInp = $("inpNgrokPath");
     var helpBtn = $("btnNgrokHelp");
     if (helpBtn) helpBtn.onclick = openNgrokGuide;
     var guideOk = $("btnNgrokGuideOk");
@@ -5275,12 +5274,6 @@
         postConfig({ ngrok_email: emailInp.value.trim() }).catch(function () {});
       };
     }
-    if (pathInp) {
-      pathInp.onblur = function () {
-        postConfig({ ngrok_path: pathInp.value.trim() }).catch(function () {});
-      };
-    }
-
     if (startBtn) {
       startBtn.onclick = function () {
         startBtn.disabled = true;
@@ -5347,12 +5340,8 @@
   function applyNgrokStateToPanel(s) {
     if (!s) return;
     var emailInp = $("inpNgrokEmail");
-    var pathInp = $("inpNgrokPath");
     if (emailInp && s.ngrok_email !== undefined && document.activeElement !== emailInp) {
       emailInp.value = s.ngrok_email || "";
-    }
-    if (pathInp && s.ngrok_path !== undefined && document.activeElement !== pathInp) {
-      pathInp.value = s.ngrok_path || "";
     }
   }
 

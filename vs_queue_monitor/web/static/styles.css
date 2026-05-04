@@ -2405,15 +2405,6 @@ body.tour-open {
   padding: 4px 8px;
   height: 30px;
 }
-.client-panel__ngrok-path {
-  flex: 1;
-  min-width: 100px;
-  max-width: 200px;
-  font-size: 0.85rem;
-  padding: 4px 8px;
-  height: 30px;
-  color: var(--muted);
-}
 .client-panel__ngrok-url {
   font-size: 0.82rem;
   color: var(--accent);
