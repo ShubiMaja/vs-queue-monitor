@@ -303,6 +303,12 @@
             autocomplete="email"
             spellcheck="false"
           />
+          <button type="button" class="client-panel__info-btn" id="btnNgrokEmailInfo" aria-label="What is the auth email?">ⓘ</button>
+          <div id="popNgrokEmailInfo" class="client-panel__info-pop hidden" role="tooltip">
+            <strong>Auth email</strong> — restricts access to the tunnel URL to a single Google account.
+            When set, visitors must sign in with Google and the email must match exactly.
+            Leave blank to allow anyone with the URL to view your queue.
+          </div>
           <button type="button" class="btn btn--secondary btn--small" id="btnNgrokStart">Start tunnel</button>
           <button type="button" class="btn btn--ghost btn--small hidden" id="btnNgrokStop">Stop</button>
           <button type="button" class="btn btn--ghost btn--small client-panel__ngrok-help" id="btnNgrokHelp" title="How to set up ngrok" aria-label="ngrok setup guide">?</button>
