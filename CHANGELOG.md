@@ -4,6 +4,20 @@ All notable changes to VS Queue Monitor are documented here.
 
 ---
 
+## v1.2.18 — 2026-05-05
+
+### Fixes
+- **Per-exe-path VS state** — running process and pending connect are now tracked independently per install path. Two different VS installs (a.exe / b.exe) have fully independent running, pending, connected, and stopped states.
+
+---
+
+## v1.2.17 — 2026-05-05
+
+### New features
+- **Server-side connect delay** — the "Delay: N min" countdown is held on the server, not the browser. Closing or reloading the tab does not cancel it. All connected clients (including a reconnecting mobile tab) see the same countdown and can cancel it.
+
+---
+
 ## v1.2.16 — 2026-05-04
 
 ### New features

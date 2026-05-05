@@ -220,6 +220,12 @@ LOG_SILENCE_INTERRUPT_SEC = 60.0
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
+    "1.2.18": [
+        "Per-exe-path VS state — two installs are fully independent (running, pending, stopped)",
+    ],
+    "1.2.17": [
+        "Connect delay is now server-side — survives browser close; all tabs share the same countdown and can cancel it",
+    ],
     "1.2.16": [
         "Delayed connect — \"Delay: N min\" field next to Connect; live countdown in button, Cancel to abort",
         "VS folder auto-fills with the platform default VS install path when not yet configured",
