@@ -1,6 +1,6 @@
 """VS Queue Monitor - Vintage Story client log queue monitor."""
 
-VERSION = "1.2.17"
+VERSION = "1.2.18"
 APP_DISPLAY_NAME = "VS Queue Monitor"
 APP_TAGLINE = "Vintage Story client log queue monitor"
 GITHUB_REPO_URL = "https://github.com/ShubiMaja/vs-queue-monitor"

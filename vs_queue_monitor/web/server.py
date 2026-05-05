@@ -827,7 +827,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "vs_exe_found": bool(find_vs_executable(expand_path(engine.vs_install_path_var.get())) if engine.vs_install_path_var.get().strip() else None),
         "ngrok_path": engine.ngrok_path_var.get(),
         "ngrok_email": engine.ngrok_email_var.get(),
-        "pending_connect": dict(_pending_connect) if _pending_connect else None,
+        "pending_connect": None,  # filled below
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -858,6 +858,10 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "active_queue_session_epoch": active_session_epoch,
         "build_fingerprint": _build_fingerprint(),
     }
+    _vip_raw = engine.vs_install_path_var.get().strip()
+    _vip_key = str(expand_path(_vip_raw)) if _vip_raw else ""
+    with _vs_state_lock:
+        result["pending_connect"] = dict(_pending_connects[_vip_key]) if _vip_key in _pending_connects else None
     if extra:
         result.update(extra)
     return result
@@ -1148,9 +1152,17 @@ def _get_vs_data_path(engine: "QueueMonitorEngine") -> Optional[Path]:
     return None
 
 
-_vs_process: Optional["subprocess.Popen[bytes]"] = None
-_pending_connect: Optional[dict] = None   # {host, fire_at, client_id}
-_pending_connect_lock = threading.Lock()
+# Keyed by resolved install-path string so a.exe and b.exe are fully independent.
+_vs_processes: "dict[str, subprocess.Popen[bytes]]" = {}
+_pending_connects: "dict[str, dict]" = {}   # key -> {host, fire_at, install_path}
+_vs_state_lock = threading.Lock()
+
+
+def _vs_install_key(engine: "QueueMonitorEngine", lock: "threading.RLock") -> str:
+    """Return the canonical key for the current VS install path, or ''."""
+    with lock:
+        raw = engine.vs_install_path_var.get().strip()
+    return str(expand_path(raw)) if raw else ""
 
 
 async def _api_vs_servers(request: Request) -> JSONResponse:
@@ -1165,13 +1177,8 @@ async def _api_vs_servers(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "servers": servers})
 
 
-def _launch_vs_connect(host: str, app: Any) -> Optional[str]:
-    """Launch VS connecting to host. Returns an error string, or None on success."""
-    global _vs_process
-    engine: QueueMonitorEngine = app.state.engine
-    lock: threading.RLock = app.state.lock
-    with lock:
-        install_path_raw = engine.vs_install_path_var.get().strip()
+def _launch_vs_for_key(host: str, key: str, install_path_raw: str) -> Optional[str]:
+    """Launch VS at install_path_raw, keyed by key. Returns error string or None."""
     if not install_path_raw:
         return "VS install path not set"
     install_path = expand_path(install_path_raw)
@@ -1179,13 +1186,14 @@ def _launch_vs_connect(host: str, app: Any) -> Optional[str]:
     if exe is None:
         return f"Vintagestory.exe not found in {install_path}"
     try:
-        if _vs_process is not None and _vs_process.poll() is None:
-            _vs_process.terminate()
+        proc = _vs_processes.get(key)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
             try:
-                _vs_process.wait(timeout=3)
+                proc.wait(timeout=3)
             except Exception:
-                _vs_process.kill()
-        _vs_process = subprocess.Popen(
+                proc.kill()
+        _vs_processes[key] = subprocess.Popen(
             [str(exe), f"--connect={host}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -1198,6 +1206,8 @@ def _launch_vs_connect(host: str, app: Any) -> Optional[str]:
 
 async def _api_vs_connect(request: Request) -> JSONResponse:
     """Launch Vintage Story and connect to a server immediately."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
     try:
         body = await request.json()
     except Exception:
@@ -1205,15 +1215,20 @@ async def _api_vs_connect(request: Request) -> JSONResponse:
     host = str(body.get("host", "")).strip()
     if not host:
         return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
-    err = await asyncio.to_thread(_launch_vs_connect, host, request.app)
+    key = _vs_install_key(engine, lock)
+    if not key:
+        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
+    err = await asyncio.to_thread(_launch_vs_for_key, host, key, engine.vs_install_path_var.get().strip())
     if err:
         return JSONResponse({"ok": False, "error": err}, status_code=400)
-    return JSONResponse({"ok": True, "pid": _vs_process.pid if _vs_process else None})
+    proc = _vs_processes.get(key)
+    return JSONResponse({"ok": True, "pid": proc.pid if proc else None})
 
 
 async def _api_vs_connect_later(request: Request) -> JSONResponse:
-    """Schedule a VS connect after a delay. One job per server; any client can cancel."""
-    global _pending_connect
+    """Schedule a VS connect after a delay, keyed by install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
     try:
         body = await request.json()
     except Exception:
@@ -1224,44 +1239,55 @@ async def _api_vs_connect_later(request: Request) -> JSONResponse:
         return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
     if delay_sec <= 0:
         return JSONResponse({"ok": False, "error": "delay_sec must be > 0"}, status_code=400)
+    key = _vs_install_key(engine, lock)
+    if not key:
+        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
     fire_at = time.time() + delay_sec
-    with _pending_connect_lock:
-        _pending_connect = {"host": host, "fire_at": fire_at}
+    with _vs_state_lock:
+        _pending_connects[key] = {"host": host, "fire_at": fire_at, "install_path": engine.vs_install_path_var.get().strip()}
     return JSONResponse({"ok": True, "fire_at": fire_at})
 
 
-async def _api_vs_connect_cancel(_request: Request) -> JSONResponse:
-    """Cancel a pending scheduled connect."""
-    global _pending_connect
-    with _pending_connect_lock:
-        _pending_connect = None
+async def _api_vs_connect_cancel(request: Request) -> JSONResponse:
+    """Cancel the pending scheduled connect for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    with _vs_state_lock:
+        _pending_connects.pop(key, None)
     return JSONResponse({"ok": True})
 
 
-async def _api_vs_disconnect(_request: Request) -> JSONResponse:
-    """Terminate the VS process and cancel any pending scheduled connect."""
-    global _vs_process, _pending_connect
-    with _pending_connect_lock:
-        _pending_connect = None
-    if _vs_process is None or _vs_process.poll() is not None:
+async def _api_vs_disconnect(request: Request) -> JSONResponse:
+    """Terminate VS and cancel any pending connect for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    with _vs_state_lock:
+        _pending_connects.pop(key, None)
+    proc = _vs_processes.get(key) if key else None
+    if proc is None or proc.poll() is not None:
         return JSONResponse({"ok": True, "note": "VS is not running (launched by this app)"})
     try:
-        _vs_process.terminate()
+        proc.terminate()
         try:
-            _vs_process.wait(timeout=5)
+            proc.wait(timeout=5)
         except Exception:
-            _vs_process.kill()
-        _vs_process = None
+            proc.kill()
+        _vs_processes.pop(key, None)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
     return JSONResponse({"ok": True})
 
 
 async def _api_vs_status(request: Request) -> JSONResponse:
-    """Return whether VS (launched by this app) is currently running."""
-    running = _vs_process is not None and _vs_process.poll() is None
-    pid = _vs_process.pid if running and _vs_process else None
-    return JSONResponse({"ok": True, "running": running, "pid": pid})
+    """Return VS running state for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    proc = _vs_processes.get(key) if key else None
+    running = proc is not None and proc.poll() is None
+    return JSONResponse({"ok": True, "running": running, "pid": proc.pid if running else None})
 
 
 _ngrok_process: Optional["subprocess.Popen[bytes]"] = None
@@ -1743,20 +1769,20 @@ class _NoCacheStaticFiles(StaticFiles):
         await super().__call__(scope, receive, _send_no_cache)
 
 
-def _start_connect_scheduler(app: Any) -> None:
-    """Background daemon: fires a pending scheduled VS connect when its time arrives."""
+def _start_connect_scheduler(_app: Any) -> None:
+    """Background daemon: fires pending scheduled VS connects when their time arrives."""
     def worker() -> None:
-        global _pending_connect
         while True:
             time.sleep(1)
-            with _pending_connect_lock:
-                job = _pending_connect
-            if job and time.time() >= job["fire_at"]:
-                with _pending_connect_lock:
-                    _pending_connect = None
-                err = _launch_vs_connect(job["host"], app)
+            now = time.time()
+            with _vs_state_lock:
+                fired = [(k, v) for k, v in _pending_connects.items() if now >= v["fire_at"]]
+                for k, _ in fired:
+                    del _pending_connects[k]
+            for key, job in fired:
+                err = _launch_vs_for_key(job["host"], key, job["install_path"])
                 if err:
-                    logging.getLogger(__name__).warning("Scheduled connect failed: %s", err)
+                    logging.getLogger(__name__).warning("Scheduled connect failed for %s: %s", key, err)
     threading.Thread(target=worker, daemon=True, name="vsqm-connect-scheduler").start()
 
 
