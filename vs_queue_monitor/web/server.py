@@ -827,6 +827,7 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "vs_exe_found": bool(find_vs_executable(expand_path(engine.vs_install_path_var.get())) if engine.vs_install_path_var.get().strip() else None),
         "ngrok_path": engine.ngrok_path_var.get(),
         "ngrok_email": engine.ngrok_email_var.get(),
+        "pending_connect": dict(_pending_connect) if _pending_connect else None,
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -1148,6 +1149,8 @@ def _get_vs_data_path(engine: "QueueMonitorEngine") -> Optional[Path]:
 
 
 _vs_process: Optional["subprocess.Popen[bytes]"] = None
+_pending_connect: Optional[dict] = None   # {host, fire_at, client_id}
+_pending_connect_lock = threading.Lock()
 
 
 async def _api_vs_servers(request: Request) -> JSONResponse:
@@ -1162,26 +1165,19 @@ async def _api_vs_servers(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True, "servers": servers})
 
 
-async def _api_vs_connect(request: Request) -> JSONResponse:
-    """Launch Vintage Story and connect to a server."""
+def _launch_vs_connect(host: str, app: Any) -> Optional[str]:
+    """Launch VS connecting to host. Returns an error string, or None on success."""
     global _vs_process
-    engine: QueueMonitorEngine = request.app.state.engine
-    lock: threading.RLock = request.app.state.lock
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
-    host = str(body.get("host", "")).strip()
-    if not host:
-        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    engine: QueueMonitorEngine = app.state.engine
+    lock: threading.RLock = app.state.lock
     with lock:
         install_path_raw = engine.vs_install_path_var.get().strip()
     if not install_path_raw:
-        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
+        return "VS install path not set"
     install_path = expand_path(install_path_raw)
     exe = find_vs_executable(install_path)
     if exe is None:
-        return JSONResponse({"ok": False, "error": f"Vintagestory.exe not found in {install_path}"}, status_code=400)
+        return f"Vintagestory.exe not found in {install_path}"
     try:
         if _vs_process is not None and _vs_process.poll() is None:
             _vs_process.terminate()
@@ -1196,13 +1192,57 @@ async def _api_vs_connect(request: Request) -> JSONResponse:
             close_fds=(sys.platform != "win32"),
         )
     except Exception as exc:
-        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
-    return JSONResponse({"ok": True, "pid": _vs_process.pid})
+        return str(exc)
+    return None
+
+
+async def _api_vs_connect(request: Request) -> JSONResponse:
+    """Launch Vintage Story and connect to a server immediately."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    if not host:
+        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    err = await asyncio.to_thread(_launch_vs_connect, host, request.app)
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    return JSONResponse({"ok": True, "pid": _vs_process.pid if _vs_process else None})
+
+
+async def _api_vs_connect_later(request: Request) -> JSONResponse:
+    """Schedule a VS connect after a delay. One job per server; any client can cancel."""
+    global _pending_connect
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    delay_sec = int(body.get("delay_sec", 0) or 0)
+    if not host:
+        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    if delay_sec <= 0:
+        return JSONResponse({"ok": False, "error": "delay_sec must be > 0"}, status_code=400)
+    fire_at = time.time() + delay_sec
+    with _pending_connect_lock:
+        _pending_connect = {"host": host, "fire_at": fire_at}
+    return JSONResponse({"ok": True, "fire_at": fire_at})
+
+
+async def _api_vs_connect_cancel(_request: Request) -> JSONResponse:
+    """Cancel a pending scheduled connect."""
+    global _pending_connect
+    with _pending_connect_lock:
+        _pending_connect = None
+    return JSONResponse({"ok": True})
 
 
 async def _api_vs_disconnect(_request: Request) -> JSONResponse:
-    """Terminate the VS process that was launched by Connect."""
-    global _vs_process
+    """Terminate the VS process and cancel any pending scheduled connect."""
+    global _vs_process, _pending_connect
+    with _pending_connect_lock:
+        _pending_connect = None
     if _vs_process is None or _vs_process.poll() is not None:
         return JSONResponse({"ok": True, "note": "VS is not running (launched by this app)"})
     try:
@@ -1703,6 +1743,23 @@ class _NoCacheStaticFiles(StaticFiles):
         await super().__call__(scope, receive, _send_no_cache)
 
 
+def _start_connect_scheduler(app: Any) -> None:
+    """Background daemon: fires a pending scheduled VS connect when its time arrives."""
+    def worker() -> None:
+        global _pending_connect
+        while True:
+            time.sleep(1)
+            with _pending_connect_lock:
+                job = _pending_connect
+            if job and time.time() >= job["fire_at"]:
+                with _pending_connect_lock:
+                    _pending_connect = None
+                err = _launch_vs_connect(job["host"], app)
+                if err:
+                    logging.getLogger(__name__).warning("Scheduled connect failed: %s", err)
+    threading.Thread(target=worker, daemon=True, name="vsqm-connect-scheduler").start()
+
+
 def _start_update_checker(app: Any) -> None:
     """Background daemon: checks for updates on startup then every 30 minutes."""
     app.state.update_available = False
@@ -1749,6 +1806,8 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/update/config", _api_update_config, methods=["POST"]),
         Route("/api/vs/servers", _api_vs_servers, methods=["GET"]),
         Route("/api/vs/connect", _api_vs_connect, methods=["POST"]),
+        Route("/api/vs/connect_later", _api_vs_connect_later, methods=["POST"]),
+        Route("/api/vs/connect_cancel", _api_vs_connect_cancel, methods=["POST"]),
         Route("/api/vs/disconnect", _api_vs_disconnect, methods=["POST"]),
         Route("/api/vs/status", _api_vs_status, methods=["GET"]),
         Route("/api/ngrok/start", _api_ngrok_start, methods=["POST"]),
@@ -1761,6 +1820,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     app.state.engine = engine
     app.state.hooks = hooks
     app.state.lock = lock
+    _start_connect_scheduler(app)
     _start_update_checker(app)
     return app
 

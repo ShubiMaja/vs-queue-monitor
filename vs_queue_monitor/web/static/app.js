@@ -5126,26 +5126,18 @@
     var connectBtn = $("btnVsConnect");
     var cancelDelayBtn = $("btnVsCancelDelay");
     var delayInp = $("inpDelayMin");
-    var _connectCountdownTimer = null;
 
     function _doConnect(host) {
-      connectBtn.disabled = true;
+      if (connectBtn) connectBtn.disabled = true;
       fetch("/api/vs/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ host: host }),
       }).then(function (r) { return r.json(); }).then(function (j) {
-        if (!j.ok) { toast("Connect failed: " + (j.error || "unknown"), "warn"); connectBtn.disabled = false; return; }
+        if (!j.ok) { toast("Connect failed: " + (j.error || "unknown"), "warn"); if (connectBtn) connectBtn.disabled = false; return; }
         toast("Launching Vintage Story…");
         setTimeout(refreshVsPanel, 1500);
-      }).catch(function (e) { toast(String(e.message || e), "warn"); connectBtn.disabled = false; });
-    }
-
-    function _cancelConnectCountdown() {
-      if (_connectCountdownTimer) { clearInterval(_connectCountdownTimer); _connectCountdownTimer = null; }
-      if (connectBtn) { connectBtn.textContent = "Connect"; connectBtn.disabled = false; }
-      if (cancelDelayBtn) cancelDelayBtn.classList.add("hidden");
-      if (delayInp) delayInp.disabled = false;
+      }).catch(function (e) { toast(String(e.message || e), "warn"); if (connectBtn) connectBtn.disabled = false; });
     }
 
     if (connectBtn) {
@@ -5154,29 +5146,28 @@
         if (!host) { toast("Choose a server first", "warn"); return; }
         var delayMin = delayInp ? Math.max(0, parseInt(delayInp.value, 10) || 0) : 0;
         if (delayMin <= 0) { _doConnect(host); return; }
-        var remaining = delayMin * 60;
+        // Schedule server-side — survives browser close.
         connectBtn.disabled = true;
-        if (delayInp) delayInp.disabled = true;
-        if (cancelDelayBtn) cancelDelayBtn.classList.remove("hidden");
-        function _tick() {
-          if (remaining <= 0) { _cancelConnectCountdown(); _doConnect(host); return; }
-          var m = Math.floor(remaining / 60), s = remaining % 60;
-          connectBtn.textContent = "Connect in " + m + ":" + (s < 10 ? "0" : "") + s;
-          remaining--;
-        }
-        _tick();
-        _connectCountdownTimer = setInterval(_tick, 1000);
+        fetch("/api/vs/connect_later", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: host, delay_sec: delayMin * 60 }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (!j.ok) { toast("Schedule failed: " + (j.error || "unknown"), "warn"); connectBtn.disabled = false; }
+          // State push/poll will update the countdown display.
+        }).catch(function (e) { toast(String(e.message || e), "warn"); connectBtn.disabled = false; });
       };
     }
 
     if (cancelDelayBtn) {
-      cancelDelayBtn.onclick = function () { _cancelConnectCountdown(); };
+      cancelDelayBtn.onclick = function () {
+        fetch("/api/vs/connect_cancel", { method: "POST" }).catch(function () {});
+      };
     }
 
     var disconnectBtn = $("btnVsDisconnect");
     if (disconnectBtn) {
       disconnectBtn.onclick = function () {
-        _cancelConnectCountdown();
         disconnectBtn.disabled = true;
         fetch("/api/vs/disconnect", { method: "POST" })
           .then(function (r) { return r.json(); })
@@ -5190,6 +5181,27 @@
     }
   }
 
+  // Countdown display ticker — driven by server state, survives tab close/reopen.
+  var _countdownTicker = null;
+
+  function _startCountdownTicker(fireAt) {
+    if (_countdownTicker) { clearInterval(_countdownTicker); }
+    function _tick() {
+      var remaining = Math.max(0, Math.round(fireAt - Date.now() / 1000));
+      var btn = $("btnVsConnect");
+      if (btn) {
+        var m = Math.floor(remaining / 60), s = remaining % 60;
+        btn.textContent = "Connect in " + m + ":" + (s < 10 ? "0" : "") + s;
+      }
+    }
+    _tick();
+    _countdownTicker = setInterval(_tick, 1000);
+  }
+
+  function _stopCountdownTicker() {
+    if (_countdownTicker) { clearInterval(_countdownTicker); _countdownTicker = null; }
+  }
+
   function applyVsStateToPanel(s) {
     if (!s) return;
     var inp = $("inpVsPath");
@@ -5198,6 +5210,22 @@
       syncVsPathDisplay();
       updateVsRecentPathsButton();
       if (s.vs_install_path) lsAddVsRecentPath(s.vs_install_path, s.vs_install_path_display || s.vs_install_path);
+    }
+    // Reflect server-side pending connect across all clients.
+    var pc = s.pending_connect;
+    var connectBtn = $("btnVsConnect");
+    var cancelDelayBtn = $("btnVsCancelDelay");
+    var delayInp = $("inpDelayMin");
+    if (pc) {
+      if (connectBtn) connectBtn.disabled = true;
+      if (cancelDelayBtn) cancelDelayBtn.classList.remove("hidden");
+      if (delayInp) delayInp.disabled = true;
+      _startCountdownTicker(pc.fire_at);
+    } else {
+      _stopCountdownTicker();
+      if (connectBtn) { connectBtn.textContent = "Connect"; }
+      if (cancelDelayBtn) cancelDelayBtn.classList.add("hidden");
+      if (delayInp) delayInp.disabled = false;
     }
     refreshVsPanel();
   }
