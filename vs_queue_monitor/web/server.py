@@ -35,6 +35,7 @@ from ..core import (
     RELEASE_NOTES,
     SEED_LOG_TAIL_BYTES,
     expand_path,
+    find_vs_executable,
     get_config_path,
     get_newer_session_attempt,
     normalize_log_path_for_dedup,
@@ -821,6 +822,12 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "resolved_path": engine.resolved_path_var.get(),
         "source_path": engine.source_path_var.get(),
         "source_path_display": _mask_path_in_text(engine.source_path_var.get()),
+        "vs_install_path": engine.vs_install_path_var.get(),
+        "vs_install_path_display": _mask_path_in_text(engine.vs_install_path_var.get()),
+        "vs_exe_found": bool(find_vs_executable(expand_path(engine.vs_install_path_var.get())) if engine.vs_install_path_var.get().strip() else None),
+        "ngrok_path": engine.ngrok_path_var.get(),
+        "ngrok_email": engine.ngrok_email_var.get(),
+        "pending_connect": None,  # filled below
         "graph_points": pts,
         "current_point": cur,
         "poll_sec": engine.poll_sec_var.get(),
@@ -851,6 +858,10 @@ def build_snapshot(engine: QueueMonitorEngine, hooks: WebMonitorHooks, extra: Op
         "active_queue_session_epoch": active_session_epoch,
         "build_fingerprint": _build_fingerprint(),
     }
+    _vip_raw = engine.vs_install_path_var.get().strip()
+    _vip_key = str(expand_path(_vip_raw)) if _vip_raw else ""
+    with _vs_state_lock:
+        result["pending_connect"] = dict(_pending_connects[_vip_key]) if _vip_key in _pending_connects else None
     if extra:
         result.update(extra)
     return result
@@ -1021,6 +1032,14 @@ async def _api_config(request: Request) -> JSONResponse:
         with lock:
             if "source_path" in body:
                 engine.source_path_var.set(str(body["source_path"]))
+            if "vs_install_path" in body:
+                engine.vs_install_path_var.set(str(body["vs_install_path"]))
+            if "ngrok_path" in body:
+                engine.ngrok_path_var.set(str(body["ngrok_path"]))
+                engine.config["ngrok_path"] = str(body["ngrok_path"]).strip()
+            if "ngrok_email" in body:
+                engine.ngrok_email_var.set(str(body["ngrok_email"]))
+                engine.config["ngrok_email"] = str(body["ngrok_email"]).strip()
             if "poll_sec" in body:
                 engine.poll_sec_var.set(str(body["poll_sec"]))
             if "avg_window" in body:
@@ -1089,6 +1108,332 @@ def _api_reset(request: Request) -> JSONResponse:
         return JSONResponse({"ok": True})
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+def _parse_vs_servers(data_path: Path) -> list[dict[str, str]]:
+    """Parse favorite multiplayer servers from VS clientsettings.json."""
+    settings_file = data_path / "clientsettings.json"
+    if not settings_file.is_file():
+        return []
+    try:
+        with settings_file.open(encoding="utf-8") as f:
+            data = json.load(f)
+        raw_list: list[str] = data.get("stringListSettings", {}).get("multiplayerservers", [])
+        seen: set[str] = set()
+        servers: list[dict[str, str]] = []
+        for entry in raw_list:
+            parts = entry.split(",", 2)
+            name = parts[0].strip() if parts else ""
+            host = parts[1].strip() if len(parts) > 1 else ""
+            if not host or host in seen:
+                continue
+            seen.add(host)
+            servers.append({"name": name, "host": host})
+        return servers
+    except Exception:
+        return []
+
+
+def _get_vs_data_path(engine: "QueueMonitorEngine") -> Optional[Path]:
+    """Resolve the VintagestoryData folder: from source_path if it looks right, else default."""
+    from ..core import expand_path, get_default_vintagestory_path
+    raw = engine.source_path_var.get().strip()
+    if raw:
+        p = expand_path(raw)
+        if p.is_file():
+            p = p.parent
+        if (p / "clientsettings.json").is_file():
+            return p
+        if (p / "Logs").is_dir() and (p.parent / "clientsettings.json").is_file():
+            return p.parent
+    default = get_default_vintagestory_path()
+    if default.is_dir():
+        return default
+    return None
+
+
+# Keyed by resolved install-path string so a.exe and b.exe are fully independent.
+_vs_processes: "dict[str, subprocess.Popen[bytes]]" = {}
+_pending_connects: "dict[str, dict]" = {}   # key -> {host, fire_at, install_path}
+_vs_state_lock = threading.Lock()
+
+
+def _vs_install_key(engine: "QueueMonitorEngine", lock: "threading.RLock") -> str:
+    """Return the canonical key for the current VS install path, or ''."""
+    with lock:
+        raw = engine.vs_install_path_var.get().strip()
+    return str(expand_path(raw)) if raw else ""
+
+
+async def _api_vs_servers(request: Request) -> JSONResponse:
+    """Return the user's VS favourite multiplayer servers."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    with lock:
+        data_path = _get_vs_data_path(engine)
+    if data_path is None:
+        return JSONResponse({"ok": True, "servers": [], "note": "Could not locate VintagestoryData folder"})
+    servers = await asyncio.to_thread(_parse_vs_servers, data_path)
+    return JSONResponse({"ok": True, "servers": servers})
+
+
+def _launch_vs_for_key(host: str, key: str, install_path_raw: str) -> Optional[str]:
+    """Launch VS at install_path_raw, keyed by key. Returns error string or None."""
+    if not install_path_raw:
+        return "VS install path not set"
+    install_path = expand_path(install_path_raw)
+    exe = find_vs_executable(install_path)
+    if exe is None:
+        return f"Vintagestory.exe not found in {install_path}"
+    try:
+        proc = _vs_processes.get(key)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except Exception:
+                proc.kill()
+        _vs_processes[key] = subprocess.Popen(
+            [str(exe), f"--connect={host}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=(sys.platform != "win32"),
+        )
+    except Exception as exc:
+        return str(exc)
+    return None
+
+
+async def _api_vs_connect(request: Request) -> JSONResponse:
+    """Launch Vintage Story and connect to a server immediately."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    if not host:
+        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    key = _vs_install_key(engine, lock)
+    if not key:
+        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
+    err = await asyncio.to_thread(_launch_vs_for_key, host, key, engine.vs_install_path_var.get().strip())
+    if err:
+        return JSONResponse({"ok": False, "error": err}, status_code=400)
+    proc = _vs_processes.get(key)
+    return JSONResponse({"ok": True, "pid": proc.pid if proc else None})
+
+
+async def _api_vs_connect_later(request: Request) -> JSONResponse:
+    """Schedule a VS connect after a delay, keyed by install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, status_code=400)
+    host = str(body.get("host", "")).strip()
+    delay_sec = int(body.get("delay_sec", 0) or 0)
+    if not host:
+        return JSONResponse({"ok": False, "error": "host is required"}, status_code=400)
+    if delay_sec <= 0:
+        return JSONResponse({"ok": False, "error": "delay_sec must be > 0"}, status_code=400)
+    key = _vs_install_key(engine, lock)
+    if not key:
+        return JSONResponse({"ok": False, "error": "VS install path not set"}, status_code=400)
+    fire_at = time.time() + delay_sec
+    with _vs_state_lock:
+        _pending_connects[key] = {"host": host, "fire_at": fire_at, "install_path": engine.vs_install_path_var.get().strip()}
+    return JSONResponse({"ok": True, "fire_at": fire_at})
+
+
+async def _api_vs_connect_cancel(request: Request) -> JSONResponse:
+    """Cancel the pending scheduled connect for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    with _vs_state_lock:
+        _pending_connects.pop(key, None)
+    return JSONResponse({"ok": True})
+
+
+async def _api_vs_disconnect(request: Request) -> JSONResponse:
+    """Terminate VS and cancel any pending connect for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    with _vs_state_lock:
+        _pending_connects.pop(key, None)
+    proc = _vs_processes.get(key) if key else None
+    if proc is None or proc.poll() is not None:
+        return JSONResponse({"ok": True, "note": "VS is not running (launched by this app)"})
+    try:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+        _vs_processes.pop(key, None)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+async def _api_vs_status(request: Request) -> JSONResponse:
+    """Return VS running state for the current install path."""
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    key = _vs_install_key(engine, lock)
+    proc = _vs_processes.get(key) if key else None
+    running = proc is not None and proc.poll() is None
+    return JSONResponse({"ok": True, "running": running, "pid": proc.pid if running else None})
+
+
+_ngrok_process: Optional["subprocess.Popen[bytes]"] = None
+_ngrok_public_url: str = ""
+
+
+def _ngrok_pid_path() -> Path:
+    return get_config_path().parent / "ngrok.pid"
+
+
+def _is_pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        try:
+            r = subprocess.run(
+                ["tasklist", "/fi", f"PID eq {pid}", "/fo", "csv", "/nh"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return str(pid) in r.stdout
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def _save_ngrok_pid(pid: int) -> None:
+    try:
+        _ngrok_pid_path().write_text(str(pid))
+    except Exception:
+        pass
+
+
+def _kill_ngrok_by_pid_file() -> None:
+    """Kill the process recorded in ngrok.pid and remove the file."""
+    try:
+        pid = int(_ngrok_pid_path().read_text().strip())
+        if _is_pid_alive(pid):
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/f", "/pid", str(pid)], capture_output=True, timeout=5)
+            else:
+                subprocess.run(["kill", str(pid)], capture_output=True, timeout=5)
+    except Exception:
+        pass
+    finally:
+        try:
+            _ngrok_pid_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _query_ngrok_url() -> str:
+    """Ask the local ngrok agent API for the first HTTPS tunnel URL."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+        for tunnel in data.get("tunnels", []):
+            if tunnel.get("proto") == "https":
+                return tunnel.get("public_url", "")
+        for tunnel in data.get("tunnels", []):
+            return tunnel.get("public_url", "")
+    except Exception:
+        pass
+    return ""
+
+
+async def _api_ngrok_start(request: Request) -> JSONResponse:
+    """Start ngrok to expose the monitor's web port."""
+    global _ngrok_process, _ngrok_public_url
+    engine: QueueMonitorEngine = request.app.state.engine
+    lock: threading.RLock = request.app.state.lock
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    with lock:
+        ngrok_path = str(engine.config.get("ngrok_path", "") or "").strip() or "ngrok"
+        ngrok_email = str(body.get("email", "") or engine.config.get("ngrok_email", "") or "").strip()
+        web_port = int(getattr(request.app.state, "_web_port", 8765))
+    # Detect an already-running tunnel (managed process or survivor from previous session).
+    if _ngrok_process is not None and _ngrok_process.poll() is None:
+        url = await asyncio.to_thread(_query_ngrok_url)
+        _ngrok_public_url = url
+        return JSONResponse({"ok": True, "url": url, "note": "already running"})
+    existing_url = await asyncio.to_thread(_query_ngrok_url)
+    if existing_url:
+        _ngrok_public_url = existing_url
+        return JSONResponse({"ok": True, "url": existing_url, "note": "already running"})
+    cmd = [ngrok_path, "http", str(web_port)]
+    if ngrok_email:
+        cmd += ["--oauth=google", f"--oauth-allow-email={ngrok_email}"]
+    # On Windows, open ngrok in its own console window so the user can close it independently.
+    # On Unix, detach from the session so it survives the parent process exiting.
+    popen_kwargs: dict = {}
+    if sys.platform == "win32":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
+        popen_kwargs["stdout"] = subprocess.DEVNULL
+        popen_kwargs["stderr"] = subprocess.DEVNULL
+    try:
+        _ngrok_process = subprocess.Popen(cmd, **popen_kwargs)
+        _save_ngrok_pid(_ngrok_process.pid)
+    except FileNotFoundError:
+        return JSONResponse(
+            {"ok": False, "error": f"ngrok not found at '{ngrok_path}'. Install ngrok or set the correct path."},
+            status_code=400,
+        )
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    # Give ngrok a moment to open its agent API, then query the URL.
+    await asyncio.sleep(2.0)
+    url = await asyncio.to_thread(_query_ngrok_url)
+    _ngrok_public_url = url
+    return JSONResponse({"ok": True, "url": url})
+
+
+async def _api_ngrok_stop(_request: Request) -> JSONResponse:
+    """Stop the ngrok tunnel (managed process or previous-session survivor)."""
+    global _ngrok_process, _ngrok_public_url
+    try:
+        if _ngrok_process is not None and _ngrok_process.poll() is None:
+            _ngrok_process.terminate()
+            try:
+                _ngrok_process.wait(timeout=5)
+            except Exception:
+                _ngrok_process.kill()
+        _ngrok_process = None
+        # Also kill any survivor tracked by PID file (previous session).
+        _kill_ngrok_by_pid_file()
+        _ngrok_public_url = ""
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+    return JSONResponse({"ok": True})
+
+
+async def _api_ngrok_status(_request: Request) -> JSONResponse:
+    """Return ngrok tunnel status; detects tunnels started by previous app sessions."""
+    global _ngrok_public_url
+    managed_alive = _ngrok_process is not None and _ngrok_process.poll() is None
+    # Query the ngrok agent API — this detects survivors from previous app runs too.
+    url = await asyncio.to_thread(_query_ngrok_url)
+    running = managed_alive or bool(url)
+    _ngrok_public_url = url if running else ""
+    return JSONResponse({"ok": True, "running": running, "url": _ngrok_public_url})
 
 
 async def _api_new_queue(request: Request) -> JSONResponse:
@@ -1379,6 +1724,7 @@ def _init_web_stack(
     p = port or int(os.environ.get("VS_QUEUE_MONITOR_WEB_PORT", "8765"))
 
     app = create_app(engine, hooks, lock)
+    app.state._web_port = p
     url = f"http://127.0.0.1:{p}/"
     return app, engine, hooks, lock, p, url
 
@@ -1421,6 +1767,23 @@ class _NoCacheStaticFiles(StaticFiles):
             await send(message)
 
         await super().__call__(scope, receive, _send_no_cache)
+
+
+def _start_connect_scheduler(_app: Any) -> None:
+    """Background daemon: fires pending scheduled VS connects when their time arrives."""
+    def worker() -> None:
+        while True:
+            time.sleep(1)
+            now = time.time()
+            with _vs_state_lock:
+                fired = [(k, v) for k, v in _pending_connects.items() if now >= v["fire_at"]]
+                for k, _ in fired:
+                    del _pending_connects[k]
+            for key, job in fired:
+                err = _launch_vs_for_key(job["host"], key, job["install_path"])
+                if err:
+                    logging.getLogger(__name__).warning("Scheduled connect failed for %s: %s", key, err)
+    threading.Thread(target=worker, daemon=True, name="vsqm-connect-scheduler").start()
 
 
 def _start_update_checker(app: Any) -> None:
@@ -1467,6 +1830,15 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
         Route("/api/update/check", _api_update_check, methods=["GET"]),
         Route("/api/update/apply", _api_update_apply, methods=["POST"]),
         Route("/api/update/config", _api_update_config, methods=["POST"]),
+        Route("/api/vs/servers", _api_vs_servers, methods=["GET"]),
+        Route("/api/vs/connect", _api_vs_connect, methods=["POST"]),
+        Route("/api/vs/connect_later", _api_vs_connect_later, methods=["POST"]),
+        Route("/api/vs/connect_cancel", _api_vs_connect_cancel, methods=["POST"]),
+        Route("/api/vs/disconnect", _api_vs_disconnect, methods=["POST"]),
+        Route("/api/vs/status", _api_vs_status, methods=["GET"]),
+        Route("/api/ngrok/start", _api_ngrok_start, methods=["POST"]),
+        Route("/api/ngrok/stop", _api_ngrok_stop, methods=["POST"]),
+        Route("/api/ngrok/status", _api_ngrok_status, methods=["GET"]),
         WebSocketRoute("/ws", _ws_endpoint),
         Mount("/", _NoCacheStaticFiles(directory=str(_STATIC), html=True), name="static"),
     ]
@@ -1474,6 +1846,7 @@ def create_app(engine: QueueMonitorEngine, hooks: WebMonitorHooks, lock: threadi
     app.state.engine = engine
     app.state.hooks = hooks
     app.state.lock = lock
+    _start_connect_scheduler(app)
     _start_update_checker(app)
     return app
 

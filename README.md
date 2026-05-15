@@ -89,6 +89,8 @@ If that browser view goes offline, the in-page banner tells you to start the app
 | **Session history**     | Per-run log of position changes; graph session selector lets you review any past run, each labeled with its chronological index and outcome (Succeeded / Failed / Interrupted / Unknown). History capped at 100 MB by default (configurable in Settings → General) |
 | **Recent paths**        | Clock icon next to the path field shows the last few folders you've monitored; click any to switch instantly                                                                                                                                                       |
 | **What's new banner**   | One-time banner on first launch after an update summarises what changed; dismisses with ×                                                                                                                                                                          |
+| **Client panel**        | Monitor icon in topbar opens a panel to set your VS install folder, pick a favourite server, and Connect / Disconnect the game client; optional "Delay: N min" schedules the connect server-side so it fires even if the browser is closed                        |
+| **ngrok tunnel**        | Built-in Start/Stop tunnel controls in the client panel; publishes a shareable HTTPS URL with one click; optional Google account email restriction to control who can access your queue view; tunnel survives app close                                            |
 | **System tray**         | Icon in notification area while running; right-click to open or quit                                         |
 | **Embedded window**     | Desktop app feel via Chromium `--app` mode (Edge or Chrome required; falls back to browser if neither found) |
 
@@ -135,24 +137,17 @@ Default warning thresholds: position **15, 10, 5, 3, 2, 1**. Edit them in the **
 
 ## Remote access via ngrok
 
-You can expose a local port to the internet securely with [ngrok](https://dashboard.ngrok.com/get-started/setup/windows).
+The built-in tunnel controls live in the **client panel** (monitor icon in the topbar). Click **Start tunnel** and a shareable HTTPS URL appears. Optionally enter a Google account email to restrict access — only that account can authenticate and view your queue.
 
-The following command will expose the default port that the app runs on and protect it with Google Authentication
+**First-time setup** (one-off):
 
-`ngrok http 8765 --oauth google --oauth-allow-email myname@gmail.com`
+1. Install ngrok: `winget install ngrok.ngrok` (or [ngrok.com/download](https://ngrok.com/download))
+2. Sign up free at [dashboard.ngrok.com](https://dashboard.ngrok.com/signup) and add your token:
+   ```
+   ngrok config add-authtoken <YOUR_TOKEN>
+   ```
 
-### Expected Output
-
-```
-Update                        update available (version 3.38.0, Ctrl-U to update)
-Version                       3.37.3
-Region                        Europe (eu)
-Latency                       63ms
-Web Interface                 http://127.0.0.1:4040
-Forwarding                    https://1eaa-80-230-11-63.ngrok-free.app -> http://localhost:8765
-```
-
-By default, the DNS it forwards to is different each time. So for example according to the Forwarding rule above, the UI would be available at: `https://1eaa-80-230-11-63.ngrok-free.app`
+The app handles the rest — no terminal needed after setup.
 
 ## Remote access via SSH tunnel
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VS Queue Monitor (Web)</title>
     <link rel="icon" type="image/svg+xml" href="/notify-icon.svg" />
-    <link rel="stylesheet" href="/styles.css?v=1.1.189" />
+    <link rel="stylesheet" href="/styles.css?v=1.2.1" />
   </head>
   <body>
     <div id="topLoadingBar" class="top-loading-bar" aria-hidden="true"></div>
@@ -106,7 +106,7 @@
               type="button"
               class="btn btn--small btn--browse btn--browse-icon"
               id="btnBrowseFolder"
-              title="Choose folder (native dialog on this PC)"
+              title="Choose logs folder (native dialog on this PC)"
               aria-label="Choose logs folder"
             >
               <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -202,6 +202,12 @@
             <path d="M15 4v13" />
           </svg>
         </button>
+        <button type="button" class="btn btn--secondary" id="btnClientPanel" aria-label="VS client panel" title="Vintage Story client — connect &amp; disconnect" aria-expanded="false">
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2"/>
+            <path d="M8 21h8M12 17v4"/>
+          </svg>
+        </button>
         <button type="button" class="btn btn--secondary" id="btnHelp" aria-label="Help" title="Help (F1)">?</button>
         <button type="button" class="btn btn--secondary" id="btnSettings" aria-label="Settings" title="Settings (o)">⚙</button>
         <button
@@ -227,6 +233,84 @@
         </button>
       </div>
     </header>
+
+    <!-- Client management panel -->
+    <div id="clientPanel" class="client-panel hidden" role="region" aria-label="Vintage Story client">
+      <div class="client-panel__inner">
+
+        <!-- Install path row -->
+        <div class="client-panel__row client-panel__row--path">
+          <label class="client-panel__label" for="inpVsPath">VS folder</label>
+          <button
+            type="button"
+            class="path-summary client-panel__path-summary"
+            id="vsPathSummary"
+            title="Click to paste or edit the VS install folder path"
+          >
+            <span id="vsPathSummaryText" class="path-summary__text">Select VS install folder…</span>
+          </button>
+          <input type="hidden" id="inpVsPath" autocomplete="off" />
+          <button
+            type="button"
+            class="btn btn--small btn--browse btn--browse-icon"
+            id="btnBrowseVsFolder"
+            title="Browse for Vintage Story install folder (contains Vintagestory.exe)"
+            aria-label="Browse for VS install folder"
+          >
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="btn btn--small btn--browse btn--browse-icon hidden"
+            id="btnRecentVsPaths"
+            title="Recently used VS install folders"
+            aria-label="Recently used VS install folders"
+            aria-expanded="false"
+          >
+            <svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+          </button>
+          <span id="vsExeStatus" class="client-panel__exe-status" aria-live="polite"></span>
+        </div>
+        <div id="popRecentVsPaths" class="popover popover--recent-paths hidden" role="listbox" aria-label="Recently used VS install folders"></div>
+
+        <!-- Server + action row -->
+        <div class="client-panel__row client-panel__row--actions">
+          <label class="client-panel__label" for="selVsServer">Server</label>
+          <select id="selVsServer" class="client-panel__server-select inp" aria-label="Select server to connect to">
+            <option value="">— choose server —</option>
+          </select>
+          <label class="client-panel__delay-label" for="inpDelayMin">Delay:</label>
+          <input type="number" id="inpDelayMin" class="inp client-panel__delay-inp" min="0" max="9999" value="0" title="Minutes to wait before connecting">
+          <span class="client-panel__delay-sep">min</span>
+          <button type="button" class="btn btn--primary btn--small" id="btnVsConnect" disabled>Connect</button>
+          <button type="button" class="btn btn--warn btn--small hidden" id="btnVsCancelDelay">Cancel</button>
+          <button type="button" class="btn btn--ghost btn--small" id="btnVsDisconnect" disabled>Disconnect</button>
+        </div>
+
+        <!-- ngrok row -->
+        <div class="client-panel__row client-panel__row--ngrok">
+          <span class="client-panel__label">ngrok</span>
+          <input
+            type="email"
+            id="inpNgrokEmail"
+            class="inp client-panel__ngrok-email"
+            placeholder="Auth email"
+            autocomplete="email"
+            spellcheck="false"
+          />
+          <button type="button" class="btn btn--secondary btn--small" id="btnNgrokStart">Start tunnel</button>
+          <button type="button" class="btn btn--ghost btn--small hidden" id="btnNgrokStop">Stop</button>
+          <a id="ngrokUrl" class="client-panel__ngrok-url hidden" target="_blank" rel="noopener noreferrer" title="Public ngrok URL — click to open, right-click to copy"></a>
+          <button type="button" class="btn btn--ghost btn--small client-panel__ngrok-help" id="btnNgrokHelp" title="About the tunnel" aria-label="About the tunnel">?</button>
+        </div>
+
+      </div>
+    </div>
 
     <main class="main">
       <section class="kpi" id="secKpi">
@@ -553,6 +637,34 @@
             </svg>
             View on GitHub
           </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ngrok guide -->
+    <div id="modalNgrokGuide" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalNgrokGuideHeading">
+      <div class="modal__backdrop" data-close="1"></div>
+      <div class="modal__box modal__box--help">
+        <h2 id="modalNgrokGuideHeading">Tunnel (ngrok)</h2>
+        <div class="help-scroll">
+          <h3 class="help-h3">What it does</h3>
+          <p class="muted">Creates a temporary public HTTPS URL that forwards to your local monitor. Anyone who has the URL can view your queue in real time — from any device, anywhere. The URL is randomly generated each time you start a tunnel.</p>
+
+          <h3 class="help-h3">Auth email</h3>
+          <p class="muted">Enter your Google account email to gate access. Visitors must sign in with Google and only that exact email is allowed through. Leave blank to allow anyone with the URL to view your queue.</p>
+
+          <h3 class="help-h3">First-time setup</h3>
+          <p class="muted">1. Install ngrok:</p>
+          <pre class="help-pre"><code>winget install ngrok.ngrok</code></pre>
+          <p class="muted">Or download from <a href="https://ngrok.com/download" target="_blank" rel="noopener noreferrer" class="help-link">ngrok.com/download</a>.</p>
+          <p class="muted">2. Sign up free at <a href="https://dashboard.ngrok.com/signup" target="_blank" rel="noopener noreferrer" class="help-link">dashboard.ngrok.com</a>, then add your token:</p>
+          <pre class="help-pre"><code>ngrok config add-authtoken &lt;YOUR_TOKEN&gt;</code></pre>
+
+          <h3 class="help-h3">Stopping the tunnel</h3>
+          <p class="muted">The tunnel keeps running even if you close or restart the monitor. On Windows a terminal window opens — closing it also stops the tunnel. Click <strong>Stop</strong> to end it from here.</p>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="btnNgrokGuideOk" data-close="1">Got it</button>
         </div>
       </div>
     </div>

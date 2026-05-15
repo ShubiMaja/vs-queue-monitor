@@ -133,6 +133,17 @@ def get_default_vintagestory_path() -> Path:
     return base_dir / "VintagestoryData"
 DEFAULT_PATH = str(get_default_vintagestory_path())
 
+
+def get_default_vs_install_path() -> Path:
+    """Default location of the Vintage Story install directory (where the exe lives)."""
+    if sys.platform == "win32":
+        base_dir = Path(os.getenv("APPDATA", Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base_dir = Path.home() / "Library" / "Application Support"
+    else:
+        base_dir = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    return base_dir / "Vintagestory"
+
 def initial_logs_folder_path(cli_path: str, config_source_path: str) -> str:
     """Path shown in Logs folder: always a directory string. Saved or CLI paths to a file become its parent."""
     raw = (cli_path or "").strip()
@@ -203,11 +214,48 @@ QUEUE_STALE_TIMEOUT_MULT = 2.0
 # Server emits log traffic frequently (~2s pings). No file growth/mtime change for this long ⇒ Reconnecting…
 LOG_SILENCE_RECONNECT_SEC = 30.0
 # After this long with no log activity while in queue, declare interrupted (VS clearly not coming back).
-LOG_SILENCE_INTERRUPT_SEC = 90.0
+# Kept at 2× the reconnect window so "Reconnecting…" is brief before giving up.
+LOG_SILENCE_INTERRUPT_SEC = 60.0
 
 # Per-version release notes shown to the user once after updating.
 # Keys are bare version strings ("1.2.3"); values are short user-facing bullet points.
 RELEASE_NOTES: dict[str, list[str]] = {
+    "1.2.18": [
+        "Per-exe-path VS state — two installs are fully independent (running, pending, stopped)",
+    ],
+    "1.2.17": [
+        "Connect delay is now server-side — survives browser close; all tabs share the same countdown and can cancel it",
+    ],
+    "1.2.16": [
+        "Delayed connect — \"Delay: N min\" field next to Connect; live countdown in button, Cancel to abort",
+        "VS folder auto-fills with the platform default VS install path when not yet configured",
+        "Tunnel ? button explains the feature, auth email, setup, and how to stop — all in one place",
+        "ngrok tunnel survives app close — own terminal window on Windows, detached on Unix",
+        "Fixed: detects existing ngrok session on restart; Stop works across sessions via saved PID",
+        "Warning when starting tunnel with no auth email set — confirms before exposing queue publicly",
+    ],
+    "1.2.8": [
+        "Client panel (monitor icon in topbar) — VS install folder, favourite server picker, Connect / Disconnect",
+        "ngrok tunnel controls — Start tunnel button creates a shareable public URL; optional Google email restriction",
+        "Interrupt now fires after 60 s of log silence (was 90 s)",
+        "Fixed: adopting a new queue run no longer re-locks you in interrupted state",
+        "Fixed: selected server and ngrok email remembered between sessions",
+    ],
+    "1.2.1": [
+        "Update badge now hides immediately when you confirm installation",
+        "Simplified install confirm — just the version name, no wall of text",
+        "What's New banner now links to GitHub release notes",
+    ],
+    "1.2.0": [
+        "New brand icon — V chevron mark visible in the browser tab and About dialog",
+        "\"What's new\" banner: shown once per version upgrade, dismissed with ×",
+        "Recent paths history — clock icon recalls last-used folders instantly",
+        "Auto-detects VS disconnect after 90 s of log silence",
+        "Graph trims to last real data on disconnect; rate/speed metrics stay accurate",
+        "Animated loading bar when switching log files",
+        "Fixed spurious interrupted alerts on slow queues",
+        "Path editing now uses an inline popover",
+    ],
     "1.1.189": [
         "New brand icon — V chevron mark visible in the browser tab and About dialog",
         "\"What's new\" banner: shown once per version upgrade, dismissed with ×",
@@ -776,10 +824,24 @@ def save_config(data: dict) -> None:
         pass
 
 
+VS_EXECUTABLE_NAMES = ("Vintagestory.exe", "vintagestory", "VintagestoryClient.exe")
+
+
+def find_vs_executable(folder: Path) -> Optional[Path]:
+    """Return the VS game executable if *folder* looks like a VS install directory."""
+    for name in VS_EXECUTABLE_NAMES:
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def resolve_log_file(raw: str) -> Optional[Path]:
     """Resolve the Vintage Story **client** log from a **folder** path (or legacy saved file path → parent).
 
-    Searches fixed paths and *client*.log-style names only — does not accept arbitrary *.log files.
+    Accepts the VS **game install folder** (contains the executable and a Logs/ subfolder),
+    a **VintagestoryData** folder (contains Logs/), a Logs subfolder, or a legacy saved
+    file path (parent folder is used).  Does not accept arbitrary *.log files.
     """
     path = expand_path(raw)
 

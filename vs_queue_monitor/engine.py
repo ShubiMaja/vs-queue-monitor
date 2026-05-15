@@ -115,6 +115,15 @@ class QueueMonitorEngine:
             bool(self.config.get("failure_popup_enabled", True)),
         )
         self.show_every_change_var = hooks.boolean_var(bool(self.config.get("show_every_change", True)))
+        _vip = self.config.get("vs_install_path", "")
+        _vip = _vip.strip() if isinstance(_vip, str) else ""
+        if not _vip:
+            _vip = str(get_default_vs_install_path())
+        self.vs_install_path_var = hooks.string_var(_vip)
+        _ngp = self.config.get("ngrok_path", "")
+        self.ngrok_path_var = hooks.string_var(_ngp.strip() if isinstance(_ngp, str) else "")
+        _nge = self.config.get("ngrok_email", "")
+        self.ngrok_email_var = hooks.string_var(_nge.strip() if isinstance(_nge, str) else "")
 
         self.running = False
         self.monitor_start_epoch: Optional[float] = None
@@ -198,7 +207,7 @@ class QueueMonitorEngine:
             self.start_monitoring()
 
     def get_config_snapshot(self) -> dict:
-        return {'source_path': self.source_path_var.get(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'history_max_bytes': int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
+        return {'source_path': self.source_path_var.get(), 'vs_install_path': self.vs_install_path_var.get().strip(), 'ngrok_path': self.ngrok_path_var.get().strip(), 'ngrok_email': self.ngrok_email_var.get().strip(), 'alert_thresholds': self.alert_thresholds_var.get(), 'poll_sec': self.poll_sec_var.get(), 'avg_window_points': self.avg_window_var.get(), 'show_log': bool(self.show_log_var.get()), 'show_status': bool(self.show_status_var.get()), 'popup_enabled': bool(self.popup_enabled_var.get()), 'sound_enabled': bool(self.sound_enabled_var.get()), 'alert_sound_path': self.alert_sound_path_var.get().strip(), 'completion_popup_enabled': bool(self.completion_popup_enabled_var.get()), 'completion_sound_enabled': bool(self.completion_sound_enabled_var.get()), 'completion_sound_path': self.completion_sound_path_var.get().strip(), 'failure_popup_enabled': bool(self.failure_popup_enabled_var.get()), 'failure_sound_enabled': bool(self.failure_sound_enabled_var.get()), 'failure_sound_path': self.failure_sound_path_var.get().strip(), 'show_every_change': bool(self.show_every_change_var.get()), 'tutorial_done': bool(self.tutorial_done_var.get()), 'history_path': self.history_path_var.get().strip(), 'history_max_bytes': int(self.config.get("history_max_bytes") or DEFAULT_HISTORY_MAX_BYTES), 'window_geometry': self._hooks.window_geometry_for_save(), 'version': VERSION}
 
     def persist_config(self) -> None:
         save_config(self.get_config_snapshot())
@@ -1090,17 +1099,13 @@ class QueueMonitorEngine:
         if ok:
             tail_text = read_log_file_tail_text(path, TAIL_BYTES)
             adopted_kind = None
-            adopted_pos = None
             if tail_text:
                 adopted_kind, _tail_pos = classify_tail_connection_state(tail_text)
-                adopted_pos, _tail_sess = parse_tail_last_queue_reading(tail_text)
-            stays_interrupted = (
-                adopted_kind == 'disconnected'
-                or (
-                    adopted_kind in ('reconnecting', 'grace')
-                    and not (adopted_pos is not None and adopted_pos <= 1)
-                )
-            )
+            # Stay interrupted only if VS has fully disconnected — not if it is mid-reconnect
+            # (reconnecting/grace), because that means VS is actively joining the server and
+            # will produce new queue lines shortly.  Re-entering interrupted on reconnecting
+            # locks the epoch guard and prevents the next new-run detection from firing.
+            stays_interrupted = adopted_kind == 'disconnected'
             if stays_interrupted:
                 self._interrupted_mode = True
                 self._interrupt_baseline_session = self._last_queue_run_session

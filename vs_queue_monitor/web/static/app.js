@@ -290,7 +290,7 @@
   function lsSetSeenVersion(v) {
     try { localStorage.setItem(LS_SEEN_VERSION, v); } catch (e) {}
   }
-  function showWhatsNew(version, notes) {
+  function showWhatsNew(version, notes, repoUrl) {
     var banner = $("whatsNewBanner");
     var ver = $("whatsNewVersion");
     var list = $("whatsNewList");
@@ -302,6 +302,17 @@
       var li = document.createElement("li");
       li.textContent = notes[i];
       list.appendChild(li);
+    }
+    var existingLink = banner.querySelector(".whats-new-banner__link");
+    if (existingLink) existingLink.remove();
+    if (repoUrl) {
+      var a = document.createElement("a");
+      a.href = repoUrl + "/releases/tag/v" + version;
+      a.textContent = "Full release notes on GitHub →";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.className = "whats-new-banner__link";
+      banner.querySelector(".whats-new-banner__body").appendChild(a);
     }
     banner.classList.remove("hidden");
   }
@@ -2104,6 +2115,9 @@
       lsAddRecentPath(srvPath, (s.source_path_display || srvPath));
     }
 
+    applyVsStateToPanel(s);
+    applyNgrokStateToPanel(s);
+
     var modalSettings = $("modalSettings");
     if (!modalSettings || modalSettings.classList.contains("hidden")) {
       syncSettingsFormFromState(s);
@@ -3279,21 +3293,25 @@
       }, { once: true });
       btnBadge.onclick = function () {
         var relName = (window._lastState && window._lastState.update_release_name) || "";
-        var relUrl = (window._lastState && window._lastState.update_release_html_url) || "";
-        var msg = "Install update" + (relName ? " (" + relName + ")" : "") + " and restart VS Queue Monitor?\n\nThe latest release will be downloaded and installed. This page will reload automatically when the server is back."
-          + (relUrl ? "\n\nRelease notes: " + relUrl : "");
+        var msg = "Install " + (relName || "update") + " and restart VS Queue Monitor?";
         if (!window.confirm(msg)) return;
         btnBadge.disabled = true;
+        btnBadge.classList.add("hidden");
         fetch("/api/update/apply", { method: "POST" })
           .then(function (r) { return r.json(); })
           .then(function (j) {
-            btnBadge.disabled = false;
-            if (!j.ok) { toast("Update failed: " + (j.error || "unknown"), "warn"); return; }
+            if (!j.ok) {
+              btnBadge.disabled = false;
+              btnBadge.classList.remove("hidden");
+              toast("Update failed: " + (j.error || "unknown"), "warn");
+              return;
+            }
             window._pendingHardReload = true;
             toast("Update in progress — reloading when server is back…");
           })
           .catch(function (e) {
             btnBadge.disabled = false;
+            btnBadge.classList.remove("hidden");
             toast("Update error: " + String(e.message || e), "warn");
           });
       };
@@ -4894,6 +4912,465 @@
     });
   }
 
+  // ── Client panel ────────────────────────────────────────────────────────────
+
+  var LS_VS_RECENT_PATHS = "vs_queue_monitor_vs_recent_paths_v1";
+  var LS_VS_SERVER = "vs_queue_monitor_vs_server_v1";
+
+  function lsGetVsRecentPaths() {
+    try {
+      var raw = localStorage.getItem(LS_VS_RECENT_PATHS);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function lsAddVsRecentPath(raw, display) {
+    if (!raw) return;
+    try {
+      var list = lsGetVsRecentPaths().filter(function (x) { return x.raw !== raw; });
+      list.unshift({ raw: raw, display: display || raw });
+      if (list.length > 10) list = list.slice(0, 10);
+      localStorage.setItem(LS_VS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+  }
+  function lsRemoveVsRecentPath(raw) {
+    try {
+      var list = lsGetVsRecentPaths().filter(function (x) { return x.raw !== raw; });
+      localStorage.setItem(LS_VS_RECENT_PATHS, JSON.stringify(list));
+    } catch (e) {}
+  }
+
+  function syncVsPathDisplay() {
+    var inp = $("inpVsPath");
+    var tx = $("vsPathSummaryText");
+    var btn = $("vsPathSummary");
+    var raw = inp ? String(inp.value || "").trim() : "";
+    var s = window._lastState;
+    var display = (s && s.vs_install_path_display) || raw;
+    if (tx) {
+      tx.textContent = raw ? "‎" + display : "Select VS install folder…";
+      tx.classList.toggle("path-summary__text--has-path", !!raw);
+    }
+    if (btn) {
+      btn.classList.toggle("path-summary--empty", !raw);
+      btn.title = raw ? display : "Click to paste VS install folder path";
+    }
+  }
+
+  function updateVsRecentPathsButton() {
+    var btn = $("btnRecentVsPaths");
+    if (!btn) return;
+    var list = lsGetVsRecentPaths();
+    btn.classList.toggle("hidden", list.length === 0);
+    if (list.length === 0) closeVsRecentPathsPopover();
+  }
+
+  function closeVsRecentPathsPopover() {
+    var pop = $("popRecentVsPaths");
+    var btn = $("btnRecentVsPaths");
+    if (pop) pop.classList.add("hidden");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
+  function renderVsRecentPathsList() {
+    var pop = $("popRecentVsPaths");
+    if (!pop) return;
+    var list = lsGetVsRecentPaths();
+    var currentPath = ($("inpVsPath") && String($("inpVsPath").value || "").trim()) || "";
+    pop.innerHTML = "";
+    var ul = document.createElement("ul");
+    ul.className = "pop-recent-paths__list";
+    list.forEach(function (item) {
+      var li = document.createElement("li");
+      li.className = "pop-recent-paths__row";
+      var itemBtn = document.createElement("button");
+      itemBtn.type = "button";
+      itemBtn.className = "pop-recent-paths__item" + (item.raw === currentPath ? " pop-recent-paths__item--active" : "");
+      itemBtn.title = item.display || item.raw;
+      itemBtn.textContent = item.display || item.raw;
+      itemBtn.onclick = function () {
+        var inp = $("inpVsPath");
+        if (inp) { inp.value = item.raw; syncVsPathDisplay(); }
+        closeVsRecentPathsPopover();
+        postConfig({ vs_install_path: item.raw })
+          .then(function () { toast("VS folder restored from history"); refreshVsPanel(); })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "pop-recent-paths__remove";
+      removeBtn.title = "Remove from history";
+      removeBtn.setAttribute("aria-label", "Remove from history");
+      removeBtn.textContent = "\xd7";
+      removeBtn.onclick = function (ev) {
+        ev.stopPropagation();
+        lsRemoveVsRecentPath(item.raw);
+        renderVsRecentPathsList();
+        updateVsRecentPathsButton();
+      };
+      li.appendChild(itemBtn);
+      li.appendChild(removeBtn);
+      ul.appendChild(li);
+    });
+    pop.appendChild(ul);
+  }
+
+  function refreshVsPanel() {
+    var s = window._lastState;
+    var exeOk = s && s.vs_exe_found;
+    var installPath = s && s.vs_install_path || ($("inpVsPath") && $("inpVsPath").value.trim()) || "";
+    var exeEl = $("vsExeStatus");
+    if (exeEl) {
+      if (!installPath) {
+        exeEl.textContent = "";
+        exeEl.className = "client-panel__exe-status";
+      } else if (exeOk) {
+        exeEl.textContent = "✔ exe found";
+        exeEl.className = "client-panel__exe-status client-panel__exe-status--ok";
+      } else {
+        exeEl.textContent = "✗ Vintagestory.exe not found";
+        exeEl.className = "client-panel__exe-status client-panel__exe-status--err";
+      }
+    }
+    var connectBtn = $("btnVsConnect");
+    var disconnectBtn = $("btnVsDisconnect");
+    var sel = $("selVsServer");
+    if (connectBtn) connectBtn.disabled = !exeOk || !sel || !sel.value;
+    if (disconnectBtn) {
+      fetch("/api/vs/status").then(function (r) { return r.json(); }).then(function (j) {
+        if (disconnectBtn) disconnectBtn.disabled = !j.running;
+      }).catch(function () {});
+    }
+  }
+
+  function loadVsServers() {
+    var sel = $("selVsServer");
+    if (!sel) return;
+    fetch("/api/vs/servers").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      var saved = "";
+      try { saved = localStorage.getItem(LS_VS_SERVER) || ""; } catch (e) {}
+      while (sel.options.length > 1) sel.remove(1);
+      (j.servers || []).forEach(function (srv) {
+        var opt = document.createElement("option");
+        opt.value = srv.host;
+        opt.textContent = srv.name ? srv.name + " (" + srv.host + ")" : srv.host;
+        sel.appendChild(opt);
+      });
+      if (saved) sel.value = saved;
+      refreshVsPanel();
+    }).catch(function () {});
+  }
+
+  function setupClientPanel() {
+    var toggleBtn = $("btnClientPanel");
+    var panel = $("clientPanel");
+    if (toggleBtn && panel) {
+      toggleBtn.onclick = function () {
+        var open = panel.classList.toggle("hidden");
+        toggleBtn.setAttribute("aria-expanded", String(!open));
+        if (!open) { loadVsServers(); }
+      };
+    }
+
+    var browseBtn = $("btnBrowseVsFolder");
+    if (browseBtn) {
+      browseBtn.onclick = function () {
+        pickPath("folder", $("inpVsPath") && $("inpVsPath").value.trim())
+          .then(function (j) {
+            if (j.cancelled || !j.path) return;
+            var inp = $("inpVsPath");
+            if (inp) inp.value = j.path;
+            syncVsPathDisplay();
+            return postConfig({ vs_install_path: j.path }).then(function () {
+              lsAddVsRecentPath(j.path, j.path);
+              updateVsRecentPathsButton();
+              toast("VS folder set");
+              refreshVsPanel();
+            });
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); });
+      };
+    }
+
+    var recentBtn = $("btnRecentVsPaths");
+    var recentPop = $("popRecentVsPaths");
+    if (recentBtn && recentPop) {
+      recentBtn.onclick = function (ev) {
+        ev.stopPropagation();
+        var open = recentPop.classList.contains("hidden");
+        if (open) {
+          renderVsRecentPathsList();
+          positionKpiPopover(recentPop, recentBtn);
+          recentBtn.setAttribute("aria-expanded", "true");
+        } else {
+          closeVsRecentPathsPopover();
+        }
+      };
+      document.addEventListener("click", function (ev) {
+        if (!recentPop.classList.contains("hidden") &&
+            !recentPop.contains(ev.target) && ev.target !== recentBtn) {
+          closeVsRecentPathsPopover();
+        }
+      });
+    }
+    updateVsRecentPathsButton();
+
+    var sel = $("selVsServer");
+    if (sel) {
+      sel.onchange = function () {
+        try { localStorage.setItem(LS_VS_SERVER, sel.value); } catch (e) {}
+        refreshVsPanel();
+      };
+    }
+
+    var connectBtn = $("btnVsConnect");
+    var cancelDelayBtn = $("btnVsCancelDelay");
+    var delayInp = $("inpDelayMin");
+
+    function _doConnect(host) {
+      if (connectBtn) connectBtn.disabled = true;
+      fetch("/api/vs/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host: host }),
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) { toast("Connect failed: " + (j.error || "unknown"), "warn"); if (connectBtn) connectBtn.disabled = false; return; }
+        toast("Launching Vintage Story…");
+        setTimeout(refreshVsPanel, 1500);
+      }).catch(function (e) { toast(String(e.message || e), "warn"); if (connectBtn) connectBtn.disabled = false; });
+    }
+
+    if (connectBtn) {
+      connectBtn.onclick = function () {
+        var host = sel && sel.value;
+        if (!host) { toast("Choose a server first", "warn"); return; }
+        var delayMin = delayInp ? Math.max(0, parseInt(delayInp.value, 10) || 0) : 0;
+        if (delayMin <= 0) { _doConnect(host); return; }
+        // Schedule server-side — survives browser close.
+        connectBtn.disabled = true;
+        fetch("/api/vs/connect_later", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: host, delay_sec: delayMin * 60 }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (!j.ok) { toast("Schedule failed: " + (j.error || "unknown"), "warn"); connectBtn.disabled = false; }
+          // State push/poll will update the countdown display.
+        }).catch(function (e) { toast(String(e.message || e), "warn"); connectBtn.disabled = false; });
+      };
+    }
+
+    if (cancelDelayBtn) {
+      cancelDelayBtn.onclick = function () {
+        fetch("/api/vs/connect_cancel", { method: "POST" }).catch(function () {});
+      };
+    }
+
+    var disconnectBtn = $("btnVsDisconnect");
+    if (disconnectBtn) {
+      disconnectBtn.onclick = function () {
+        disconnectBtn.disabled = true;
+        fetch("/api/vs/disconnect", { method: "POST" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j.ok) { toast("Disconnect failed: " + (j.error || "unknown"), "warn"); }
+            else { toast("Vintage Story closed"); }
+            refreshVsPanel();
+          })
+          .catch(function (e) { toast(String(e.message || e), "warn"); disconnectBtn.disabled = false; });
+      };
+    }
+  }
+
+  // Countdown display ticker — driven by server state, survives tab close/reopen.
+  var _countdownTicker = null;
+
+  function _startCountdownTicker(fireAt) {
+    if (_countdownTicker) { clearInterval(_countdownTicker); }
+    function _tick() {
+      var remaining = Math.max(0, Math.round(fireAt - Date.now() / 1000));
+      var btn = $("btnVsConnect");
+      if (btn) {
+        var m = Math.floor(remaining / 60), s = remaining % 60;
+        btn.textContent = "Connect in " + m + ":" + (s < 10 ? "0" : "") + s;
+      }
+    }
+    _tick();
+    _countdownTicker = setInterval(_tick, 1000);
+  }
+
+  function _stopCountdownTicker() {
+    if (_countdownTicker) { clearInterval(_countdownTicker); _countdownTicker = null; }
+  }
+
+  function applyVsStateToPanel(s) {
+    if (!s) return;
+    var inp = $("inpVsPath");
+    if (inp && s.vs_install_path !== undefined) {
+      inp.value = s.vs_install_path || "";
+      syncVsPathDisplay();
+      updateVsRecentPathsButton();
+      if (s.vs_install_path) lsAddVsRecentPath(s.vs_install_path, s.vs_install_path_display || s.vs_install_path);
+    }
+    // Reflect server-side pending connect across all clients.
+    var pc = s.pending_connect;
+    var connectBtn = $("btnVsConnect");
+    var cancelDelayBtn = $("btnVsCancelDelay");
+    var delayInp = $("inpDelayMin");
+    if (pc) {
+      if (connectBtn) connectBtn.disabled = true;
+      if (cancelDelayBtn) cancelDelayBtn.classList.remove("hidden");
+      if (delayInp) delayInp.disabled = true;
+      _startCountdownTicker(pc.fire_at);
+    } else {
+      _stopCountdownTicker();
+      if (connectBtn) { connectBtn.textContent = "Connect"; }
+      if (cancelDelayBtn) cancelDelayBtn.classList.add("hidden");
+      if (delayInp) delayInp.disabled = false;
+    }
+    refreshVsPanel();
+  }
+
+  safeInit("setupClientPanel", setupClientPanel);
+
+  // ── ngrok ────────────────────────────────────────────────────────────────
+
+  var _ngrokPollTimer = null;
+
+  function setNgrokUrl(url) {
+    var a = $("ngrokUrl");
+    if (!a) return;
+    if (url) {
+      a.href = url;
+      a.textContent = url.replace(/^https?:\/\//, "");
+      a.classList.remove("hidden");
+    } else {
+      a.classList.add("hidden");
+      a.href = "";
+      a.textContent = "";
+    }
+  }
+
+  function setNgrokRunning(running) {
+    var startBtn = $("btnNgrokStart");
+    var stopBtn = $("btnNgrokStop");
+    if (startBtn) startBtn.classList.toggle("hidden", running);
+    if (stopBtn) stopBtn.classList.toggle("hidden", !running);
+  }
+
+  function pollNgrokStatus() {
+    fetch("/api/ngrok/status").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      setNgrokRunning(j.running);
+      setNgrokUrl(j.url || "");
+      if (j.running) {
+        _ngrokPollTimer = setTimeout(pollNgrokStatus, 5000);
+      }
+    }).catch(function () {
+      _ngrokPollTimer = setTimeout(pollNgrokStatus, 10000);
+    });
+  }
+
+  function openNgrokGuide() {
+    var m = $("modalNgrokGuide");
+    if (m) {
+      m.classList.remove("hidden");
+      m.setAttribute("aria-hidden", "false");
+    }
+  }
+
+  function setupNgrok() {
+    var startBtn = $("btnNgrokStart");
+    var stopBtn = $("btnNgrokStop");
+    var emailInp = $("inpNgrokEmail");
+    var helpBtn = $("btnNgrokHelp");
+    if (helpBtn) helpBtn.onclick = openNgrokGuide;
+
+    var guideOk = $("btnNgrokGuideOk");
+    if (guideOk) {
+      guideOk.onclick = function () {
+        var m = $("modalNgrokGuide");
+        if (m) { m.classList.add("hidden"); m.setAttribute("aria-hidden", "true"); }
+      };
+    }
+
+    if (emailInp) {
+      emailInp.onblur = function () {
+        postConfig({ ngrok_email: emailInp.value.trim() }).catch(function () {});
+      };
+    }
+    if (startBtn) {
+      startBtn.onclick = function () {
+        var email = emailInp ? emailInp.value.trim() : "";
+        if (!email && !confirm("No auth email set — anyone with the tunnel URL can view your queue.\n\nStart tunnel anyway?")) return;
+        startBtn.disabled = true;
+        startBtn.textContent = "Starting…";
+        fetch("/api/ngrok/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email }),
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          startBtn.disabled = false;
+          startBtn.textContent = "Start tunnel";
+          if (!j.ok) {
+            var msg = j.error || "unknown";
+            if (msg.toLowerCase().indexOf("not found") !== -1 || msg.toLowerCase().indexOf("no such file") !== -1) {
+              openNgrokGuide();
+            } else {
+              toast("ngrok failed: " + msg, "warn");
+            }
+            return;
+          }
+          setNgrokRunning(true);
+          setNgrokUrl(j.url || "");
+          if (!j.url) {
+            toast("ngrok started — waiting for URL…");
+            _ngrokPollTimer = setTimeout(pollNgrokStatus, 2000);
+          } else {
+            toast("Tunnel open: " + j.url);
+          }
+        }).catch(function (e) {
+          startBtn.disabled = false;
+          startBtn.textContent = "Start tunnel";
+          toast(String(e.message || e), "warn");
+        });
+      };
+    }
+
+    if (stopBtn) {
+      stopBtn.onclick = function () {
+        stopBtn.disabled = true;
+        if (_ngrokPollTimer) { clearTimeout(_ngrokPollTimer); _ngrokPollTimer = null; }
+        fetch("/api/ngrok/stop", { method: "POST" }).then(function (r) { return r.json(); }).then(function (j) {
+          stopBtn.disabled = false;
+          setNgrokRunning(false);
+          setNgrokUrl("");
+          if (!j.ok) toast("ngrok stop failed: " + (j.error || "unknown"), "warn");
+          else toast("Tunnel closed");
+        }).catch(function (e) {
+          stopBtn.disabled = false;
+          toast(String(e.message || e), "warn");
+        });
+      };
+    }
+
+    // Sync initial state from server on page load.
+    fetch("/api/ngrok/status").then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) return;
+      setNgrokRunning(j.running);
+      setNgrokUrl(j.url || "");
+      if (j.running) _ngrokPollTimer = setTimeout(pollNgrokStatus, 5000);
+    }).catch(function () {});
+  }
+
+  function applyNgrokStateToPanel(s) {
+    if (!s) return;
+    var emailInp = $("inpNgrokEmail");
+    if (emailInp && s.ngrok_email !== undefined && document.activeElement !== emailInp) {
+      emailInp.value = s.ngrok_email || "";
+    }
+  }
+
+  safeInit("setupNgrok", setupNgrok);
   safeInit("setupChrome", setupChrome);
   safeInit("setupSettingsTabs", setupSettingsTabs);
   safeInit("setupPopovers", setupPopovers);
@@ -4958,7 +5435,7 @@
       if (agl && m.github_url) agl.href = m.github_url;
       window._metaVersion = m.version || "";
       if (m.version && m.whatsnew && m.whatsnew.length && lsGetSeenVersion() !== m.version) {
-        showWhatsNew(m.version, m.whatsnew);
+        showWhatsNew(m.version, m.whatsnew, m.github_url || "");
       }
       if (window._lastState) {
         window._displayState = buildDisplayState(window._lastState);
